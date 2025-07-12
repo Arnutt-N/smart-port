@@ -50,6 +50,12 @@ export class AuthService {
     if (!this.token) return false
     
     try {
+      // Handle demo tokens
+      if (this.token.startsWith('demo-token-')) {
+        return true
+      }
+      
+      // Handle real JWT tokens
       const payload = this.parseJWT(this.token)
       const currentTime = Date.now() / 1000
       return payload.exp > currentTime
@@ -78,13 +84,26 @@ export class AuthService {
   }
 
   loadTokensFromStorage() {
-    this.token = localStorage.getItem('auth_token')
-    this.refreshToken = localStorage.getItem('refresh_token')
+    this.token = localStorage.getItem('authToken') || localStorage.getItem('auth_token')
+    this.refreshToken = localStorage.getItem('refreshToken') || localStorage.getItem('refresh_token')
+    
+    // Also load user data
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      try {
+        this.user = JSON.parse(userData)
+      } catch (error) {
+        console.error('Error parsing user data:', error)
+      }
+    }
   }
 
   clearTokensFromStorage() {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user')
   }
 
   async getCurrentUser() {

@@ -1,18 +1,44 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+  --ring: #3b82f6;
+  --border: #e5e7eb; /* สี border default, เช่น gray-200 */
+}
+
+.semi-dark {
+  --background: #1f2937;
+  --foreground: #e5e7eb;
+  --accent-color: #3b82f6;
+  --border: #4b5563;
+  --ring: #3b82f6; /* หรือปรับตามธีม */
+}
+
+.light {
+  --background: #ffffff;
+  --foreground: #000000;
+  --accent-color: #3b82f6;
+  --border: #e5e7eb;
+  --ring: #3b82f6;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
 
 /* Custom Base Styles */
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
+
   html {
     scroll-behavior: smooth;
   }
@@ -21,57 +47,57 @@
 /* Custom Components */
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
   }
-  
+
   .btn-primary {
     @apply btn bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700;
   }
-  
+
   .btn-secondary {
     @apply btn bg-government-200 text-government-800 hover:bg-government-300;
   }
-  
+
   .btn-outline {
     @apply btn border border-primary-300 text-primary-600 hover:bg-primary-50;
   }
-  
+
   .btn-ghost {
     @apply btn hover:bg-gray-100 text-gray-700;
   }
-  
+
   .card {
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
   }
-  
+
   .card-header {
     @apply border-b border-gray-200 pb-4 mb-4;
   }
-  
+
   .input {
     @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
   }
-  
+
   .input-error {
     @apply border-red-300 focus:ring-red-500 focus:border-red-500;
   }
-  
+
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1;
   }
-  
+
   .sidebar {
     @apply w-64 bg-white shadow-sm border-r border-gray-200 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300;
   }
-  
+
   .sidebar-hidden {
     @apply -translate-x-full;
   }
-  
+
   .main-content {
     @apply ml-64 transition-all duration-300;
   }
-  
+
   .main-content-expanded {
     @apply ml-0;
   }
@@ -82,15 +108,15 @@
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
   }
-  
+
   .glass-effect {
     @apply bg-white/70 backdrop-blur-md border border-white/20;
   }
@@ -98,16 +124,20 @@
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(10px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0);
   }
@@ -135,7 +165,7 @@
   .no-print {
     display: none !important;
   }
-  
+
   body {
     @apply bg-white text-black;
   }

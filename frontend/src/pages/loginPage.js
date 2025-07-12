@@ -1,85 +1,119 @@
-// Login Page Component
+// Basic Login Page Implementation
 export class LoginPage {
-  constructor(authService, eventManager) {
+  constructor(authService, router) {
     this.authService = authService
-    this.eventManager = eventManager
-    this.isLoading = false
+    this.router = router
   }
 
   render() {
+    console.log('🖼️ Rendering login page...')
+    const app = document.getElementById('app')
+    
+    if (!app) {
+      console.error('❌ App element not found')
+      return
+    }
+    
+    app.innerHTML = this.getTemplate()
+    
+    // Wait a bit for DOM to be ready
+    setTimeout(() => {
+      this.setupEventListeners()
+    }, 100)
+    
+    console.log('✅ Login page rendered')
+  }
+
+  getTemplate() {
     return `
-      <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-government-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8">
-          <div class="text-center">
-            <img class="mx-auto h-16 w-auto" src="/logo.svg" alt="Smart Port Logo">
-            <h2 class="mt-6 text-3xl font-bold text-gray-900">ระบบสมุดพก</h2>
-            <p class="mt-2 text-sm text-gray-600">Smart Port Management System</p>
-            <p class="mt-1 text-xs text-gray-500">เข้าสู่ระบบเพื่อจัดการข้อมูลข้าราชการ</p>
+          <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              เข้าสู่ระบบสมุดพก
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+              Smart Port Management System
+            </p>
           </div>
-          
-          <form id="login-form" class="mt-8 space-y-6 bg-white p-8 rounded-xl shadow-lg">
-            <div class="space-y-4">
+          <form id="loginForm" class="mt-8 space-y-6">
+            <div class="rounded-md shadow-sm -space-y-px">
               <div>
-                <label for="username" class="label">ชื่อผู้ใช้</label>
-                <div class="relative">
-                  <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">person</span>
-                  <input 
-                    id="username" 
-                    name="username" 
-                    type="text" 
-                    required 
-                    class="input pl-10" 
-                    placeholder="กรอกชื่อผู้ใช้"
-                    autocomplete="username">
-                </div>
+                <label for="email" class="sr-only">อีเมล</label>
+                <input 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  required 
+                  class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
+                  placeholder="อีเมล"
+                  value="admin@smartport.com"
+                >
               </div>
-              
               <div>
-                <label for="password" class="label">รหัสผ่าน</label>
-                <div class="relative">
-                  <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">lock</span>
-                  <input 
-                    id="password" 
-                    name="password" 
-                    type="password" 
-                    required 
-                    class="input pl-10" 
-                    placeholder="กรอกรหัสผ่าน"
-                    autocomplete="current-password">
-                </div>
+                <label for="password" class="sr-only">รหัสผ่าน</label>
+                <input 
+                  id="password" 
+                  name="password" 
+                  type="password" 
+                  required 
+                  class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
+                  placeholder="รหัสผ่าน"
+                  value="password123"
+                >
               </div>
             </div>
 
             <div class="flex items-center justify-between">
               <div class="flex items-center">
-                <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded">
-                <label for="remember-me" class="ml-2 block text-sm text-gray-900">จำรหัสผ่าน</label>
-              </div>
-              <div class="text-sm">
-                <a href="#" class="font-medium text-primary-600 hover:text-primary-500">ลืมรหัสผ่าน?</a>
+                <input 
+                  id="remember" 
+                  name="remember" 
+                  type="checkbox" 
+                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                >
+                <label for="remember" class="ml-2 block text-sm text-gray-900">
+                  จดจำการเข้าสู่ระบบ
+                </label>
               </div>
             </div>
 
             <div>
               <button 
                 type="submit" 
-                id="login-button"
-                class="btn-primary w-full py-3 text-base font-medium">
-                <span id="login-text">เข้าสู่ระบบ</span>
-                <span id="login-spinner" class="hidden ml-2">
-                  <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </span>
+                id="loginButton"
+                class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                เข้าสู่ระบบ
               </button>
             </div>
 
+            <div id="errorMessage" class="hidden">
+              <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                <span id="errorText"></span>
+              </div>
+            </div>
+
             <div class="text-center">
-              <p class="text-xs text-gray-500 mt-4">
-                เข้าสู่ระบบด้วยบัญชีราชการของคุณ<br>
-                สำหรับการสนับสนุน กรุณาติดต่อ IT Support
-              </p>
+              <div class="text-sm text-gray-600">
+                <p class="mb-2">ข้อมูลสำหรับทดสอบ:</p>
+                <p><strong>อีเมล:</strong> admin@smartport.com</p>
+                <p><strong>รหัสผ่าน:</strong> password123</p>
+                <button 
+                  type="button" 
+                  onclick="document.getElementById('email').value='admin@smartport.com'; document.getElementById('password').value='password123';"
+                  class="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                >
+                  เติมข้อมูลทดสอบ
+                </button>
+                <button 
+                  type="button" 
+                  onclick="SmartPortDebug.navigate('/dashboard')"
+                  class="mt-2 ml-2 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+                >
+                  ข้าม Login (Debug)
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -87,72 +121,94 @@ export class LoginPage {
     `
   }
 
-  bindEvents() {
-    const form = document.getElementById('login-form')
-    const usernameInput = document.getElementById('username')
-    const passwordInput = document.getElementById('password')
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault()
-      await this.handleLogin()
-    })
-
-    // Enter key handling
-    [usernameInput, passwordInput].forEach(input => {
-      input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          this.handleLogin()
-        }
-      })
-    })
-
-    // Auto-focus on username
-    setTimeout(() => {
-      usernameInput.focus()
-    }, 100)
-  }
-
-  async handleLogin() {
-    if (this.isLoading) return
-
-    const username = document.getElementById('username').value.trim()
-    const password = document.getElementById('password').value
-
-    if (!username || !password) {
-      this.eventManager.emit('ui:error', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน')
+  setupEventListeners() {
+    const form = document.getElementById('loginForm')
+    const button = document.getElementById('loginButton')
+    
+    if (!form || !button) {
+      console.error('Login form elements not found')
       return
     }
-
-    this.setLoading(true)
-
-    try {
-      const user = await this.authService.login({ username, password })
-      this.eventManager.emit('ui:success', `ยินดีต้อนรับ ${user.name || username}`)
-      this.eventManager.emit('auth:login', user)
-    } catch (error) {
-      console.error('Login error:', error)
-      this.eventManager.emit('ui:error', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
-    } finally {
-      this.setLoading(false)
-    }
+    
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      console.log('🔐 Login form submitted')
+      
+      const email = document.getElementById('email').value
+      const password = document.getElementById('password').value
+      
+      console.log('📧 Email:', email)
+      console.log('🔑 Password length:', password.length)
+      
+      if (!email || !password) {
+        this.showError('กรุณากรอกอีเมลและรหัสผ่าน')
+        return
+      }
+      
+      button.disabled = true
+      button.textContent = 'กำลังเข้าสู่ระบบ...'
+      
+      try {
+        // For demo purposes, simulate login
+        if (email === 'admin@smartport.com' && password === 'password123') {
+          console.log('✅ Demo login successful')
+          
+          // Create demo tokens
+          const demoToken = 'demo-token-' + Date.now()
+          const demoRefreshToken = 'demo-refresh-token-' + Date.now()
+          
+          console.log('🎟️ Setting tokens:', demoToken)
+          
+          // Set tokens in AuthService
+          this.authService.token = demoToken
+          this.authService.refreshToken = demoRefreshToken
+          this.authService.user = {
+            id: 1,
+            email: email,
+            name: 'ผู้ดูแลระบบ',
+            role: 'admin'
+          }
+          
+          // Save to localStorage
+          localStorage.setItem('authToken', demoToken)
+          localStorage.setItem('refreshToken', demoRefreshToken)
+          localStorage.setItem('user', JSON.stringify(this.authService.user))
+          
+          console.log('💾 Tokens saved to localStorage')
+          console.log('🔍 Token valid check:', this.authService.isTokenValid())
+          
+          console.log('🎯 Redirecting to dashboard...')
+          
+          // Small delay to ensure state is set
+          setTimeout(() => {
+            this.router.navigate('/dashboard')
+          }, 100)
+          
+        } else {
+          throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+        }
+        
+      } catch (error) {
+        console.error('❌ Login error:', error)
+        this.showError(error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
+      }
+      
+      button.disabled = false
+      button.textContent = 'เข้าสู่ระบบ'
+    })
+    
+    console.log('📝 Login event listeners setup complete')
   }
 
-  setLoading(loading) {
-    this.isLoading = loading
-    const button = document.getElementById('login-button')
-    const text = document.getElementById('login-text')
-    const spinner = document.getElementById('login-spinner')
-
-    if (loading) {
-      button.disabled = true
-      button.classList.add('opacity-75')
-      text.textContent = 'กำลังเข้าสู่ระบบ...'
-      spinner.classList.remove('hidden')
-    } else {
-      button.disabled = false
-      button.classList.remove('opacity-75')
-      text.textContent = 'เข้าสู่ระบบ'
-      spinner.classList.add('hidden')
-    }
+  showError(message) {
+    const errorDiv = document.getElementById('errorMessage')
+    const errorText = document.getElementById('errorText')
+    
+    errorText.textContent = message
+    errorDiv.classList.remove('hidden')
+    
+    setTimeout(() => {
+      errorDiv.classList.add('hidden')
+    }, 5000)
   }
 }

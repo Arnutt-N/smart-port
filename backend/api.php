@@ -16,22 +16,69 @@ include 'auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
-$token = isset($_SERVER['HTTP_AUTHORIZATION']) ? str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']) : null;
 
-if ($path[0] !== 'login' && !validateJWT($token)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
+// Remove 'api' from path if present
+if ($path[0] === 'api') {
+    array_shift($path);
+}
+
+$token = getAuthHeader();
+
+// Skip authentication for login and options
+if (!in_array($path[0], ['login', 'auth']) && $method !== 'OPTIONS') {
+    if (!$token || !validateJWT($token)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
 }
 
 switch ($path[0]) {
+    case 'auth':
+        if ($path[1] === 'login' && $method == 'POST') {
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            // รองรับทั้ง email/password และ username/password
+            $email = $data['email'] ?? $data['username'] ?? '';
+            $password = $data['password'] ?? '';
+            
+            // Simple validation (ควรเช็คกับ database จริง)
+            if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
+                $token = generateJWT(1); // user_id = 1
+                echo json_encode([
+                    'token' => $token,
+                    'user' => [
+                        'id' => 1,
+                        'email' => 'admin@smartport.gov.th',
+                        'name' => 'Administrator'
+                    ]
+                ]);
+            } else {
+                http_response_code(401);
+                echo json_encode(['error' => 'Invalid credentials']);
+            }
+        }
+        break;
+
     case 'login':
         if ($method == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
-            // Simulate login (ในจริง check database)
-            if ($data['username'] == 'admin' && $data['password'] == 'admin') {
+            
+            // รองรับทั้ง email/password และ username/password
+            $email = $data['email'] ?? $data['username'] ?? '';
+            $password = $data['password'] ?? '';
+            
+            // Simple validation (ควรเช็คกับ database จริง)
+            if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
                 $token = generateJWT(1); // user_id = 1
-                echo json_encode(['token' => $token]);
+                echo json_encode([
+                    'token' => $token,
+                    'user' => [
+                        'id' => 1,
+                        'email' => 'admin@smartport.gov.th',
+                        'name' => 'Administrator'
+                    ]
+                ]);
             } else {
                 http_response_code(401);
                 echo json_encode(['error' => 'Invalid credentials']);
@@ -77,6 +124,67 @@ switch ($path[0]) {
         }
         break;
 
+    case 'civil-servants':
+        if ($method == 'GET') {
+            $search = $_GET['search'] ?? '';
+            $limit = intval($_GET['limit'] ?? 20);
+            $offset = intval($_GET['offset'] ?? 0);
+            
+            // Build search query
+            $searchQuery = '';
+            $params = [];
+            
+            if (!empty($search)) {
+                $searchQuery = " WHERE (cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)";
+                $searchTerm = "%{$search}%";
+                $params = [$searchTerm, $searchTerm, $searchTerm];
+            } else {
+                $searchQuery = " WHERE 1=1";
+            }
+            
+            $sql = "
+                SELECT 
+                    cs.servant_id,
+                    cs.employee_id,
+                    cs.citizen_id,
+                    CONCAT(p.prefix_name_th, cs.first_name, ' ', cs.last_name) as full_name,
+                    cs.first_name,
+                    cs.last_name,
+                    cs.birth_date,
+                    cs.appointment_date,
+                    cs.retirement_date,
+                    cs.servant_status
+                FROM civil_servants cs
+                LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                {$searchQuery}
+                AND cs.is_active = 1
+                ORDER BY cs.first_name, cs.last_name
+                LIMIT {$limit} OFFSET {$offset}
+            ";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Get total count for pagination
+            $countSql = "SELECT COUNT(*) as total FROM civil_servants cs {$searchQuery}";
+            $countStmt = $pdo->prepare($countSql);
+            $countStmt->execute($params);
+            $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+            
+            echo json_encode([
+                'success' => true,
+                'data' => $servants,
+                'pagination' => [
+                    'total' => $total,
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'has_more' => ($offset + $limit) < $total
+                ]
+            ]);
+        }
+        break;
+
     case 'dashboard':
         if ($method == 'GET') {
             // Dashboard analytics and statistics
@@ -109,7 +217,10 @@ switch ($path[0]) {
             
             echo json_encode([
                 'success' => true,
-                'data' => $stats
+                'total_civil_servants' => $stats['total_servants'],
+                'upcoming_retirements' => $stats['upcoming_retirements'],
+                'pending_notifications' => $stats['pending_notifications'],
+                'recent_proposals' => $stats['recent_proposals']
             ]);
         }
         break;

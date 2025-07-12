@@ -76,6 +76,16 @@ export class Router {
     this.navigate('/login')
   }
 
+  redirectToDefaultPage() {
+    // Redirect to default page based on authentication status
+    const token = localStorage.getItem('authToken')
+    if (token) {
+      this.navigate('/dashboard')
+    } else {
+      this.navigate('/login')
+    }
+  }
+
   start() {
     // Handle browser back/forward
     window.addEventListener('popstate', () => {
