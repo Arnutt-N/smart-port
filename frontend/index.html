@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ระบบสมุดพก - Smart Port Management System สำหรับการจัดการข้อมูลข้าราชการ">
+  <meta name="keywords" content="ระบบสมุดพก, Smart Port, Government, HR Management">
+  <meta name="author" content="Smart Port Development Team">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Smart Port">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Material Design Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <title>ระบบสมุดพก | Smart Port Management System</title>
+</head>
+<body class="font-thai bg-gray-50 antialiased">
+  <!-- Loading Screen -->
+  <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto mb-4"></div>
+      <p class="text-gray-600 font-medium">กำลังโหลด...</p>
+    </div>
+  </div>
+
+  <!-- App Container -->
+  <div id="app" class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav id="navbar" class="hidden bg-white shadow-sm border-b border-gray-200">
+      <!-- Navigation content will be inserted here -->
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content" class="transition-all duration-300">
+      <!-- Page content will be inserted here -->
+    </main>
+
+    <!-- Footer -->
+    <footer id="footer" class="hidden bg-government-800 text-white py-8">
+      <!-- Footer content will be inserted here -->
+    </footer>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="fixed top-4 right-4 z-40 space-y-2">
+    <!-- Toast notifications will be inserted here -->
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-container" class="hidden fixed inset-0 z-50">
+    <!-- Modals will be inserted here -->
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

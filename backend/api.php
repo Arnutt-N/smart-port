@@ -1,0 +1,163 @@
+<?php
+// Smart Port Management System - Enhanced API Gateway
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+include 'config.php';
+include 'auth.php';
+
+$method = $_SERVER['REQUEST_METHOD'];
+$path = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
+$token = isset($_SERVER['HTTP_AUTHORIZATION']) ? str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']) : null;
+
+if ($path[0] !== 'login' && !validateJWT($token)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
+switch ($path[0]) {
+    case 'login':
+        if ($method == 'POST') {
+            $data = json_decode(file_get_contents('php://input'), true);
+            // Simulate login (ในจริง check database)
+            if ($data['username'] == 'admin' && $data['password'] == 'admin') {
+                $token = generateJWT(1); // user_id = 1
+                echo json_encode(['token' => $token]);
+            } else {
+                http_response_code(401);
+                echo json_encode(['error' => 'Invalid credentials']);
+            }
+        }
+        break;
+
+    case 'profile':
+        $id = $path[1] ?? null;
+        if ($method == 'GET' && $id) {
+            $stmt = $pdo->prepare("SELECT * FROM v_civil_servants_current WHERE servant_id = ?");
+            $stmt->execute([$id]);
+            $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+            echo json_encode($profile ?: ['error' => 'Not found']);
+        }
+        break;
+
+    case 'photos':
+        if ($method == 'POST') {
+            $servant_id = $_POST['servant_id'];
+            $file = $_FILES['photo'];
+            $file_name = basename($file['name']);
+            $file_path = UPLOAD_DIR . $file_name;
+            if (move_uploaded_file($file['tmp_name'], $file_path)) {
+                $stmt = $pdo->prepare("INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)");
+                $stmt->execute([$servant_id, $file_name, $file_path]);
+                $photo_id = $pdo->lastInsertId();
+                // Call procedure
+                $pdo->query("CALL sp_generate_photo_versions($photo_id)");
+                echo json_encode(['success' => true, 'path' => $file_path]);
+            } else {
+                echo json_encode(['error' => 'Upload failed']);
+            }
+        }
+        break;
+
+    case 'forecast':
+        if ($method == 'GET') {
+            $pdo->query("CALL sp_calculate_promotion_eligibility()");
+            $stmt = $pdo->query("SELECT * FROM advance_notifications");
+            $forecasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($forecasts);
+        }
+        break;
+
+    case 'dashboard':
+        if ($method == 'GET') {
+            // Dashboard analytics and statistics
+            $stats = [];
+            
+            // Total civil servants
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM civil_servants WHERE is_active = 1");
+            $stats['total_servants'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+            
+            // Upcoming retirements (next 2 years)
+            $stmt = $pdo->query("
+                SELECT COUNT(*) as count 
+                FROM civil_servants 
+                WHERE retirement_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 2 YEAR)
+                AND is_active = 1
+            ");
+            $stats['upcoming_retirements'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            
+            // Pending notifications
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM advance_notifications WHERE status = 'pending'");
+            $stats['pending_notifications'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            
+            // Recent performance proposals
+            $stmt = $pdo->query("
+                SELECT COUNT(*) as count 
+                FROM performance_proposals 
+                WHERE submission_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            ");
+            $stats['recent_proposals'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            
+            echo json_encode([
+                'success' => true,
+                'data' => $stats
+            ]);
+        }
+        break;
+
+    case 'candidates':
+        if ($method == 'GET') {
+            // Get candidate lists or search candidates
+            $search = $_GET['search'] ?? '';
+            $limit = intval($_GET['limit'] ?? 20);
+            $offset = intval($_GET['offset'] ?? 0);
+            
+            if ($search) {
+                // Search for candidates
+                $stmt = $pdo->prepare("
+                    SELECT cs.*, p.prefix_name_th, csp.file_path as photo_path
+                    FROM civil_servants cs
+                    LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                    LEFT JOIN civil_servant_photos csp ON cs.servant_id = csp.servant_id AND csp.is_primary = TRUE
+                    WHERE (cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)
+                    AND cs.is_active = 1
+                    ORDER BY cs.last_name, cs.first_name
+                    LIMIT ? OFFSET ?
+                ");
+                $searchTerm = "%$search%";
+                $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
+            } else {
+                // Get all candidates
+                $stmt = $pdo->prepare("
+                    SELECT cs.*, p.prefix_name_th, csp.file_path as photo_path
+                    FROM civil_servants cs
+                    LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                    LEFT JOIN civil_servant_photos csp ON cs.servant_id = csp.servant_id AND csp.is_primary = TRUE
+                    WHERE cs.is_active = 1
+                    ORDER BY cs.last_name, cs.first_name
+                    LIMIT ? OFFSET ?
+                ");
+                $stmt->execute([$limit, $offset]);
+            }
+            
+            $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode([
+                'success' => true,
+                'data' => $candidates
+            ]);
+        }
+        break;
+
+    default:
+        http_response_code(404);
+        echo json_encode(['error' => 'Not found']);
+}

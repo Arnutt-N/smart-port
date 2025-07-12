@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="th" dir="ltr"> <!-- LTR direction -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - ระบบสมุดพก</title>
+    <link href="./style.css" rel="stylesheet"> <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- สำหรับ data viz -->
+</head>
+
+<body class="bg-gray-800 text-gray-200 min-h-screen flex semi-dark"> <!-- Semi-dark theme default -->
+
+    <!-- Left Sidebar Menu (Modern vertical menu, collapsible) -->
+    <aside class="w-64 bg-gray-900 h-screen p-4 fixed left-0 top-0 overflow-y-auto">
+        <h2 class="text-xl font-bold mb-4 text-white">เมนู</h2>
+        <nav>
+            <ul>
+                <li><a href="#dashboard" class="block py-2 px-4 hover:bg-gray-700 rounded">แดชบอร์ด</a></li>
+                <li><a href="#profile" class="block py-2 px-4 hover:bg-gray-700 rounded">โปรไฟล์</a></li>
+                <li><a href="#photos" class="block py-2 px-4 hover:bg-gray-700 rounded">จัดการภาพ</a></li>
+                <li><a href="#forecast" class="block py-2 px-4 hover:bg-gray-700 rounded">การคาดการณ์</a></li>
+                <li><a href="#settings" class="block py-2 px-4 hover:bg-gray-700 rounded">ตั้งค่า</a></li>
+            </ul>
+        </nav>
+        <!-- Theme Switcher (เลือก theme อื่นๆ) -->
+        <div class="mt-8">
+            <label class="block text-sm mb-2">เลือกธีม</label>
+            <select id="theme-select" class="bg-gray-800 text-white p-2 rounded w-full">
+                <option value="semi-dark">Semi-Dark (Default)</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="bordered">Bordered</option>
+            </select>
+        </div>
+    </aside>
+
+    <!-- Main Content (Shifted right for sidebar) -->
+    <main class="ml-64 p-8 flex-1">
+        <h1 class="text-3xl font-bold mb-6">ยินดีต้อนรับสู่ Admin Panel</h1>
+
+        <!-- Dashboard Section (Modern data viz with Chart.js) -->
+        <section id="dashboard" class="mb-8">
+            <h2 class="text-2xl mb-4">แดชบอร์ด</h2>
+            <canvas id="statsChart" class="bg-gray-700 p-4 rounded"></canvas> <!-- Placeholder สำหรับ chart -->
+        </section>
+
+        <!-- Profile Section -->
+        <section id="profile" class="mb-8">
+            <h2 class="text-2xl mb-4">โปรไฟล์ 360°</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>ชื่อ: [ข้อมูลจาก API]</div>
+                <div>ตำแหน่ง: [ข้อมูลจาก API]</div>
+            </div>
+        </section>
+
+        <!-- Photos Section -->
+        <section id="photos" class="mb-8">
+            <h2 class="text-2xl mb-4">จัดการภาพ</h2>
+            <input type="file" class="mb-2">
+            <button class="bg-blue-500 text-white p-2 rounded">อัพโหลด</button>
+        </section>
+
+        <!-- Forecast Section -->
+        <section id="forecast">
+            <h2 class="text-2xl mb-4">การคาดการณ์</h2>
+            <ul class="list-disc pl-5">
+                <li>เลื่อนตำแหน่ง: [ข้อมูลจาก API]</li>
+            </ul>
+        </section>
+    </main>
+
+    <script src="./main.js"></script>
+</body>
+
+</html>

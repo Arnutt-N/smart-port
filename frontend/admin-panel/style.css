@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Semi-Dark Theme (โทนเทาเข้ม - default) */
+.semi-dark {
+  --bg-color: #1f2937; /* gray-800 */
+  --text-color: #e5e7eb; /* gray-200 */
+  --accent-color: #3b82f6; /* blue-500 */
+}
+
+/* Light Theme */
+.light {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --accent-color: #3b82f6;
+}
+
+/* Dark Theme */
+.dark {
+  --bg-color: #111827; /* gray-900 */
+  --text-color: #ffffff;
+  --accent-color: #3b82f6;
+}
+
+/* Bordered Theme (เพิ่ม border) */
+.bordered {
+  --bg-color: #1f2937;
+  --text-color: #e5e7eb;
+  --accent-color: #3b82f6;
+}
+.bordered section { border: 1px solid #4b5563; border-radius: 8px; padding: 16px; }
+
+/* Apply variables */
+body { background-color: var(--bg-color); color: var(--text-color); }
+button { background-color: var(--accent-color); }
