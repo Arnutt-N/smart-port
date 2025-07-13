@@ -1,7 +1,7 @@
 <?php
 // Smart Port Management System - Enhanced API Gateway
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://smart-port.onrender.com');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
@@ -37,11 +37,11 @@ switch ($path[0]) {
     case 'auth':
         if ($path[1] === 'login' && $method == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
-            
+
             // รองรับทั้ง email/password และ username/password
             $email = $data['email'] ?? $data['username'] ?? '';
             $password = $data['password'] ?? '';
-            
+
             // Simple validation (ควรเช็คกับ database จริง)
             if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
                 $token = generateJWT(1); // user_id = 1
@@ -63,11 +63,11 @@ switch ($path[0]) {
     case 'login':
         if ($method == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
-            
+
             // รองรับทั้ง email/password และ username/password
             $email = $data['email'] ?? $data['username'] ?? '';
             $password = $data['password'] ?? '';
-            
+
             // Simple validation (ควรเช็คกับ database จริง)
             if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
                 $token = generateJWT(1); // user_id = 1
@@ -129,11 +129,11 @@ switch ($path[0]) {
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
             $offset = intval($_GET['offset'] ?? 0);
-            
+
             // Build search query
             $searchQuery = '';
             $params = [];
-            
+
             if (!empty($search)) {
                 $searchQuery = " WHERE (cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)";
                 $searchTerm = "%{$search}%";
@@ -141,7 +141,7 @@ switch ($path[0]) {
             } else {
                 $searchQuery = " WHERE 1=1";
             }
-            
+
             $sql = "
                 SELECT 
                     cs.servant_id,
@@ -161,17 +161,17 @@ switch ($path[0]) {
                 ORDER BY cs.first_name, cs.last_name
                 LIMIT {$limit} OFFSET {$offset}
             ";
-            
+
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // Get total count for pagination
             $countSql = "SELECT COUNT(*) as total FROM civil_servants cs {$searchQuery}";
             $countStmt = $pdo->prepare($countSql);
             $countStmt->execute($params);
             $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-            
+
             echo json_encode([
                 'success' => true,
                 'data' => $servants,
@@ -189,11 +189,11 @@ switch ($path[0]) {
         if ($method == 'GET') {
             // Dashboard analytics and statistics
             $stats = [];
-            
+
             // Total civil servants
             $stmt = $pdo->query("SELECT COUNT(*) as total FROM civil_servants WHERE is_active = 1");
             $stats['total_servants'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-            
+
             // Upcoming retirements (next 2 years)
             $stmt = $pdo->query("
                 SELECT COUNT(*) as count 
@@ -202,11 +202,11 @@ switch ($path[0]) {
                 AND is_active = 1
             ");
             $stats['upcoming_retirements'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-            
+
             // Pending notifications
             $stmt = $pdo->query("SELECT COUNT(*) as count FROM advance_notifications WHERE status = 'pending'");
             $stats['pending_notifications'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-            
+
             // Recent performance proposals
             $stmt = $pdo->query("
                 SELECT COUNT(*) as count 
@@ -214,7 +214,7 @@ switch ($path[0]) {
                 WHERE submission_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
             ");
             $stats['recent_proposals'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-            
+
             echo json_encode([
                 'success' => true,
                 'total_civil_servants' => $stats['total_servants'],
@@ -231,7 +231,7 @@ switch ($path[0]) {
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
             $offset = intval($_GET['offset'] ?? 0);
-            
+
             if ($search) {
                 // Search for candidates
                 $stmt = $pdo->prepare("
@@ -259,7 +259,7 @@ switch ($path[0]) {
                 ");
                 $stmt->execute([$limit, $offset]);
             }
-            
+
             $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode([
                 'success' => true,
