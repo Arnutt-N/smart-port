@@ -7,6 +7,7 @@ import { ApiService } from './services/apiService.js'
 import { UIComponents } from './components/uiComponents.js'
 import { AdminDashboard } from './components/admin/AdminDashboard.js'
 import { CandidateListsPage } from './pages/CandidateListsPage.js'
+import { ProbationEndPage } from './pages/ProbationEndPage.js'
 import './utils/debug.js'
 import './utils/loginTest.js'
 
@@ -19,6 +20,7 @@ class SmartPortApp {
     this.uiComponents = new UIComponents()
     this.adminDashboard = new AdminDashboard(this.router, this.authService)
     this.candidateListsPage = new CandidateListsPage(this.router, this.authService)
+    this.probationEndPage = new ProbationEndPage(this.router, this.authService)
     
     this.currentUser = null
     this.isLoading = false
@@ -113,6 +115,7 @@ class SmartPortApp {
     this.router.addRoute('/candidates/academic', () => this.loadCandidateListsPage('academic'))
     this.router.addRoute('/candidates/support', () => this.loadCandidateListsPage('administrative'))
     this.router.addRoute('/candidates/management', () => this.loadCandidateListsPage('management'))
+    this.router.addRoute('/probation-end', () => this.loadProbationEndPage())
     this.router.addRoute('/analytics', () => this.loadAnalyticsPage())
     this.router.addRoute('/admin', () => this.loadAdminPage())
     
@@ -317,6 +320,37 @@ class SmartPortApp {
     } catch (error) {
       console.error('Error loading admin:', error)
       this.showError('ไม่สามารถโหลดหน้าการจัดการได้')
+    }
+  }
+
+  async loadProbationEndPage() {
+    try {
+      console.log('📝 Loading Probation End Page...')
+      
+      if (!this.authService.getToken() || !this.authService.isTokenValid()) {
+        this.router.navigate('/login')
+        return
+      }
+
+      // ต้องมี AdminDashboard ก่อน เพื่อให้มี sidebar
+      if (!window.adminDashboard) {
+        window.adminDashboard = this.adminDashboard
+      }
+      
+      // Render AdminDashboard ก่อนเพื่อสร้าง sidebar
+      this.adminDashboard.render()
+      
+      // Render the probation end page content
+      this.probationEndPage.render()
+      
+      // Make it globally accessible for event handlers
+      window.probationEndPage = this.probationEndPage
+      
+      console.log('✅ Probation End Page loaded successfully')
+      
+    } catch (error) {
+      console.error('Error loading probation end page:', error)
+      this.showError('ไม่สามารถโหลดหน้าพ้นทดลองปฏิบัติราชการได้')
     }
   }
 

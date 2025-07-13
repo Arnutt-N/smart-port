@@ -317,14 +317,16 @@ export class AdminDashboard {
       routePath = '/candidates/support'
     } else if (itemId === 'management') {
       routePath = '/candidates/management'
+    } else if (itemId === 'probation-end') {
+      routePath = '/probation-end'
     }
     
-    // ถ้าเป็น submenu item ให้ navigate ไปยัง route ใหม่
+    // ถ้าเป็น submenu item หรือ probation-end ให้ navigate ไปยัง route ใหม่
     if (routePath) {
       this.activeMenuItem = itemId
       this.sidebarOpen = false
       
-      // Navigate to candidate lists page
+      // Navigate to appropriate page
       if (this.router) {
         this.router.navigate(routePath)
       }
