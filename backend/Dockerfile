@@ -14,20 +14,17 @@ RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optim
 # =========================================================================
 FROM php:8.3-apache
 
-# --- FIX ---
-# ไม่ต้องเปลี่ยน DocumentRoot เพราะโปรเจกต์นี้ไม่มีโฟลเดอร์ public
-# Apache จะใช้ค่า default คือ /var/www/html ซึ่งถูกต้องแล้ว
-# ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-# RUN sed -ri ...
-
 # เปิดใช้งาน mod_rewrite สำหรับ routing (เช่น .htaccess)
 RUN a2enmod rewrite
 
-# ติดตั้ง PHP extensions ที่จำเป็นสำหรับโปรเจกต์
+# --- FIX for PostgreSQL ---
+# ติดตั้ง client library ของ PostgreSQL (libpq-dev)
+# และติดตั้ง PHP extension สำหรับ PostgreSQL (pdo_pgsql) แทน pdo_mysql
 RUN apt-get update && apt-get install -y \
+    libpq-dev \
     libzip-dev \
     unzip \
-    && docker-php-ext-install pdo_mysql zip \
+    && docker-php-ext-install pdo_pgsql zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
@@ -39,7 +36,6 @@ COPY . .
 COPY --from=vendor /app/vendor/ ./vendor/
 
 # สร้าง directory สำหรับ uploads และกำหนดสิทธิ์ให้ Apache
-# แยก storage ออกจาก source code เพื่อความปลอดภัย
 RUN mkdir -p /var/www/html/uploads \
     && chown -R www-data:www-data /var/www/html/uploads
 
