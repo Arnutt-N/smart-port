@@ -10,15 +10,18 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
+    // ลบ "jsx": "react-jsx" เพราะไม่จำเป็นใน Vanilla JS
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,  // เปลี่ยนเป็น true เพื่อ strict มากขึ้น
+    "noUnusedParameters": true,  // เปลี่ยนเป็น true
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "allowJs": true,  // เพิ่มเพื่อ support .js files ใน Vanilla
+    "esModuleInterop": true,  // เพิ่มสำหรับ import modules
+    "types": ["vite/client"]  // เพิ่มสำหรับ Vite env types
   },
   "include": ["src/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]

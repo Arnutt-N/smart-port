@@ -6,6 +6,7 @@ import { AuthService } from './services/authService.js'
 import { ApiService } from './services/apiService.js'
 import { UIComponents } from './components/uiComponents.js'
 import { AdminDashboard } from './components/admin/AdminDashboard.js'
+import { CandidateListsPage } from './pages/CandidateListsPage.js'
 import './utils/debug.js'
 import './utils/loginTest.js'
 
@@ -17,6 +18,7 @@ class SmartPortApp {
     this.apiService = new ApiService()
     this.uiComponents = new UIComponents()
     this.adminDashboard = new AdminDashboard(this.router, this.authService)
+    this.candidateListsPage = new CandidateListsPage(this.router, this.authService)
     
     this.currentUser = null
     this.isLoading = false
@@ -107,6 +109,10 @@ class SmartPortApp {
     this.router.addRoute('/dashboard', () => this.loadDashboardPage())
     this.router.addRoute('/profile/:id', (params) => this.loadProfilePage(params.id))
     this.router.addRoute('/candidates', () => this.loadCandidatesPage())
+    this.router.addRoute('/candidates/general', () => this.loadCandidateListsPage('general'))
+    this.router.addRoute('/candidates/academic', () => this.loadCandidateListsPage('academic'))
+    this.router.addRoute('/candidates/support', () => this.loadCandidateListsPage('administrative'))
+    this.router.addRoute('/candidates/management', () => this.loadCandidateListsPage('management'))
     this.router.addRoute('/analytics', () => this.loadAnalyticsPage())
     this.router.addRoute('/admin', () => this.loadAdminPage())
     
@@ -235,6 +241,46 @@ class SmartPortApp {
     } catch (error) {
       console.error('Error loading candidates:', error)
       this.showError('ไม่สามารถโหลดหน้ารายชื่อผู้มีศักยภาพได้')
+    }
+  }
+
+  async loadCandidateListsPage(section = 'general') {
+    try {
+      console.log('📋 Loading Candidate Lists Page...', section)
+      
+      if (!this.authService.getToken() || !this.authService.isTokenValid()) {
+        this.router.navigate('/login')
+        return
+      }
+
+      // ต้องมี AdminDashboard ก่อน เพื่อให้มี sidebar
+      if (!window.adminDashboard) {
+        window.adminDashboard = this.adminDashboard
+      }
+      
+      // Render AdminDashboard ก่อนเพื่อสร้าง sidebar
+      this.adminDashboard.render()
+      
+      // Set active section before rendering
+      this.candidateListsPage.activeSection = section
+      
+      // Set appropriate level for the section
+      const sectionData = this.candidateListsPage.sections.find(s => s.id === section)
+      if (sectionData && sectionData.levels.length > 0) {
+        this.candidateListsPage.activeLevel = sectionData.levels[0]
+      }
+      
+      // Render the candidate lists page content
+      this.candidateListsPage.render()
+      
+      // Make it globally accessible for event handlers
+      window.candidateListsPage = this.candidateListsPage
+      
+      console.log('✅ Candidate Lists Page loaded successfully')
+      
+    } catch (error) {
+      console.error('Error loading candidate lists:', error)
+      this.showError('ไม่สามารถโหลดหน้ารายชื่อผู้มีสิทธิ์ได้')
     }
   }
 
@@ -384,9 +430,18 @@ class SmartPortApp {
   }
 
   showLoading(show) {
-    const loadingScreen = document.getElementById('loading-screen')
-    if (loadingScreen) {
-      loadingScreen.classList.toggle('hidden', !show)
+    if (window.modernLoading) {
+      if (show) {
+        window.modernLoading.show()
+      } else {
+        window.modernLoading.hide()
+      }
+    } else {
+      // Fallback for old loading screen
+      const loadingScreen = document.getElementById('loading-screen')
+      if (loadingScreen) {
+        loadingScreen.classList.toggle('hidden', !show)
+      }
     }
     this.isLoading = show
   }

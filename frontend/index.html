@@ -31,11 +31,14 @@
   <title>ระบบสมุดพก | Smart Port Management System</title>
 </head>
 <body class="font-thai bg-gray-50 antialiased">
-  <!-- Loading Screen -->
+  <!-- Minimal Loading Screen -->
   <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
     <div class="text-center">
-      <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto mb-4"></div>
-      <p class="text-gray-600 font-medium">กำลังโหลด...</p>
+      <!-- Modern Spinner -->
+      <div class="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+      
+      <!-- Loading Text -->
+      <p class="text-gray-600 text-lg font-medium">Loading...</p>
     </div>
   </div>
 
@@ -68,5 +71,51 @@
   </div>
 
   <script type="module" src="/src/main.js"></script>
+  
+  <!-- Simple Loading Manager Script -->
+  <script>
+    // Simple Loading Manager
+    class SimpleLoadingManager {
+      constructor() {
+        this.init()
+      }
+
+      init() {
+        // Auto-hide loading after 2 seconds
+        setTimeout(() => {
+          this.hideLoading()
+        }, 2000)
+      }
+
+      hideLoading() {
+        const loadingScreen = document.getElementById('loading-screen')
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0'
+          loadingScreen.style.transition = 'opacity 0.5s ease-out'
+          
+          setTimeout(() => {
+            loadingScreen.classList.add('hidden')
+          }, 500)
+        }
+      }
+
+      // Public method to show loading manually
+      show() {
+        const loadingScreen = document.getElementById('loading-screen')
+        if (loadingScreen) {
+          loadingScreen.classList.remove('hidden')
+          loadingScreen.style.opacity = '1'
+        }
+      }
+
+      // Public method to hide loading manually
+      hide() {
+        this.hideLoading()
+      }
+    }
+
+    // Initialize simple loading manager
+    window.simpleLoading = new SimpleLoadingManager()
+  </script>
 </body>
 </html>

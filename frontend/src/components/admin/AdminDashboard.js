@@ -11,17 +11,16 @@ export class AdminDashboard {
     
     this.menuItems = [
       { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+      { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: 'user-check' },
       { 
         id: 'candidates', 
         label: 'Candidate Lists', 
         icon: 'users',
         submenu: [
-          { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: 'user-check' },
-          { id: 'level-promotion', label: 'เลื่อนระดับตำแหน่ง', icon: 'trending-up' },
-          { id: 'transfer-same', label: 'ย้ายตำแหน่ง (ระดับเดิม)', icon: 'arrow-right' },
-          { id: 'transfer-higher', label: 'ย้ายตำแหน่ง (ระดับสูงขึ้น)', icon: 'arrow-up' },
-          { id: 'transfer-in-same', label: 'โอน (รับเดิม)', icon: 'arrow-down-right' },
-          { id: 'transfer-in-higher', label: 'โอน (ระดับสูงขึ้น)', icon: 'arrow-up-right' }
+          { id: 'general', label: 'ทั่วไป', useBullet: true },
+          { id: 'academic', label: 'วิชาการ', useBullet: true },
+          { id: 'support', label: 'อำนวยการ', useBullet: true },
+          { id: 'management', label: 'บริหาร', useBullet: true }
         ]
       },
       { id: 'time-counting', label: 'การนับเวลาเกื้อกูล', icon: 'clock' },
@@ -73,7 +72,10 @@ export class AdminDashboard {
                   <div class="ml-8 mt-2 space-y-1">
                     ${item.submenu.map(subitem => `
                       <button onclick="window.adminDashboard.handleMenuClick('${subitem.id}')" class="w-full flex items-center px-3 py-2 text-left rounded-lg transition-all duration-200 ${this.activeMenuItem === subitem.id ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white text-xs'}">
-                        <i data-lucide="${subitem.icon}" class="w-4 h-4 mr-2"></i>
+                        ${subitem.useBullet ? 
+                          `<span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>` : 
+                          `<i data-lucide="${subitem.icon}" class="w-4 h-4 mr-2"></i>`
+                        }
                         <span class="text-xs font-medium">${subitem.label}</span>
                       </button>
                     `).join('')}
@@ -305,12 +307,46 @@ export class AdminDashboard {
       return
     }
     
+    // ตรวจสอบว่าเป็น submenu item หรือไม่
+    let routePath = null
+    if (itemId === 'general') {
+      routePath = '/candidates/general'
+    } else if (itemId === 'academic') {
+      routePath = '/candidates/academic'
+    } else if (itemId === 'support') {
+      routePath = '/candidates/support'
+    } else if (itemId === 'management') {
+      routePath = '/candidates/management'
+    }
+    
+    // ถ้าเป็น submenu item ให้ navigate ไปยัง route ใหม่
+    if (routePath) {
+      this.activeMenuItem = itemId
+      this.sidebarOpen = false
+      
+      // Navigate to candidate lists page
+      if (this.router) {
+        this.router.navigate(routePath)
+      }
+      
+      // Close sidebar on mobile
+      const sidebar = document.getElementById('sidebar')
+      const overlay = document.getElementById('sidebar-overlay')
+      if (sidebar && overlay) {
+        sidebar.classList.add('-translate-x-full')
+        overlay.classList.add('hidden')
+      }
+      return
+    }
+    
     this.activeMenuItem = itemId
     this.sidebarOpen = false
     
-    // Re-render the page content
+    // Re-render the page content for other menu items
     const main = document.querySelector('main')
-    main.innerHTML = this.getPageContent()
+    if (main) {
+      main.innerHTML = this.getPageContent()
+    }
     
     // Update navigation
     this.updateNavigation()
@@ -318,7 +354,7 @@ export class AdminDashboard {
     // Re-initialize icons for new content
     this.initializeLucideIcons()
     
-    // Update URL without page reload
+    // Update URL without page reload for other items
     if (this.router) {
       if (itemId === 'dashboard') {
         this.router.navigate('/dashboard', false) // false = don't trigger page load
@@ -330,8 +366,10 @@ export class AdminDashboard {
     // Close sidebar on mobile
     const sidebar = document.getElementById('sidebar')
     const overlay = document.getElementById('sidebar-overlay')
-    sidebar.classList.add('-translate-x-full')
-    overlay.classList.add('hidden')
+    if (sidebar && overlay) {
+      sidebar.classList.add('-translate-x-full')
+      overlay.classList.add('hidden')
+    }
   }
 
   renderSidebar() {
