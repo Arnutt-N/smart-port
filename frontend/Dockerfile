@@ -1,30 +1,55 @@
-# Multi-stage build for Vite application
-FROM node:18-alpine as builder
+# =========================================================================
+# STAGE 1: Build Stage
+# =========================================================================
+# === FIX 3 ===
+# เปลี่ยนไปใช้ Debian-based image (slim version) เพื่อความเข้ากันได้ที่ดีกว่า
+# สำหรับ native modules เมื่อเทียบกับ Alpine
+FROM node:20-slim AS builder
 
+# ระบุ build-time argument สำหรับ VITE_API_URL
+ARG VITE_API_URL=http://localhost:8000
+
+# กำหนด working directory ภายใน container
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# คัดลอกเฉพาะ package.json เท่านั้น เพื่อบังคับให้ npm install
+# สร้าง dependency tree ใหม่ที่เหมาะสมกับ Linux
+COPY package.json ./
 
-# Install dependencies
-RUN npm install
+# === FIX 3 ===
+# เพิ่ม flag --no-optional เพื่อข้ามการติดตั้ง optional dependencies
+# ซึ่งเป็นสาเหตุของปัญหา (เช่น Rollup เวอร์ชั่นสำหรับ Windows)
+# และล้าง cache ก่อนเพื่อความแน่นอน
+RUN npm cache clean --force && npm install --no-optional
 
-# Copy source code
+# คัดลอกไฟล์ source code ทั้งหมดเข้ามาใน image
+# (ไฟล์ที่ไม่จำเป็นจะถูกกรองออกโดย .dockerignore)
 COPY . .
 
-# Build the application
+# ตั้งค่า Environment Variable เพื่อให้ Vite สามารถใช้งานได้ตอน build
+ENV VITE_API_URL=${VITE_API_URL}
+
+# สั่ง build โปรเจกต์ Vite
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# =========================================================================
+# STAGE 2: Production Stage
+# =========================================================================
+# ใช้ nginx:alpine-slim ซึ่งเป็น image ที่มีขนาดเล็กและปลอดภัยสำหรับ production
+FROM nginx:alpine-slim
 
-# Copy built application
-COPY --from=builder /app/dist /usr/share/nginx/html
+# ลบ default Nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy nginx configuration
+# คัดลอก Nginx configuration ที่เราเตรียมไว้สำหรับ Vite SPA
+# **สำคัญ**: ตรวจสอบให้แน่ใจว่าคุณมีไฟล์ nginx.conf อยู่ในโฟลเดอร์ frontend
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port
+# คัดลอกไฟล์ที่ buildเสร็จแล้วจาก stage 'builder' มายัง web root ของ Nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# เปิด port 80 สำหรับ HTTP
 EXPOSE 80
 
+# สั่งให้ Nginx ทำงานใน foreground เมื่อ container เริ่มทำงาน
 CMD ["nginx", "-g", "daemon off;"]

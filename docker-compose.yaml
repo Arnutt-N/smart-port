@@ -1,63 +1,67 @@
-version: '3.8'
-
+# FIX: ลบบรรทัด 'version' ที่ล้าสมัยออกไป
 services:
+  # Service สำหรับ Backend (PHP API)
   backend:
     build:
-      context: ./backend  # Path ไปยัง directory backend ที่มี Dockerfile
+      context: ./backend
       dockerfile: Dockerfile
     container_name: smartport-backend
     ports:
-      - "8000:80"  # Map port 8000 บน host ไปยัง 80 ใน container
+      - "8000:80"
     volumes:
-      - ./backend:/var/www/html  # Mount codebase backend
-      - ./backend/uploads:/var/www/html/uploads  # สำหรับ uploads
+      - backend-uploads:/var/www/html/uploads
     environment:
+      # Environment Variables เหล่านี้จะถูกอ่านมาจากไฟล์ .env
       - MYSQL_HOST=db
-      - MYSQL_DATABASE=smartport_db
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=rootpassword  # เปลี่ยนเป็นรหัสจริง
-      - JWT_SECRET=your_jwt_secret_key  # จาก config.php
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       db:
-          condition: service_healthy
+        condition: service_healthy
     networks:
       - smartport-net
+    restart: unless-stopped
 
+  # Service สำหรับ Frontend (Vite App)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://backend
+    container_name: smartport-frontend
+    ports:
+      - "8081:80" # ใช้ port 8081
+    depends_on:
+      - backend
+    networks:
+      - smartport-net
+    restart: unless-stopped
 
+  # Service สำหรับ Database (MySQL)
   db:
     image: mysql:8.0
     container_name: smartport-db
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=smartport_db
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
     volumes:
       - db-data:/var/lib/mysql
-      - ./mysql_database_design.sql:/docker-entrypoint-initdb.d/01-schema.sql  # Init schema
-      - ./photo_management_system.sql:/docker-entrypoint-initdb.d/02-data.sql  # Init data ถ้ามี
-    networks:
-      - smartport-net
+      - ./mysql_database_design.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./photo_management_system.sql:/docker-entrypoint-initdb.d/02-data.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]  # ตรวจว่า MySQL พร้อม
-      interval: 5s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s  # ให้เวลา init SQL schema
-
-  frontend:
-    build:
-      context: ./frontend  # Path ไปยัง directory frontend ที่มี Dockerfile
-      dockerfile: Dockerfile
-    container_name: smartport-frontend
-    ports:
-      - "8080:80"  # Map port 8080 บน host ไปยัง 80 ใน container
-    volumes:
-      - ./frontend:/usr/share/nginx/html  # สำหรับ development; ลบถ้า production
+      start_period: 30s
     networks:
       - smartport-net
-    depends_on:
-      - backend
+    restart: unless-stopped
 
 networks:
   smartport-net:
@@ -65,3 +69,4 @@ networks:
 
 volumes:
   db-data:
+  backend-uploads:

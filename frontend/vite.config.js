@@ -1,5 +1,9 @@
 import { defineConfig } from "vite"
-import { resolve } from "path"
+import { resolve, dirname } from "path"
+import { fileURLToPath } from "url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export default defineConfig({
   root: ".",
@@ -15,8 +19,10 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        admin: resolve(__dirname, "admin.html"),
+        // --- FIX ---
+        // เปลี่ยนจากการใช้ resolve(__dirname, ...) เป็น relative path แบบง่ายๆ
+        main: "./index.html",
+        admin: "./admin.html",
       },
     },
   },
@@ -25,10 +31,4 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
-  // Remove problematic esbuild config for vanilla JS
-  // esbuild: {
-  //   loader: { ".js": "jsx" },
-  //   jsxFactory: "h",
-  //   jsxFragment: "Fragment",
-  // },
 })

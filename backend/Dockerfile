@@ -1,21 +1,47 @@
-# Base image จาก PHP official (เวอร์ชัน 8.3 สำหรับ modern PHP)
+# =========================================================================
+# STAGE 1: Composer Dependencies Stage
+# =========================================================================
+FROM composer:2.7 AS vendor
+
+WORKDIR /app
+
+COPY composer.json composer.lock* ./
+
+RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optimize-autoloader
+
+# =========================================================================
+# STAGE 2: Production Stage
+# =========================================================================
 FROM php:8.3-apache
 
-# ติดตั้ง dependencies (PDO สำหรับ MySQL, composer สำหรับ JWT)
-RUN apt-get update && apt-get install -y libzip-dev unzip \
+# --- FIX ---
+# ไม่ต้องเปลี่ยน DocumentRoot เพราะโปรเจกต์นี้ไม่มีโฟลเดอร์ public
+# Apache จะใช้ค่า default คือ /var/www/html ซึ่งถูกต้องแล้ว
+# ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+# RUN sed -ri ...
+
+# เปิดใช้งาน mod_rewrite สำหรับ routing (เช่น .htaccess)
+RUN a2enmod rewrite
+
+# ติดตั้ง PHP extensions ที่จำเป็นสำหรับโปรเจกต์
+RUN apt-get update && apt-get install -y \
+    libzip-dev \
+    unzip \
     && docker-php-ext-install pdo_mysql zip \
-    && a2enmod rewrite
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy โค้ด backend เข้า container
 WORKDIR /var/www/html
-COPY . /var/www/html
 
-# Install Composer และ dependencies (เช่น firebase/php-jwt)
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && composer install --no-dev --optimize-autoloader
+# คัดลอก source code ทั้งหมด
+COPY . .
 
-# Set permissions สำหรับ uploads
-RUN mkdir -p uploads && chown -R www-data:www-data uploads
+# คัดลอก vendor ที่ติดตั้งไว้แล้วจาก stage แรก
+COPY --from=vendor /app/vendor/ ./vendor/
 
-# Expose port 80 สำหรับ web server
+# สร้าง directory สำหรับ uploads และกำหนดสิทธิ์ให้ Apache
+# แยก storage ออกจาก source code เพื่อความปลอดภัย
+RUN mkdir -p /var/www/html/uploads \
+    && chown -R www-data:www-data /var/www/html/uploads
+
+# เปิด port 80
 EXPOSE 80
