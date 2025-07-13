@@ -34,7 +34,7 @@ export class AdminDashboard {
     this.dashboardStats = [
       { title: 'จำนวนข้าราชการทั้งหมด', value: '2,847', change: '+12%', icon: 'users', color: 'text-blue-600', bgColor: 'bg-blue-50' },
       { title: 'ผู้พ้นทดลองปีนี้', value: '156', change: '+8%', icon: 'user-check', color: 'text-green-600', bgColor: 'bg-green-50' },
-      { title: 'งานรอดำเนินการ', value: '89', change: '-5%', icon: 'alert-circle', color: 'text-orange-600', bgColor: 'bg-orange-50' },
+      { title: 'Candidate Lists', value: '89', change: '+3%', icon: 'users', color: 'text-orange-600', bgColor: 'bg-orange-50' },
       { title: 'ผู้เกษียณปีนี้', value: '24', change: '+15%', icon: 'user-minus', color: 'text-purple-600', bgColor: 'bg-purple-50' }
     ]
   }
@@ -150,68 +150,154 @@ export class AdminDashboard {
   getDashboardContent() {
     return `
       <div class="space-y-6">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p class="text-gray-600 mt-1">ยินดีต้อนรับกลับมา! นี่คือสิ่งที่เกิดขึ้นในระบบสมุดพกวันนี้</p>
+        <!-- Page Header -->
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">ภาพรวมระบบสมุดพก</h1>
+            <p class="text-gray-600 mt-1">สรุปข้อมูลสำคัญและกิจกรรมล่าสุดของระบบการจัดการข้าราชการ</p>
+          </div>
+          <div class="flex items-center space-x-3">
+            <button onclick="window.adminDashboard.exportDashboardData()" class="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>ส่งออกรายงาน</span>
+            </button>
+            <button onclick="window.adminDashboard.refreshDashboard()" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              <span>รีเฟรช</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Stats Grid -->
+        <!-- Statistics Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           ${this.dashboardStats.map(stat => `
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
-              <div class="flex items-center justify-between">
-                <div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
+              <div class="flex items-center">
+                <div class="flex-shrink-0">
+                  <div class="${stat.bgColor} rounded-lg p-3">
+                    <i data-lucide="${stat.icon}" class="w-6 h-6 ${stat.color}"></i>
+                  </div>
+                </div>
+                <div class="ml-4 flex-1">
                   <p class="text-sm font-medium text-gray-600">${stat.title}</p>
-                  <p class="text-2xl font-bold text-gray-900 mt-1">${stat.value}</p>
-                  <p class="text-sm mt-1 ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}">
+                  <p class="text-2xl font-semibold text-gray-900 mt-1">${stat.value}</p>
+                  <p class="text-sm mt-1 ${stat.change.startsWith('+') ? 'text-green-600' : stat.change.startsWith('-') ? 'text-red-600' : 'text-gray-600'}">
                     ${stat.change} จากเดือนที่แล้ว
                   </p>
-                </div>
-                <div class="${stat.bgColor} ${stat.color} p-3 rounded-lg">
-                  <i data-lucide="${stat.icon}" class="w-6 h-6"></i>
                 </div>
               </div>
             </div>
           `).join('')}
         </div>
 
-        <!-- Recent Activity & Quick Actions -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Recent Activity -->
-          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-lg font-semibold text-gray-900">กิจกรรมล่าสุด</h2>
-              <i data-lucide="activity" class="w-5 h-5 text-gray-400"></i>
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Priority Tasks -->
+          <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="p-6 border-b border-gray-200">
+              <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900">งานสำคัญที่ต้องติดตาม</h2>
+                <i data-lucide="alert-circle" class="w-5 h-5 text-orange-500"></i>
+              </div>
             </div>
-            <div class="space-y-4">
-              ${this.getRecentActivities().map(activity => `
-                <div class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div class="w-2 h-2 rounded-full ${activity.type === 'success' ? 'bg-green-500' : activity.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'}"></div>
-                  <div class="flex-1">
-                    <p class="text-sm font-medium text-gray-900">${activity.action}</p>
-                    <p class="text-xs text-gray-500">${activity.time}</p>
-                  </div>
-                </div>
-              `).join('')}
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รายการ</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวน</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ความสำคัญ</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  ${this.getPriorityTasks().map(task => `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center space-x-3">
+                          <i data-lucide="${task.icon}" class="w-5 h-5 ${task.iconColor}"></i>
+                          <span class="text-sm font-medium text-gray-900">${task.title}</span>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-sm text-gray-900">${task.count}</span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${task.priorityColor}">
+                          ${task.priority}
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="window.adminDashboard.handleMenuClick('${task.route}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                          ดูรายละเอียด
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <!-- Quick Actions -->
-          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-lg font-semibold text-gray-900">การดำเนินการด่วน</h2>
-              <i data-lucide="trending-up" class="w-5 h-5 text-gray-400"></i>
+          <!-- Quick Actions & Recent Activity -->
+          <div class="space-y-6">
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">การดำเนินการด่วน</h3>
+                <i data-lucide="zap" class="w-5 h-5 text-yellow-500"></i>
+              </div>
+              <div class="space-y-3">
+                ${this.getQuickActions().map(action => `
+                  <button onclick="window.adminDashboard.handleMenuClick('${action.route}')" class="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all duration-200">
+                    <div class="${action.color} text-white p-2 rounded-lg">
+                      <i data-lucide="${action.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-sm font-medium text-gray-700">${action.title}</span>
+                  </button>
+                `).join('')}
+              </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
-              ${this.getQuickActions().map(action => `
-                <button onclick="window.adminDashboard.handleMenuClick('${action.route}')" class="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all duration-200">
-                  <div class="${action.color} text-white p-2 rounded-lg mb-2">
-                    <i data-lucide="${action.icon}" class="w-4 h-4"></i>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">กิจกรรมล่าสุด</h3>
+                <i data-lucide="activity" class="w-5 h-5 text-blue-500"></i>
+              </div>
+              <div class="space-y-3">
+                ${this.getRecentActivities().map(activity => `
+                  <div class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="w-2 h-2 rounded-full mt-2 ${activity.type === 'success' ? 'bg-green-500' : activity.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'}"></div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900">${activity.action}</p>
+                      <p class="text-xs text-gray-500 mt-1">${activity.time}</p>
+                    </div>
                   </div>
-                  <span class="text-sm font-medium text-gray-700">${action.title}</span>
-                </button>
-              `).join('')}
+                `).join('')}
+              </div>
             </div>
+          </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">สถานะระบบ</h2>
+            <div class="flex items-center space-x-2">
+              <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span class="text-sm text-gray-600">ปกติ</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ${this.getSystemStatus().map(status => `
+              <div class="text-center p-4 rounded-lg ${status.bgColor}">
+                <i data-lucide="${status.icon}" class="w-6 h-6 ${status.color} mx-auto mb-2"></i>
+                <p class="text-sm font-medium ${status.textColor}">${status.label}</p>
+                <p class="text-xs ${status.textColor} opacity-75">${status.value}</p>
+              </div>
+            `).join('')}
           </div>
         </div>
       </div>
@@ -272,6 +358,106 @@ export class AdminDashboard {
       { title: 'รายงานผู้เกษียณ', icon: 'user-minus', color: 'bg-purple-500', route: 'retirement-report' },
       { title: 'เครื่องราชอิสริยาภรณ์', icon: 'award', color: 'bg-orange-500', route: 'royal-decorations' }
     ]
+  }
+
+  getPriorityTasks() {
+    return [
+      {
+        title: 'ข้าราชการครบกำหนดพ้นทดลอง',
+        count: '12 คน',
+        priority: 'เร่งด่วน',
+        priorityColor: 'bg-red-100 text-red-800',
+        icon: 'user-check',
+        iconColor: 'text-red-500',
+        route: 'probation-end'
+      },
+      {
+        title: 'รายชื่อผู้มีสิทธิ์เลื่อนตำแหน่ง',
+        count: '28 คน',
+        priority: 'สำคัญ',
+        priorityColor: 'bg-orange-100 text-orange-800',
+        icon: 'trending-up',
+        iconColor: 'text-orange-500',
+        route: 'general'
+      },
+      {
+        title: 'ข้าราชการใกล้เกษียณ (6 เดือน)',
+        count: '15 คน',
+        priority: 'ปกติ',
+        priorityColor: 'bg-blue-100 text-blue-800',
+        icon: 'user-minus',
+        iconColor: 'text-blue-500',
+        route: 'retirement-report'
+      },
+      {
+        title: 'เครื่องราชอิสริยาภรณ์รอดำเนินการ',
+        count: '7 คน',
+        priority: 'ปกติ',
+        priorityColor: 'bg-green-100 text-green-800',
+        icon: 'award',
+        iconColor: 'text-green-500',
+        route: 'royal-decorations'
+      }
+    ]
+  }
+
+  getSystemStatus() {
+    return [
+      {
+        label: 'ฐานข้อมูล',
+        value: 'ออนไลน์',
+        icon: 'database',
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        textColor: 'text-green-700'
+      },
+      {
+        label: 'ระบบสำรอง',
+        value: 'พร้อมใช้งาน',
+        icon: 'shield-check',
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        textColor: 'text-blue-700'
+      },
+      {
+        label: 'ผู้ใช้ออนไลน์',
+        value: '23 คน',
+        icon: 'users',
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+        textColor: 'text-purple-700'
+      },
+      {
+        label: 'อัพเดทล่าสุด',
+        value: '2 ชม. ที่แล้ว',
+        icon: 'clock',
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50',
+        textColor: 'text-gray-700'
+      }
+    ]
+  }
+
+  exportDashboardData() {
+    console.log('Exporting dashboard data...')
+    // In real app, this would generate and download a report
+    alert('กำลังส่งออกรายงานภาพรวมระบบ...')
+  }
+
+  refreshDashboard() {
+    console.log('Refreshing dashboard...')
+    // In real app, this would refresh data from server
+    // Re-render the dashboard content
+    const main = document.querySelector('main')
+    if (main) {
+      main.innerHTML = this.getPageContent()
+      this.initializeLucideIcons()
+    }
+    
+    // Show success message
+    setTimeout(() => {
+      alert('อัพเดทข้อมูลเรียบร้อยแล้ว')
+    }, 500)
   }
 
   attachEventListeners() {
