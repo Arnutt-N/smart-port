@@ -28,11 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The civil_servants table has current_level_start_date, current_level_code, and probation_end_date columns available
   4. Promotion criteria seed data returns correct year thresholds when queried (e.g., K1 to K2 with bachelor degree returns 6 years)
   5. Views vw_probation_dashboard, vw_job_series_tenure, and vw_executive_tenure return results with dynamically computed remaining_days via DATEDIFF
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Career path schema conversion and seed data
-- [ ] 01-02: Probation schema conversion and views
+- [ ] 01-01-PLAN.md — Personnel stubs, career path schema (11 tables + 2 views), and promotion criteria seed data
+- [ ] 01-02-PLAN.md — Probation schema (10 tables + 1 view), Docker wiring, and full DB verification
 
 ### Phase 2: Backend APIs
 **Goal**: PHP backend provides working REST endpoints for candidate list qualification queries and probation enrollment CRUD, with a data-driven qualification engine that reads rules from the database
