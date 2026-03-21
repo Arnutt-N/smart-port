@@ -53,6 +53,10 @@ services:
       - db-data:/var/lib/mysql
       - ./mysql_database_design.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./photo_management_system.sql:/docker-entrypoint-initdb.d/02-data.sql
+      - ./database/03-personnel-stubs.sql:/docker-entrypoint-initdb.d/03-personnel-stubs.sql
+      - ./database/04-career-path.sql:/docker-entrypoint-initdb.d/04-career-path.sql
+      - ./database/05-probation.sql:/docker-entrypoint-initdb.d/05-probation.sql
+      - ./database/06-seed-data.sql:/docker-entrypoint-initdb.d/06-seed-data.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s
