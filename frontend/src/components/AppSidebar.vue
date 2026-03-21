@@ -1,6 +1,7 @@
 <template>
   <aside
-    class="w-64 bg-gray-800 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out overflow-y-auto flex flex-col sidebar-scroll"
+    class="w-64 bg-gray-800 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out flex flex-col sidebar-scroll"
+    style="overflow-y: overlay;"
     :class="open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
   >
     <!-- Header: logo ชิดซ้าย, ชื่อแบรนด์กึ่งกลาง -->
@@ -25,8 +26,8 @@
             @click="toggleSubmenu(item.id)"
             class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer"
             :class="isParentActive(item)
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'text-gray-300 hover:bg-gray-700 hover:text-white'"
+              ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+              : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
           >
             <component :is="item.icon" class="w-5 h-5 mr-3" />
             <span class="text-sm font-medium flex-1">{{ item.label }}</span>
@@ -42,8 +43,8 @@
               :to="child.to"
               class="w-full flex items-center px-3 py-2 text-left rounded-lg transition-all duration-200"
               :class="route.path === child.to
-                ? 'bg-blue-500 text-white'
-                : 'text-gray-400 hover:bg-gray-700 hover:text-white'"
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'"
             >
               <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
               <span class="text-xs font-medium">{{ child.label }}</span>
@@ -57,8 +58,8 @@
           :to="item.to"
           class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer"
           :class="route.path === item.to
-            ? 'bg-blue-600 text-white shadow-lg'
-            : 'text-gray-300 hover:bg-gray-700 hover:text-white'"
+            ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+            : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
         >
           <component :is="item.icon" class="w-5 h-5 mr-3" />
           <span class="text-sm font-medium">{{ item.label }}</span>
@@ -74,7 +75,10 @@
             <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
           </div>
           <div>
-            <p class="text-white text-sm font-medium">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
+            <div class="flex items-center gap-2">
+              <p class="text-white text-sm font-medium">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
+              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium">Admin</span>
+            </div>
             <p class="text-gray-400 text-xs">{{ auth.user?.email || 'admin@smartport.com' }}</p>
           </div>
         </div>
@@ -117,6 +121,7 @@ const menuItems = [
     children: [
       { id: 'time-counting', label: 'การนับเกื้อกูล', to: '/time-counting' },
       { id: 'time-difference', label: 'การนับแตกต่าง', to: '/time-difference' },
+      { id: 'position-compare', label: 'การเทียบตำแหน่ง', to: '/position-compare' },
     ],
   },
   { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },

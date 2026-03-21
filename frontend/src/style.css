@@ -136,40 +136,55 @@ body {
   .glass-effect {
     @apply bg-white/70 backdrop-blur-md border border-white/20;
   }
+  .elevation-1 {
+    @apply shadow-sm hover:shadow transition-shadow duration-200;
+  }
+  .elevation-2 {
+    @apply shadow hover:shadow-md transition-shadow duration-200;
+  }
+  .elevation-3 {
+    @apply shadow-md hover:shadow-lg transition-shadow duration-200;
+  }
 }
 
-/* Custom Scrollbar — thin, no arrows, works on Windows */
+/* Scrollbar — always present (no layout shift), thumb fades on hover */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
   scrollbar-color: #d1d5db transparent;
 }
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-  background: transparent;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: transparent;
   border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
+*:hover::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+*:hover::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
-::-webkit-scrollbar-button,
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
 ::-webkit-scrollbar-corner {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
+  background: transparent;
 }
 
 /* Sidebar scrollbar — dark theme */
-.sidebar-scroll { scrollbar-color: #4b5563 transparent; }
-.sidebar-scroll::-webkit-scrollbar-thumb { background: #4b5563; }
-.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+.sidebar-scroll:hover { scrollbar-color: #4b5563 transparent; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #4b5563; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
 /* Print */
 @media print {
