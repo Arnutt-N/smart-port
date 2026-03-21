@@ -43,7 +43,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-for="(c, i) in filteredCandidates" :key="c.id" class="hover:bg-gray-50">
+          <tr v-for="(c, i) in filteredCandidates" :key="c.id" class="hover:bg-blue-50/50 transition-all duration-150">
             <td class="px-6 py-3 text-gray-500">{{ i + 1 }}</td>
             <td class="px-6 py-3 text-gray-900 font-medium">{{ c.name }}</td>
             <td class="px-6 py-3 text-gray-600">{{ c.currentPosition }}</td>

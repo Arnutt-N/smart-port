@@ -57,7 +57,13 @@ const routes = [
         path: 'time-difference',
         name: 'time-difference',
         component: () => import('@/pages/PlaceholderPage.vue'),
-        props: { title: 'การนับแตกต่า', description: 'กำลังพัฒนา' },
+        props: { title: 'การนับแตกต่าง', description: 'กำลังพัฒนา' },
+      },
+      {
+        path: 'position-compare',
+        name: 'position-compare',
+        component: () => import('@/pages/PlaceholderPage.vue'),
+        props: { title: 'การเทียบตำแหน่ง', description: 'กำลังพัฒนา' },
       },
       {
         path: 'royal-decorations',

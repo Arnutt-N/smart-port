@@ -20,10 +20,10 @@
 
     <!-- Statistics Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <StatCard label="จำนวนข้าราชการทั้งหมด" value="2,847" change="+12%" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" />
-      <StatCard label="ผู้พ้นทดลองปีนี้" value="156" change="+8%" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" />
-      <StatCard label="Candidate Lists" value="89" change="+3%" :icon="Users" icon-bg-class="bg-orange-50" icon-class="text-orange-600" />
-      <StatCard label="ผู้เกษียณปีนี้" value="24" change="+15%" :icon="UserMinus" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
+      <StatCard label="จำนวนข้าราชการทั้งหมด" value="2,847" change="+12%" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" sparkline sparkline-color="bg-blue-200" />
+      <StatCard label="ผู้พ้นทดลองปีนี้" value="156" change="+8%" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" sparkline sparkline-color="bg-green-200" />
+      <StatCard label="Candidate Lists" value="89" change="+3%" :icon="Users" icon-bg-class="bg-orange-50" icon-class="text-orange-600" sparkline sparkline-color="bg-orange-200" />
+      <StatCard label="ผู้เกษียณปีนี้" value="24" change="+15%" :icon="UserMinus" icon-bg-class="bg-purple-50" icon-class="text-purple-600" sparkline sparkline-color="bg-purple-200" />
     </div>
 
     <!-- Main Content Grid -->
@@ -47,7 +47,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="task in priorityTasks" :key="task.title" class="hover:bg-gray-50 transition-colors">
+              <tr v-for="task in priorityTasks" :key="task.title" class="hover:bg-blue-50/50 transition-all duration-150 cursor-default">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center space-x-3">
                     <component :is="task.icon" class="w-5 h-5" :class="task.iconColor" />

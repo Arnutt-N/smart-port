@@ -5,8 +5,8 @@
         <Menu class="w-6 h-6" />
       </button>
       <div class="flex items-center space-x-2 text-sm">
-        <Home class="w-5 h-5 text-gray-400" />
-        <span class="text-gray-400">/</span>
+        <Home class="w-5 h-5 text-gray-400 hidden sm:block" />
+        <span class="text-gray-400 hidden sm:inline">/</span>
         <span class="text-gray-900 font-medium">{{ pageTitle }}</span>
       </div>
     </div>

@@ -29,7 +29,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <tr v-for="(e, i) in filtered" :key="e.id" class="hover:bg-gray-50">
+          <tr v-for="(e, i) in filtered" :key="e.id" class="hover:bg-blue-50/50 transition-all duration-150">
             <td class="px-6 py-3 text-gray-500">{{ i + 1 }}</td>
             <td class="px-6 py-3 text-gray-900 font-medium">{{ e.name }}</td>
             <td class="px-6 py-3 text-gray-600">{{ e.position }}</td>
