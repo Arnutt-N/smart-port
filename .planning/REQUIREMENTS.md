@@ -8,11 +8,11 @@
 ### Database Foundation
 
 - [x] **DB-01**: MySQL schema for career path tables converted from gap_analysis_career_path_v2.sql (promotion_criteria, qualification_calculation, diverse_experience, supportive_experience, position_equivalence, screening_list, promotion_evaluation, supportive_job_series, rotation_assignment, promotion_required_training, professional_license)
-- [ ] **DB-02**: MySQL schema for probation tracking tables converted from probation_tracking_schema.sql (probation_program, probation_task_template, probation_enrollment, probation_stakeholder, probation_task_progress, elearning_course, elearning_enrollment, probation_evaluation, probation_committee, probation_committee_member)
+- [x] **DB-02**: MySQL schema for probation tracking tables converted from probation_tracking_schema.sql (probation_program, probation_task_template, probation_enrollment, probation_stakeholder, probation_task_progress, elearning_course, elearning_enrollment, probation_evaluation, probation_committee, probation_committee_member)
 - [x] **DB-03**: ALTER TABLE personnel to add current_level_start_date and current_level_code columns
 - [x] **DB-04**: ALTER TABLE personnel to add probation_end_date column
 - [x] **DB-05**: Seed data for promotion_criteria — rules for O1→O2, O2→O3 (ประเภททั่วไป) and K1→K2, K2→K3, K3→K4 (ประเภทวิชาการ) with education-dependent year thresholds
-- [ ] **DB-06**: Dashboard view vw_probation_dashboard converted to MySQL syntax
+- [x] **DB-06**: Dashboard view vw_probation_dashboard converted to MySQL syntax
 - [x] **DB-07**: Views vw_job_series_tenure and vw_executive_tenure converted to MySQL syntax
 
 ### Candidate List — Backend
@@ -97,11 +97,11 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DB-01 | Phase 1 | Complete |
-| DB-02 | Phase 1 | Pending |
+| DB-02 | Phase 1 | Complete |
 | DB-03 | Phase 1 | Complete |
 | DB-04 | Phase 1 | Complete |
 | DB-05 | Phase 1 | Complete |
-| DB-06 | Phase 1 | Pending |
+| DB-06 | Phase 1 | Complete |
 | DB-07 | Phase 1 | Complete |
 | CL-01 | Phase 2 | Pending |
 | CL-02 | Phase 2 | Pending |

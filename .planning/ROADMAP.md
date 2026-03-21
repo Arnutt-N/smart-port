@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Personnel stubs, career path schema (11 tables + 2 views), and promotion criteria seed data
-- [ ] 01-02-PLAN.md — Probation schema (10 tables + 1 view), Docker wiring, and full DB verification
+- [x] 01-02-PLAN.md — Probation schema (10 tables + 1 view), Docker wiring, and full DB verification
 
 ### Phase 2: Backend APIs
 **Goal**: PHP backend provides working REST endpoints for candidate list qualification queries and probation enrollment CRUD, with a data-driven qualification engine that reads rules from the database

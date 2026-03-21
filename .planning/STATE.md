@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-21T20:54:09.623Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-21T21:01:12.593Z"
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -47,6 +47,7 @@ Plan: 2 of 2
 
 *Updated after each plan completion*
 | Phase 01 P01 | 4min | 3 tasks | 3 files |
+| Phase 01 P02 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,8 @@ Recent decisions affecting current work:
 - [Roadmap]: SH-01/SH-02 (Thai date + level code utilities) assigned to Phase 2 with backend; SH-03/SH-04 (Pinia composables) assigned to Phase 3 with frontend
 - [Phase 01]: Created personnel as new full table (not ALTER on civil_servants) with level tracking and probation columns
 - [Phase 01]: PostgreSQL-to-MySQL conversion: BIGSERIAL->BIGINT AUTO_INCREMENT, BOOLEAN->TINYINT(1), date arithmetic->DATEDIFF, CREATE OR REPLACE VIEW->DROP+CREATE
+- [Phase 01]: training_participant_id left as plain BIGINT with no FK (dependency chain too deep per Research pitfall 7)
+- [Phase 01]: Docker compose wires all 6 SQL files (01-schema through 06-seed-data) into docker-entrypoint-initdb.d for full schema init
 
 ### Pending Todos
 
@@ -71,6 +74,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T20:54:09.616Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-21T21:01:12.586Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
