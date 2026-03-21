@@ -71,15 +71,18 @@
     <div class="p-4">
       <div class="bg-gray-700 rounded-lg p-4">
         <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-            <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <p class="text-white text-sm font-medium">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
-              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium">Admin</span>
+          <div class="relative">
+            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+              <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
             </div>
-            <p class="text-gray-400 text-xs">{{ auth.user?.email || 'admin@smartport.com' }}</p>
+            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-700"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5">
+              <p class="text-white text-sm font-medium truncate">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
+              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium shrink-0">Admin</span>
+            </div>
+            <p class="text-gray-400 text-xs truncate mt-0.5">{{ auth.user?.email || 'admin@smartport.com' }}</p>
           </div>
         </div>
       </div>
