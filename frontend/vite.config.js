@@ -1,34 +1,32 @@
-import { defineConfig } from "vite"
-import { resolve, dirname } from "path"
-import { fileURLToPath } from "url"
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  root: ".",
-  base: "/",
+  plugins: [vue(), tailwindcss()],
   server: {
     port: 5174,
-    host: "0.0.0.0",
-    open: true,
-  },
-  build: {
-    outDir: "dist",
-    assetsDir: "assets",
-    sourcemap: true,
-    rollupOptions: {
-      input: {
-        // --- FIX ---
-        // เปลี่ยนจากการใช้ resolve(__dirname, ...) เป็น relative path แบบง่ายๆ
-        main: "./index.html",
-        admin: "./admin.html",
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+  },
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./src"),
+      '@': resolve(__dirname, './src'),
     },
   },
 })
