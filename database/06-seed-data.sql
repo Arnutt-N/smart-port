@@ -66,3 +66,28 @@ INSERT INTO personnel_position_history (personnel_id, position_id, org_id, posit
 (3, 1, 1, 'นักทรัพยากรบุคคล', 'K3', '2018-10-01', NULL, 'นักทรัพยากรบุคคล'),
 (4, 1, 1, 'เจ้าพนักงานธุรการ', 'O1', '2021-04-01', NULL, 'เจ้าพนักงานธุรการ'),
 (5, 1, 1, 'เจ้าพนักงานธุรการ', 'O2', '2020-01-15', NULL, 'เจ้าพนักงานธุรการ');
+
+-- ############################################################################
+-- SECTION 5: SAMPLE PROBATION PROGRAM (per D-13)
+-- โปรแกรมทดลองปฏิบัติราชการตัวอย่าง
+-- ############################################################################
+
+INSERT INTO probation_program (program_name, program_year, duration_months, description, is_active) VALUES
+('โปรแกรมทดลองปฏิบัติราชการ ปี 2569', 2569, 6, 'โปรแกรมมาตรฐานสำหรับข้าราชการบรรจุใหม่', 1);
+
+-- ############################################################################
+-- SECTION 6: SAMPLE PROBATION ENROLLMENTS (per D-13)
+-- ข้อมูลลงทะเบียนทดลองปฏิบัติราชการตัวอย่าง — remaining_days หลากหลาย
+-- ############################################################################
+
+-- Enrollment 1: >30 days remaining (green threshold)
+INSERT INTO probation_enrollment (personnel_id, program_id, start_date, end_date, overall_status) VALUES
+(6, 1, '2025-10-01', '2026-07-01', 'IN_PROGRESS');
+
+-- Enrollment 2: 7-14 days remaining (orange threshold) -- adjust date relative to ~2026-03-22
+INSERT INTO probation_enrollment (personnel_id, program_id, start_date, end_date, overall_status) VALUES
+(7, 1, '2025-10-01', '2026-04-01', 'IN_PROGRESS');
+
+-- Enrollment 3: past end_date (red/negative remaining_days)
+INSERT INTO probation_enrollment (personnel_id, program_id, start_date, end_date, overall_status) VALUES
+(1, 1, '2025-06-01', '2025-12-01', 'IN_PROGRESS');
