@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Personnel stubs, career path schema (11 tables + 2 views), and promotion criteria seed data
+- [x] 01-01-PLAN.md — Personnel stubs, career path schema (11 tables + 2 views), and promotion criteria seed data
 - [ ] 01-02-PLAN.md — Probation schema (10 tables + 1 view), Docker wiring, and full DB verification
 
 ### Phase 2: Backend APIs
