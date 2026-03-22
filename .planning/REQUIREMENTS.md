@@ -26,14 +26,14 @@
 ### Candidate List — Frontend
 
 - [x] **CL-06**: Candidate List page with 4 main tabs: ประเภททั่วไป, ประเภทวิชาการ, ประเภทอำนวยการ (pending), ประเภทบริหาร (pending)
-- [ ] **CL-07**: Sub-tabs within ประเภททั่วไป: ปฏิบัติงาน→ชำนาญงาน (O1→O2), ชำนาญงาน→อาวุโส (O2→O3)
-- [ ] **CL-08**: Sub-tabs within ประเภทวิชาการ: ปฏิบัติการ→ชำนาญการ (K1→K2), ชำนาญการ→ชำนาญการพิเศษ (K2→K3), ชำนาญการพิเศษ→เชี่ยวชาญ (K3→K4)
-- [ ] **CL-09**: ประเภทอำนวยการ and ประเภทบริหาร tabs show "อยู่ระหว่างพัฒนา" placeholder
-- [ ] **CL-10**: Stat cards per sub-tab: ทั้งหมดในบัญชี, มีสิทธิ์ (ถึงเกณฑ์), ยังไม่ถึงเกณฑ์
-- [ ] **CL-11**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่งปัจจุบัน, ระดับ, วันเข้าสู่ระดับปัจจุบัน, วันครบกำหนด, วันคงเหลือ, สถานะ
+- [x] **CL-07**: Sub-tabs within ประเภททั่วไป: ปฏิบัติงาน→ชำนาญงาน (O1→O2), ชำนาญงาน→อาวุโส (O2→O3)
+- [x] **CL-08**: Sub-tabs within ประเภทวิชาการ: ปฏิบัติการ→ชำนาญการ (K1→K2), ชำนาญการ→ชำนาญการพิเศษ (K2→K3), ชำนาญการพิเศษ→เชี่ยวชาญ (K3→K4)
+- [x] **CL-09**: ประเภทอำนวยการ and ประเภทบริหาร tabs show "อยู่ระหว่างพัฒนา" placeholder
+- [x] **CL-10**: Stat cards per sub-tab: ทั้งหมดในบัญชี, มีสิทธิ์ (ถึงเกณฑ์), ยังไม่ถึงเกณฑ์
+- [x] **CL-11**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่งปัจจุบัน, ระดับ, วันเข้าสู่ระดับปัจจุบัน, วันครบกำหนด, วันคงเหลือ, สถานะ
 - [x] **CL-12**: Status badges: green (ถึงเกณฑ์นานแล้ว), gray (ยังไม่ถึงเกณฑ์), orange (Check Data)
-- [ ] **CL-13**: Search/filter by name and position
-- [ ] **CL-14**: Connect to backend API (replace mock data with live data)
+- [x] **CL-13**: Search/filter by name and position
+- [x] **CL-14**: Connect to backend API (replace mock data with live data)
 
 ### Probation Tracking — Backend
 
@@ -109,14 +109,14 @@
 | CL-04 | Phase 2 | Complete |
 | CL-05 | Phase 2 | Complete |
 | CL-06 | Phase 3 | Complete |
-| CL-07 | Phase 3 | Pending |
-| CL-08 | Phase 3 | Pending |
-| CL-09 | Phase 3 | Pending |
-| CL-10 | Phase 3 | Pending |
-| CL-11 | Phase 3 | Pending |
+| CL-07 | Phase 3 | Complete |
+| CL-08 | Phase 3 | Complete |
+| CL-09 | Phase 3 | Complete |
+| CL-10 | Phase 3 | Complete |
+| CL-11 | Phase 3 | Complete |
 | CL-12 | Phase 3 | Complete |
-| CL-13 | Phase 3 | Pending |
-| CL-14 | Phase 3 | Pending |
+| CL-13 | Phase 3 | Complete |
+| CL-14 | Phase 3 | Complete |
 | PT-01 | Phase 2 | Complete |
 | PT-02 | Phase 2 | Complete |
 | PT-03 | Phase 2 | Complete |
