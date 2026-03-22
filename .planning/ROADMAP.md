@@ -63,7 +63,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Shared infrastructure: API composables (useCandidates, useProbation), StatusBadge extensions, PaginationBar, sidebar nav, router
+- [x] 03-01-PLAN.md — Shared infrastructure: API composables (useCandidates, useProbation), StatusBadge extensions, PaginationBar, sidebar nav, router
 - [ ] 03-02-PLAN.md — CandidateListsPage rewrite with overview dashboard, pill sub-tabs, live API data, search, pagination
 - [ ] 03-03-PLAN.md — ProbationEndPage rewrite with live stat cards, color-coded days, search, pagination
 

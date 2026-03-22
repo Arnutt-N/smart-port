@@ -25,13 +25,13 @@
 
 ### Candidate List — Frontend
 
-- [ ] **CL-06**: Candidate List page with 4 main tabs: ประเภททั่วไป, ประเภทวิชาการ, ประเภทอำนวยการ (pending), ประเภทบริหาร (pending)
+- [x] **CL-06**: Candidate List page with 4 main tabs: ประเภททั่วไป, ประเภทวิชาการ, ประเภทอำนวยการ (pending), ประเภทบริหาร (pending)
 - [ ] **CL-07**: Sub-tabs within ประเภททั่วไป: ปฏิบัติงาน→ชำนาญงาน (O1→O2), ชำนาญงาน→อาวุโส (O2→O3)
 - [ ] **CL-08**: Sub-tabs within ประเภทวิชาการ: ปฏิบัติการ→ชำนาญการ (K1→K2), ชำนาญการ→ชำนาญการพิเศษ (K2→K3), ชำนาญการพิเศษ→เชี่ยวชาญ (K3→K4)
 - [ ] **CL-09**: ประเภทอำนวยการ and ประเภทบริหาร tabs show "อยู่ระหว่างพัฒนา" placeholder
 - [ ] **CL-10**: Stat cards per sub-tab: ทั้งหมดในบัญชี, มีสิทธิ์ (ถึงเกณฑ์), ยังไม่ถึงเกณฑ์
 - [ ] **CL-11**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่งปัจจุบัน, ระดับ, วันเข้าสู่ระดับปัจจุบัน, วันครบกำหนด, วันคงเหลือ, สถานะ
-- [ ] **CL-12**: Status badges: green (ถึงเกณฑ์นานแล้ว), gray (ยังไม่ถึงเกณฑ์), orange (Check Data)
+- [x] **CL-12**: Status badges: green (ถึงเกณฑ์นานแล้ว), gray (ยังไม่ถึงเกณฑ์), orange (Check Data)
 - [ ] **CL-13**: Search/filter by name and position
 - [ ] **CL-14**: Connect to backend API (replace mock data with live data)
 
@@ -48,7 +48,7 @@
 - [ ] **PT-06**: Probation list page with stat cards: ทั้งหมด, พร้อมดำเนินการ, ใกล้ครบกำหนด, เกินกำหนด
 - [ ] **PT-07**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่ง, หน่วยงาน, วันเริ่มทดลอง, วันครบกำหนด, วันคงเหลือ, สถานะ
 - [ ] **PT-08**: Color-coded remaining days: green (>30), yellow (15-30), orange (7-14), red (<7)
-- [ ] **PT-09**: Status badges: IN_PROGRESS, COMPLETED, FAILED, EXTENDED
+- [x] **PT-09**: Status badges: IN_PROGRESS, COMPLETED, FAILED, EXTENDED
 - [ ] **PT-10**: Search/filter by name, position, department
 - [ ] **PT-11**: Connect to backend API (replace mock data with live data)
 
@@ -56,8 +56,8 @@
 
 - [x] **SH-01**: Thai date formatting utility — display dates in Buddhist Era (พ.ศ.) format
 - [x] **SH-02**: Thai level code to name mapping utility (O1→ปฏิบัติงาน, K2→ชำนาญการ, etc.)
-- [ ] **SH-03**: Pinia store or composable for candidate list API calls
-- [ ] **SH-04**: Pinia store or composable for probation API calls
+- [x] **SH-03**: Pinia store or composable for candidate list API calls
+- [x] **SH-04**: Pinia store or composable for probation API calls
 
 ## v2 Requirements
 
@@ -108,13 +108,13 @@
 | CL-03 | Phase 2 | Complete |
 | CL-04 | Phase 2 | Complete |
 | CL-05 | Phase 2 | Complete |
-| CL-06 | Phase 3 | Pending |
+| CL-06 | Phase 3 | Complete |
 | CL-07 | Phase 3 | Pending |
 | CL-08 | Phase 3 | Pending |
 | CL-09 | Phase 3 | Pending |
 | CL-10 | Phase 3 | Pending |
 | CL-11 | Phase 3 | Pending |
-| CL-12 | Phase 3 | Pending |
+| CL-12 | Phase 3 | Complete |
 | CL-13 | Phase 3 | Pending |
 | CL-14 | Phase 3 | Pending |
 | PT-01 | Phase 2 | Complete |
@@ -125,13 +125,13 @@
 | PT-06 | Phase 3 | Pending |
 | PT-07 | Phase 3 | Pending |
 | PT-08 | Phase 3 | Pending |
-| PT-09 | Phase 3 | Pending |
+| PT-09 | Phase 3 | Complete |
 | PT-10 | Phase 3 | Pending |
 | PT-11 | Phase 3 | Pending |
 | SH-01 | Phase 2 | Complete |
 | SH-02 | Phase 2 | Complete |
-| SH-03 | Phase 3 | Pending |
-| SH-04 | Phase 3 | Pending |
+| SH-03 | Phase 3 | Complete |
+| SH-04 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 36 total
