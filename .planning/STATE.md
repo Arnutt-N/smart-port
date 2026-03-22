@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: การนับเวลาเพิ่มเติม
 status: unknown
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-22T17:44:44.683Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-22T17:46:34.092Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 8
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 ## Current Position
 
 Phase: 06 (frontend-crud-pages) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 
 ## Performance Metrics
 
@@ -46,6 +46,8 @@ Plan: 3 of 4
 | Phase 05 P03 | 3min | 2 tasks | 2 files |
 | Phase 06 P01 | 2min | 2 tasks | 5 files |
 | Phase 06 P02 | 2min | 1 tasks | 1 files |
+| Phase 06 P04 | 3min | 1 tasks | 1 files |
+| Phase 06 P03 | 3min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -63,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Approval workflow uses validTransitions map pattern for status enforcement
 - [Phase 06]: Composable CRUD pattern: fetchList/fetchDetail/create/update/remove with mapRow snake_case conversion
 - [Phase 06]: Modal CRUD pattern with personnel autocomplete for supportive experience page
+- [Phase 06]: Approve modal pre-fills dates from request dates; status counts computed client-side from current rows
+- [Phase 06]: Two-column from/to layout for diverse experience modal with 4-dimension checkboxes and live diffCountPreview
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T17:44:44.669Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-22T17:46:26.212Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None

@@ -67,8 +67,8 @@ Plans:
 Plans:
 - [x] 06-01-PLAN.md — Composables, StatusBadge extensions, and router updates (foundation)
 - [x] 06-02-PLAN.md — Supportive experience page (การนับเกื้อกูล)
-- [ ] 06-03-PLAN.md — Diverse experience page (การนับแตกต่าง)
-- [ ] 06-04-PLAN.md — Position equivalence page (การเทียบตำแหน่ง)
+- [x] 06-03-PLAN.md — Diverse experience page (การนับแตกต่าง)
+- [x] 06-04-PLAN.md — Position equivalence page (การเทียบตำแหน่ง)
 
 ### Phase 7: QualificationEngine Integration
 **Goal**: Candidate list qualification dates incorporate supportive days, diverse experience gates, and equivalence days
