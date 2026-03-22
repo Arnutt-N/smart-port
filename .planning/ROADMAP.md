@@ -63,7 +63,12 @@ Plans:
   2. HR can navigate to the diverse experience page, see the 4-dimension checklist per record, and the system shows diff_count with visual indication of 3-or-more qualification
   3. HR can navigate to the position equivalence page, see records with approval status badges (PENDING/APPROVED/REJECTED), and submit new equivalence requests
   4. All 3 pages display dates in Buddhist Era format and use Thai language throughout
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+- [ ] 06-01-PLAN.md — Composables, StatusBadge extensions, and router updates (foundation)
+- [ ] 06-02-PLAN.md — Supportive experience page (การนับเกื้อกูล)
+- [ ] 06-03-PLAN.md — Diverse experience page (การนับแตกต่าง)
+- [ ] 06-04-PLAN.md — Position equivalence page (การเทียบตำแหน่ง)
 
 ### Phase 7: QualificationEngine Integration
 **Goal**: Candidate list qualification dates incorporate supportive days, diverse experience gates, and equivalence days
@@ -86,5 +91,5 @@ Plans:
 | 3. Frontend Integration | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 4. Database Preparation | v1.1 | 0/1 | Not started | - |
 | 5. Backend CRUD APIs | v1.1 | 2/3 | In Progress|  |
-| 6. Frontend CRUD Pages | v1.1 | 0/? | Not started | - |
+| 6. Frontend CRUD Pages | v1.1 | 0/4 | Not started | - |
 | 7. QualificationEngine Integration | v1.1 | 0/? | Not started | - |
