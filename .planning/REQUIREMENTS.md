@@ -59,26 +59,26 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SE-01 | - | Pending |
-| SE-02 | - | Pending |
-| SE-03 | - | Pending |
-| SE-04 | - | Pending |
-| DE-01 | - | Pending |
-| DE-02 | - | Pending |
-| DE-03 | - | Pending |
-| PE-01 | - | Pending |
-| PE-02 | - | Pending |
-| PE-03 | - | Pending |
-| QE-01 | - | Pending |
-| QE-02 | - | Pending |
-| QE-03 | - | Pending |
-| QE-04 | - | Pending |
+| SE-01 | Phase 4 | Pending |
+| SE-02 | Phase 5 | Pending |
+| SE-03 | Phase 6 | Pending |
+| SE-04 | Phase 5 | Pending |
+| DE-01 | Phase 5 | Pending |
+| DE-02 | Phase 6 | Pending |
+| DE-03 | Phase 5 | Pending |
+| PE-01 | Phase 5 | Pending |
+| PE-02 | Phase 6 | Pending |
+| PE-03 | Phase 5 | Pending |
+| QE-01 | Phase 7 | Pending |
+| QE-02 | Phase 7 | Pending |
+| QE-03 | Phase 7 | Pending |
+| QE-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 14 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 14
+- Mapped to phases: 14/14
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap creation*

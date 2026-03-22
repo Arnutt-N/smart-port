@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: "การนับเวลาเพิ่มเติม"
-status: defining_requirements
+status: ready_to_plan
 stopped_at: null
-last_updated: "2026-03-22T13:30:00.000Z"
+last_updated: "2026-03-22T14:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,41 +18,32 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-22)
 
-**Core value:** HR can view candidate lists for promotion eligibility in real-time with auto-calculated qualification dates, and track probation status of new civil servants
-**Current focus:** Phase 03 — frontend-integration
+**Core value:** HR สามารถบันทึกข้อมูลการนับเกื้อกูล การนับแตกต่าง และการเทียบตำแหน่ง แล้วนำไปรวมคำนวณวันครบกำหนดเลื่อนระดับใน Candidate List ได้อัตโนมัติ
+**Current focus:** Phase 04 — Database Preparation
 
 ## Current Position
 
-Phase: 03
+Phase: 4 of 7 (Database Preparation)
 Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-22 — Roadmap created for v1.1
+
+Progress: [░░░░░░░░░░] 0% (v1.1)
 
 ## Performance Metrics
 
-**Velocity:**
-
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+**Velocity (from v1.0):**
+- Total plans completed: 7
+- Average duration: 3 min
+- Total execution time: ~21 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
-
-**Recent Trend:**
-
-- Last 5 plans: -
-- Trend: -
-
-*Updated after each plan completion*
-| Phase 01 P01 | 4min | 3 tasks | 3 files |
-| Phase 01 P02 | 3min | 2 tasks | 3 files |
-| Phase 02 P01 | 3min | 2 tasks | 5 files |
-| Phase 02 P02 | 3min | 2 tasks | 3 files |
-| Phase 03 P01 | 3min | 2 tasks | 7 files |
-| Phase 03 P03 | 2min | 1 tasks | 1 files |
-| Phase 03 P02 | 3min | 1 tasks | 1 files |
+| Phase 01 | 2 | 7min | 3.5min |
+| Phase 02 | 2 | 6min | 3min |
+| Phase 03 | 3 | 8min | 2.7min |
 
 ## Accumulated Context
 
@@ -61,20 +52,10 @@ Plan: Not started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Roadmap]: 3-phase coarse structure — DB foundation, backend APIs, frontend integration
-- [Roadmap]: SH-01/SH-02 (Thai date + level code utilities) assigned to Phase 2 with backend; SH-03/SH-04 (Pinia composables) assigned to Phase 3 with frontend
-- [Phase 01]: Created personnel as new full table (not ALTER on civil_servants) with level tracking and probation columns
-- [Phase 01]: PostgreSQL-to-MySQL conversion: BIGSERIAL->BIGINT AUTO_INCREMENT, BOOLEAN->TINYINT(1), date arithmetic->DATEDIFF, CREATE OR REPLACE VIEW->DROP+CREATE
-- [Phase 01]: training_participant_id left as plain BIGINT with no FK (dependency chain too deep per Research pitfall 7)
-- [Phase 01]: Docker compose wires all 6 SQL files (01-schema through 06-seed-data) into docker-entrypoint-initdb.d for full schema init
-- [Phase 02]: Route delegation pattern: api.php includes routes/candidates.php and calls handleCandidates()
-- [Phase 02]: Education-aware criteria matching via LEFT JOIN with OR condition (exact match OR ANY)
-- [Phase 02]: DATE_ADD with CAST for leap-year-safe qualification date computation
-- [Phase 02]: GET list uses vw_probation_dashboard view, GET detail queries probation_enrollment directly (view filters only IN_PROGRESS)
-- [Phase 02]: PUT update uses dynamic SET clause with allowed-fields whitelist for security
-- [Phase 03]: Negative remaining days styled as red (< 7 threshold) and formatted as Thai overdue text
-- [Phase 03]: Probation statuses use UPPER_CASE keys matching backend exactly (case-sensitive)
-- [Phase 03]: Custom skeleton divs for overview 2+3 layout (SkeletonLoader forces 4-col)
+- [v1.1 Roadmap]: 4-phase coarse structure -- DB prep, backend CRUD, frontend pages, engine integration
+- [v1.1 Roadmap]: SE-04/DE-03/PE-03 (computation logic) assigned to Phase 5 with backend APIs
+- [v1.1 Roadmap]: QE-04 (candidate list display) assigned to Phase 7 with engine integration
+- [Research]: Phase 7 (QualificationEngine) flagged for /gsd:research-phase before implementation
 
 ### Pending Todos
 
@@ -82,11 +63,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: PostgreSQL-to-MySQL conversion must replace all date arithmetic (date1-date2 to DATEDIFF), string concat (|| to CONCAT), and BOOLEAN to TINYINT(1)
-- [Phase 2]: Promotion criteria seed data values must be extracted from ops-career-path.pdf and validated with HR
+- [Research]: Off-by-one date counting (DATEDIFF +1) needs HR Excel validation
+- [Research]: QualificationEngine LEFT JOIN subqueries may produce duplicates -- must aggregate to one row per personnel_id
+- [Research]: Any authenticated user can approve equivalence -- acceptable for v1.1, flag for v2 RBAC
 
 ## Session Continuity
 
-Last session: 2026-03-22T04:35:21.667Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-22
+Stopped at: v1.1 roadmap created, ready to plan Phase 4
 Resume file: None
