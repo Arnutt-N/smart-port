@@ -80,7 +80,10 @@ Plans:
   3. Cross-type promotion candidates (e.g., K4 to S1) have equivalence days incorporated into their qualification date
   4. Existing candidate list output is unchanged when no new data exists (regression safety)
   5. Candidate list UI reflects the adjusted qualification dates from the engine
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Extend QualificationEngine with supportive/diverse/equivalence LEFT JOIN subqueries
+- [ ] 07-02-PLAN.md — Add 3 new columns to Candidate List UI (supportive days, diverse badge, equivalence days)
 
 ## Progress
 
@@ -92,4 +95,4 @@ Plans:
 | 4. Database Preparation | v1.1 | 0/1 | Not started | - |
 | 5. Backend CRUD APIs | v1.1 | 2/3 | In Progress|  |
 | 6. Frontend CRUD Pages | v1.1 | 0/4 | Not started | - |
-| 7. QualificationEngine Integration | v1.1 | 0/? | Not started | - |
+| 7. QualificationEngine Integration | v1.1 | 0/2 | Not started | - |
