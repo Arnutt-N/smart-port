@@ -37,7 +37,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details
   3. Docker compose initializes new seed data correctly on fresh database creation
 **Plans:** 1 plan
 Plans:
-- [ ] 04-01-PLAN.md — Create v1.1 migration SQL (ALTER TABLEs + seed data) and wire into Docker compose
+- [x] 04-01-PLAN.md — Create v1.1 migration SQL (ALTER TABLEs + seed data) and wire into Docker compose
 
 ### Phase 5: Backend CRUD APIs
 **Goal**: All 3 features have working REST endpoints with server-side date arithmetic and business logic
