@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-22T12:51:04.505Z"
+milestone: v1.1
+milestone_name: "การนับเวลาเพิ่มเติม"
+status: defining_requirements
+stopped_at: null
+last_updated: "2026-03-22T13:30:00.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
