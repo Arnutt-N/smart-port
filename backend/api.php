@@ -236,6 +236,21 @@ switch ($path[0]) {
         handleProbation($pdo, $method, $path);
         break;
 
+    case 'supportive':
+        include __DIR__ . '/routes/supportive.php';
+        handleSupportive($pdo, $method, $path);
+        break;
+
+    case 'diverse':
+        include __DIR__ . '/routes/diverse.php';
+        handleDiverse($pdo, $method, $path);
+        break;
+
+    case 'equivalence':
+        include __DIR__ . '/routes/equivalence.php';
+        handleEquivalence($pdo, $method, $path);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
