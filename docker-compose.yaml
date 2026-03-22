@@ -58,6 +58,7 @@ services:
       - ./database/05-probation.sql:/docker-entrypoint-initdb.d/05-probation.sql
       - ./database/06-seed-data.sql:/docker-entrypoint-initdb.d/06-seed-data.sql
       - ./database/07-add-education-level.sql:/docker-entrypoint-initdb.d/07-add-education-level.sql
+      - ./database/08-career-path-v11.sql:/docker-entrypoint-initdb.d/08-career-path-v11.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s
