@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: การนับเวลาเพิ่มเติม
 status: unknown
-stopped_at: v1.1 roadmap created, ready to plan Phase 4
-last_updated: "2026-03-22T14:50:10.242Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-22T16:40:40.672Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** HR สามารถบันทึกข้อมูลการนับเกื้อกูล การนับแตกต่าง และการเทียบตำแหน่ง แล้วนำไปรวมคำนวณวันครบกำหนดเลื่อนระดับใน Candidate List ได้อัตโนมัติ
-**Current focus:** Phase 04 — database-preparation
+**Current focus:** Phase 05 — backend-crud-apis
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (backend-crud-apis) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -41,6 +41,8 @@ Plan: Not started
 | Phase 01 | 2 | 7min | 3.5min |
 | Phase 02 | 2 | 6min | 3min |
 | Phase 03 | 3 | 8min | 2.7min |
+| Phase 05 P01 | 2min | 1 tasks | 1 files |
+| Phase 05 P02 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -53,6 +55,8 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: SE-04/DE-03/PE-03 (computation logic) assigned to Phase 5 with backend APIs
 - [v1.1 Roadmap]: QE-04 (candidate list display) assigned to Phase 7 with engine integration
 - [Research]: Phase 7 (QualificationEngine) flagged for /gsd:research-phase before implementation
+- [Phase 05]: Extracted computeSupportiveFields() as shared helper for create/update date arithmetic reuse
+- [Phase 05]: GENERATED column pattern: compute diff_count in PHP for business logic, exclude from SQL INSERT/UPDATE
 
 ### Pending Todos
 
@@ -66,6 +70,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22
-Stopped at: v1.1 roadmap created, ready to plan Phase 4
+Last session: 2026-03-22T16:40:40.659Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

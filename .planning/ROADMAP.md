@@ -48,10 +48,10 @@ Plans:
   2. HR can create/read/update/delete diverse experience records via API, and diff_count is server-computed (never client-submitted)
   3. HR can create/read/update/delete position equivalence records via API, with approval status transitions enforced (PENDING to APPROVED/REJECTED only)
   4. Only APPROVED equivalence records contribute to approved_total_days computation
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 Plans:
-- [ ] 05-01-PLAN.md — Supportive experience CRUD with ratio lookup and effective_days computation
-- [ ] 05-02-PLAN.md — Diverse experience CRUD with GENERATED column handling and qualified_date
+- [x] 05-01-PLAN.md — Supportive experience CRUD with ratio lookup and effective_days computation
+- [x] 05-02-PLAN.md — Diverse experience CRUD with GENERATED column handling and qualified_date
 - [ ] 05-03-PLAN.md — Position equivalence CRUD with approval workflow + API gateway registration
 
 ### Phase 6: Frontend CRUD Pages
@@ -85,6 +85,6 @@ Plans:
 | 2. Backend APIs | v1.0 | 2/2 | Complete | 2026-03-22 |
 | 3. Frontend Integration | v1.0 | 3/3 | Complete | 2026-03-22 |
 | 4. Database Preparation | v1.1 | 0/1 | Not started | - |
-| 5. Backend CRUD APIs | v1.1 | 0/3 | Not started | - |
+| 5. Backend CRUD APIs | v1.1 | 2/3 | In Progress|  |
 | 6. Frontend CRUD Pages | v1.1 | 0/? | Not started | - |
 | 7. QualificationEngine Integration | v1.1 | 0/? | Not started | - |
