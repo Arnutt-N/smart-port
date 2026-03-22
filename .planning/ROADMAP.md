@@ -35,7 +35,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details
   1. supportive_job_series table contains seed data mapping which job series support each other with reduction ratios
   2. diff_count column in diverse_experience is a MySQL GENERATED column computed from the 4 boolean flags
   3. Docker compose initializes new seed data correctly on fresh database creation
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 04-01-PLAN.md — Create v1.1 migration SQL (ALTER TABLEs + seed data) and wire into Docker compose
 
 ### Phase 5: Backend CRUD APIs
 **Goal**: All 3 features have working REST endpoints with server-side date arithmetic and business logic
@@ -78,7 +80,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details
 | 1. Database Foundation | v1.0 | 2/2 | Complete | 2026-03-22 |
 | 2. Backend APIs | v1.0 | 2/2 | Complete | 2026-03-22 |
 | 3. Frontend Integration | v1.0 | 3/3 | Complete | 2026-03-22 |
-| 4. Database Preparation | v1.1 | 0/? | Not started | - |
+| 4. Database Preparation | v1.1 | 0/1 | Not started | - |
 | 5. Backend CRUD APIs | v1.1 | 0/? | Not started | - |
 | 6. Frontend CRUD Pages | v1.1 | 0/? | Not started | - |
 | 7. QualificationEngine Integration | v1.1 | 0/? | Not started | - |
