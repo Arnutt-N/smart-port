@@ -230,6 +230,11 @@ switch ($path[0]) {
         handleCandidates($pdo, $method, $path);
         break;
 
+    case 'probation':
+        include __DIR__ . '/routes/probation.php';
+        handleProbation($pdo, $method, $path);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
