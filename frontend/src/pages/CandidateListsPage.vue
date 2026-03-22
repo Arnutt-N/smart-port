@@ -92,8 +92,8 @@
           />
         </div>
 
-        <!-- Row 2: 3 stat cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Row 2: 4 stat cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             label="ครบกำหนด"
             :value="overviewData.qualifiedTotal"
@@ -102,11 +102,18 @@
             icon-class="text-green-600"
           />
           <StatCard
-            label="รอดำเนินการ"
+            label="ใกล้ครบกำหนด"
             :value="overviewData.notYetTotal"
             :icon="Clock"
             icon-bg-class="bg-amber-50"
             icon-class="text-amber-600"
+          />
+          <StatCard
+            label="เกินกำหนด"
+            :value="overviewData.overdueTotal"
+            :icon="AlertTriangle"
+            icon-bg-class="bg-red-50"
+            icon-class="text-red-600"
           />
           <StatCard
             label="ตรวจสอบข้อมูล"
@@ -196,6 +203,8 @@
             class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="ค้นหาชื่อ หรือตำแหน่ง..."
             @input="onSearchInput"
+            @compositionstart="onCompositionStart"
+            @compositionend="onCompositionEnd"
           />
         </div>
         <button class="flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
@@ -306,7 +315,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import {
   Users, UserCheck, AlertCircle, Clock, Home,
   Download, Upload, Plus, Eye, Pencil, Trash2,
-  Construction
+  Construction, AlertTriangle
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -328,6 +337,7 @@ const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 // Search state with 300ms debounce (Pitfall 3)
 const searchQuery = ref('')
 let searchTimeout = null
+let isComposing = false
 
 // Overview state (separate because it merges multiple API calls)
 const overviewLoading = ref(false)
@@ -431,8 +441,12 @@ async function fetchOverviewData() {
     const notYetTotal = allSummaries.reduce((sum, s) => sum + (s.not_yet || 0), 0)
     const checkDataTotal = allSummaries.reduce((sum, s) => sum + (s.check_data || 0), 0)
 
+    // Overdue: คนที่ remainingDays <= 0 (ครบกำหนดแล้วแต่ยังไม่ได้เลื่อนระดับ)
+    const allRowsRaw = Object.values(dataByLevel).flatMap(d => d.data || [])
+    const overdueTotal = allRowsRaw.filter(r => r.remainingDays !== null && r.remainingDays !== undefined && r.remainingDays <= 0).length
+
     // Top 5 nearest deadline: concatenate all data, sort by remainingDays asc (null last), take 5
-    const allRows = Object.values(dataByLevel).flatMap(d => d.data || [])
+    const allRows = allRowsRaw
     allRows.sort((a, b) => {
       if (a.remainingDays === null || a.remainingDays === undefined) return 1
       if (b.remainingDays === null || b.remainingDays === undefined) return -1
@@ -446,6 +460,7 @@ async function fetchOverviewData() {
       qualifiedTotal,
       notYetTotal,
       checkDataTotal,
+      overdueTotal,
       top5,
     }
   } catch (err) {
@@ -455,8 +470,14 @@ async function fetchOverviewData() {
   }
 }
 
-// Debounced search (Pitfall 3)
+// Debounced search (Pitfall 3) — guards against Thai IME composition events
+function onCompositionStart() { isComposing = true }
+function onCompositionEnd() {
+  isComposing = false
+  onSearchInput()
+}
 function onSearchInput() {
+  if (isComposing) return
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
     pagination.value.offset = 0

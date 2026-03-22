@@ -14,6 +14,7 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $username, $password, $options);
+    $pdo->exec("SET NAMES utf8mb4");
 } catch (PDOException $e) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Connection failed: ' . $e->getMessage()]);

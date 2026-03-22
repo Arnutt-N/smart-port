@@ -10,9 +10,9 @@ describe('StatusBadge', () => {
     expect(wrapper.classes()).toContain('bg-green-50')
   })
 
-  it('renders "รอดำเนินการ" for not_yet status', () => {
+  it('renders "ใกล้ครบกำหนด" for not_yet status', () => {
     const wrapper = mount(StatusBadge, { props: { status: 'not_yet' } })
-    expect(wrapper.text()).toBe('รอดำเนินการ')
+    expect(wrapper.text()).toBe('ใกล้ครบกำหนด')
     expect(wrapper.classes()).toContain('bg-amber-50')
   })
 

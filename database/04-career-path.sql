@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ============================================================================
 -- 04-career-path.sql
 -- Career Path Tables & Views for Smart Port
@@ -288,7 +289,7 @@ SELECT
     DATEDIFF(COALESCE(pph.end_date, CURDATE()), pph.effective_date) AS total_days,
     CASE WHEN pph.end_date IS NULL THEN 1 ELSE 0 END AS is_current
 FROM personnel_position_history pph
-LEFT JOIN position p_pos ON pph.position_id = p_pos.position_id;
+LEFT JOIN `position` p_pos ON pph.position_id = p_pos.position_id;
 
 -- [G09] นับวันดำรง อำนวยการ/บริหาร — VIEW จาก position_history
 -- ตรงกับชีท "นับวันใน-อต-อส" ใน Excel
@@ -304,5 +305,5 @@ SELECT
     DATEDIFF(COALESCE(pph.end_date, CURDATE()), pph.effective_date) AS total_days,
     CASE WHEN pph.end_date IS NULL THEN 1 ELSE 0 END AS is_current
 FROM personnel_position_history pph
-LEFT JOIN position p_pos ON pph.position_id = p_pos.position_id
+LEFT JOIN `position` p_pos ON pph.position_id = p_pos.position_id
 WHERE pph.position_level IN ('M1','M2','S1','S2');

@@ -61,14 +61,17 @@ function getAuthHeader() {
     if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
         return str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
     }
-    
+
     if (function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
-        if (isset($headers['Authorization'])) {
-            return str_replace('Bearer ', '', $headers['Authorization']);
+        // Case-insensitive header lookup (proxies may lowercase headers)
+        foreach ($headers as $key => $value) {
+            if (strtolower($key) === 'authorization') {
+                return str_replace('Bearer ', '', $value);
+            }
         }
     }
-    
+
     return null;
 }
 ?>

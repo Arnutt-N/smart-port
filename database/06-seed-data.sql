@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ============================================================================
 -- 06-seed-data.sql
 -- Seed Data for Smart Port Career Path Features

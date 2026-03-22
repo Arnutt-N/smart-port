@@ -15,34 +15,41 @@
 
     <!-- Stat Cards -->
     <SkeletonLoader v-if="loading && rows.length === 0" type="stat-cards" />
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div v-else class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
       <StatCard
-        label="ทั้งหมด"
-        :value="summary.total"
-        :icon="Users"
-        icon-bg-class="bg-blue-50"
-        icon-class="text-blue-600"
-      />
-      <StatCard
-        label="กำลังดำเนินการ"
-        :value="summary.in_progress"
-        :icon="UserCheck"
-        icon-bg-class="bg-green-50"
-        icon-class="text-green-600"
-      />
-      <StatCard
-        label="ใกล้ครบกำหนด"
-        :value="summary.near_deadline"
+        label="ยังไม่ครบกำหนด"
+        :value="summary.not_due"
         :icon="Clock"
         icon-bg-class="bg-yellow-50"
         icon-class="text-yellow-600"
       />
       <StatCard
+        label="ใกล้ครบกำหนด"
+        :value="summary.near_deadline"
+        :icon="AlertTriangle"
+        icon-bg-class="bg-orange-50"
+        icon-class="text-orange-600"
+      />
+      <StatCard
+        label="พร้อมพ้นทดลอง"
+        :value="summary.ready"
+        :icon="UserCheck"
+        icon-bg-class="bg-green-50"
+        icon-class="text-green-600"
+      />
+      <StatCard
         label="เกินกำหนด"
         :value="summary.overdue"
-        :icon="AlertTriangle"
+        :icon="AlertCircle"
         icon-bg-class="bg-red-50"
         icon-class="text-red-600"
+      />
+      <StatCard
+        label="กำลังดำเนินการ"
+        :value="summary.in_progress"
+        :icon="Users"
+        icon-bg-class="bg-blue-50"
+        icon-class="text-blue-600"
       />
     </div>
 
@@ -171,7 +178,7 @@ const { fetchList } = useProbation()
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
-const summary = ref({ total: 0, in_progress: 0, near_deadline: 0, overdue: 0 })
+const summary = ref({ total: 0, not_due: 0, near_deadline: 0, ready: 0, overdue: 0, in_progress: 0 })
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
 // Search with 300ms debounce
@@ -188,7 +195,20 @@ async function fetchData() {
       offset: pagination.value.offset,
     })
     rows.value = result.data
-    summary.value = result.summary
+    // คำนวณ summary จาก computed status
+    const notDue = result.data.filter(r => r.status === 'NOT_DUE').length
+    const nearDeadline = result.data.filter(r => r.status === 'NEAR_DEADLINE').length
+    const ready = result.data.filter(r => r.status === 'READY').length
+    const overdue = result.data.filter(r => r.status === 'OVERDUE').length
+    const inProgress = result.data.filter(r => r.status === 'IN_PROGRESS').length
+    summary.value = {
+      total: result.pagination.total,
+      not_due: notDue,
+      near_deadline: nearDeadline,
+      ready: ready,
+      overdue: overdue,
+      in_progress: inProgress,
+    }
     pagination.value = result.pagination
   } catch (err) {
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'

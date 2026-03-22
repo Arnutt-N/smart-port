@@ -1,6 +1,6 @@
 <?php
 // Smart Port Management System - Enhanced API Gateway
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://smart-port.onrender.com');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
@@ -15,7 +15,8 @@ include 'config.php';
 include 'auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
-$path = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = explode('/', trim($uri, '/'));
 
 // Remove 'api' from path if present
 if ($path[0] === 'api') {

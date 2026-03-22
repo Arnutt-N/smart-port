@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ============================================================================
 -- 07-add-education-level.sql
 -- Add education_level column to personnel table

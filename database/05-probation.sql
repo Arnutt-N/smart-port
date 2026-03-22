@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ============================================================================
 -- 05-probation.sql
 -- Probation Tracking Tables & Dashboard View for Smart Port
@@ -276,5 +277,5 @@ SELECT
 FROM probation_enrollment pe
 JOIN personnel p ON pe.personnel_id = p.personnel_id
 LEFT JOIN organization o ON p.current_org_id = o.org_id
-LEFT JOIN position pos ON p.current_position_id = pos.position_id
+LEFT JOIN `position` pos ON p.current_position_id = pos.position_id
 WHERE pe.overall_status = 'IN_PROGRESS';

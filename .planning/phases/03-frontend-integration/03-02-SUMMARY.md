@@ -67,7 +67,7 @@ Each task was committed atomically:
 
 1. **Task 1: Rewrite CandidateListsPage.vue** - `be764ee` (feat)
 
-**Plan metadata:** [pending final commit]
+**Plan metadata:** `1df0a66` (docs: complete plan)
 
 ## Files Created/Modified
 - `frontend/src/pages/CandidateListsPage.vue` - Complete candidate list page handling overview, general, academic, support, management sections with live API integration
