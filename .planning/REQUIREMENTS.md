@@ -9,19 +9,19 @@
 
 - [ ] **SE-01**: Seed data สำหรับ supportive_job_series mapping (สายงานไหนเกื้อกูลกัน + อัตราลดทอน)
 - [x] **SE-02**: API CRUD endpoints สำหรับ supportive_experience (GET list, POST create, PUT update, DELETE)
-- [ ] **SE-03**: หน้าการนับเกื้อกูล แสดงรายการ + ฟอร์มบันทึกวันเกื้อกูลต่อบุคคล
+- [x] **SE-03**: หน้าการนับเกื้อกูล แสดงรายการ + ฟอร์มบันทึกวันเกื้อกูลต่อบุคคล
 - [x] **SE-04**: คำนวณ effective_days = total_days × ratio จาก supportive_job_series mapping
 
 ### การนับแตกต่าง (Diverse Experience)
 
 - [x] **DE-01**: API CRUD endpoints สำหรับ diverse_experience (GET list, POST create, PUT update, DELETE)
-- [ ] **DE-02**: หน้าการนับแตกต่าง แสดงรายการ 4 มิติ (สายงาน/หน่วยงาน/พื้นที่/ลักษณะงาน) + ฟอร์มบันทึก
+- [x] **DE-02**: หน้าการนับแตกต่าง แสดงรายการ 4 มิติ (สายงาน/หน่วยงาน/พื้นที่/ลักษณะงาน) + ฟอร์มบันทึก
 - [x] **DE-03**: คำนวณ diff_count อัตโนมัติ + qualified_date เมื่อ ≥3 ต่าง
 
 ### การเทียบตำแหน่ง (Position Equivalence)
 
 - [x] **PE-01**: API CRUD endpoints สำหรับ position_equivalence (GET list, POST request, PUT approve/reject)
-- [ ] **PE-02**: หน้าการเทียบตำแหน่ง แสดงรายการ + ฟอร์มยื่นคำขอ + สถานะอนุมัติ
+- [x] **PE-02**: หน้าการเทียบตำแหน่ง แสดงรายการ + ฟอร์มยื่นคำขอ + สถานะอนุมัติ
 - [x] **PE-03**: คำนวณ approved_total_days จาก approved records เท่านั้น
 
 ### QualificationEngine Integration
@@ -61,13 +61,13 @@
 |-------------|-------|--------|
 | SE-01 | Phase 4 | Pending |
 | SE-02 | Phase 5 | Complete |
-| SE-03 | Phase 6 | Pending |
+| SE-03 | Phase 6 | Complete |
 | SE-04 | Phase 5 | Complete |
 | DE-01 | Phase 5 | Complete |
-| DE-02 | Phase 6 | Pending |
+| DE-02 | Phase 6 | Complete |
 | DE-03 | Phase 5 | Complete |
 | PE-01 | Phase 5 | Complete |
-| PE-02 | Phase 6 | Pending |
+| PE-02 | Phase 6 | Complete |
 | PE-03 | Phase 5 | Complete |
 | QE-01 | Phase 7 | Pending |
 | QE-02 | Phase 7 | Pending |

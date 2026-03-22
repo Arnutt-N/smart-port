@@ -65,7 +65,7 @@ Plans:
   4. All 3 pages display dates in Buddhist Era format and use Thai language throughout
 **Plans:** 4 plans
 Plans:
-- [ ] 06-01-PLAN.md — Composables, StatusBadge extensions, and router updates (foundation)
+- [x] 06-01-PLAN.md — Composables, StatusBadge extensions, and router updates (foundation)
 - [ ] 06-02-PLAN.md — Supportive experience page (การนับเกื้อกูล)
 - [ ] 06-03-PLAN.md — Diverse experience page (การนับแตกต่าง)
 - [ ] 06-04-PLAN.md — Position equivalence page (การเทียบตำแหน่ง)

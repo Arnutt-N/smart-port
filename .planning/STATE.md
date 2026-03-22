@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: การนับเวลาเพิ่มเติม
 status: unknown
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-22T16:52:54.546Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-22T17:38:43.231Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 8
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** HR สามารถบันทึกข้อมูลการนับเกื้อกูล การนับแตกต่าง และการเทียบตำแหน่ง แล้วนำไปรวมคำนวณวันครบกำหนดเลื่อนระดับใน Candidate List ได้อัตโนมัติ
-**Current focus:** Phase 05 — backend-crud-apis
+**Current focus:** Phase 06 — frontend-crud-pages
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (frontend-crud-pages) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Plan: Not started
 | Phase 05 P01 | 2min | 1 tasks | 1 files |
 | Phase 05 P02 | 2min | 1 tasks | 1 files |
 | Phase 05 P03 | 3min | 2 tasks | 2 files |
+| Phase 06 P01 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,7 @@ Recent decisions affecting current work:
 - [Phase 05]: Extracted computeSupportiveFields() as shared helper for create/update date arithmetic reuse
 - [Phase 05]: GENERATED column pattern: compute diff_count in PHP for business logic, exclude from SQL INSERT/UPDATE
 - [Phase 05]: Approval workflow uses validTransitions map pattern for status enforcement
+- [Phase 06]: Composable CRUD pattern: fetchList/fetchDetail/create/update/remove with mapRow snake_case conversion
 
 ### Pending Todos
 
@@ -72,6 +74,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T16:47:45.806Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-22T17:38:43.222Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
