@@ -17,11 +17,11 @@
 
 ### Candidate List — Backend
 
-- [ ] **CL-01**: Qualification calculation engine (QualificationEngine.php) that computes qualification status from promotion_criteria + personnel tenure + education level
-- [ ] **CL-02**: API endpoint GET /candidates/:targetLevel — returns list of personnel with computed qualification status for a target level (e.g., K2, K3, O2, O3, K4)
-- [ ] **CL-03**: API endpoint GET /candidates/:targetLevel/:personnelId — returns detailed qualification breakdown for one person
-- [ ] **CL-04**: Qualification status computation: remaining_days, qualification_date, status (ถึงเกณฑ์นานแล้ว / ยังไม่ถึงเกณฑ์ / Check Data)
-- [ ] **CL-05**: Education-aware calculation — K1→K2 requires 6 years (ป.ตรี), 4 years (ป.โท), 2 years (ป.เอก)
+- [x] **CL-01**: Qualification calculation engine (QualificationEngine.php) that computes qualification status from promotion_criteria + personnel tenure + education level
+- [x] **CL-02**: API endpoint GET /candidates/:targetLevel — returns list of personnel with computed qualification status for a target level (e.g., K2, K3, O2, O3, K4)
+- [x] **CL-03**: API endpoint GET /candidates/:targetLevel/:personnelId — returns detailed qualification breakdown for one person
+- [x] **CL-04**: Qualification status computation: remaining_days, qualification_date, status (ถึงเกณฑ์นานแล้ว / ยังไม่ถึงเกณฑ์ / Check Data)
+- [x] **CL-05**: Education-aware calculation — K1→K2 requires 6 years (ป.ตรี), 4 years (ป.โท), 2 years (ป.เอก)
 
 ### Candidate List — Frontend
 
@@ -54,8 +54,8 @@
 
 ### Shared / Cross-cutting
 
-- [ ] **SH-01**: Thai date formatting utility — display dates in Buddhist Era (พ.ศ.) format
-- [ ] **SH-02**: Thai level code to name mapping utility (O1→ปฏิบัติงาน, K2→ชำนาญการ, etc.)
+- [x] **SH-01**: Thai date formatting utility — display dates in Buddhist Era (พ.ศ.) format
+- [x] **SH-02**: Thai level code to name mapping utility (O1→ปฏิบัติงาน, K2→ชำนาญการ, etc.)
 - [ ] **SH-03**: Pinia store or composable for candidate list API calls
 - [ ] **SH-04**: Pinia store or composable for probation API calls
 
@@ -103,11 +103,11 @@
 | DB-05 | Phase 1 | Complete |
 | DB-06 | Phase 1 | Complete |
 | DB-07 | Phase 1 | Complete |
-| CL-01 | Phase 2 | Pending |
-| CL-02 | Phase 2 | Pending |
-| CL-03 | Phase 2 | Pending |
-| CL-04 | Phase 2 | Pending |
-| CL-05 | Phase 2 | Pending |
+| CL-01 | Phase 2 | Complete |
+| CL-02 | Phase 2 | Complete |
+| CL-03 | Phase 2 | Complete |
+| CL-04 | Phase 2 | Complete |
+| CL-05 | Phase 2 | Complete |
 | CL-06 | Phase 3 | Pending |
 | CL-07 | Phase 3 | Pending |
 | CL-08 | Phase 3 | Pending |
@@ -128,8 +128,8 @@
 | PT-09 | Phase 3 | Pending |
 | PT-10 | Phase 3 | Pending |
 | PT-11 | Phase 3 | Pending |
-| SH-01 | Phase 2 | Pending |
-| SH-02 | Phase 2 | Pending |
+| SH-01 | Phase 2 | Complete |
+| SH-02 | Phase 2 | Complete |
 | SH-03 | Phase 3 | Pending |
 | SH-04 | Phase 3 | Pending |
 

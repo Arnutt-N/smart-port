@@ -47,7 +47,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Qualification engine, candidate list API, shared helpers (Thai date + level code), education_level migration
+- [x] 02-01-PLAN.md — Qualification engine, candidate list API, shared helpers (Thai date + level code), education_level migration
 - [ ] 02-02-PLAN.md — Probation tracking CRUD API and api.php gateway wiring
 
 ### Phase 3: Frontend Integration
