@@ -1,154 +1,290 @@
-# Stack Research
+# Stack Research — v1.1 Career Path Time-Counting Features
 
-**Domain:** Career Path Qualification Calculator & Probation Tracking for Thai Government HR (HRIS extension)
+**Project:** Smart Port HRIS - Time Counting Sub-menus (เกื้อกูล, แตกต่าง, เทียบตำแหน่ง)
 **Researched:** 2026-03-22
-**Confidence:** MEDIUM-HIGH
+**Scope:** Stack additions/changes needed for 3 new career path time-counting features
+**Confidence:** HIGH
+
+## Executive Summary
+
+The existing stack (Vue 3, PHP 8.3, MySQL 8.0) requires **zero new library dependencies**. All 3 features are standard CRUD with date arithmetic, which the current codebase already handles. The work is creating new PHP route handlers (following `routes/candidates.php`), new Vue composables (following `useCandidates.js`), new Vue pages (replacing PlaceholderPage routes), and extending `QualificationEngine.php` to incorporate additional days into qualification_date calculations.
+
+The previous v1.0 research recommended adding `@vueuse/core`, `date-fns`, and `@date-fns/tz`. These remain **optional nice-to-haves** but are NOT required for v1.1. The existing patterns (PHP `DATEDIFF`/`DATE_ADD` for server-side date math, `formatThaiDate()` helper, native fetch via `useApi.js` composable) cover all v1.1 needs without new dependencies.
 
 ## Existing Stack (Fixed -- Not Under Discussion)
 
-These are already in production. This research covers only what to **add**.
+| Technology | Version | Purpose | Already Handles |
+|------------|---------|---------|-----------------|
+| Vue 3 | ^3.5.0 | Frontend framework | Component composition, reactivity |
+| Vite 6 | ^6.0.0 | Build tooling | HMR, proxy to backend |
+| Tailwind CSS 4 | ^4.1.0 | Styling | All UI needs |
+| Pinia 3 | ^3.0.0 | State management | Auth store, UI toast store |
+| Vue Router 4 | ^4.5.0 | Routing | Placeholder routes already exist for all 3 pages |
+| PHP 8.3 | 8.3 | Backend API | Custom routing, PDO, date functions |
+| MySQL 8.0 | 8.0 | Database | All 4 career-path tables already exist in `04-career-path.sql` |
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Vue 3 | ^3.5.0 | Frontend framework |
-| Vite | ^6.0.0 | Build tooling |
-| Tailwind CSS | ^4.1.0 | Styling |
-| Pinia | ^3.0.0 | State management |
-| Vue Router | ^4.5.0 | Routing |
-| Lucide Vue Next | ^0.470.0 | Icons |
-| Chart.js + vue-chartjs | ^4.4.0 / ^5.3.0 | Dashboard charts |
-| PHP 8.3 (no framework) | 8.3 | Backend API |
-| firebase/php-jwt | ^6.0 | JWT auth |
-| MySQL | 8.0 | Database |
-| Docker Compose | - | Container orchestration |
+## New Dependencies Required
 
-## Recommended Additions
+**None.** Zero new npm packages. Zero new Composer packages.
 
-### Frontend Libraries
+## What Already Exists (Do NOT Rebuild)
 
-| Library | Version | Purpose | Why Recommended | Confidence |
-|---------|---------|---------|-----------------|------------|
-| @vueuse/core | ^14.2.1 | Composable utilities | Provides `useIntervalFn` for auto-refreshing remaining-days counters, `useDateFormat` for Thai date display, `useLocalStorage` for filter persistence, and `useDebounce` for search inputs. 200+ tree-shakeable functions. Requires Vue 3.5+ which this project already uses. | HIGH |
-| date-fns | ^4.1.0 | Date arithmetic | Tree-shakeable (import only what you use), works on native Date objects. Need `differenceInDays`, `addMonths`, `format`, `isAfter`, `isBefore` for qualification date calculations and probation countdowns. Functional API fits Vue 3 composition style better than Day.js's chainable OOP. | HIGH |
-| @date-fns/tz | ^1.4.1 | Timezone handling | Bangkok timezone (Asia/Bangkok) for consistent date calculations. Thai government operations are single-timezone but server may run UTC (Docker/Render). Prevents off-by-one day errors in remaining-days calculations. | MEDIUM |
+| Component | Location | Status |
+|-----------|----------|--------|
+| `supportive_experience` table | `database/04-career-path.sql` | Schema created |
+| `diverse_experience` table | `database/04-career-path.sql` | Schema created |
+| `position_equivalence` table | `database/04-career-path.sql` | Schema created |
+| `supportive_job_series` mapping table | `database/04-career-path.sql` | Schema created, needs seed data |
+| `qualification_calculation` table | `database/04-career-path.sql` | Schema created, has `supportive_days`, `diverse_exp_date`, `equivalence_days` columns |
+| Route placeholders in Vue Router | `frontend/src/router/index.js` | Routes exist: `/time-counting`, `/time-difference`, `/position-compare` |
+| QualificationEngine | `backend/QualificationEngine.php` | Working computation for basic qualification_date |
+| API gateway routing pattern | `backend/api.php` | Switch-case dispatch to `routes/*.php` |
+| Composable CRUD pattern | `frontend/src/composables/useCandidates.js` | fetch + map pattern established |
+| Thai date helpers | `backend/helpers.php` | `formatThaiDate()`, `getLevelName()` |
+| `useApi.js` composable | `frontend/src/composables/useApi.js` | HTTP client with JWT token injection |
 
-### Backend Libraries (PHP/Composer)
+## New Backend Components Needed
 
-| Library | Version | Purpose | Why Recommended | Confidence |
-|---------|---------|---------|-----------------|------------|
-| Native PHP DateTime | built-in | Date calculations | PHP's built-in `DateTime`, `DateInterval`, and `DateTimeImmutable` are fully sufficient for year/month/day arithmetic needed by promotion criteria (e.g., "6 years in K1 level"). Adding a library like Carbon is overkill when the backend is framework-free and only needs `diff()`, `add()`, `modify()`. Keep dependencies minimal. | HIGH |
+### 1. Route Handler: `backend/routes/supportive.php`
 
-### Database Additions (MySQL 8.0)
+**Pattern:** Follow `routes/candidates.php` structure (function handler, PDO prepared statements).
 
-| Addition | Purpose | Why Recommended | Confidence |
-|----------|---------|-----------------|------------|
-| MySQL Events (EVENT SCHEDULER) | Auto-update `remaining_days` in `probation_enrollment` and flag `OVERDUE` tasks | MySQL 8.0 has a built-in event scheduler. Use it instead of external cron jobs. Runs `UPDATE probation_enrollment SET remaining_days = DATEDIFF(end_date, CURDATE())` daily. Keeps data fresh for dashboard queries without PHP scheduled tasks. | HIGH |
-| Generated Columns | Compute `remaining_days` as virtual column | Alternative to events: `remaining_days INT GENERATED ALWAYS AS (DATEDIFF(end_date, CURDATE())) VIRTUAL`. Zero-maintenance, always accurate. However, generated columns referencing `CURDATE()` are not deterministic in MySQL and thus cannot be indexed or used in virtual columns. Use events instead. | LOW (not feasible) |
-| Composite Indexes | Query performance for candidate list filtering | Add indexes on `(target_level_code, status)` in `qualification_calculation` and `(overall_status, end_date)` in `probation_enrollment`. These are the primary filter/sort patterns for the two main pages. | HIGH |
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/supportive?personnel_id={id}` | List supportive experience records for a person |
+| POST | `/supportive` | Create new supportive experience record |
+| PUT | `/supportive/{id}` | Update existing record |
+| DELETE | `/supportive/{id}` | Delete record |
 
-### Development Tools
+**Server-side computation on save:**
+- `total_days = DATEDIFF(end_date, start_date)`
+- `effective_days = total_days * ratio_percent / 100`
+- Validate `job_series_name` against `supportive_job_series` mapping
 
-| Tool | Purpose | Notes | Confidence |
-|------|---------|-------|------------|
-| Vue DevTools | Debug Pinia stores and component state | Already likely available. Essential for debugging qualification calculation state across 4 tabs. | HIGH |
-| MySQL Workbench or DBeaver | Schema management and query testing | For validating the PostgreSQL-to-MySQL schema conversion (9 new tables, 2 views, 3 ALTERs). Test `vw_probation_dashboard` view performance. | MEDIUM |
+**No new PHP libraries needed.** PDO + `DATEDIFF()` + arithmetic operators.
 
-## Architecture Patterns (Not Libraries)
+### 2. Route Handler: `backend/routes/diverse.php`
 
-These are patterns to follow, not additional dependencies.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/diverse?personnel_id={id}` | List diverse experience records for a person |
+| POST | `/diverse` | Create new record with diff flags |
+| PUT | `/diverse/{id}` | Update existing record |
+| DELETE | `/diverse/{id}` | Delete record |
 
-### Frontend Patterns
+**Server-side computation on save:**
+- `from_total_days = DATEDIFF(from_end_date, from_start_date)`, same for `to_*`
+- `diff_count = is_diff_job_series + is_diff_org + is_diff_location + is_diff_work_nature`
+- `qualified_date` = earliest date when cumulative diff_count >= 3
 
-**Pinia stores per domain** -- Create `stores/candidateList.js` and `stores/probation.js`. Each store handles its own API calls, caching, and computed filters. The existing `stores/auth.js` and `stores/ui.js` establish this pattern.
+**No new PHP libraries needed.**
 
-**Composables for business logic** -- Extract qualification calculation display logic (remaining days formatting, color-coding, Thai date formatting) into `composables/useQualificationStatus.js` and `composables/useProbationStatus.js`. Keep components thin.
+### 3. Route Handler: `backend/routes/equivalence.php`
 
-**API service layer** -- The project currently has no `services/` directory despite CLAUDE.md mentioning `apiService.js`. Create `services/api.js` using axios (or fetch) with the existing JWT interceptor pattern from the old vanilla JS codebase. Each domain gets its own service: `services/candidateListApi.js`, `services/probationApi.js`.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/equivalence?personnel_id={id}` | List position equivalence records |
+| POST | `/equivalence` | Create new request (status=PENDING) |
+| PUT | `/equivalence/{id}` | Update record details |
+| PUT | `/equivalence/{id}/approve` | Set status=APPROVED, populate approved_by/dates |
+| PUT | `/equivalence/{id}/reject` | Set status=REJECTED |
 
-### Backend Patterns
+**Approval workflow** is a simple status-field update. The `approved_by` FK uses `users.user_id` extracted from JWT payload (already available via `validateJWT()`).
 
-**Endpoint file organization** -- The current `api.php` is a single switch-case file. For 2 new feature domains (candidate list + probation), add `include` files: `candidate_list.php` and `probation.php` with their own routing switches. This prevents `api.php` from growing unmanageable.
+**No new PHP libraries needed.**
 
-**Server-side calculation** -- Qualification status (remaining days, eligibility) MUST be calculated server-side in PHP, not client-side in JavaScript. Reasons: (1) single source of truth, (2) the promotion_criteria rules are complex (education-dependent years, combination groups), (3) the qualification_calculation table stores results for audit trail. The frontend should display pre-computed results, not re-derive them.
+### 4. Route Handler: `backend/routes/supportive-series.php`
 
-**MySQL VIEW for dashboard** -- The `vw_probation_dashboard` view (from the schema SQL) aggregates enrollment + personnel + tasks into a single queryable source. Use this view directly from PHP instead of multiple JOIN queries in application code. Convert the PostgreSQL `||` concatenation to MySQL `CONCAT()`.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/supportive-series` | List all supportive job series mappings |
+| GET | `/supportive-series?primary_id={id}` | Get supportive series for a specific primary series |
 
-## Installation
+**Read-only reference data.** Used by the Supportive Experience form to validate/suggest which job series qualify as supportive.
 
-```bash
-# Frontend additions
-cd frontend
-npm install @vueuse/core@^14.2.1 date-fns@^4.1.0 @date-fns/tz@^1.4.1
+### 5. API Gateway Registration (4 new switch cases in `api.php`)
 
-# Backend -- no new composer dependencies needed
-# PHP DateTime is built-in
+```php
+case 'supportive':
+    include __DIR__ . '/routes/supportive.php';
+    handleSupportive($pdo, $method, $path);
+    break;
+case 'diverse':
+    include __DIR__ . '/routes/diverse.php';
+    handleDiverse($pdo, $method, $path);
+    break;
+case 'equivalence':
+    include __DIR__ . '/routes/equivalence.php';
+    handleEquivalence($pdo, $method, $path);
+    break;
+case 'supportive-series':
+    include __DIR__ . '/routes/supportive-series.php';
+    handleSupportiveSeries($pdo, $method, $path);
+    break;
 ```
 
-## Alternatives Considered
+### 6. QualificationEngine Extension
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| date-fns | Day.js (2KB) | If bundle size is the absolute priority. Day.js is smaller but uses chainable mutable API which is less idiomatic with Vue 3 composition. date-fns is still tree-shakeable to ~10KB for the functions we need. |
-| date-fns | Luxon | If you need heavy ICU/Intl formatting. Overkill here -- Thai date formatting is straightforward with `Intl.DateTimeFormat('th-TH')`. |
-| @vueuse/core | Hand-written composables | If you only need 2-3 utilities. But VueUse is tree-shakeable so unused functions cost nothing, and it provides battle-tested implementations. |
-| Native PHP DateTime | Carbon (nesbot/carbon) | If using Laravel or needing fluent date API. This project has zero framework -- adding Carbon pulls in ~40 files for functionality PHP DateTime already provides. |
-| No table library (native HTML) | AG Grid / TanStack Table | If tables need sorting, column resizing, virtual scrolling, or 1000+ rows. Current candidate lists are <200 rows per tab. Native `<table>` with Tailwind styling (already in CandidateListsPage.vue) is sufficient. Revisit if data volume grows. |
-| MySQL Event Scheduler | PHP cron job | If the MySQL instance does not support events (some managed DB services disable them). In Docker-managed MySQL 8.0, events are available. |
+**Current formula:** `qualification_date = current_level_start_date + min_years`
 
-## What NOT to Use
+**Extended formula:**
+```
+adjusted_qualification_date = DATE_SUB(
+    DATE_ADD(current_level_start_date, INTERVAL min_years YEAR),
+    INTERVAL SUM(supportive_effective_days) DAY
+)
+```
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Moment.js | Deprecated since 2020. 300KB+ bundle. Still appears in tutorials. | date-fns or Day.js |
-| Vuetify / Element Plus (full UI framework) | Project uses Tailwind CSS 4 with custom components (StatCard, StatusBadge, etc). Adding a component framework creates styling conflicts and doubles bundle size. | Continue with Tailwind + custom Vue components |
-| Carbon (PHP) | Adds unnecessary dependency to a no-framework PHP backend. PHP's native DateTime handles all required operations. | PHP DateTime / DateInterval |
-| GraphQL | The backend is a simple PHP switch-case router. GraphQL requires schema definition, resolver setup, and a runtime library. REST endpoints are simpler and match the existing pattern. | REST API endpoints in api.php |
-| External cron service for remaining_days updates | Adds infrastructure complexity. MySQL Event Scheduler runs inside the database container. | MySQL EVENT SCHEDULER |
-| TanStack Table / AG Grid | Over-engineered for tables with <200 rows and simple filtering. Current pages already render native tables with `v-for`. | Native `<table>` + Tailwind CSS |
-| axios | Not currently installed in the Vue 3 frontend (the old vanilla JS version used it, but the Vue 3 migration did not carry it over). Use native `fetch` with a thin wrapper, or add axios if consistency with the old pattern is preferred. | `fetch` API with composable wrapper, or add axios ^1.7 |
+**Additional checks by target level:**
+- **M1 targets:** Require `diverse_experience.diff_count >= 3` with a `qualified_date`
+- **S1 targets:** Require `position_equivalence.approved_total_days >= requires_equiv_years * 365` where `approval_status = 'APPROVED'`
 
-## Stack Patterns by Feature
+**Implementation approach:** Add LEFT JOINs to subqueries aggregating per-personnel supportive/diverse/equivalence data within the existing single-query pattern. Add a new method `computeForLevelExtended()` or modify `computeForLevel()` with optional flags.
 
-**For Candidate List (qualification calculation display):**
-- Pinia store `candidateList.js` fetches from `/api/candidate-list?type=general&level=O1-O2`
-- date-fns `differenceInDays()` and `format()` for remaining days display
-- Composable `useQualificationStatus(remainingDays)` returns `{ color, label, urgency }` for the StatusBadge
-- No pagination needed (max ~50-100 candidates per tab per promotion path)
+**Technology used:** MySQL `DATE_SUB`, `DATE_ADD`, `DATEDIFF`, `SUM`, `CASE WHEN`. No PHP date library needed -- all computation stays in SQL.
 
-**For Probation Tracking (countdown + task progress):**
-- Pinia store `probation.js` fetches from `/api/probation?status=IN_PROGRESS`
-- date-fns `differenceInDays()` for countdown, `addMonths()` for end-date calculation
-- Composable `useProbationStatus(remainingDays)` returns color tier: green (>30), yellow (15-30), orange (7-14), red (<7)
-- VueUse `useIntervalFn()` to refresh remaining days every 60 seconds on the dashboard (optional, since days change daily not per-second)
+## New Frontend Components Needed
 
-**For PostgreSQL-to-MySQL schema conversion:**
-- `BIGSERIAL` -> `BIGINT AUTO_INCREMENT`
-- `BOOLEAN` -> `TINYINT(1)` (MySQL treats BOOLEAN as alias but be explicit)
-- `CURRENT_DATE` -> `CURDATE()` in views
-- `||` string concat -> `CONCAT()`
-- `COMMENT ON TABLE` -> `COMMENT` clause in `CREATE TABLE`
-- `CREATE OR REPLACE VIEW` -> supported in MySQL 8.0, no change needed
-- Date subtraction `(end_date - start_date)` -> `DATEDIFF(end_date, start_date)`
+### 1. Composables (3 new files)
 
-## Version Compatibility
+Follow `useCandidates.js` pattern (import `useApi`, return object with async methods):
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| @vueuse/core@^14.2 | Vue ^3.5.0 | Requires Vue 3.5+. Project uses ^3.5.0 -- compatible. |
-| date-fns@^4.1 | Any JS runtime | Framework-agnostic. No Vue dependency. |
-| @date-fns/tz@^1.4 | date-fns@^4.0 | Must use with date-fns v4. Not compatible with v3. |
-| Pinia@^3.0 | Vue ^3.5.0, Vue Router ^4.5 | Already in project. Stores for new features follow same patterns. |
+| File | Methods |
+|------|---------|
+| `composables/useSupportive.js` | `fetchByPersonnel(id)`, `create(data)`, `update(id, data)`, `remove(id)` |
+| `composables/useDiverse.js` | `fetchByPersonnel(id)`, `create(data)`, `update(id, data)`, `remove(id)` |
+| `composables/useEquivalence.js` | `fetchByPersonnel(id)`, `create(data)`, `update(id, data)`, `approve(id)`, `reject(id)` |
+
+### 2. Pages (3 new Vue files replacing PlaceholderPage)
+
+| File | Route | UI Pattern |
+|------|-------|------------|
+| `pages/SupportiveExpPage.vue` | `/time-counting` | Personnel selector + CRUD data table + add/edit modal |
+| `pages/DiverseExpPage.vue` | `/time-difference` | Personnel selector + CRUD data table + 4 diff-flag checkboxes + diff_count indicator |
+| `pages/PositionEquivPage.vue` | `/position-compare` | Personnel selector + CRUD data table + approval status badges + approve/reject buttons |
+
+### 3. Reusable Components (extract from pages if patterns repeat)
+
+| Component | Purpose | Reuse |
+|-----------|---------|-------|
+| `PersonnelSearchSelect.vue` | Searchable personnel dropdown (calls `/civil-servants` API) | All 3 pages |
+| `DateRangeFields.vue` | Start/end date inputs with auto-computed total_days display | All 3 pages |
+
+These are optional extractions. If only used once per page, inline them.
+
+### 4. Router Updates
+
+Update 3 existing routes in `frontend/src/router/index.js` to point to real page components:
+
+```javascript
+{ path: 'time-counting', name: 'time-counting', component: () => import('@/pages/SupportiveExpPage.vue') },
+{ path: 'time-difference', name: 'time-difference', component: () => import('@/pages/DiverseExpPage.vue') },
+{ path: 'position-compare', name: 'position-compare', component: () => import('@/pages/PositionEquivPage.vue') },
+```
+
+## Database Changes Needed
+
+### Seed Data Only -- No Schema Changes
+
+All required tables exist in `04-career-path.sql`. No `ALTER TABLE` or new tables needed.
+
+**Required:** Seed data for `supportive_job_series` table.
+
+| Item | Description |
+|------|-------------|
+| File | `database/05-supportive-series-seed.sql` |
+| Content | Mappings from PDF pages 32-82 defining which job series support which |
+| Estimated rows | 50-100 mappings |
+| Format | `INSERT INTO supportive_job_series (primary_series_name, supportive_series_name, mapping_type) VALUES ...` |
+
+## Complexity Assessment Per Feature
+
+### 1. Supportive Experience (เกื้อกูล) -- LOW
+
+Standard CRUD with date arithmetic (DATEDIFF, ratio multiplication). Validation against supportive_job_series mapping.
+
+**Risk:** Ratio calculation rounding (use `DECIMAL(10,2)` -- already defined in schema).
+
+### 2. Diverse Experience (แตกต่าง / 3 ต่าง) -- MEDIUM
+
+CRUD with auto-computed `diff_count` from 4 boolean flags. UI needs clear visual for "which diffs are met."
+
+**Risk:** Determining `qualified_date` when multiple records exist -- need to check historical records chronologically.
+
+### 3. Position Equivalence (เทียบตำแหน่ง) -- MEDIUM
+
+CRUD plus approval workflow (PENDING -> APPROVED/REJECTED). `approved_by` from JWT user context.
+
+**Risk:** No RBAC exists. Currently any authenticated user can approve. Acceptable for v1.1 (single HR admin user), but flag for future.
+
+### 4. QualificationEngine Extension -- HIGH
+
+Integrates 3 data sources into existing single-query engine via LEFT JOIN subqueries. Different target levels need different checks (M1 needs diverse, S1 needs equivalence). Must not break existing candidate list.
+
+**Risk:** Query performance with multiple subquery JOINs. Test with realistic data volume.
+
+## Implementation Order Recommendation
+
+1. **Supportive Experience CRUD** (backend + frontend) -- simplest, establishes the pattern
+2. **Diverse Experience CRUD** (backend + frontend) -- adds boolean-flag computation
+3. **Position Equivalence CRUD + approval** (backend + frontend) -- adds approval workflow
+4. **Supportive Job Series seed data** -- reference data for validation
+5. **QualificationEngine extension** -- depends on all 3 CRUDs being complete and having data
+6. **Candidate List integration** -- display adjusted qualification dates with new data
+
+## Alternatives Considered and Rejected
+
+| Category | Rejected | Why Not |
+|----------|----------|---------|
+| Date library (JS) | date-fns, Day.js | All date computation is server-side in MySQL. Frontend only displays pre-formatted Thai dates from `formatThaiDate()`. No client-side date math needed for v1.1. |
+| Date library (PHP) | Carbon | No-framework backend. PHP native `DateTime` + MySQL `DATEDIFF`/`DATE_ADD` cover all needs. |
+| Form library | VeeValidate, FormKit | Only 3 simple forms with 5-10 fields each. Native Vue 3 `v-model` + manual validation is sufficient. |
+| Table library | AG Grid, TanStack Table | Tables will have <50 rows per personnel. Native `<table>` + Tailwind + `v-for` matches existing pattern. |
+| Workflow engine | Separate approval service | Position equivalence approval is a single status field update, not a multi-step workflow. |
+| UI component library | Vuetify, Element Plus | Project uses Tailwind CSS 4 with custom components. Adding a component framework creates conflicts. |
+| State management | New Pinia stores | v1.1 pages are standalone CRUD. Local component state with composables (like `useCandidates.js`) is sufficient. No cross-page state sharing needed. |
+
+## What NOT to Add
+
+| Avoid | Reason |
+|-------|--------|
+| New npm packages | All computation is server-side. Frontend is display + forms only. |
+| New Composer packages | PHP DateTime + MySQL functions cover all date needs. |
+| Separate approval microservice | Overkill. Status field update in `position_equivalence` table suffices. |
+| Client-side date calculations | Server is the single source of truth for qualification dates. Keep it there. |
+| RBAC system | Out of scope for v1.1. Current single-user JWT auth works. Flag for future. |
+
+## Stack Additions Summary
+
+| Category | New Dependencies | New Files (to create) |
+|----------|------------------|-----------------------|
+| PHP libraries | 0 | 4 route handlers + QualificationEngine extension |
+| JS libraries | 0 | 3 composables + 3 page components + 0-2 shared components |
+| CSS | 0 | Tailwind classes only |
+| Database schema | 0 changes | 1 seed data SQL file |
+| Build/infra | 0 changes | No Docker/Vite config changes |
+
+## Confidence Assessment
+
+| Area | Confidence | Reason |
+|------|------------|--------|
+| Zero new dependencies | HIGH | Verified all 3 features against existing codebase capabilities |
+| Backend route pattern | HIGH | Direct replication of working `routes/candidates.php` |
+| Frontend composable pattern | HIGH | Direct replication of working `useCandidates.js` |
+| QualificationEngine extension | MEDIUM | SQL subquery JOINs are standard but untested with this schema; may need optimization |
+| Approval workflow simplicity | MEDIUM | Works for single-admin use case; needs RBAC review for multi-user |
 
 ## Sources
 
-- [VueUse official site](https://vueuse.org/) -- version 14.2.1, Vue 3.5+ requirement verified
-- [@vueuse/core npm](https://www.npmjs.com/package/@vueuse/core) -- latest version and download stats
-- [date-fns npm](https://www.npmjs.com/package/date-fns) -- version 4.1.0, 34M weekly downloads
-- [date-fns official docs](https://date-fns.org/) -- v4.0 timezone support confirmation
-- [Vue 3 table recommendations](https://www.vuescript.com/best-data-table-grid/) -- confirmed native tables sufficient for <200 rows
-- [PHP business-day libraries](https://packagist.org/packages/cmixin/business-day) -- evaluated and rejected (Thai government uses calendar days not business days for tenure calculation)
-- [date-fns vs Day.js comparison](https://www.oreateai.com/blog/datefns-vs-dayjs-choosing-the-right-date-library-for-your-project/61fc3596640eb5bb331b36415230f309) -- functional vs chainable API tradeoff
+- `backend/QualificationEngine.php` -- existing computation pattern (direct code review)
+- `backend/routes/candidates.php` -- existing route handler pattern (direct code review)
+- `backend/api.php` -- gateway routing pattern (direct code review)
+- `frontend/src/composables/useCandidates.js` -- existing composable pattern (direct code review)
+- `frontend/src/composables/useApi.js` -- existing HTTP client pattern (direct code review)
+- `frontend/src/router/index.js` -- existing placeholder routes (direct code review)
+- `database/04-career-path.sql` -- all required tables already defined (direct code review)
+- `.planning/PROJECT.md` -- v1.1 milestone requirements and constraints (direct file review)
 
 ---
-*Stack research for: Career Path Qualification Calculator & Probation Tracking (Smart Port HRIS)*
+*Stack research for: v1.1 Career Path Time-Counting Features (Smart Port HRIS)*
 *Researched: 2026-03-22*

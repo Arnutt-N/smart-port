@@ -1,231 +1,190 @@
-# Project Research Summary
+# Research Summary: v1.1 การนับเวลาเพิ่มเติม
 
-**Project:** Smart Port — Career Path Qualification Calculator & Probation Tracking
-**Domain:** Thai Government HRIS Extension (Ministry of Justice)
+**Project:** Smart Port HRIS - Time Counting Sub-menus
+**Domain:** Thai Government HR Career Path Time Adjustments
 **Researched:** 2026-03-22
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This project adds two mission-critical HR automation modules to an existing Vue 3 + PHP 8.3 + MySQL 8.0 system: a Career Path Qualification Calculator (บัญชีรายชื่อผู้มีคุณสมบัติเลื่อนระดับ) and a Probation Tracking system (พ้นทดลองปฏิบัติราชการ). Both replace fragile Excel workflows that HR staff currently maintain manually. The recommended approach is a strict database-first build order: convert the PostgreSQL reference schemas to MySQL 8.0 first, seed the promotion criteria rules, build the backend calculation engine, then wire up the frontend pages that already exist as shells. The existing stack requires only three frontend additions (VueUse, date-fns, and @date-fns/tz); the backend needs no new Composer dependencies because PHP's native DateTime covers all required date arithmetic.
+v1.1 adds three CRUD sub-menus (เกื้อกูล, แตกต่าง, เทียบตำแหน่ง) that feed time-adjustment data into the existing QualificationEngine. This is **extension work, not greenfield** -- database tables exist (empty), sidebar links exist (pointing to placeholders), router entries exist, and the QualificationEngine has columns ready for the new data. The work is filling in slots at every layer: 4 backend route handlers, 3 frontend pages with composables, seed data for supportive job series mappings, and extending the QualificationEngine SQL to incorporate the new data sources.
 
-The central architectural decision is that qualification calculations must be server-side and data-driven — the `promotion_criteria` table encodes the Thai civil service rules (กฎ ก.พ.), and a `QualificationEngine.php` class evaluates them dynamically. Hardcoding promotion rules in PHP is the single highest-recovery-cost mistake this project can make. The system must handle four position types (ทั่วไป, วิชาการ, อำนวยการ, บริหาร) but should only fully implement the first two in Phase 1; อำนวยการ and บริหาร require screening lists and "3 differences" (3 ต่าง) logic that are significantly more complex and should be deferred.
+The recommended approach is zero new dependencies. All date arithmetic stays server-side in MySQL (DATEDIFF, DATE_ADD, DATE_SUB). The frontend is display + forms only. Each feature follows the proven `routes/probation.php` + `useProbation.js` CRUD pattern. Build order should be: Supportive (simplest, establishes pattern) then Diverse (adds boolean logic) then Equivalence (adds approval workflow) then QualificationEngine integration (depends on all three having data).
 
-The dominant technical risk is the PostgreSQL-to-MySQL schema conversion. The reference schemas use PostgreSQL date arithmetic that silently produces wrong numbers in MySQL (`date1 - date2` vs `DATEDIFF()`), plus PostgreSQL-only string concatenation (`||` vs `CONCAT()`). These errors are visually plausible and easy to miss, making them dangerous. A second major risk is Thai Buddhist Era (พ.ศ.) date handling — all database columns must store Gregorian dates, and any data imported from Excel requires year-conversion validation (year > 2400 indicates พ.ศ. not converted). Both risks must be addressed in Phase 1 before any backend code is written.
+The top risks are: (1) off-by-one date counting errors that shift qualification dates and break HR trust, (2) QualificationEngine JOIN changes producing duplicate rows that break the existing candidate list, (3) approval state machine gaps allowing unapproved equivalence days to count, and (4) diff_count inconsistency if not enforced as a server-computed or generated column. All four are preventable with specific patterns documented in the pitfalls research.
 
-## Key Findings
+## Stack Additions
 
-### Recommended Stack
+**Zero new dependencies.** No npm packages, no Composer packages, no build config changes.
 
-The existing stack (Vue 3.5, Pinia 3, Vue Router 4.5, Tailwind CSS 4, PHP 8.3, MySQL 8.0) is fixed and well-suited to this domain. Three frontend libraries should be added: VueUse for composable utilities (date formatting, interval refresh), date-fns v4 for tree-shakeable date arithmetic, and @date-fns/tz for Bangkok timezone consistency. The backend needs no new dependencies — PHP's built-in `DateTime`/`DateInterval`/`DateTimeImmutable` covers all calculation requirements. See `STACK.md` for full rationale and alternatives considered.
+| Category | What Is Needed | Already Exists |
+|----------|---------------|----------------|
+| Backend routes | 4 new PHP files in `routes/` | Pattern from `routes/probation.php` |
+| Frontend pages | 3 Vue pages + 3 composables | Pattern from `ProbationEndPage.vue` + `useProbation.js` |
+| Database schema | No changes (tables exist in `04-career-path.sql`) | All 3 tables + qualification_calculation columns |
+| Seed data | 1 new SQL file for `supportive_job_series` mappings | Table exists, needs 50-100 rows |
+| Shared components | 0 new (reuse StatCard, StatusBadge, PaginationBar) | All exist from v1.0 |
 
-**Core technology additions:**
-- `@vueuse/core ^14.2.1`: Composable utilities (`useIntervalFn`, `useDateFormat`, `useLocalStorage`, `useDebounce`) — tree-shakeable, battle-tested, requires Vue 3.5+ which is already in use
-- `date-fns ^4.1.0`: Date arithmetic (`differenceInDays`, `addMonths`, `format`) — functional API, tree-shakeable, 34M weekly downloads, idiomatic with Vue 3 composition style
-- `@date-fns/tz ^1.4.1`: Bangkok timezone (`Asia/Bangkok`) for consistent calculations when server runs UTC — prevents off-by-one day errors
-- `PHP DateTime (built-in)`: No new Composer dependency needed — `DateInterval::diff()` handles all year/month/day arithmetic required for tenure calculations
-- `MySQL EVENT SCHEDULER`: Nightly `remaining_days` refresh — runs inside the database container, no external cron infrastructure needed
+**Optional extraction:** A `PersonnelPicker.vue` shared component (personnel search/select used by all 3 pages). Not strictly required but prevents triple-implementation of the same search UI.
 
-**What NOT to use:** Moment.js (deprecated), Vuetify/Element Plus (conflicts with Tailwind 4 custom components), Carbon PHP (unnecessary for no-framework backend), TanStack Table (overkill for <200-row candidate lists), axios (not in the Vue 3 migration — use fetch with a composable wrapper).
+## Feature Landscape
 
-### Expected Features
+### Sub-Menu 1: Supportive Experience (เกื้อกูล) -- affects ALL promotion levels
 
-The system must replace Excel as the authoritative source for promotion eligibility and probation tracking. HR staff at the Ministry of Justice expect specific workflows: tab-based views matching their Excel mental model, color-coded urgency, and status badges. Missing table-stakes features means reversion to Excel. See `FEATURES.md` for full prioritization matrix and dependency tree.
+**Table stakes:** CRUD records, auto-compute total_days/effective_days from dates + ratio, personnel search, job series autocomplete from mapping table, Thai date display (B.E.), date validation, summary per person.
 
-**Must have (Phase 1 — table stakes):**
-- MySQL schema conversion (career path + probation tables, 20+ tables, 3 views) — nothing works without this
-- Promotion criteria seed data for O1->O2, O2->O3, K1->K2, K2->K3, K3->K4 — system is useless without rules loaded
-- Qualification calculation engine — THE differentiator replacing manual Excel formulas
-- Candidate List page with 4 tabs (ทั่วไป + วิชาการ functional, อำนวยการ + บริหาร show "อยู่ระหว่างพัฒนา")
-- Sub-tabs per promotion path within each type
-- Remaining days display with "ถึงเกณฑ์/ยังไม่ถึงเกณฑ์/Check Data" status badges
-- Probation enrollment list with color-coded urgency (>30 green, 15-30 yellow, 7-14 orange, <7 red)
-- Search/filter and summary stat cards on both pages
+**Differentiators:** Side-by-side view (series tenure + supportive = total), seed data for job series mappings (biggest effort), inline impact preview on qualification_date.
 
-**Should have (Phase 1.5 — after core validation):**
-- Detail/drill-down view per candidate (full qualification breakdown: tenure days, education, supportive days)
-- Probation task checklist with per-enrollment progress tracking
-- Supportive experience (เกื้อกูล) calculation — adds supportive days to qualifying days for K2/K3 paths
-- Probation stakeholder display (mentor, supervisor, director per enrollment)
-- Batch recalculation endpoint
-- CSV export as interim report solution
+**Defer:** Bulk Excel import, admin UI for mapping management.
 
-**Defer (v2+):**
-- อำนวยการ (M1/M2) and บริหาร (S1/S2) full implementation — requires screening lists, 3 ต่าง rules, position equivalence
-- Email/notification alerts — requires email infrastructure, out of scope for Phase 1
-- PDF report generation — Thai font handling is complex; browser print CSS is the interim solution
-- Probation evaluation forms — multi-evaluator digital workflow requires organizational change management
-- Probation committee management — committee creation, scheduling, and minutes tracking
+### Sub-Menu 2: Diverse Experience (แตกต่าง / 3 ต่าง) -- affects M1 promotion only
 
-### Architecture Approach
+**Table stakes:** CRUD for from/to position pairs, auto-compute 4 diff flags and diff_count, visual checklist of 4 dimensions, auto-set qualified_date when diff_count >= 3, personnel search.
 
-The recommended architecture extends the existing pattern (thin `api.php` router -> PDO -> MySQL) by extracting new feature logic into separate PHP files (`candidate_lists.php`, `probation.php`) and a central `QualificationEngine.php` class. The frontend extends the existing composable pattern with `useCandidates()` and `useProbation()` composables that encapsulate API calls, reactive state, and computed stats. MySQL VIEWs (`vw_candidate_list`, `vw_probation_dashboard`) pre-join complex queries so PHP service files query a single source. The critical entity bridge: new tables must reference `civil_servants.servant_id` (the production table), NOT a non-existent `personnel` table from the reference schemas. See `ARCHITECTURE.md` for component map, data flow diagrams, and build order.
+**Differentiators:** Dashboard showing who has/hasn't met 3 ต่าง, warning when only 2 ต่าง met.
 
-**Major components:**
-1. `QualificationEngine.php` — stateless PHP class; reads `promotion_criteria` dynamically; returns `QualificationResult` with qualified status, qualification date, remaining days, and breakdown; the most architecturally critical component
-2. `CandidateListService.php` / `candidate_lists.php` — orchestrates qualification queries; queries `vw_candidate_list` VIEW; handles batch recalculation
-3. `ProbationService.php` / `probation.php` — queries `vw_probation_dashboard` VIEW; manages enrollment CRUD and task progress
-4. `useCandidates()` composable — fetches candidate list by position type, manages client-side search/filter state, derives stats as computed properties
-5. `useProbation()` composable — fetches probation enrollments, computes color tier from remaining days
-6. MySQL VIEWs (`vw_candidate_list`, `vw_probation_dashboard`) — pre-joined dashboard queries; compute `remaining_days` dynamically via `DATEDIFF(end_date, CURDATE())` — never stored as a stale column
-7. Split migration files (03-08) — ordered by dependency to enable incremental testing and rollback
+**Defer:** Auto-populate from position_history, timeline visualization, bulk import.
 
-### Critical Pitfalls
+### Sub-Menu 3: Position Equivalence (เทียบตำแหน่ง) -- affects cross-type promotions (K4->S1)
 
-The top pitfalls discovered across both features, ordered by recovery cost and likelihood of occurrence. See `PITFALLS.md` for full details including warning signs and recovery strategies.
+**Table stakes:** CRUD with request vs approved date splits, approval status tracking (PENDING/APPROVED/REJECTED), auto-compute days for both periods, status badges, filter by status.
 
-1. **PostgreSQL date arithmetic in MySQL** — `date1 - date2` returns wrong values in MySQL (numeric subtraction, not day count). Replace ALL instances with `DATEDIFF(date1, date2)` during schema conversion. Create test queries with known date pairs to verify. Recovery cost: LOW if caught in Phase 1; HIGH if discovered after data is in production.
+**Differentiators:** Approval workflow with approved_by audit trail, pending count on dashboard.
 
-2. **Hardcoded promotion criteria in PHP** — Encoding level-specific rules (K1->K2 = 6 years, etc.) as if/else chains makes the system unmaintainable when OCSC circulars (ว.) change the rules. Build `QualificationEngine.php` to read rules from the `promotion_criteria` table dynamically. Test: adding a new promotion path should require only a DB row insert, no code change. Recovery cost: HIGH — requires full refactor.
+**Defer:** Notification system, bulk import.
 
-3. **Thai Buddhist Era (พ.ศ.) date corruption** — Thai staff enter dates in พ.ศ. (CE + 543). If `2567` is stored in a MySQL DATE column without conversion, all tenure calculations produce nonsense (~negative 541 years). Rule: all DATE columns store Gregorian (CE); frontend converts for display; data imports validate that year > 2400 is พ.ศ. and subtract 543. Recovery cost: HIGH — requires data migration with risk of ambiguous records.
+### Cross-Cutting
 
-4. **Stale `remaining_days` columns** — Storing `remaining_days` as a column that is set at insert time and never updated means the probation urgency color codes become wrong within 24 hours. Solution: compute dynamically in VIEWs using `DATEDIFF(end_date, CURDATE())`. Never store remaining_days as a static value. Recovery cost: LOW but causes user distrust before discovery.
+**Table stakes:** Navigation sub-menu grouping, QualificationEngine integration (the point of v1.1), candidate list reflecting adjusted dates, consistent UI patterns across all 3 pages, REST CRUD endpoints.
 
-5. **PostgreSQL string concatenation and BOOLEAN in VIEWs** — `||` for string concat and `BOOLEAN` for true/false do not work the same way in MySQL. Use `CONCAT()` and `TINYINT(1)` throughout. Every VIEW must be tested individually in MySQL 8.0 after conversion. Recovery cost: LOW if caught during conversion testing.
+**Defer to v2:** Excel export, person detail panel aggregating all 3 adjustments, full audit trail.
 
-## Implications for Roadmap
+## Architecture Integration
 
-Based on the dependency chain identified in ARCHITECTURE.md and the pitfall risk profile from PITFALLS.md, the build order is non-negotiable: database tables must exist before backend code, and backend calculation must be correct before frontend integration. The most risky phase is Phase 2 (calculation engine); the most error-prone mechanical work is Phase 1 (schema conversion).
+The architecture is straightforward extension at every layer.
 
-### Phase 1: Database Foundation
+**Backend:** 4 new `case` blocks in `api.php` dispatching to 4 new route files (`routes/supportive.php`, `routes/diverse.php`, `routes/equivalence.php`, `routes/supportive-series.php`). Each follows `routes/probation.php` handler pattern. QualificationEngine gets LEFT JOINs to aggregate per-personnel data from the 3 new tables into subqueries returning exactly one row per personnel_id.
 
-**Rationale:** All other phases depend on correct MySQL tables and seed data. The PostgreSQL-to-MySQL conversion is the highest-risk mechanical task and must be validated with test queries before any PHP or Vue work begins. Schema errors discovered later are expensive to fix with live data.
+**Frontend:** 3 new pages replace PlaceholderPage at existing routes. Each has a matching composable wrapping `useApi()`. Existing shared components (StatCard, StatusBadge, PaginationBar) cover all UI needs. StatusBadge needs new status mappings for PENDING/APPROVED/REJECTED.
 
-**Delivers:** Correct MySQL 8.0 tables for career path and probation domains; seed data for all Phase 1 promotion criteria; validated VIEWs that compute remaining_days dynamically.
+**Database:** No schema changes needed. One seed data file for `supportive_job_series`. One optional ALTER TABLE to make `diff_count` a GENERATED column (strongly recommended).
 
-**Addresses features:** MySQL schema conversion (P1), promotion criteria seed data (P1), Thai date formatting rules established.
+**Key integration point:** QualificationEngine.php is the single most critical modification. It must aggregate supportive/diverse/equivalence data into subqueries that return one row per personnel, then incorporate them into the existing DATE_ADD computation without breaking existing candidate list output.
 
-**Avoids pitfalls:** PostgreSQL date arithmetic errors (Pitfall 1), stale remaining_days (Pitfall 4), PostgreSQL string concat/BOOLEAN issues (Pitfall 5), foreign key order errors.
+**Build order by layer:**
+1. Database prep (seed + optional ALTER) -- no dependencies
+2. Backend CRUD routes (supportive -> diverse -> equivalence) -- depends on DB
+3. Frontend pages (same order) -- depends on backend APIs
+4. QualificationEngine extension -- depends on all 3 CRUDs having data
 
-**Build artifacts:**
-- `03-career-path-tables.sql` — ALTER civil_servants + new career tables (bridge to `servant_id`)
-- `04-probation-tables.sql` — ALTER civil_servants + new probation tables
-- `05-career-path-views.sql` — `vw_candidate_list`, `vw_job_series_tenure`
-- `06-probation-views.sql` — `vw_probation_dashboard`
-- `07-seed-promotion-criteria.sql` — O1->O2, O2->O3, K1->K2, K2->K3, K3->K4 rules with all education conditions
-- `08-seed-probation-programs.sql` — default probation task templates
+## Critical Pitfalls
 
-**Research flag:** STANDARD — schema conversion is well-understood mechanical work. Checklist-driven, no additional research needed.
+### 1. Date Arithmetic Off-by-One (CRITICAL)
+`DATEDIFF` is exclusive but Thai civil service counting is inclusive. Every supportive record is 1 day short. Compounds across records. **Prevention:** Add +1 to DATEDIFF, validate against HR Excel for 5+ known records.
 
-### Phase 2: Qualification Engine (Backend Core)
+### 2. QualificationEngine Extension Breaks Existing Candidate List (CRITICAL)
+Adding JOINs to supportive/diverse/equivalence can produce duplicate rows (one per supportive record per person). **Prevention:** Aggregate into subquery returning one row per personnel_id before joining. Run regression test: existing candidate list output must be identical when no new data exists.
 
-**Rationale:** This is the architecturally most critical and highest-risk component. The QualificationEngine encodes complex Thai civil service rules. It must be built and unit-tested before any frontend work begins. A correct engine that the frontend cannot yet display is safe; an incorrect engine that the frontend displays causes user distrust and potential legal/HR consequences.
+### 3. Approval State Machine Missing for Position Equivalence (CRITICAL)
+Without state transition enforcement, records can go REJECTED->APPROVED or be edited after approval. QualificationEngine might count PENDING records. **Prevention:** Enforce PENDING->APPROVED/REJECTED only (no backward transitions). Filter `WHERE approval_status = 'APPROVED'` exclusively in engine.
 
-**Delivers:** Working PHP calculation engine that reads `promotion_criteria` dynamically; REST endpoints for candidate list and probation; all backend API endpoints for Phase 1 features.
+### 4. diff_count Inconsistency (CRITICAL)
+If diff_count is client-submitted rather than server-computed, it can disagree with the boolean flags. **Prevention:** Make diff_count a MySQL GENERATED column. Never accept from client.
 
-**Addresses features:** Qualification calculation engine (P1 HIGH), candidate list API (P1), probation enrollment API (P1).
+## Recommended Build Order
 
-**Avoids pitfalls:** Data-driven criteria engine (Pitfall 2), supportive experience rounding (Pitfall 6), N+1 query in qualification calculation (performance trap), role-based access control (security).
+All four researchers converge on the same sequence:
 
-**Build artifacts:**
-- `backend/QualificationEngine.php` — stateless class; reads promotion_criteria; returns QualificationResult
-- `backend/CandidateListService.php` — query orchestration; batch recalculation
-- `backend/ProbationService.php` — enrollment CRUD; task progress
-- `backend/candidate_lists.php` + `probation.php` — thin route handlers included by api.php
-- Buddhist Era utility functions (PHP side)
+### Phase 1: Database Preparation
+**Rationale:** Foundation -- seed data and schema refinements must exist before CRUD or engine work.
+**Delivers:** `supportive_job_series` seed data, `diff_count` GENERATED column migration, UTF-8-safe SQL files.
+**Avoids:** Pitfall #4 (diff_count inconsistency), Pitfall #6 (UTF-8 in seed files), Pitfall #11 (Docker volume stale schema).
+**Research needed:** No -- standard SQL patterns.
 
-**Research flag:** NEEDS RESEARCH — combination group evaluation logic (OR-conditions across multiple source levels for M2) and diverse experience (3 ต่าง) rules should be reviewed with HR stakeholders before coding. The calculation rules for supportive experience ratios need explicit rounding policy documented.
+### Phase 2: Backend CRUD APIs (all 3 features)
+**Rationale:** Backend can be tested independently via cURL. Establishes the data layer before UI work.
+**Delivers:** 4 route handlers (supportive, diverse, equivalence, supportive-series) + registration in api.php.
+**Sub-order:** Supportive first (simplest), then Diverse (adds diff_count logic), then Equivalence (adds approval workflow).
+**Avoids:** Pitfall #1 (date arithmetic), Pitfall #3 (approval state machine), Pitfall #5 (route bloat), Pitfall #8 (validation gaps).
+**Research needed:** No -- direct copy of probation.php pattern.
 
-### Phase 3: Frontend Integration (Candidate List + Probation Pages)
+### Phase 3: Frontend CRUD Pages (all 3 features)
+**Rationale:** Depends on backend APIs being available. All 3 pages share the same structure.
+**Delivers:** SupportiveExpPage, DiverseExpPage, PositionEquivPage + composables + router updates.
+**Sub-order:** Build PersonnelPicker shared component first (if extracting), then pages in same order as backend.
+**Avoids:** Pitfall #6 (Thai IME), Pitfall #9 (personnel picker duplication), Pitfall #10 (navigation structure).
+**Research needed:** No -- direct adaptation of ProbationEndPage pattern.
 
-**Rationale:** Frontend pages already exist as shells with mock data (CandidateListsPage.vue, ProbationEndPage.vue). This phase replaces mock data with real API calls and wires up the composables. Comes after the backend is proven correct because the frontend is a display layer for pre-computed server-side results.
-
-**Delivers:** Functional Candidate List page with working tabs and qualification status display; functional Probation Tracking page with color-coded countdown; Thai date formatting throughout; search/filter and stat cards working against live data.
-
-**Addresses features:** Candidate List UI with 4 tabs (P1), sub-tabs by promotion path (P1), probation list with color-coded days (P1), search/filter (P1), stat cards (P1), status badges + Thai dates (P1).
-
-**Avoids pitfalls:** Buddhist Era display formatting (UX pitfall), color-coded remaining days legend (UX pitfall), tab count badges (UX pitfall).
-
-**Uses stack:** `@vueuse/core`, `date-fns`, `@date-fns/tz`, Pinia stores, `useCandidates()` + `useProbation()` composables.
-
-**Research flag:** STANDARD — Vue 3 composable pattern and Pinia store pattern are well-documented and follow existing project conventions.
-
-### Phase 4: Detail Views and Phase 1.5 Enhancements
-
-**Rationale:** Once Phase 1 (core list views) is validated with HR users, add depth: drill-down views showing WHY someone qualifies or doesn't, probation task checklists, and supportive experience calculation. These features increase system value but are not required for the initial Excel-replacement workflow.
-
-**Delivers:** Qualification breakdown detail view per candidate; probation task checklist with progress per enrollment; supportive experience (เกื้อกูล) integration into qualification calculation; probation stakeholder display; CSV export; batch recalculation.
-
-**Addresses features:** Detail/drill-down view (P2), supportive experience calculation (P2), probation task checklist (P2), probation stakeholder display (P2), CSV export (P2), batch recalculation (P2).
-
-**Avoids pitfalls:** Missing qualification explanation (UX pitfall — "no explanation of WHY not qualified"), multi-evaluator workflow state machine (Pitfall 5).
-
-**Research flag:** NEEDS RESEARCH — supportive experience ratio rules (which job series are considered "supportive" and at what ratio) need HR domain expert input. The `supportive_job_series` mapping table needs authoritative data.
-
-### Phase 5: Position Types 3 and 4 (อำนวยการ and บริหาร)
-
-**Rationale:** Deferred because อำนวยการ (M1/M2) requires "3 ต่าง" diverse experience validation (Pitfall 4 — deceptively complex) and screening list processes. บริหาร (S1/S2) requires position equivalence rules. These features need dedicated research into อ.ก.พ. กระทรวงยุติธรรม interpretations before implementation.
-
-**Delivers:** Full candidate list functionality for M1/M2/S1/S2 promotion paths; diverse experience tracking with HR approval workflow; screening list management; position equivalence mapping.
-
-**Avoids pitfalls:** Diverse experience ambiguity (Pitfall 4 — get HR interpretation of ต่างพื้นที่ and concurrent positions before writing code).
-
-**Research flag:** NEEDS RESEARCH — M1/M2/S1/S2 rules require reading pages 31-82 of ops-career-path.pdf and consultation with HR stakeholders on edge cases. Do not start this phase without dedicated research.
+### Phase 4: QualificationEngine Integration
+**Rationale:** Must come last -- depends on all 3 CRUDs being functional with data to test against.
+**Delivers:** Extended computeForLevel() and computeDetail() incorporating supportive_days, diverse_exp gate for M1, equivalence_days for S1. Candidate list reflects adjusted dates.
+**Avoids:** Pitfall #2 (engine extension breaks existing). This phase MUST include regression testing.
+**Research needed:** YES -- the SQL subquery aggregation pattern needs careful design. Recommend `/gsd:research-phase` before implementation.
 
 ### Phase Ordering Rationale
 
-- **Database first:** All backend logic depends on correct schemas. Schema bugs with live data are expensive. Testing schemas in isolation (with known date pairs and expected day counts) is cheap.
-- **Engine before UI:** The QualificationEngine is the highest-value, highest-risk component. A working engine without UI is safe. An incorrect engine surfaced by UI creates user distrust.
-- **Core list views before detail views:** The Excel-replacement value is delivered by the list views (who qualifies, remaining days). Detail views add depth but are not required for the initial workflow transition.
-- **Simple promotion types before complex:** ทั่วไป and วิชาการ have straightforward tenure + education rules. อำนวยการ and บริหาร add combination groups, screening lists, and diverse experience — defer until Phase 1 is validated.
-- **This order avoids the "looks done but isn't" trap** identified in PITFALLS.md: each phase ends with a testable, independently useful deliverable.
+- Database before backend: seed data needed for job series validation in supportive CRUD
+- Backend before frontend: APIs must exist for frontend to call
+- All 3 CRUDs before engine: engine integration needs data in all 3 tables to test
+- Supportive before Diverse before Equivalence: increasing complexity, each builds on patterns from the previous
+- Engine integration last: highest risk, needs all other pieces working
 
 ### Research Flags
 
-Phases that need `/gsd:research-phase` during planning:
-- **Phase 2:** Combination group evaluation logic for M2; supportive experience rounding policy; role-based access control requirements; whether HR stakeholders want manual vs auto-calculated diverse experience flags
-- **Phase 4:** Supportive job series mapping — which position families count as supportive and at what ratio percentage
-- **Phase 5:** อำนวยการ/บริหาร promotion rules (requires reading legal documents + HR stakeholder validation of edge cases); diverse experience minimum duration thresholds; screening list format and data source
+**Needs `/gsd:research-phase`:**
+- Phase 4 (QualificationEngine Integration) -- SQL aggregation with multiple LEFT JOIN subqueries is the highest-risk change. Needs query design, performance testing, and regression verification.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** MySQL schema conversion is mechanical. Well-documented syntax differences. Use conversion checklist from PITFALLS.md.
-- **Phase 3:** Vue 3 composable and Pinia patterns are established. The existing `useApi()` composable, `auth.js` and `ui.js` stores provide clear precedent.
+**Standard patterns (skip research):**
+- Phase 1 (Database Preparation) -- standard SQL seed + ALTER TABLE
+- Phase 2 (Backend CRUD) -- direct replication of probation.php
+- Phase 3 (Frontend Pages) -- direct adaptation of ProbationEndPage
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Existing codebase is fixed; additions are minimal and well-justified. VueUse/date-fns versions verified against npm. PHP DateTime sufficiency is authoritative. |
-| Features | HIGH | Domain rules are encoded in legal documents and SQL schemas. Excel workflow is the authoritative source of user expectations. MVP is tightly scoped. |
-| Architecture | HIGH | Based on direct analysis of existing `api.php`, Pinia stores, and composable patterns. Component map follows conventions already in the codebase. |
-| Pitfalls | HIGH | Pitfalls are derived from concrete schema analysis (PostgreSQL syntax in MySQL context), not speculation. Most are verifiable with test queries. |
+| Stack | HIGH | Zero new dependencies. All patterns verified against working codebase. |
+| Features | HIGH | Domain rules documented in SQL comments with legal references. Schema already reflects feature design. |
+| Architecture | HIGH | Direct codebase analysis. Every integration point verified (routes, composables, engine, router). |
+| Pitfalls | HIGH | Based on v1.0 retrospective lessons + schema review + pattern analysis of the template code being copied. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-The following areas are known unknowns that need resolution during planning or early implementation:
+- **Supportive job series seed data completeness:** Only a subset of the 200+ mappings from the PDF can be seeded initially. HR will need a way to report missing mappings.
+- **RBAC for approval workflow:** Any authenticated user can currently approve position equivalence. Acceptable for v1.1 (single HR admin), must be flagged for v2.
+- **QualificationEngine query performance:** Adding 3 LEFT JOIN subqueries may degrade performance. Must test with realistic data volume (500+ personnel).
+- **Inclusive vs exclusive date counting convention:** The +1 convention for DATEDIFF needs HR Excel validation before go-live.
+- **Legal reference verification:** Domain rules derived from SQL comments referencing ว5, ว3, ว17 circulars -- not directly verified against original documents.
 
-- **Supportive job series mapping:** The `supportive_job_series` table requires authoritative data on which job series are considered supportive of which target series, and at what ratio percentage. This data must come from HR domain experts, not from the existing schemas. Skipping this table is listed as an acceptable MVP shortcut in PITFALLS.md but must be flagged as a known inaccuracy.
+## Open Questions
 
-- **Promotion criteria seed data completeness:** The SQL schemas define the table structure for `promotion_criteria` but do not contain the actual values. The rules (exact year thresholds per education level for each promotion path) must be extracted from pages 31-82 of `docs/documents/ops-carrer-path.pdf`. This extraction needs HR review before the Phase 2 engine is built.
-
-- **Existing `civil_servants` data quality:** The new schema ALTERs add columns like `current_level_start_date` and `current_level_code` to the existing `civil_servants` table. These will be NULL for all existing records until a backfill migration is run. The backfill logic (populate from `personnel_position_history` MAX effective_date) needs verification against actual data before Phase 2 begins.
-
-- **Probation program/task template content:** The `probation_program` and `probation_task_template` tables require actual task definitions (what evaluations are required, in what order, with what deadlines). This content must come from the ministry's current probation process documents.
-
-- **CORS configuration:** The backend hardcodes `https://smart-port.onrender.com` as the allowed origin in `api.php`. If a staging or test environment is used during development, this needs to be updated to support additional origins without exposing production.
+1. **Inclusive date counting:** Should `DATEDIFF(end_date, start_date) + 1` be universal, or does it vary by record type? Need HR confirmation.
+2. **Ratio values:** Are only 50/75/100 valid for supportive experience, or are there other ratios? Schema allows DECIMAL(5,2) but UI should constrain.
+3. **Active job series at MOJ:** Which series are actually used? Seed data should prioritize these.
+4. **is_diff_work_nature:** Confirmed subjective -- HR must manually flag this. Other 3 dimensions can be auto-detected.
+5. **Who can approve equivalence?** Current design allows any authenticated user. Is this acceptable for v1.1?
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `docs/gap_analysis_career_path_v2.sql` — 9 new tables, 2 VIEWs, 3 ALTERs; career path schema design
-- `docs/probation_tracking_schema.sql` — 10 new tables, 1 VIEW; probation tracking schema design
-- `backend/api.php`, `backend/config.php` — existing backend routing and connection patterns
-- `frontend/src/pages/CandidateListsPage.vue`, `ProbationEndPage.vue` — existing mock UI shells
-- `frontend/src/stores/` — existing Pinia store patterns (auth.js, ui.js)
-- MySQL 8.0 documentation — DATE arithmetic (DATEDIFF), CONCAT vs ||, BOOLEAN/TINYINT(1)
+- `backend/QualificationEngine.php` -- current computation logic
+- `database/04-career-path.sql` -- table schemas for all 3 features
+- `backend/routes/probation.php` -- CRUD pattern template
+- `backend/routes/candidates.php` -- route handler pattern
+- `backend/api.php` -- gateway routing structure
+- `frontend/src/composables/useProbation.js` -- composable pattern
+- `frontend/src/router/index.js` -- placeholder routes
+- `.planning/PROJECT.md` -- v1.1 requirements
+- `.planning/RETROSPECTIVE.md` -- v1.0 lessons learned
 
 ### Secondary (MEDIUM confidence)
-- [VueUse official site](https://vueuse.org/) — version 14.2.1, Vue 3.5+ requirement verified
-- [date-fns npm](https://www.npmjs.com/package/date-fns) — version 4.1.0, tree-shakeable, 34M weekly downloads
-- [Ascent E-Probation](https://www.eilisys.com/e-probation-confirmation/) — commercial probation features for competitive baseline
-- กฎ ก.พ. ว่าด้วยการทดลองปฏิบัติหน้าที่ราชการ พ.ศ. 2553, นร 1006/ว5, นร 1006/ว3, นร 1006/ว17
+- `docs/gap_analysis_career_path_v2.sql` -- domain rules with Thai legal references
+- Legal references: นร 1006/ว5, ว3, ว17 -- cited in SQL but not directly verified
 
-### Tertiary (LOW confidence — needs validation)
-- `docs/documents/ops-carrer-path.pdf` (86 pages) — career path promotion rules; exact year thresholds per education level need extraction and HR review
-- `docs/hr_database_schema.sql`, `docs/probation_tracking_schema.sql` — PostgreSQL syntax; promotion criteria values not yet seeded; require conversion and data population
+### Tertiary (LOW confidence)
+- OCSC PDF (pages 32-82) for supportive job series mappings -- not machine-readable
 
 ---
 *Research completed: 2026-03-22*
