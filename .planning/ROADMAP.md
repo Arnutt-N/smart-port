@@ -60,6 +60,12 @@ Plans:
   3. Probation page displays enrollment list with color-coded remaining days (green >30, yellow 15-30, orange 7-14, red <7) and status badges (IN_PROGRESS, COMPLETED, FAILED, EXTENDED)
   4. Search and filter work on both pages — filtering by name, position, and (for probation) department
   5. All dates display in Thai Buddhist Era format and level codes display as Thai names
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Shared infrastructure: API composables (useCandidates, useProbation), StatusBadge extensions, PaginationBar, sidebar nav, router
+- [ ] 03-02-PLAN.md — CandidateListsPage rewrite with overview dashboard, pill sub-tabs, live API data, search, pagination
+- [ ] 03-03-PLAN.md — ProbationEndPage rewrite with live stat cards, color-coded days, search, pagination
 
 ## Progress
 
@@ -69,5 +75,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Database Foundation | 2/2 | Complete | 2026-03-22 |
-| 2. Backend APIs | 0/2 | Not started | - |
-| 3. Frontend Integration | 0/2 | Not started | - |
+| 2. Backend APIs | 2/2 | Complete | 2026-03-22 |
+| 3. Frontend Integration | 0/3 | Not started | - |
