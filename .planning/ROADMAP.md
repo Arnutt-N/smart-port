@@ -44,11 +44,11 @@ Plans:
   3. Qualification engine correctly applies education-aware rules (e.g., K1 to K2 = 6 years for bachelor, 4 for master, 2 for doctorate)
   4. GET /probation returns enrollment list with dynamically computed remaining days and status
   5. POST /probation and PUT /probation/:enrollmentId create and update enrollments successfully
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Qualification engine and candidate list API
-- [ ] 02-02: Probation tracking API and shared utilities
+- [ ] 02-01-PLAN.md — Qualification engine, candidate list API, shared helpers (Thai date + level code), education_level migration
+- [ ] 02-02-PLAN.md — Probation tracking CRUD API and api.php gateway wiring
 
 ### Phase 3: Frontend Integration
 **Goal**: Candidate List and Probation pages display live data from the backend with full tab navigation, stat cards, search/filter, color-coded status badges, and Thai date formatting
@@ -68,6 +68,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Database Foundation | 0/2 | Not started | - |
+| 1. Database Foundation | 2/2 | Complete | 2026-03-22 |
 | 2. Backend APIs | 0/2 | Not started | - |
 | 3. Frontend Integration | 0/2 | Not started | - |
