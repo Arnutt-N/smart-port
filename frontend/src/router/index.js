@@ -19,6 +19,10 @@ const routes = [
         component: () => import('@/pages/DashboardPage.vue'),
       },
       {
+        path: 'candidates',
+        redirect: '/candidates/overview',
+      },
+      {
         path: 'candidates/:section?',
         name: 'candidates',
         component: () => import('@/pages/CandidateListsPage.vue'),

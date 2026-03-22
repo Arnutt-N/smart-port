@@ -113,6 +113,7 @@ const menuItems = [
   {
     id: 'candidates', label: 'Candidate Lists', icon: Users,
     children: [
+      { id: 'overview', label: 'ภาพรวม', to: '/candidates/overview' },
       { id: 'general', label: 'ทั่วไป', to: '/candidates/general' },
       { id: 'academic', label: 'วิชาการ', to: '/candidates/academic' },
       { id: 'support', label: 'อำนวยการ', to: '/candidates/support' },
