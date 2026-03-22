@@ -1,82 +1,211 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="ทั้งหมด" :value="employees.length" :icon="Users" />
-      <StatCard label="พร้อมดำเนินการ" :value="countByStatus('ready')" :icon="CheckCircle" icon-bg-class="bg-green-50" icon-class="text-green-500" value-class="text-green-600" />
-      <StatCard label="ใกล้ครบกำหนด" :value="countByStatus('upcoming')" :icon="Clock" icon-bg-class="bg-yellow-50" icon-class="text-yellow-500" value-class="text-yellow-600" />
-      <StatCard label="เกินกำหนด" :value="countByStatus('overdue')" :icon="AlertTriangle" icon-bg-class="bg-red-50" icon-class="text-red-500" value-class="text-red-600" />
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
+      <Home class="w-4 h-4" />
+      <span>/</span>
+      <span>พ้นทดลองปฏิบัติราชการ</span>
+    </nav>
+
+    <!-- Page Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">ติดตามพ้นทดลองปฏิบัติราชการ</h1>
+      <p class="text-sm text-gray-500 mt-1">ติดตามสถานะการทดลองปฏิบัติราชการของข้าราชการบรรจุใหม่</p>
     </div>
 
-    <input
-      v-model="search"
-      type="text"
-      class="input max-w-md"
-      placeholder="ค้นหาชื่อ-สกุล, ตำแหน่ง หรือหน่วยงาน..."
+    <!-- Stat Cards -->
+    <SkeletonLoader v-if="loading && rows.length === 0" type="stat-cards" />
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <StatCard
+        label="ทั้งหมด"
+        :value="summary.total"
+        :icon="Users"
+        icon-bg-class="bg-blue-50"
+        icon-class="text-blue-600"
+      />
+      <StatCard
+        label="กำลังดำเนินการ"
+        :value="summary.in_progress"
+        :icon="UserCheck"
+        icon-bg-class="bg-green-50"
+        icon-class="text-green-600"
+      />
+      <StatCard
+        label="ใกล้ครบกำหนด"
+        :value="summary.near_deadline"
+        :icon="Clock"
+        icon-bg-class="bg-yellow-50"
+        icon-class="text-yellow-600"
+      />
+      <StatCard
+        label="เกินกำหนด"
+        :value="summary.overdue"
+        :icon="AlertTriangle"
+        icon-bg-class="bg-red-50"
+        icon-class="text-red-600"
+      />
+    </div>
+
+    <!-- Search Bar -->
+    <div class="flex items-center gap-3 mb-4">
+      <div class="relative flex-1">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search class="w-4 h-4 text-gray-400" />
+        </div>
+        <input
+          v-model="searchQuery"
+          @input="onSearchInput"
+          type="text"
+          placeholder="ค้นหาชื่อ, ตำแหน่ง หรือหน่วยงาน..."
+          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+
+    <!-- Error State -->
+    <EmptyState
+      v-else-if="error"
+      :icon="AlertCircle"
+      title="เกิดข้อผิดพลาด"
+      :description="error"
+    >
+      <button
+        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        @click="fetchData"
+      >
+        ลองใหม่อีกครั้ง
+      </button>
+    </EmptyState>
+
+    <!-- Data Table -->
+    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่ง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเริ่มทดลอง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบกำหนด</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันคงเหลือ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, index) in rows"
+              :key="row.enrollmentId"
+              class="border-b border-gray-100 hover:bg-gray-50"
+            >
+              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.name }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.position }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.department }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.startDate }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.endDate }}</td>
+              <td class="px-6 py-3 text-sm">
+                <span :class="getRemainingDaysClass(row.remainingDays)">
+                  {{ formatRemainingDays(row.remainingDays) }}
+                </span>
+              </td>
+              <td class="px-6 py-3 text-sm">
+                <StatusBadge :status="row.status" />
+              </td>
+              <td class="px-6 py-3 text-sm">
+                <div class="flex items-center gap-2">
+                  <button class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="ดูรายละเอียด">
+                    <Eye class="w-4 h-4" />
+                  </button>
+                  <button class="p-1 text-gray-400 hover:text-yellow-600 transition-colors" title="แก้ไข">
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ลบ">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="rows.length === 0 && !loading">
+              <td colspan="9">
+                <EmptyState
+                  title="ไม่พบข้อมูล"
+                  description="ยังไม่มีข้อมูลการทดลองปฏิบัติราชการ หรือไม่พบข้อมูลที่ตรงกับการค้นหา"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <PaginationBar
+      v-if="pagination.total > 0"
+      :total="pagination.total"
+      :limit="pagination.limit"
+      :offset="pagination.offset"
+      @update:offset="val => { pagination.offset = val; fetchData() }"
     />
-
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-500 text-left">
-          <tr>
-            <th class="px-6 py-3 font-medium">ลำดับ</th>
-            <th class="px-6 py-3 font-medium">ชื่อ-สกุล</th>
-            <th class="px-6 py-3 font-medium">ตำแหน่ง</th>
-            <th class="px-6 py-3 font-medium">หน่วยงาน</th>
-            <th class="px-6 py-3 font-medium">วันเริ่มทดลอง</th>
-            <th class="px-6 py-3 font-medium">วันครบกำหนด</th>
-            <th class="px-6 py-3 font-medium">วันคงเหลือ</th>
-            <th class="px-6 py-3 font-medium">สถานะ</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200">
-          <tr v-for="(e, i) in filtered" :key="e.id" class="hover:bg-blue-50/50 transition-all duration-150">
-            <td class="px-6 py-3 text-gray-500">{{ i + 1 }}</td>
-            <td class="px-6 py-3 text-gray-900 font-medium">{{ e.name }}</td>
-            <td class="px-6 py-3 text-gray-600">{{ e.position }}</td>
-            <td class="px-6 py-3 text-gray-600">{{ e.department }}</td>
-            <td class="px-6 py-3 text-gray-500">{{ e.startDate }}</td>
-            <td class="px-6 py-3 text-gray-500">{{ e.endDate }}</td>
-            <td class="px-6 py-3" :class="e.remainingDays <= 30 ? 'text-red-600 font-medium' : 'text-gray-500'">
-              {{ e.remainingDays }} วัน
-            </td>
-            <td class="px-6 py-3">
-              <StatusBadge :status="e.status" />
-            </td>
-          </tr>
-          <tr v-if="filtered.length === 0">
-            <td colspan="8" class="px-6 py-8 text-center text-gray-400">ไม่พบข้อมูล</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useProbation } from '@/composables/useProbation.js'
+import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import { Users, CheckCircle, Clock, AlertTriangle } from 'lucide-vue-next'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
+import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Eye, Pencil, Trash2, Search } from 'lucide-vue-next'
 
-const search = ref('')
+const { fetchList } = useProbation()
 
-const employees = ref([
-  { id: 1, name: 'นายวีระ สุขสวัสดิ์', position: 'นักวิชาการ', department: 'กองบริหารงานบุคคล', startDate: '1 ต.ค. 2568', endDate: '31 มี.ค. 2569', remainingDays: 10, status: 'upcoming' },
-  { id: 2, name: 'นางสาวพิมพ์ชนก แก้วใส', position: 'นักจัดการทั่วไป', department: 'กองคลัง', startDate: '1 พ.ย. 2568', endDate: '30 เม.ย. 2569', remainingDays: 40, status: 'ready' },
-  { id: 3, name: 'นายอรรถพล มีศรี', position: 'วิศวกร', department: 'กองช่าง', startDate: '1 ก.ย. 2568', endDate: '28 ก.พ. 2569', remainingDays: -21, status: 'overdue' },
-  { id: 4, name: 'นางสาวรัตนา ดวงดี', position: 'นักวิเคราะห์นโยบาย', department: 'กองแผน', startDate: '1 ต.ค. 2568', endDate: '31 มี.ค. 2569', remainingDays: 10, status: 'upcoming' },
-  { id: 5, name: 'นายชัยวัฒน์ ทองคำ', position: 'นักทรัพยากรบุคคล', department: 'กองบริหารงานบุคคล', startDate: '1 ธ.ค. 2568', endDate: '31 พ.ค. 2569', remainingDays: 71, status: 'ready' },
-])
+const loading = ref(false)
+const error = ref(null)
+const rows = ref([])
+const summary = ref({ total: 0, in_progress: 0, near_deadline: 0, overdue: 0 })
+const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-const filtered = computed(() => {
-  if (!search.value) return employees.value
-  const q = search.value.toLowerCase()
-  return employees.value.filter(
-    (e) => e.name.toLowerCase().includes(q) || e.position.toLowerCase().includes(q) || e.department.toLowerCase().includes(q)
-  )
-})
+// Search with 300ms debounce
+const searchQuery = ref('')
+let searchTimeout = null
 
-function countByStatus(status) {
-  return employees.value.filter((e) => e.status === status).length
+async function fetchData() {
+  loading.value = true
+  error.value = null
+  try {
+    const result = await fetchList({
+      search: searchQuery.value,
+      limit: pagination.value.limit,
+      offset: pagination.value.offset,
+    })
+    rows.value = result.data
+    summary.value = result.summary
+    pagination.value = result.pagination
+  } catch (err) {
+    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
+  } finally {
+    loading.value = false
+  }
 }
+
+function onSearchInput() {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    pagination.value.offset = 0
+    fetchData()
+  }, 300)
+}
+
+onMounted(() => {
+  fetchData()
+})
 </script>
