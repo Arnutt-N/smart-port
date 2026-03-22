@@ -54,20 +54,17 @@ const routes = [
       {
         path: 'time-counting',
         name: 'time-counting',
-        component: () => import('@/pages/PlaceholderPage.vue'),
-        props: { title: 'นับเวลาราชการ', description: 'กำลังพัฒนา' },
+        component: () => import('@/pages/SupportivePage.vue'),
       },
       {
         path: 'time-difference',
         name: 'time-difference',
-        component: () => import('@/pages/PlaceholderPage.vue'),
-        props: { title: 'การนับแตกต่าง', description: 'กำลังพัฒนา' },
+        component: () => import('@/pages/DiversePage.vue'),
       },
       {
         path: 'position-compare',
         name: 'position-compare',
-        component: () => import('@/pages/PlaceholderPage.vue'),
-        props: { title: 'การเทียบตำแหน่ง', description: 'กำลังพัฒนา' },
+        component: () => import('@/pages/EquivalencePage.vue'),
       },
       {
         path: 'royal-decorations',

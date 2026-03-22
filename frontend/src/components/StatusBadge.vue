@@ -35,6 +35,13 @@ const statusMap = {
   COMPLETED: { label: 'ผ่านทดลอง', class: 'bg-green-50 text-green-700' },
   FAILED: { label: 'ไม่ผ่าน', class: 'bg-red-50 text-red-700' },
   EXTENDED: { label: 'ขยายเวลา', class: 'bg-orange-50 text-orange-700' },
+  // Approval statuses (Position Equivalence)
+  PENDING: { label: 'รออนุมัติ', class: 'bg-amber-50 text-amber-700' },
+  APPROVED: { label: 'อนุมัติแล้ว', class: 'bg-green-50 text-green-700' },
+  REJECTED: { label: 'ไม่อนุมัติ', class: 'bg-red-50 text-red-700' },
+  // Diff count badges (Diverse Experience)
+  DIFF_PASS: { label: 'ผ่านเกณฑ์', class: 'bg-green-50 text-green-700' },
+  DIFF_NOT_YET: { label: 'ยังไม่ครบ', class: 'bg-amber-50 text-amber-700' },
 }
 
 const badgeClass = computed(() => statusMap[props.status]?.class || 'bg-gray-100 text-gray-600')
