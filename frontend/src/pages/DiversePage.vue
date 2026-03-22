@@ -66,22 +66,17 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading && rows.length === 0" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-    </div>
+    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
 
     <!-- Error State -->
-    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-      <AlertCircle class="w-8 h-8 text-red-400 mx-auto mb-2" />
-      <p class="text-red-700 font-medium">เกิดข้อผิดพลาด</p>
-      <p class="text-red-600 text-sm mt-1">{{ error }}</p>
-      <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
-        @click="fetchData"
-      >
-        ลองใหม่อีกครั้ง
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="error"
+      :icon="AlertCircle"
+      title="เกิดข้อผิดพลาด"
+      :description="error"
+      action-label="ลองใหม่อีกครั้ง"
+      @action="fetchData"
+    />
 
     <!-- Data Table -->
     <div v-else class="bg-white rounded-lg shadow overflow-hidden">
@@ -393,6 +388,8 @@ import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import {
   Home, Plus, Search, FileText, CheckCircle, AlertTriangle,
   AlertCircle, Pencil, Trash2, X

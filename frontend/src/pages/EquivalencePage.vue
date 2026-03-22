@@ -594,7 +594,7 @@ function onPersonnelSearch() {
 }
 
 function selectPersonnel(person) {
-  formData.value.personnel_id = person.personnel_id
+  formData.value.personnel_id = person.servant_id
   personnelSearch.value = person.full_name
   showPersonnelDropdown.value = false
   formErrors.value.personnel_id = ''
