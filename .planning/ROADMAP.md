@@ -52,7 +52,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Supportive experience CRUD with ratio lookup and effective_days computation
 - [x] 05-02-PLAN.md — Diverse experience CRUD with GENERATED column handling and qualified_date
-- [ ] 05-03-PLAN.md — Position equivalence CRUD with approval workflow + API gateway registration
+- [x] 05-03-PLAN.md — Position equivalence CRUD with approval workflow + API gateway registration
 
 ### Phase 6: Frontend CRUD Pages
 **Goal**: HR can manage all 3 types of time-counting records through Vue pages with Thai UI

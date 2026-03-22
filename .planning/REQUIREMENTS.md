@@ -20,9 +20,9 @@
 
 ### การเทียบตำแหน่ง (Position Equivalence)
 
-- [ ] **PE-01**: API CRUD endpoints สำหรับ position_equivalence (GET list, POST request, PUT approve/reject)
+- [x] **PE-01**: API CRUD endpoints สำหรับ position_equivalence (GET list, POST request, PUT approve/reject)
 - [ ] **PE-02**: หน้าการเทียบตำแหน่ง แสดงรายการ + ฟอร์มยื่นคำขอ + สถานะอนุมัติ
-- [ ] **PE-03**: คำนวณ approved_total_days จาก approved records เท่านั้น
+- [x] **PE-03**: คำนวณ approved_total_days จาก approved records เท่านั้น
 
 ### QualificationEngine Integration
 
@@ -66,9 +66,9 @@
 | DE-01 | Phase 5 | Complete |
 | DE-02 | Phase 6 | Pending |
 | DE-03 | Phase 5 | Complete |
-| PE-01 | Phase 5 | Pending |
+| PE-01 | Phase 5 | Complete |
 | PE-02 | Phase 6 | Pending |
-| PE-03 | Phase 5 | Pending |
+| PE-03 | Phase 5 | Complete |
 | QE-01 | Phase 7 | Pending |
 | QE-02 | Phase 7 | Pending |
 | QE-03 | Phase 7 | Pending |
