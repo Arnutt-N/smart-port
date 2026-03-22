@@ -1,6 +1,6 @@
 # Phase 3: Frontend Integration - Research
 
-**Researched:** 2026-03-22
+**Researched:** 2026-03-22 (re-researched)
 **Domain:** Vue 3 SPA frontend integration with PHP REST API
 **Confidence:** HIGH
 
@@ -8,9 +8,11 @@
 
 This phase wires two existing mock-data pages (CandidateListsPage.vue and ProbationEndPage.vue) to live backend APIs completed in Phase 2. The work is entirely frontend: creating composables for API calls, restructuring navigation (sidebar sub-menus + pill sub-tabs), adding status badge mappings, implementing color-coded remaining days, pagination, loading/error states, and placeholder pages for unimplemented categories.
 
-The existing codebase uses Vue 3 Composition API with `<script setup>`, Pinia stores, and a custom `useApi()` composable wrapping the Fetch API with JWT auto-attachment. All UI components needed (StatCard, StatusBadge, SkeletonLoader, EmptyState) already exist and are reusable. The sidebar (AppSidebar.vue) already has an expandable sub-menu pattern with `children` arrays. The router uses `candidates/:section?` with props passthrough.
+The existing codebase uses Vue 3 Composition API with `<script setup>`, Pinia stores, and a custom `useApi()` composable wrapping the Fetch API with JWT auto-attachment. All UI components needed (StatCard, StatusBadge, SkeletonLoader, EmptyState) already exist and are reusable. The sidebar (AppSidebar.vue) already has an expandable sub-menu pattern with `children` arrays and `openSubmenus` reactive Set. The router uses `candidates/:section?` with props passthrough.
 
-**Primary recommendation:** Create two composables (`useCandidates.js`, `useProbation.js`) wrapping `useApi()`, then rewrite CandidateListsPage and ProbationEndPage to use them. Add "overview" as a sidebar sub-menu item, restructure sub-tabs as reactive pill buttons within the page component, and build a reusable Pagination component.
+Re-research identified key corrections: (1) probation summary counts are computed from paginated rows only -- a backend limitation affecting stat card accuracy, (2) SkeletonLoader stat-cards type renders a fixed 4-column grid which does not match the overview's 2+3 card layout, (3) screenshot analysis reveals the "remaining days" column shows "เกิน X วัน" for overdue entries (negative remaining_days), requiring a display formatting function.
+
+**Primary recommendation:** Create two composables (`useCandidates.js`, `useProbation.js`) wrapping `useApi()`, then rewrite CandidateListsPage and ProbationEndPage to use them. Add "overview" as a sidebar sub-menu item, restructure sub-tabs as reactive pill buttons within the page component, and build a reusable PaginationBar component.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -69,12 +71,12 @@ The existing codebase uses Vue 3 Composition API with `<script setup>`, Pinia st
 | CL-07 | Sub-tabs within general: O1->O2, O2->O3 | Pill buttons with reactive state per D-02/D-04; API calls to `/candidates/O2` and `/candidates/O3` |
 | CL-08 | Sub-tabs within academic: K1->K2, K2->K3, K3->K4 | Same pill pattern; API calls to `/candidates/K2`, `/candidates/K3`, `/candidates/K4` |
 | CL-09 | Executive and Management show placeholder | EmptyState component exists with icon/title/description props per D-09 |
-| CL-10 | Stat cards per sub-tab: total, qualified, not_yet | Per D-05: stat cards only in overview page; sub-tab pages show table only. Summary from API response `summary.total/qualified/not_yet/check_data` |
-| CL-11 | Table columns: order, name, position, level, start date, due date, remaining days, status | API provides all fields: `full_name`, `current_position`, `current_level_name`, `level_start_date_thai`, `qualification_date_thai`, `remaining_days`, `status` |
+| CL-10 | Stat cards per sub-tab: total, qualified, not_yet | Per D-05: stat cards only in overview page; sub-tab pages show table only. Summary from API `summary.total/qualified/not_yet/check_data` |
+| CL-11 | Table columns: order, name, position, level, start date, due date, remaining days, status | API provides: `full_name`, `current_position`, `current_level_name`, `level_start_date_thai`, `qualification_date_thai`, `remaining_days`, `status`. Screenshot also shows "การดำเนินการ" action column with eye/pencil/trash icons |
 | CL-12 | Status badges: qualified green, not_yet gray, check_data orange | Add 3 entries to StatusBadge.vue statusMap per D-10 |
 | CL-13 | Search/filter by name and position | API supports `?search=` param filtering on first_name, last_name, position_name |
 | CL-14 | Connect to backend API (replace mock data) | useCandidates.js composable wrapping useApi().get per D-22 |
-| PT-06 | Probation stat cards: total, in_progress, near_deadline, overdue | API response includes `summary.total/in_progress/near_deadline/overdue` |
+| PT-06 | Probation stat cards: total, in_progress, near_deadline, overdue | API response `summary.total/in_progress/near_deadline/overdue`. NOTE: summary computed from paginated rows only -- see Pitfall 7 |
 | PT-07 | Table columns: order, name, position, department, start date, end date, remaining days, status | API provides: `full_name`, `position_name`, `department`, `start_date_thai`, `end_date_thai`, `remaining_days`, `status` |
 | PT-08 | Color-coded remaining days | Utility function per D-12: >30 green, 15-30 yellow, 7-14 orange, <7 red |
 | PT-09 | Status badges: IN_PROGRESS, COMPLETED, FAILED, EXTENDED | Add 4 entries to StatusBadge.vue per D-11 |
@@ -140,7 +142,6 @@ export function useCandidates() {
 
     const result = await api.get(`/candidates/${targetLevel}?${params}`)
 
-    // Map snake_case to camelCase for component consumption
     return {
       success: result.success,
       data: result.data.map(mapCandidateRow),
@@ -204,6 +205,8 @@ export function useProbation() {
       endDate: row.end_date_thai,
       remainingDays: row.remaining_days,
       status: row.status,
+      totalTasks: row.total_tasks,
+      completedTasks: row.completed_tasks,
     }
   }
 
@@ -211,25 +214,31 @@ export function useProbation() {
 }
 ```
 
-### Pattern 3: Remaining Days Color Utility
-**What:** Shared function for 4-level color coding
+### Pattern 3: Remaining Days Color Utility + Display Formatting
+**What:** Shared function for 4-level color coding AND display formatting for overdue entries
+**Critical insight from screenshot:** Overdue entries display as "เกิน X วัน" (e.g., "เกิน 5 วัน"), not negative numbers. The color function and display function are separate concerns.
 **Example:**
 ```javascript
 // Can live in either composable or a shared utils file
-function getRemainingDaysClass(days) {
+export function getRemainingDaysClass(days) {
   if (days === null) return 'text-gray-400'
-  if (days < 7) return 'text-red-600 font-medium'    // includes negative
+  if (days < 7) return 'text-red-600 font-medium'    // includes negative (overdue)
   if (days <= 14) return 'text-orange-600'
   if (days <= 30) return 'text-yellow-600'
   return 'text-green-600'
 }
+
+export function formatRemainingDays(days) {
+  if (days === null) return '-'
+  if (days < 0) return `เกิน ${Math.abs(days)} วัน`
+  return `${days} วัน`
+}
 ```
 
 ### Pattern 4: Sidebar Sub-menu Structure
-**What:** Sidebar already supports `children` array pattern. Need to add "overview" item.
-**Current structure:**
+**What:** Sidebar already supports `children` array pattern with `openSubmenus` reactive Set.
+**Current sidebar structure (verified from AppSidebar.vue lines 113-121):**
 ```javascript
-// AppSidebar.vue menuItems (current)
 {
   id: 'candidates', label: 'Candidate Lists', icon: Users,
   children: [
@@ -242,7 +251,6 @@ function getRemainingDaysClass(days) {
 ```
 **Target structure:**
 ```javascript
-// Add overview as first child
 {
   id: 'candidates', label: 'Candidate Lists', icon: Users,
   children: [
@@ -254,9 +262,11 @@ function getRemainingDaysClass(days) {
   ],
 }
 ```
+**Active state detection:** Uses `route.path === child.to` on line 45. This works for all sidebar children since each has a unique path. The `isParentActive` on line 146 checks `item.children?.some(c => route.path === c.to)` -- this highlights the parent "Candidate Lists" when any child is active. Important: if user navigates to `/candidates` (no section param), NO sidebar child will be highlighted. The CandidateListsPage section prop defaults to `'general'` currently. Change this default to `'overview'`.
 
 ### Pattern 5: Sub-tab Pill Buttons (reactive, no router)
 **What:** Per D-04, sub-tabs are reactive state within the component, not router links.
+**Screenshot design:** Blue fill (bg-blue-500 text-white) for active, white/bordered for inactive, rounded-full shape.
 **Example:**
 ```html
 <div class="flex gap-2">
@@ -277,31 +287,48 @@ function getRemainingDaysClass(days) {
 ### Pattern 6: Pagination Component
 **What:** Reusable pagination bar matching screenshot design
 **Props:** `total`, `limit`, `offset`, and emits `update:offset`
-**Display:** "แสดง X ถึง Y จาก Z รายการ" + ก่อนหน้า/ถัดไป + page number buttons
+**Display format (from screenshot):** "แสดง 1 ถึง 3 จาก 3 รายการ" + ก่อนหน้า [1] ถัดไป
+**Implementation notes:**
+- Compute `from = offset + 1`, `to = Math.min(offset + limit, total)`
+- Page numbers: show current page +/- 2 pages with ellipsis
+- Disable "ก่อนหน้า" on first page, "ถัดไป" on last page
+
+### Pattern 7: Page Title + Breadcrumb (from screenshot)
+**What:** Each category page has a consistent header layout
+**Screenshot verified layout:**
+```
+Breadcrumb: Home icon / {ทั่วไป}
+Title: รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง ({ประเภท})
+Subtitle: จัดการข้อมูลผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งในสายงาน{ประเภท}
+Action buttons (top-right): ส่งออก (green), นำเข้า (green), + เพิ่มรายชื่อ (blue)
+```
 
 ### Anti-Patterns to Avoid
 - **Router-based sub-tabs:** D-04 explicitly says sub-tabs do NOT change URL. Use `ref()` not `RouterLink`.
 - **Client-side pagination of full dataset:** The API already handles `limit`/`offset` server-side. Do not fetch all records then paginate in JS.
 - **Caching API responses:** D-17 says re-fetch every sub-tab change. HR data must be real-time.
 - **Building stat cards on sub-tab pages:** D-05 says stat cards are overview-only. Sub-tab pages show table only.
+- **Using SkeletonLoader stat-cards type for overview:** It renders a fixed `lg:grid-cols-4` grid. Overview needs 2 cards then 3 cards. Either use multiple SkeletonLoader instances or render custom pulse divs.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Status badges | Custom badge logic per page | StatusBadge.vue with expanded statusMap | Already exists, just needs new entries |
+| Status badges | Custom badge logic per page | StatusBadge.vue with expanded statusMap | Already exists, just needs 7 new entries |
 | Loading states | Custom shimmer/pulse CSS | SkeletonLoader.vue with type="stat-cards" or type="table" | Already exists with correct types |
 | Empty/error states | Custom error message divs | EmptyState.vue with icon + retry button slot | Already exists with slot for actions |
-| Stat cards | Custom card HTML | StatCard.vue | Already exists with full prop support |
+| Stat cards | Custom card HTML | StatCard.vue | Already exists with full prop support (label, value, icon, iconBgClass, iconClass) |
 | API auth/error handling | Custom fetch wrapper | useApi().get/post/put/del | Already handles JWT, 401 redirect, error parsing |
+| Thai date formatting | Frontend date conversion | Backend provides `*_thai` fields | Backend helpers.php already formats all dates in Thai Buddhist Era |
+| Level code to name | Frontend mapping table | Backend provides `current_level_name` | Backend helpers.php getLevelName() already called |
 
 ## Common Pitfalls
 
-### Pitfall 1: Sidebar Active State Detection
-**What goes wrong:** Sidebar `isParentActive` checks `route.path === child.to` with exact match. Adding "overview" as `/candidates/overview` works, but the default redirect behavior must be considered.
-**Why it happens:** The current route `candidates/:section?` with optional section param means `/candidates` alone could match.
-**How to avoid:** Default the section prop to `'overview'` instead of `'general'`. Update the router default redirect or ensure the sidebar "overview" link highlights correctly.
-**Warning signs:** No sidebar item highlighted when navigating to `/candidates` without section param.
+### Pitfall 1: Sidebar Active State for Default Route
+**What goes wrong:** Navigating to `/candidates` (no section param) leaves no sidebar child highlighted because none match `route.path === child.to`.
+**Why it happens:** The route is `candidates/:section?` where section is optional. CandidateListsPage defaults section prop to `'general'` but the URL stays `/candidates`.
+**How to avoid:** Change the component's section prop default from `'general'` to `'overview'`. The sidebar `isParentActive` will still highlight the parent since `route.path.startsWith('/candidates')` is implied by the children check. For the specific child highlight, ensure the route redirects `/candidates` to `/candidates/overview` using `redirect` in the router config.
+**Warning signs:** No sidebar item highlighted when navigating to `/candidates`.
 
 ### Pitfall 2: Overview Page Promise.all Error Handling
 **What goes wrong:** One failed API call in Promise.all rejects the entire batch, showing error state even though 4/5 calls succeeded.
@@ -311,33 +338,46 @@ function getRemainingDaysClass(days) {
 
 ### Pitfall 3: Search Debouncing
 **What goes wrong:** Typing in search field fires API call on every keystroke, overwhelming the backend.
-**Why it happens:** `v-model` on input updates reactive ref immediately; if watched, it triggers fetches.
-**How to avoid:** Add a 300ms debounce on search. Use a `watch` with debounce or a manual `setTimeout` pattern. Alternatively, use a search button / Enter key trigger.
+**Why it happens:** If `search` ref is watched, it triggers fetches on every character change.
+**How to avoid:** Add a 300ms debounce. Use a manual `setTimeout`/`clearTimeout` pattern since no debounce utility is installed. Alternatively, trigger search on Enter key press only. The screenshot shows a separate "ตัวกรอง" (filter) button but search input has placeholder "ค้นหาชื่อ หรือตำแหน่ง..." suggesting type-to-search behavior.
 **Warning signs:** Multiple concurrent API calls visible in network tab while typing.
 
 ### Pitfall 4: Pagination Offset Reset
 **What goes wrong:** User is on page 3, changes sub-tab, and sees "no data" because offset is still 40 but new tab has only 10 records.
 **Why it happens:** Offset not reset when sub-tab or search changes.
-**How to avoid:** Reset offset to 0 whenever `activeSubTab` or `search` changes. Use a `watch` on these refs.
+**How to avoid:** Reset offset to 0 whenever `activeSubTab` or `search` changes. Use a `watch` on these refs to reset offset.
 **Warning signs:** Empty table after switching tabs when data exists.
 
-### Pitfall 5: StatusBadge Key Conflicts
-**What goes wrong:** Existing statusMap keys (`completed`, `ready`) could conflict with new probation status keys if not careful about naming.
-**Why it happens:** StatusBadge uses the raw status string from API as lookup key.
-**How to avoid:** Backend sends `qualified`, `not_yet`, `check_data` for candidates and `IN_PROGRESS`, `COMPLETED`, `FAILED`, `EXTENDED` for probation. These are all unique. Add them directly to statusMap. Note probation uses UPPER_CASE which won't conflict with existing lowercase keys.
+### Pitfall 5: StatusBadge Key Case Sensitivity
+**What goes wrong:** Probation uses UPPER_CASE status keys (`IN_PROGRESS`, `COMPLETED`) while candidates use lowercase (`qualified`, `not_yet`). If someone accidentally lowercases probation statuses, badges won't render correctly.
+**Why it happens:** StatusBadge uses raw status string as lookup key. Backend sends different cases for different features.
+**How to avoid:** Add entries to statusMap exactly matching what the backend sends. Verified: candidates send `qualified`, `not_yet`, `check_data` (lowercase). Probation sends `IN_PROGRESS`, `COMPLETED`, `FAILED`, `EXTENDED` (UPPER_CASE). These are all unique and won't conflict with existing keys (`upcoming`, `pending`, `overdue`, `eligible`, `completed`, `ready`, `active`). Note: existing `completed` (lowercase) returns "เสร็จสิ้น" which is different from probation's `COMPLETED` (uppercase) returning "ผ่านทดลอง".
 **Warning signs:** Wrong badge color/label appearing.
 
 ### Pitfall 6: Overview Stat Card Math
-**What goes wrong:** Overview needs to sum counts from 5 different API calls (O2, O3, K2, K3, K4). Double-counting possible if summary logic is wrong.
-**Why it happens:** Each API call returns its own `summary.total/qualified/not_yet`. Summing all "total" gives correct grand total since each call targets different source level personnel.
-**How to avoid:** Sum `summary.total` from O2+O3 for "general count" and K2+K3+K4 for "academic count". Sum all `summary.qualified` for "qualified total". The API already segments by target level so no overlap occurs.
+**What goes wrong:** Overview sums counts from 5 API calls. Incorrect grouping could double-count.
+**Why it happens:** Each API call returns its own `summary.total/qualified/not_yet/check_data`. These are per-targetLevel and don't overlap.
+**How to avoid:** Sum `summary.total` from O2+O3 for "general count" and K2+K3+K4 for "academic count". Sum all `summary.qualified` for status-based "qualified total". The API already segments by target level so no overlap occurs between targetLevels.
 **Warning signs:** Total count in overview not matching sum of individual tab counts.
+
+### Pitfall 7: Probation Summary Counts from Paginated Rows (NEW - missed in previous research)
+**What goes wrong:** Probation stat cards show wrong counts when there are more records than the page limit.
+**Why it happens:** Looking at `backend/routes/probation.php` lines 99-117, the summary (`in_progress`, `near_deadline`, `overdue`) is computed by iterating over `$rows` -- which is the PAGINATED result set (LIMIT/OFFSET applied). So if there are 50 records but only 20 are fetched, the summary only reflects those 20 rows. The `total` field IS correct (comes from COUNT query).
+**How to avoid:** For probation stat cards, use `summary.total` which is correct. For the status breakdown (`in_progress`, `near_deadline`, `overdue`), accept the limitation for v1 since (a) dataset is small (tens of records) and (b) default limit=20 likely covers all records. If needed, fetch with a large limit for summary or fix backend later.
+**Warning signs:** Stat card numbers change when paginating through results.
+
+### Pitfall 8: Remaining Days Display Format (NEW - from screenshot analysis)
+**What goes wrong:** Displaying negative remaining_days as "-5 วัน" instead of "เกิน 5 วัน" as shown in the screenshot.
+**Why it happens:** Screenshot clearly shows "เกิน 5 วัน" for the overdue entry (red text), not a negative number.
+**How to avoid:** Create a `formatRemainingDays()` function that converts negative values: `days < 0` returns `เกิน ${Math.abs(days)} วัน`, positive returns `${days} วัน`.
+**Warning signs:** Negative numbers appearing in the remaining days column.
 
 ## Code Examples
 
-### Backend API Response Shape: Candidates
+### Verified Backend API Response Shape: Candidates
 ```json
 // GET /candidates/K2?search=&limit=20&offset=0
+// Source: QualificationEngine.php computeForLevel() lines 144-159
 {
   "success": true,
   "data": [
@@ -348,7 +388,7 @@ function getRemainingDaysClass(days) {
       "current_level_code": "K1",
       "current_level_start_date": "2020-03-15",
       "education_level": "BACHELOR",
-      "min_years": 6,
+      "min_years": 6.0,
       "department": "กองบริหารงานบุคคล",
       "qualification_date": "2026-03-15",
       "remaining_days": -7,
@@ -372,10 +412,12 @@ function getRemainingDaysClass(days) {
   }
 }
 ```
+**Note:** `summary` counts are computed from the FULL dataset (separate COUNT/SUM query in QualificationEngine lines 108-124), so they are accurate regardless of pagination. This is different from probation.
 
-### Backend API Response Shape: Probation
+### Verified Backend API Response Shape: Probation
 ```json
 // GET /probation?search=&limit=20&offset=0
+// Source: routes/probation.php getProbationList() lines 63-136
 {
   "success": true,
   "data": [
@@ -409,16 +451,19 @@ function getRemainingDaysClass(days) {
   }
 }
 ```
+**WARNING:** `summary.in_progress/near_deadline/overdue` are computed from paginated rows only (see Pitfall 7). `summary.total` is from COUNT query and is accurate.
 
-### StatusBadge Additions
+### StatusBadge Additions (verified no key conflicts)
 ```javascript
 // Add to StatusBadge.vue statusMap
-// Candidate statuses
+// Existing keys: upcoming, pending, overdue, eligible, completed, ready, active
+
+// Candidate statuses (lowercase from backend)
 qualified: { label: 'ครบกำหนด', class: 'bg-green-50 text-green-700' },
 not_yet: { label: 'รอดำเนินการ', class: 'bg-amber-50 text-amber-700' },
 check_data: { label: 'ตรวจสอบข้อมูล', class: 'bg-orange-50 text-orange-700' },
 
-// Probation statuses
+// Probation statuses (UPPER_CASE from backend)
 IN_PROGRESS: { label: 'กำลังดำเนินการ', class: 'bg-blue-50 text-blue-700' },
 COMPLETED: { label: 'ผ่านทดลอง', class: 'bg-green-50 text-green-700' },
 FAILED: { label: 'ไม่ผ่าน', class: 'bg-red-50 text-red-700' },
@@ -441,18 +486,105 @@ const subTabConfig = {
 }
 ```
 
+### Page Title Map (from screenshot)
+```javascript
+const categoryConfig = {
+  overview: {
+    title: 'ภาพรวมบัญชีรายชื่อผู้มีคุณสมบัติ',
+    subtitle: 'สรุปภาพรวมบัญชีรายชื่อผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งทุกประเภท',
+    breadcrumb: 'ภาพรวม',
+  },
+  general: {
+    title: 'รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง (ทั่วไป)',
+    subtitle: 'จัดการข้อมูลผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งในสายงานทั่วไป',
+    breadcrumb: 'ทั่วไป',
+  },
+  academic: {
+    title: 'รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง (วิชาการ)',
+    subtitle: 'จัดการข้อมูลผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งในสายงานวิชาการ',
+    breadcrumb: 'วิชาการ',
+  },
+  support: {
+    title: 'รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง (อำนวยการ)',
+    subtitle: 'จัดการข้อมูลผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งในสายงานอำนวยการ',
+    breadcrumb: 'อำนวยการ',
+  },
+  management: {
+    title: 'รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง (บริหาร)',
+    subtitle: 'จัดการข้อมูลผู้มีคุณสมบัติเลื่อนและย้ายตำแหน่งในสายงานบริหาร',
+    breadcrumb: 'บริหาร',
+  },
+}
+```
+
+### Action Buttons Layout (from screenshot)
+```html
+<!-- Top-right action buttons, shown only on sub-tab level pages (D-14) -->
+<div class="flex gap-2">
+  <button class="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg">
+    <Download class="w-4 h-4" /> ส่งออก
+  </button>
+  <button class="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg">
+    <Upload class="w-4 h-4" /> นำเข้า
+  </button>
+  <button class="flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg">
+    <Plus class="w-4 h-4" /> เพิ่มรายชื่อ
+  </button>
+</div>
+```
+
+### Table Action Column Icons (from screenshot)
+```html
+<!-- Per-row action icons: view, edit, delete (UI only) -->
+<td class="px-6 py-3">
+  <div class="flex items-center gap-2">
+    <button class="p-1 text-gray-400 hover:text-blue-600"><Eye class="w-4 h-4" /></button>
+    <button class="p-1 text-gray-400 hover:text-blue-600"><Pencil class="w-4 h-4" /></button>
+    <button class="p-1 text-gray-400 hover:text-red-600"><Trash2 class="w-4 h-4" /></button>
+  </div>
+</td>
+```
+
+### Existing Component Props Reference (verified from source)
+```
+StatCard.vue props:
+  label: String
+  value: [String, Number]
+  icon: Object (lucide component)
+  change: String (optional, e.g. "+5%")
+  iconBgClass: String (default: 'bg-blue-50')
+  iconClass: String (default: 'text-blue-600')
+  sparkline: Boolean (default: false)
+
+SkeletonLoader.vue props:
+  type: String (default: 'card', valid: 'stat-cards' | 'table' | 'card')
+  rows: Number (default: 4, used for table/card row count)
+
+EmptyState.vue props:
+  icon: Object (default: Inbox from lucide)
+  title: String (default: 'ไม่พบข้อมูล')
+  description: String (default: 'ยังไม่มีข้อมูลในขณะนี้')
+  slot: default (for action button like retry)
+
+StatusBadge.vue props:
+  status: String (required, lookup key into statusMap)
+```
+
 ### Screenshot Design Reference Summary
-From the two screenshots analyzed:
-- **Breadcrumb:** Home icon / {category name} at top
-- **Page title:** "รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง ({category})" with subtitle
-- **Action buttons:** Top-right: green "ส่งออก", green "นำเข้า", blue "+ เพิ่มรายชื่อ"
-- **Pill sub-tabs:** Blue fill for active, white/bordered for inactive, rounded-full
-- **Search:** Input with placeholder "ค้นหาชื่อ หรือตำแหน่ง..." + filter button (ตัวกรอง)
-- **Table columns:** ชื่อ-นามสกุล, ตำแหน่งปัจจุบัน, ระดับตำแหน่ง, วันที่ครบกำหนด, จำนวนวันที่เหลือ, สถานะ, การดำเนินการ
-- **Action icons:** Eye (view), Pencil (edit), Trash (delete) -- UI only
-- **Pagination:** "แสดง 1 ถึง 3 จาก 3 รายการ" + ก่อนหน้า [1] ถัดไป
-- **Status colors:** Green "ครบกำหนด", Yellow "รอดำเนินการ", Red "เกินกำหนด"
-- **Remaining days color:** Green for 45 days, yellow for 28 days, red for "เกิน 5 วัน"
+From the two screenshots analyzed (`docs/scrennshorts/1774147879491.jpg` and `1774147914659.jpg`):
+- **Breadcrumb:** Home icon / {category name} at top left
+- **Page title:** "รายชื่อผู้มีคุณสมบัติเลื่อน/ย้ายตำแหน่ง ({category})" with subtitle below
+- **Action buttons:** Top-right aligned with title: green "ส่งออก" (Download icon), green "นำเข้า" (Upload icon), blue "+ เพิ่มรายชื่อ"
+- **Pill sub-tabs:** Blue fill (bg-blue-500 text-white) for active, white/bordered for inactive, rounded-full shape
+- **Search:** Input with placeholder "ค้นหาชื่อ หรือตำแหน่ง..." + "ตัวกรอง" filter button on the right
+- **Table columns (screenshot order):** ชื่อ-นามสกุล, ตำแหน่งปัจจุบัน, ระดับตำแหน่ง, วันที่ครบกำหนด, จำนวนวันที่เหลือ, สถานะ, การดำเนินการ
+- **Table header style:** `bg-gray-50 text-gray-500 text-left text-sm font-medium`
+- **Action icons per row:** Eye (view), Pencil (edit), Trash (delete) -- all UI only
+- **Pagination:** "แสดง 1 ถึง 3 จาก 3 รายการ" left-aligned + "ก่อนหน้า [1] ถัดไป" right-aligned
+- **Status badge colors:** Green "ครบกำหนด", Orange "รอดำเนินการ", Red "เกินกำหนด"
+- **Remaining days display:** Green "45 วัน", Yellow-orange "28 วัน", Red "เกิน 5 วัน" (negative shown as "เกิน X วัน")
+- **Sidebar:** "Candidate Lists" expanded showing ทั่วไป (highlighted blue), วิชาการ, อำนวยการ, บริหาร as sub-items with dot indicators
+- **Note:** Screenshot shows "ลำดับ" column header is NOT visible in the table but is described in requirements CL-11. The screenshot table starts directly with ชื่อ-นามสกุล. Implement with row numbering per requirements.
 
 ## State of the Art
 
@@ -460,41 +592,50 @@ From the two screenshots analyzed:
 |--------------|------------------|--------------|--------|
 | Hardcoded mock data arrays | API composables with useApi() | Phase 3 (now) | Pages become dynamic |
 | RouterLink tabs at top of page | Sidebar sub-menu + pill button sub-tabs | Phase 3 (now) | Matches screenshot design |
-| Simple ternary for day coloring | 4-level color function | Phase 3 (now) | Better UX for urgency |
-| No pagination | Server-side pagination with UI | Phase 3 (now) | Handles large datasets |
+| Simple ternary `<= 30 ? red : gray` for day coloring | 4-level color function + "เกิน X วัน" format | Phase 3 (now) | Better UX for urgency |
+| No pagination | Server-side pagination with PaginationBar UI | Phase 3 (now) | Handles large datasets |
+| Tab-based navigation via RouterLink at page top | Section prop from router + reactive sub-tabs within page | Phase 3 (now) | Cleaner architecture per D-04 |
 
 ## Open Questions
 
 1. **Sidebar active state for overview default**
    - What we know: Route is `candidates/:section?` where section is optional. Default was 'general'.
    - What's unclear: Should `/candidates` (no section) redirect to `/candidates/overview` or just render overview?
-   - Recommendation: Set the router default section prop to `'overview'` and let the sidebar highlight naturally. No redirect needed since the component handles it via props.
+   - Recommendation: Add a redirect in router config: `{ path: 'candidates', redirect: '/candidates/overview' }` before the `candidates/:section?` route. This ensures the URL always has a section, sidebar highlighting works, and the user sees overview by default. Alternatively, just change the section prop default to `'overview'` without redirect -- simpler but URL shows `/candidates` without `/overview`.
 
 2. **Search debounce vs button trigger**
    - What we know: Current mock pages use instant `v-model` filtering (client-side). With API calls, instant search is expensive.
    - What's unclear: Screenshot shows a "ตัวกรอง" (filter) button next to search. Should search require button click?
-   - Recommendation: Use 300ms debounce on input with automatic search. The filter button can be UI-only for v1 (no advanced filters yet).
+   - Recommendation: Use 300ms debounce on input change for automatic search. The "ตัวกรอง" button can be UI-only for v1 (no advanced filters implemented yet). Also support Enter key for immediate search.
 
 3. **Overview top-5 table -- which API provides this?**
    - What we know: Overview needs top 5 nearest deadline across all levels. No single API returns cross-level data.
    - What's unclear: Must client merge all 5 API responses and sort.
-   - Recommendation: In the Promise.allSettled results, concatenate all `data` arrays, sort by `remaining_days` ascending (nulls last), take first 5. This works since dataset is small (hundreds).
+   - Recommendation: In the Promise.allSettled results, concatenate all `data` arrays from fulfilled results, sort by `remaining_days` ascending (nulls last), take first 5. This works since overview fetches all data from 5 levels anyway. Use a large enough limit (e.g., limit=100 per level) or just use the default limit=20 which should be sufficient for getting the top 5 nearest-deadline across all levels.
+
+4. **Probation summary accuracy with pagination (NEW)**
+   - What we know: Backend computes summary from paginated rows only (Pitfall 7).
+   - What's unclear: Will the default limit=20 always cover all probation records?
+   - Recommendation: For v1, accept the limitation. The dataset is expected to be small (tens of new civil servants per batch). If needed, pass a large limit (e.g., 1000) on first fetch just for summary, but this adds complexity. Simpler approach: use only `summary.total` from the backend and compute near_deadline/overdue client-side from the data array IF all records fit in one page. For now, just use what the backend provides.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `backend/QualificationEngine.php` -- verified API response shape with exact field names
-- `backend/routes/probation.php` -- verified probation response shape with summary fields
-- `backend/routes/candidates.php` -- verified valid target levels: K2, K3, K4, O2, O3
-- `backend/helpers.php` -- verified Thai date format and level name mapping functions
-- `frontend/src/composables/useApi.js` -- verified useApi() returns { get, post, put, del }
-- `frontend/src/components/StatusBadge.vue` -- verified existing statusMap keys and extension pattern
-- `frontend/src/components/AppSidebar.vue` -- verified children array pattern for expandable menus
-- `frontend/src/components/SkeletonLoader.vue` -- verified type prop supports "stat-cards" and "table"
-- `frontend/src/components/EmptyState.vue` -- verified icon/title/description props + default slot
-- `frontend/src/components/StatCard.vue` -- verified prop interface: label, value, icon, iconBgClass, iconClass
-- `docs/scrennshorts/1774147879491.jpg` -- screenshot for general tab design
-- `docs/scrennshorts/1774147914659.jpg` -- screenshot for academic tab design
+- `backend/QualificationEngine.php` lines 31-159 -- verified API response shape with exact field names, summary query is separate from data query (accurate counts)
+- `backend/routes/probation.php` lines 63-136 -- verified probation response shape, found summary computed from paginated rows only
+- `backend/routes/candidates.php` lines 40-41 -- verified valid target levels: K2, K3, K4, O2, O3
+- `backend/helpers.php` lines 15-63 -- verified Thai date format (`D เดือน ปี+543`) and level name mapping (K1-K5, O1-O3, M1-M2, S1-S2)
+- `frontend/src/composables/useApi.js` lines 40-48 -- verified useApi() returns { get, post, put, del, upload }
+- `frontend/src/components/StatusBadge.vue` lines 17-25 -- verified existing statusMap keys: upcoming, pending, overdue, eligible, completed, ready, active
+- `frontend/src/components/AppSidebar.vue` lines 110-135 -- verified menuItems structure with children array, openSubmenus Set, isParentActive check
+- `frontend/src/components/SkeletonLoader.vue` lines 1-48 -- verified type prop ("stat-cards" renders 4-col grid, "table" renders rows), rows prop
+- `frontend/src/components/EmptyState.vue` lines 1-21 -- verified icon/title/description props + default slot for action buttons
+- `frontend/src/components/StatCard.vue` lines 30-41 -- verified prop interface: label, value, icon, iconBgClass, iconClass, change, sparkline
+- `frontend/src/router/index.js` lines 22-26 -- verified `candidates/:section?` route with `props: true`
+- `frontend/src/pages/CandidateListsPage.vue` -- verified current mock data structure, section prop default 'general', RouterLink tabs (to be replaced)
+- `frontend/src/pages/ProbationEndPage.vue` -- verified current mock data, status values: upcoming/ready/overdue (to be replaced)
+- `docs/scrennshorts/1774147879491.jpg` -- screenshot for general tab design (sidebar, pills, table, pagination, action buttons, remaining days colors)
+- `docs/scrennshorts/1774147914659.jpg` -- screenshot for academic tab design (4 pill tabs, same table pattern)
 
 ### Secondary (MEDIUM confidence)
 - CONTEXT.md decisions D-01 through D-24 -- user-confirmed design decisions
@@ -503,8 +644,18 @@ From the two screenshots analyzed:
 
 **Confidence breakdown:**
 - Standard stack: HIGH -- all libraries already installed, zero new dependencies
-- Architecture: HIGH -- patterns derived from existing codebase + confirmed API contracts
-- Pitfalls: HIGH -- identified from code analysis of actual components and API shapes
+- Architecture: HIGH -- patterns derived from existing codebase + verified API contracts from source code
+- Pitfalls: HIGH -- identified from code analysis of actual components, API source, and screenshot comparison. Pitfall 7 (probation summary) and Pitfall 8 (remaining days format) are new findings from deeper source code review.
+
+**Changes from previous research:**
+- Added Pitfall 7: probation summary computed from paginated rows only
+- Added Pitfall 8: remaining days display format ("เกิน X วัน" for overdue)
+- Added `formatRemainingDays()` function to Pattern 3
+- Added Pattern 7: page title + breadcrumb layout from screenshot
+- Added action buttons HTML and table action icons from screenshot analysis
+- Added SkeletonLoader anti-pattern note (fixed 4-col grid vs overview's 2+3 layout)
+- Added verified component props reference section
+- Clarified candidate summary is accurate (separate query) vs probation summary (paginated rows)
 
 **Research date:** 2026-03-22
 **Valid until:** 2026-04-22 (stable -- no external dependency changes)
