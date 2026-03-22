@@ -45,12 +45,12 @@
 
 ### Probation Tracking — Frontend
 
-- [ ] **PT-06**: Probation list page with stat cards: ทั้งหมด, พร้อมดำเนินการ, ใกล้ครบกำหนด, เกินกำหนด
-- [ ] **PT-07**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่ง, หน่วยงาน, วันเริ่มทดลอง, วันครบกำหนด, วันคงเหลือ, สถานะ
-- [ ] **PT-08**: Color-coded remaining days: green (>30), yellow (15-30), orange (7-14), red (<7)
+- [x] **PT-06**: Probation list page with stat cards: ทั้งหมด, พร้อมดำเนินการ, ใกล้ครบกำหนด, เกินกำหนด
+- [x] **PT-07**: Table columns: ลำดับ, ชื่อ-สกุล, ตำแหน่ง, หน่วยงาน, วันเริ่มทดลอง, วันครบกำหนด, วันคงเหลือ, สถานะ
+- [x] **PT-08**: Color-coded remaining days: green (>30), yellow (15-30), orange (7-14), red (<7)
 - [x] **PT-09**: Status badges: IN_PROGRESS, COMPLETED, FAILED, EXTENDED
-- [ ] **PT-10**: Search/filter by name, position, department
-- [ ] **PT-11**: Connect to backend API (replace mock data with live data)
+- [x] **PT-10**: Search/filter by name, position, department
+- [x] **PT-11**: Connect to backend API (replace mock data with live data)
 
 ### Shared / Cross-cutting
 
@@ -122,12 +122,12 @@
 | PT-03 | Phase 2 | Complete |
 | PT-04 | Phase 2 | Complete |
 | PT-05 | Phase 2 | Complete |
-| PT-06 | Phase 3 | Pending |
-| PT-07 | Phase 3 | Pending |
-| PT-08 | Phase 3 | Pending |
+| PT-06 | Phase 3 | Complete |
+| PT-07 | Phase 3 | Complete |
+| PT-08 | Phase 3 | Complete |
 | PT-09 | Phase 3 | Complete |
-| PT-10 | Phase 3 | Pending |
-| PT-11 | Phase 3 | Pending |
+| PT-10 | Phase 3 | Complete |
+| PT-11 | Phase 3 | Complete |
 | SH-01 | Phase 2 | Complete |
 | SH-02 | Phase 2 | Complete |
 | SH-03 | Phase 3 | Complete |
