@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-22T02:29:26.150Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-22T02:37:11.984Z"
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 01 P01 | 4min | 3 tasks | 3 files |
 | Phase 01 P02 | 3min | 2 tasks | 3 files |
 | Phase 02 P01 | 3min | 2 tasks | 5 files |
+| Phase 02 P02 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Route delegation pattern: api.php includes routes/candidates.php and calls handleCandidates()
 - [Phase 02]: Education-aware criteria matching via LEFT JOIN with OR condition (exact match OR ANY)
 - [Phase 02]: DATE_ADD with CAST for leap-year-safe qualification date computation
+- [Phase 02]: GET list uses vw_probation_dashboard view, GET detail queries probation_enrollment directly (view filters only IN_PROGRESS)
+- [Phase 02]: PUT update uses dynamic SET clause with allowed-fields whitelist for security
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T02:29:26.135Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-22T02:37:11.973Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

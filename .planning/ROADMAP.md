@@ -48,7 +48,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Qualification engine, candidate list API, shared helpers (Thai date + level code), education_level migration
-- [ ] 02-02-PLAN.md — Probation tracking CRUD API and api.php gateway wiring
+- [x] 02-02-PLAN.md — Probation tracking CRUD API and api.php gateway wiring
 
 ### Phase 3: Frontend Integration
 **Goal**: Candidate List and Probation pages display live data from the backend with full tab navigation, stat cards, search/filter, color-coded status badges, and Thai date formatting

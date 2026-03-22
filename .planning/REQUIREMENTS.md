@@ -37,11 +37,11 @@
 
 ### Probation Tracking — Backend
 
-- [ ] **PT-01**: API endpoint GET /probation — returns list of probation enrollments with remaining days
-- [ ] **PT-02**: API endpoint GET /probation/:enrollmentId — returns detailed probation info (stakeholders, tasks)
-- [ ] **PT-03**: API endpoint POST /probation — create new enrollment
-- [ ] **PT-04**: API endpoint PUT /probation/:enrollmentId — update enrollment status
-- [ ] **PT-05**: Remaining days computed dynamically as DATEDIFF(end_date, CURDATE()) — not stored
+- [x] **PT-01**: API endpoint GET /probation — returns list of probation enrollments with remaining days
+- [x] **PT-02**: API endpoint GET /probation/:enrollmentId — returns detailed probation info (stakeholders, tasks)
+- [x] **PT-03**: API endpoint POST /probation — create new enrollment
+- [x] **PT-04**: API endpoint PUT /probation/:enrollmentId — update enrollment status
+- [x] **PT-05**: Remaining days computed dynamically as DATEDIFF(end_date, CURDATE()) — not stored
 
 ### Probation Tracking — Frontend
 
@@ -117,11 +117,11 @@
 | CL-12 | Phase 3 | Pending |
 | CL-13 | Phase 3 | Pending |
 | CL-14 | Phase 3 | Pending |
-| PT-01 | Phase 2 | Pending |
-| PT-02 | Phase 2 | Pending |
-| PT-03 | Phase 2 | Pending |
-| PT-04 | Phase 2 | Pending |
-| PT-05 | Phase 2 | Pending |
+| PT-01 | Phase 2 | Complete |
+| PT-02 | Phase 2 | Complete |
+| PT-03 | Phase 2 | Complete |
+| PT-04 | Phase 2 | Complete |
+| PT-05 | Phase 2 | Complete |
 | PT-06 | Phase 3 | Pending |
 | PT-07 | Phase 3 | Pending |
 | PT-08 | Phase 3 | Pending |
