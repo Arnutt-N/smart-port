@@ -1,7 +1,13 @@
 <?php
 // Smart Port Management System - Enhanced API Gateway
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: https://smart-port.onrender.com');
+$allowedOrigins = ['https://smart-port.onrender.com', 'https://smartport-backend.onrender.com', 'http://localhost:5174', 'http://localhost:8081'];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowedOrigins)) {
+    header("Access-Control-Allow-Origin: $origin");
+} else {
+    header('Access-Control-Allow-Origin: https://smart-port.onrender.com');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
