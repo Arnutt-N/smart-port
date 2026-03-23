@@ -61,7 +61,7 @@ class QualificationEngine
                 o.org_name AS department,
                 COALESCE(sup.total_supportive_days, 0) AS supportive_days,
                 COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
-                COALESCE(div.max_diff_count, 0) AS diverse_diff_count,
+                COALESCE(dex.max_diff_count, 0) AS diverse_diff_count,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
                     ELSE DATE_SUB(
@@ -114,7 +114,7 @@ class QualificationEngine
                 SELECT personnel_id, MAX(diff_count) AS max_diff_count
                 FROM diverse_experience
                 GROUP BY personnel_id
-            ) div ON div.personnel_id = p.personnel_id
+            ) dex ON dex.personnel_id = p.personnel_id
             WHERE p.current_level_code IN ({$placeholders})
                 AND p.is_active = 1
         ";
@@ -225,7 +225,7 @@ class QualificationEngine
                 o.org_name AS department,
                 COALESCE(sup.total_supportive_days, 0) AS supportive_days,
                 COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
-                COALESCE(div.max_diff_count, 0) AS diverse_diff_count,
+                COALESCE(dex.max_diff_count, 0) AS diverse_diff_count,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
                     ELSE DATE_SUB(
@@ -278,7 +278,7 @@ class QualificationEngine
                 SELECT personnel_id, MAX(diff_count) AS max_diff_count
                 FROM diverse_experience
                 GROUP BY personnel_id
-            ) div ON div.personnel_id = p.personnel_id
+            ) dex ON dex.personnel_id = p.personnel_id
             WHERE p.personnel_id = ?
                 AND p.is_active = 1
         ";
