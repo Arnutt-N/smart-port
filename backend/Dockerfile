@@ -43,5 +43,9 @@ COPY --from=vendor /app/vendor/ ./vendor/
 RUN mkdir -p /var/www/html/uploads \
     && chown -R www-data:www-data /var/www/html/uploads
 
+# ให้ Apache ส่ง environment variables เข้า PHP
+RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL JWT_SECRET" \
+    >> /etc/apache2/conf-enabled/passenv.conf
+
 # เปิด port 80
 EXPOSE 80
