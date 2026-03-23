@@ -15,7 +15,8 @@ include 'config.php';
 include 'auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
-$path = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = explode('/', trim($uri, '/'));
 
 // Remove 'api' from path if present
 if ($path[0] === 'api') {
