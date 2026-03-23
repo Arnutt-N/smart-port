@@ -187,40 +187,44 @@ switch ($path[0]) {
 
     case 'dashboard':
         if ($method == 'GET') {
-            // Dashboard analytics and statistics
-            $stats = [];
+            // จำนวนบุคลากรทั้งหมด (จาก personnel table)
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM personnel WHERE is_active = 1");
+            $totalPersonnel = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-            // Total civil servants
-            $stmt = $pdo->query("SELECT COUNT(*) as total FROM civil_servants WHERE is_active = 1");
-            $stats['total_servants'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+            // สรุปพ้นทดลอง
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM probation_enrollment");
+            $probationTotal = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-            // Upcoming retirements (next 2 years)
-            $stmt = $pdo->query("
-                SELECT COUNT(*) as count 
-                FROM civil_servants 
-                WHERE retirement_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 2 YEAR)
-                AND is_active = 1
-            ");
-            $stats['upcoming_retirements'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 1 AND 30");
+            $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-            // Pending notifications
-            $stmt = $pdo->query("SELECT COUNT(*) as count FROM advance_notifications WHERE status = 'pending'");
-            $stats['pending_notifications'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0");
+            $probationOverdue = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-            // Recent performance proposals
-            $stmt = $pdo->query("
-                SELECT COUNT(*) as count 
-                FROM performance_proposals 
-                WHERE submission_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            ");
-            $stats['recent_proposals'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            // จำนวนการนับเวลาเพิ่มเติม
+            $stmt = $pdo->query("SELECT COUNT(*) as c FROM supportive_experience");
+            $supportiveCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+
+            $stmt = $pdo->query("SELECT COUNT(*) as c FROM diverse_experience");
+            $diverseCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+
+            $stmt = $pdo->query("SELECT COUNT(*) as c FROM position_equivalence");
+            $equivalenceCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
             echo json_encode([
                 'success' => true,
-                'total_civil_servants' => $stats['total_servants'],
-                'upcoming_retirements' => $stats['upcoming_retirements'],
-                'pending_notifications' => $stats['pending_notifications'],
-                'recent_proposals' => $stats['recent_proposals']
+                'total_personnel' => $totalPersonnel,
+                'probation' => [
+                    'total' => $probationTotal,
+                    'near_deadline' => $probationNear,
+                    'overdue' => $probationOverdue,
+                ],
+                'time_counting' => [
+                    'supportive' => $supportiveCount,
+                    'diverse' => $diverseCount,
+                    'equivalence' => $equivalenceCount,
+                    'total' => $supportiveCount + $diverseCount + $equivalenceCount,
+                ],
             ]);
         }
         break;
