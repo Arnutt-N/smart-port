@@ -61,3 +61,78 @@ function getLevelName(string $code): string
 
     return $levelNames[$code] ?? $code;
 }
+
+/**
+ * Create photo version records in the application layer instead of a DB routine.
+ *
+ * @param PDO $pdo
+ * @param int $photoId
+ * @param string|null $fileName
+ * @return array<int, array<string, mixed>>
+ */
+function createPhotoVersions(PDO $pdo, int $photoId, ?string $fileName = null): array
+{
+    if ($photoId <= 0) {
+        throw new InvalidArgumentException('Photo id is required');
+    }
+
+    if ($fileName === null || $fileName === '') {
+        $stmt = $pdo->prepare('SELECT file_name FROM civil_servant_photos WHERE photo_id = ?');
+        $stmt->execute([$photoId]);
+        $fileName = $stmt->fetchColumn() ?: '';
+    }
+
+    if ($fileName === '') {
+        throw new RuntimeException('Photo file name not found');
+    }
+
+    $thumbnailFileName = 'thumb_' . $fileName;
+
+    $deleteStmt = $pdo->prepare('DELETE FROM photo_versions WHERE photo_id = ? AND version_type = ?');
+    $deleteStmt->execute([$photoId, 'thumbnail']);
+
+    $insertStmt = $pdo->prepare(
+        'INSERT INTO photo_versions (photo_id, version_type, file_name) VALUES (?, ?, ?)'
+    );
+    $insertStmt->execute([$photoId, 'thumbnail', $thumbnailFileName]);
+
+    return [[
+        'version_type' => 'thumbnail',
+        'file_name' => $thumbnailFileName,
+    ]];
+}
+
+/**
+ * Call a stored procedure only when it exists in the current schema.
+ *
+ * @param PDO $pdo
+ * @param string $procedureName
+ * @param array<int, mixed> $args
+ * @return bool
+ */
+function callProcedureIfExists(PDO $pdo, string $procedureName, array $args = []): bool
+{
+    static $cache = [];
+
+    if (!array_key_exists($procedureName, $cache)) {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = DATABASE() AND routine_type = ? AND routine_name = ?'
+        );
+        $stmt->execute(['PROCEDURE', $procedureName]);
+        $cache[$procedureName] = ((int) $stmt->fetchColumn()) > 0;
+    }
+
+    if (!$cache[$procedureName]) {
+        return false;
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($args), '?'));
+    $sql = $placeholders === ''
+        ? sprintf('CALL `%s`()', $procedureName)
+        : sprintf('CALL `%s`(%s)', $procedureName, $placeholders);
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($args);
+
+    return true;
+}

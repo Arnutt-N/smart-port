@@ -1,10 +1,36 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+function readStoredString(key) {
+  const value = localStorage.getItem(key)
+  if (!value || value === 'undefined' || value === 'null') {
+    localStorage.removeItem(key)
+    return ''
+  }
+
+  return value
+}
+
+function readStoredJson(key, fallback = null) {
+  const value = localStorage.getItem(key)
+
+  if (!value || value === 'undefined' || value === 'null') {
+    localStorage.removeItem(key)
+    return fallback
+  }
+
+  try {
+    return JSON.parse(value)
+  } catch {
+    localStorage.removeItem(key)
+    return fallback
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('auth_token') || '')
-  const refreshToken = ref(localStorage.getItem('refresh_token') || '')
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(readStoredString('auth_token'))
+  const refreshToken = ref(readStoredString('refresh_token'))
+  const user = ref(readStoredJson('user'))
 
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
 
@@ -22,10 +48,14 @@ export const useAuthStore = defineStore('auth', () => {
   function setAuth(data) {
     token.value = data.token
     user.value = data.user
-    if (data.refreshToken) refreshToken.value = data.refreshToken
+    refreshToken.value = data.refreshToken || ''
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('user', JSON.stringify(data.user))
-    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken)
+    if (data.refreshToken) {
+      localStorage.setItem('refresh_token', data.refreshToken)
+    } else {
+      localStorage.removeItem('refresh_token')
+    }
   }
 
   async function login(credentials) {
