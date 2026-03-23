@@ -11,10 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.59.1",
-    "@tailwindcss/oxide-win32-x64-msvc": "^4.2.2",
     "chart.js": "^4.4.0",
-    "lightningcss-win32-x64-msvc": "^1.32.0",
     "lucide-vue-next": "^0.470.0",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",
