@@ -130,13 +130,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import { useApi } from '@/composables/useApi.js'
 import { useCandidates } from '@/composables/useCandidates.js'
-import { useProbation } from '@/composables/useProbation.js'
 import {
   Users, UserCheck, TrendingUp, Clock,
   RefreshCw, AlertCircle, Zap,
@@ -144,7 +143,6 @@ import {
 
 const api = useApi()
 const { fetchByLevel } = useCandidates()
-const { fetchList: fetchProbation } = useProbation()
 
 const loading = ref(false)
 const error = ref('')
@@ -175,55 +173,39 @@ async function fetchDashboard() {
   error.value = ''
 
   try {
-    const [dashboardRes, probationRes, ...candidateResults] = await Promise.allSettled([
+    // ดึงข้อมูลสรุปจาก /dashboard endpoint เดียว + จำนวน candidates
+    const [dashboardRes, ...candidateResults] = await Promise.allSettled([
       api.get('/dashboard'),
-      fetchProbation({ limit: 100 }),
-      fetchByLevel('K2', { limit: 100 }),
-      fetchByLevel('K3', { limit: 100 }),
-      fetchByLevel('K4', { limit: 100 }),
-      fetchByLevel('O2', { limit: 100 }),
-      fetchByLevel('O3', { limit: 100 }),
+      fetchByLevel('K2', { limit: 1 }),
+      fetchByLevel('K3', { limit: 1 }),
+      fetchByLevel('K4', { limit: 1 }),
+      fetchByLevel('O2', { limit: 1 }),
+      fetchByLevel('O3', { limit: 1 }),
     ])
 
-    // Dashboard basic stats
+    // สถิติจาก /dashboard
     if (dashboardRes.status === 'fulfilled' && dashboardRes.value) {
-      stats.value.totalPersonnel = dashboardRes.value.total_civil_servants || 0
-    }
-
-    // Probation summary
-    if (probationRes.status === 'fulfilled' && probationRes.value) {
-      const prob = probationRes.value
-      stats.value.probationTotal = prob.summary?.total || prob.data?.length || 0
+      const d = dashboardRes.value
+      stats.value.totalPersonnel = d.total_personnel || 0
+      stats.value.probationTotal = d.probation?.total || 0
+      stats.value.timeCountTotal = d.time_counting?.total || 0
       probationSummary.value = {
-        inProgress: prob.summary?.in_progress || 0,
-        nearDeadline: prob.summary?.near_deadline || 0,
-        overdue: prob.summary?.overdue || 0,
+        inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
+        nearDeadline: d.probation?.near_deadline || 0,
+        overdue: d.probation?.overdue || 0,
       }
     }
 
-    // Candidate totals across all levels
+    // จำนวน candidates รวมทุกระดับ (ใช้ pagination.total แทน data.length)
     let totalCandidates = 0
     for (const result of candidateResults) {
       if (result.status === 'fulfilled' && result.value) {
-        totalCandidates += result.value.data?.length || 0
+        totalCandidates += result.value.pagination?.total || result.value.data?.length || 0
       }
     }
     stats.value.candidateTotal = totalCandidates
 
-    // Time counting totals
-    const [supportiveRes, diverseRes, equivalenceRes] = await Promise.allSettled([
-      api.get('/supportive?limit=1'),
-      api.get('/diverse?limit=1'),
-      api.get('/equivalence?limit=1'),
-    ])
-
-    let timeTotal = 0
-    if (supportiveRes.status === 'fulfilled') timeTotal += supportiveRes.value?.pagination?.total || 0
-    if (diverseRes.status === 'fulfilled') timeTotal += diverseRes.value?.pagination?.total || 0
-    if (equivalenceRes.status === 'fulfilled') timeTotal += equivalenceRes.value?.pagination?.total || 0
-    stats.value.timeCountTotal = timeTotal
-
-    // Build priority tasks from real data
+    // สร้างรายการงานสำคัญจากข้อมูลจริง
     const tasks = []
     if (probationSummary.value.nearDeadline > 0 || probationSummary.value.overdue > 0) {
       tasks.push({
