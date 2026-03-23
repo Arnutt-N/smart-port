@@ -84,7 +84,7 @@ describe('useProbation', () => {
       startDate: '1 เม.ย. 2567',
       endDate: '1 ต.ค. 2567',
       remainingDays: 120,
-      status: 'NOT_DUE',
+      status: 'IN_PROGRESS',
       totalTasks: 5,
       completedTasks: 2,
     })
