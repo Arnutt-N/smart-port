@@ -25,7 +25,7 @@ CREATE TABLE organization (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ตำแหน่ง
-CREATE TABLE position (
+CREATE TABLE `position` (
     position_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     position_name VARCHAR(300) NOT NULL,
     position_code VARCHAR(50),
@@ -94,7 +94,7 @@ CREATE TABLE personnel (
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (current_position_id) REFERENCES position(position_id),
+    FOREIGN KEY (current_position_id) REFERENCES `position`(position_id),
     FOREIGN KEY (current_org_id) REFERENCES organization(org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -121,6 +121,6 @@ CREATE TABLE personnel_position_history (
     province VARCHAR(100),                   -- จังหวัดที่ปฏิบัติงาน
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
-    FOREIGN KEY (position_id) REFERENCES position(position_id),
+    FOREIGN KEY (position_id) REFERENCES `position`(position_id),
     FOREIGN KEY (org_id) REFERENCES organization(org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
