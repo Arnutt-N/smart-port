@@ -20,16 +20,15 @@ export function useProbation() {
 
   // คำนวณสถานะแสดงผลจาก remaining_days และ backend status
   function computeDisplayStatus(backendStatus, remainingDays) {
-    const days = remainingDays !== null ? parseInt(remainingDays) : null
+    const days = (remainingDays !== null && remainingDays !== undefined) ? parseInt(remainingDays, 10) : null
 
-    // ถ้า backend บอกว่าไม่ใช่ IN_PROGRESS (เช่น COMPLETED, EXTENDED, FAILED)
-    // แสดงว่าอยู่ระหว่างทำประเมิน
-    if (backendStatus !== 'IN_PROGRESS') {
-      return 'IN_REVIEW' // กำลังดำเนินการประเมิน (สีน้ำเงิน)
-    }
+    // สถานะจาก backend ที่ไม่ใช่ IN_PROGRESS — ส่งผ่านตรงๆ ให้ StatusBadge แสดง
+    if (backendStatus === 'COMPLETED') return 'COMPLETED'   // ผ่านทดลอง (สีเขียว)
+    if (backendStatus === 'FAILED') return 'FAILED'         // ไม่ผ่าน (สีแดง)
+    if (backendStatus === 'EXTENDED') return 'EXTENDED'     // ขยายเวลา (สีส้ม)
 
-    // คำนวณจาก remaining_days
-    if (days === null) return 'NOT_DUE'
+    // ถ้ายังเป็น IN_PROGRESS — คำนวณสถานะแสดงผลจาก remaining_days
+    if (days === null || isNaN(days)) return 'NOT_DUE'
     if (days > 30) return 'NOT_DUE'           // > 30 วัน = ยังไม่ครบกำหนด (สีเหลือง)
     if (days >= 1) return 'NEAR_DEADLINE'     // 1-30 วัน = ใกล้ครบกำหนด (สีส้ม)
     if (days === 0) return 'READY'            // ครบกำหนดวันนี้ = พร้อมพ้นทดลอง (สีเขียว)
