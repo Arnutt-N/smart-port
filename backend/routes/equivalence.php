@@ -71,7 +71,7 @@ function getEquivalenceList(PDO $pdo): void
 
     $baseQuery = "SELECT pe.*,
                          CONCAT(p.first_name, ' ', p.last_name) AS full_name,
-                         CONCAT(u.first_name, ' ', u.last_name) AS approved_by_name
+                         u.username AS approved_by_name
                   FROM position_equivalence pe
                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
                   LEFT JOIN users u ON pe.approved_by = u.user_id";
@@ -126,7 +126,7 @@ function getEquivalenceDetail(PDO $pdo, int $id): void
 {
     $sql = "SELECT pe.*,
                    CONCAT(p.first_name, ' ', p.last_name) AS full_name,
-                   CONCAT(u.first_name, ' ', u.last_name) AS approved_by_name
+                   u.username AS approved_by_name
             FROM position_equivalence pe
             LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
             LEFT JOIN users u ON pe.approved_by = u.user_id
