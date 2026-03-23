@@ -4,16 +4,16 @@ import StatusBadge from '@/components/StatusBadge.vue'
 
 describe('StatusBadge', () => {
   // Candidate statuses
-  it('renders "ครบกำหนด" for qualified status', () => {
+  it('renders "ถึงเกณฑ์" for qualified status', () => {
     const wrapper = mount(StatusBadge, { props: { status: 'qualified' } })
-    expect(wrapper.text()).toBe('ครบกำหนด')
+    expect(wrapper.text()).toBe('ถึงเกณฑ์')
     expect(wrapper.classes()).toContain('bg-green-50')
   })
 
-  it('renders "รอดำเนินการ" for not_yet status', () => {
+  it('renders "ยังไม่ถึงเกณฑ์" for not_yet status', () => {
     const wrapper = mount(StatusBadge, { props: { status: 'not_yet' } })
-    expect(wrapper.text()).toBe('รอดำเนินการ')
-    expect(wrapper.classes()).toContain('bg-amber-50')
+    expect(wrapper.text()).toBe('ยังไม่ถึงเกณฑ์')
+    expect(wrapper.classes()).toContain('bg-yellow-50')
   })
 
   it('renders "ตรวจสอบข้อมูล" for check_data status', () => {
