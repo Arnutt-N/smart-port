@@ -26,7 +26,13 @@ const statusMap = {
   qualified: { label: 'ครบกำหนด', class: 'bg-green-50 text-green-700' },
   not_yet: { label: 'รอดำเนินการ', class: 'bg-amber-50 text-amber-700' },
   check_data: { label: 'ตรวจสอบข้อมูล', class: 'bg-orange-50 text-orange-700' },
-  // Probation statuses (UPPER_CASE from backend -- case-sensitive)
+  // Probation display statuses (computed by useProbation composable)
+  NOT_DUE: { label: 'ยังไม่ครบกำหนด', class: 'bg-yellow-50 text-yellow-700' },
+  NEAR_DEADLINE: { label: 'ใกล้ครบกำหนด', class: 'bg-orange-50 text-orange-700' },
+  READY: { label: 'พร้อมพ้นทดลอง', class: 'bg-green-50 text-green-700' },
+  OVERDUE: { label: 'เกินกำหนด', class: 'bg-red-50 text-red-700' },
+  IN_REVIEW: { label: 'กำลังดำเนินการ', class: 'bg-blue-50 text-blue-700' },
+  // Probation backend statuses
   IN_PROGRESS: { label: 'กำลังดำเนินการ', class: 'bg-blue-50 text-blue-700' },
   COMPLETED: { label: 'ผ่านทดลอง', class: 'bg-green-50 text-green-700' },
   FAILED: { label: 'ไม่ผ่าน', class: 'bg-red-50 text-red-700' },
