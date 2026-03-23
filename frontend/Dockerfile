@@ -16,11 +16,9 @@ WORKDIR /app
 # สร้าง dependency tree ใหม่ที่เหมาะสมกับ Linux
 COPY package.json ./
 
-# === FIX 3 ===
-# เพิ่ม flag --no-optional เพื่อข้ามการติดตั้ง optional dependencies
-# ซึ่งเป็นสาเหตุของปัญหา (เช่น Rollup เวอร์ชั่นสำหรับ Windows)
-# และล้าง cache ก่อนเพื่อความแน่นอน
-RUN npm cache clean --force && npm install --no-optional
+# ติดตั้ง dependencies ใหม่สำหรับ Linux platform
+# ไม่ copy lockfile เพราะสร้างจาก Windows — ให้ npm resolve ใหม่
+RUN npm install
 
 # คัดลอกไฟล์ source code ทั้งหมดเข้ามาใน image
 # (ไฟล์ที่ไม่จำเป็นจะถูกกรองออกโดย .dockerignore)

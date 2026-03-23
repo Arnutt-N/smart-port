@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+/* Theme — migrated from tailwind.config.js */
+@theme {
+  /* Primary colors (sky/cyan palette) */
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-200: #bae6fd;
+  --color-primary-300: #7dd3fc;
+  --color-primary-400: #38bdf8;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-700: #0369a1;
+  --color-primary-800: #075985;
+  --color-primary-900: #0c4a6e;
+  --color-primary-950: #082f49;
+
+  /* Government colors (slate palette) */
+  --color-government-50: #f8fafc;
+  --color-government-100: #f1f5f9;
+  --color-government-200: #e2e8f0;
+  --color-government-300: #cbd5e1;
+  --color-government-400: #94a3b8;
+  --color-government-500: #64748b;
+  --color-government-600: #475569;
+  --color-government-700: #334155;
+  --color-government-800: #1e293b;
+  --color-government-900: #0f172a;
+
+  /* Fonts */
+  --font-thai: 'Noto Sans Thai', system-ui, sans-serif;
+
+  /* Custom spacing */
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.5s ease-in-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+  --animate-bounce-subtle: bounce-subtle 1s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+:root {
+  --ring: #3b82f6;
+  --border: #e5e7eb;
+}
+
+.semi-dark {
+  --background: #1f2937;
+  --foreground: #e5e7eb;
+  --accent-color: #3b82f6;
+  --border: #4b5563;
+  --ring: #3b82f6;
+}
+
+.light {
+  --background: #ffffff;
+  --foreground: #000000;
+  --accent-color: #3b82f6;
+  --border: #e5e7eb;
+  --ring: #3b82f6;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Custom Base Styles */
+@layer base {
+  body {
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom Components */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-government-200 text-government-800 hover:bg-government-300;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none border border-primary-300 text-primary-600 hover:bg-primary-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none hover:bg-gray-100 text-gray-700;
+  }
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+  .card-header {
+    @apply border-b border-gray-200 pb-4 mb-4;
+  }
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  }
+  .input-error {
+    @apply border-red-300 focus:ring-red-500 focus:border-red-500;
+  }
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+  .sidebar {
+    @apply w-64 bg-white shadow-sm border-r border-gray-200 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300;
+  }
+  .sidebar-hidden {
+    @apply -translate-x-full;
+  }
+}
+
+/* Utilities */
+@layer utilities {
+  .glass-effect {
+    @apply bg-white/70 backdrop-blur-md border border-white/20;
+  }
+  .elevation-1 {
+    @apply shadow-sm hover:shadow transition-shadow duration-200;
+  }
+  .elevation-2 {
+    @apply shadow hover:shadow-md transition-shadow duration-200;
+  }
+  .elevation-3 {
+    @apply shadow-md hover:shadow-lg transition-shadow duration-200;
+  }
+}
+
+/* Scrollbar — always present (no layout shift), thumb fades on hover */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: #d1d5db transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Sidebar scrollbar — dark theme */
+.sidebar-scroll:hover { scrollbar-color: #4b5563 transparent; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #4b5563; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+/* Print */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+}

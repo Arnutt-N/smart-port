@@ -226,46 +226,28 @@ switch ($path[0]) {
         break;
 
     case 'candidates':
-        if ($method == 'GET') {
-            // Get candidate lists or search candidates
-            $search = $_GET['search'] ?? '';
-            $limit = intval($_GET['limit'] ?? 20);
-            $offset = intval($_GET['offset'] ?? 0);
+        include __DIR__ . '/routes/candidates.php';
+        handleCandidates($pdo, $method, $path);
+        break;
 
-            if ($search) {
-                // Search for candidates
-                $stmt = $pdo->prepare("
-                    SELECT cs.*, p.prefix_name_th, csp.file_path as photo_path
-                    FROM civil_servants cs
-                    LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
-                    LEFT JOIN civil_servant_photos csp ON cs.servant_id = csp.servant_id AND csp.is_primary = TRUE
-                    WHERE (cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)
-                    AND cs.is_active = 1
-                    ORDER BY cs.last_name, cs.first_name
-                    LIMIT ? OFFSET ?
-                ");
-                $searchTerm = "%$search%";
-                $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $limit, $offset]);
-            } else {
-                // Get all candidates
-                $stmt = $pdo->prepare("
-                    SELECT cs.*, p.prefix_name_th, csp.file_path as photo_path
-                    FROM civil_servants cs
-                    LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
-                    LEFT JOIN civil_servant_photos csp ON cs.servant_id = csp.servant_id AND csp.is_primary = TRUE
-                    WHERE cs.is_active = 1
-                    ORDER BY cs.last_name, cs.first_name
-                    LIMIT ? OFFSET ?
-                ");
-                $stmt->execute([$limit, $offset]);
-            }
+    case 'probation':
+        include __DIR__ . '/routes/probation.php';
+        handleProbation($pdo, $method, $path);
+        break;
 
-            $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode([
-                'success' => true,
-                'data' => $candidates
-            ]);
-        }
+    case 'supportive':
+        include __DIR__ . '/routes/supportive.php';
+        handleSupportive($pdo, $method, $path);
+        break;
+
+    case 'diverse':
+        include __DIR__ . '/routes/diverse.php';
+        handleDiverse($pdo, $method, $path);
+        break;
+
+    case 'equivalence':
+        include __DIR__ . '/routes/equivalence.php';
+        handleEquivalence($pdo, $method, $path);
         break;
 
     default:
