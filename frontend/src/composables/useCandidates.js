@@ -30,6 +30,9 @@ export function useCandidates() {
       remainingDays: row.remaining_days,
       status: row.status,
       department: row.department,
+      supportiveDays: row.supportive_days,
+      equivalenceDays: row.equivalence_days,
+      diverseStatus: row.diverse_status,  // 'DIFF_PASS', 'DIFF_NOT_YET', or null
     }
   }
 

@@ -242,6 +242,9 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระดับตำแหน่ง</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเข้าสู่ระดับปัจจุบัน</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ครบกำหนด</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเกื้อกูล</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ 3 ต่าง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเทียบ ตน.</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนวันที่เหลือ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
@@ -259,6 +262,16 @@
                 <td class="px-6 py-3 text-gray-600">{{ row.currentLevelName }}</td>
                 <td class="px-6 py-3 text-gray-500">{{ row.levelStartDate }}</td>
                 <td class="px-6 py-3 text-gray-500">{{ row.qualificationDate }}</td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ row.supportiveDays > 0 ? `${row.supportiveDays} วัน` : '-' }}
+                </td>
+                <td class="px-6 py-3">
+                  <StatusBadge v-if="row.diverseStatus" :status="row.diverseStatus" />
+                  <span v-else class="text-gray-400">-</span>
+                </td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ row.equivalenceDays > 0 ? `${row.equivalenceDays} วัน` : '-' }}
+                </td>
                 <td class="px-6 py-3" :class="getRemainingDaysClass(row.remainingDays)">
                   {{ formatRemainingDays(row.remainingDays) }}
                 </td>
@@ -280,7 +293,7 @@
                 </td>
               </tr>
               <tr v-if="rows.length === 0">
-                <td colspan="9">
+                <td colspan="12">
                   <EmptyState
                     title="ไม่พบข้อมูล"
                     description="ไม่พบรายชื่อผู้มีคุณสมบัติในระดับนี้"
