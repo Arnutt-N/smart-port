@@ -1,26 +1,49 @@
 <?php
-$host = getenv('MYSQL_HOST') ?: 'db';  // Default to 'db' if not set
-$dbname = getenv('MYSQL_DATABASE') ?: 'smartport_db';
+// ============================================================================
+// Database Configuration
+// รองรับทั้ง Docker local (MySQL) และ Production (TiDB Cloud Serverless)
+// ============================================================================
+
+$host     = getenv('MYSQL_HOST') ?: 'db';
+$port     = getenv('MYSQL_PORT') ?: '3306';
+$dbname   = getenv('MYSQL_DATABASE') ?: 'civil_service_mgmt';
 $username = getenv('MYSQL_USER') ?: 'root';
 $password = getenv('MYSQL_PASSWORD') ?: 'rootpassword';
+$useSSL   = getenv('MYSQL_SSL') ?: '';
 
-$dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
+// สร้าง DSN — รองรับ port ที่ต่างจาก default (TiDB ใช้ 4000)
+$dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+
 $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES => false,
-    PDO::ATTR_PERSISTENT => true,
+    PDO::ATTR_EMULATE_PREPARES   => false,
 ];
+
+// TiDB Cloud ต้องใช้ SSL — เปิดเมื่อตั้ง MYSQL_SSL=true
+if ($useSSL === 'true' || $useSSL === '1') {
+    $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+    $options[PDO::MYSQL_ATTR_SSL_CA] = '';
+}
+
+// Docker local ใช้ persistent connection ได้ แต่ production ไม่ควรใช้
+if ($host === 'db' || $host === 'localhost' || $host === '127.0.0.1') {
+    $options[PDO::ATTR_PERSISTENT] = true;
+}
 
 try {
     $pdo = new PDO($dsn, $username, $password, $options);
 } catch (PDOException $e) {
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Connection failed: ' . $e->getMessage()]);
+    $msg = ($host === 'db' || $host === 'localhost')
+        ? 'Connection failed: ' . $e->getMessage()
+        : 'Database connection failed';
+    echo json_encode(['error' => $msg]);
     exit;
 }
 
 header('Content-Type: application/json');
 
-define('JWT_SECRET', 'your_secret_key_here'); // เปลี่ยนเป็นรหัสลับจริง
-define('UPLOAD_DIR', __DIR__ . '/uploads/'); // Folder สำหรับภาพ
+// JWT Secret — อ่านจาก env var ก่อน ถ้าไม่มีใช้ค่า default (dev only)
+define('JWT_SECRET', getenv('JWT_SECRET') ?: 'your_secret_key_here');
+define('UPLOAD_DIR', __DIR__ . '/uploads/');
