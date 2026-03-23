@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: smart-port
+    runtime: static
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    buildFilter:
+      paths:
+        - frontend/**
+        - render.yaml
+    envVars:
+      - key: VITE_API_URL
+        value: /api
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://smartport-backend.onrender.com/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: smartport-backend
+    runtime: docker
+    branch: main
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - backend/**
+        - database/**
+        - render.yaml
+    envVars:
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        value: "4000"
+      - key: MYSQL_DATABASE
+        value: civil_service_mgmt
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
