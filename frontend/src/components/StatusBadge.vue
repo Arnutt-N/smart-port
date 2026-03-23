@@ -22,9 +22,15 @@ const statusMap = {
   completed: { label: 'เสร็จสิ้น', class: 'bg-gray-100 text-gray-600' },
   ready: { label: 'พร้อมดำเนินการ', class: 'bg-green-50 text-green-700' },
   active: { label: 'ใช้งานอยู่', class: 'bg-blue-50 text-blue-700' },
-  // Candidate statuses (lowercase from backend)
-  qualified: { label: 'ครบกำหนด', class: 'bg-green-50 text-green-700' },
-  not_yet: { label: 'รอดำเนินการ', class: 'bg-amber-50 text-amber-700' },
+  // Candidate display statuses (computed by useCandidates composable)
+  NOT_MET: { label: 'ยังไม่ถึงเกณฑ์', class: 'bg-yellow-50 text-yellow-700' },
+  NEAR_MET: { label: 'ใกล้ถึงเกณฑ์', class: 'bg-orange-50 text-orange-700' },
+  MET: { label: 'ครบเกณฑ์', class: 'bg-green-50 text-green-700' },
+  EXCEEDED: { label: 'ถึงเกณฑ์', class: 'bg-green-50 text-green-700' },
+  PROMOTING: { label: 'กำลังดำเนินการ', class: 'bg-blue-50 text-blue-700' },
+  // Candidate backend statuses (fallback)
+  qualified: { label: 'ถึงเกณฑ์', class: 'bg-green-50 text-green-700' },
+  not_yet: { label: 'ยังไม่ถึงเกณฑ์', class: 'bg-yellow-50 text-yellow-700' },
   check_data: { label: 'ตรวจสอบข้อมูล', class: 'bg-orange-50 text-orange-700' },
   // Probation display statuses (computed by useProbation composable)
   NOT_DUE: { label: 'ยังไม่ครบกำหนด', class: 'bg-yellow-50 text-yellow-700' },

@@ -95,18 +95,18 @@
         <!-- Row 2: 3 stat cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
-            label="ครบกำหนด"
+            label="ถึงเกณฑ์"
             :value="overviewData.qualifiedTotal"
             :icon="UserCheck"
             icon-bg-class="bg-green-50"
             icon-class="text-green-600"
           />
           <StatCard
-            label="รอดำเนินการ"
+            label="ยังไม่ถึงเกณฑ์"
             :value="overviewData.notYetTotal"
             :icon="Clock"
-            icon-bg-class="bg-amber-50"
-            icon-class="text-amber-600"
+            icon-bg-class="bg-yellow-50"
+            icon-class="text-yellow-600"
           />
           <StatCard
             label="ตรวจสอบข้อมูล"
@@ -145,7 +145,7 @@
                 <td class="px-6 py-3 text-gray-600">{{ row.currentPosition }}</td>
                 <td class="px-6 py-3 text-gray-600">{{ row.currentLevelName }}</td>
                 <td class="px-6 py-3 text-gray-500">{{ row.qualificationDate }}</td>
-                <td class="px-6 py-3" :class="getRemainingDaysClass(row.remainingDays)">
+                <td class="px-6 py-3" :class="getCandidateRemainingDaysClass(row.remainingDays)">
                   {{ formatRemainingDays(row.remainingDays) }}
                 </td>
                 <td class="px-6 py-3">
@@ -263,7 +263,7 @@
                 <td class="px-6 py-3 text-gray-500">
                   {{ row.equivalenceDays > 0 ? `${row.equivalenceDays} วัน` : '-' }}
                 </td>
-                <td class="px-6 py-3" :class="getRemainingDaysClass(row.remainingDays)">
+                <td class="px-6 py-3" :class="getCandidateRemainingDaysClass(row.remainingDays)">
                   {{ formatRemainingDays(row.remainingDays) }}
                 </td>
                 <td class="px-6 py-3">
@@ -310,7 +310,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useCandidates } from '@/composables/useCandidates.js'
-import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { getCandidateRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
