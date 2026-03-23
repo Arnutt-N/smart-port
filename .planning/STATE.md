@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: การนับเวลาเพิ่มเติม
 status: unknown
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-23T00:15:25.679Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-23T00:23:16.401Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 06 P04 | 3min | 1 tasks | 1 files |
 | Phase 06 P03 | 3min | 1 tasks | 1 files |
 | Phase 07 P01 | 4min | 2 tasks | 1 files |
+| Phase 07 P02 | 4min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Approve modal pre-fills dates from request dates; status counts computed client-side from current rows
 - [Phase 06]: Two-column from/to layout for diverse experience modal with 4-dimension checkboxes and live diffCountPreview
 - [Phase 07]: FLOOR for fractional effective_days -- conservative rounding ensures person never qualifies earlier than they should
+- [Phase 07]: 3 new columns placed after qualification date and before remaining days for logical reading flow
 
 ### Pending Todos
 
@@ -82,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T00:15:25.670Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-23T00:23:16.392Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

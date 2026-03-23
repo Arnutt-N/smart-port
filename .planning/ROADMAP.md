@@ -83,7 +83,7 @@ Plans:
 **Plans:** 2 plans
 Plans:
 - [x] 07-01-PLAN.md — Extend QualificationEngine with supportive/diverse/equivalence LEFT JOIN subqueries
-- [ ] 07-02-PLAN.md — Add 3 new columns to Candidate List UI (supportive days, diverse badge, equivalence days)
+- [x] 07-02-PLAN.md — Add 3 new columns to Candidate List UI (supportive days, diverse badge, equivalence days)
 
 ## Progress
 

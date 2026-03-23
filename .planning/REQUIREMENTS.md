@@ -29,7 +29,7 @@
 - [x] **QE-01**: ขยาย QualificationEngine ให้รวม supportive effective_days เข้า qualification_date
 - [x] **QE-02**: ขยาย QualificationEngine ให้เช็ค diverse_experience ≥3 ต่าง สำหรับ M1
 - [x] **QE-03**: ขยาย QualificationEngine ให้รวม position_equivalence approved_days สำหรับ cross-type promotions
-- [ ] **QE-04**: Candidate List แสดงผลการคำนวณที่รวมข้อมูลเพิ่มเติมแล้ว
+- [x] **QE-04**: Candidate List แสดงผลการคำนวณที่รวมข้อมูลเพิ่มเติมแล้ว
 
 ## v2 Requirements
 
@@ -72,7 +72,7 @@
 | QE-01 | Phase 7 | Complete |
 | QE-02 | Phase 7 | Complete |
 | QE-03 | Phase 7 | Complete |
-| QE-04 | Phase 7 | Pending |
+| QE-04 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 14 total
