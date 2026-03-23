@@ -223,14 +223,23 @@ class QualificationEngine
                 pc.min_years,
                 pc.education_condition,
                 o.org_name AS department,
+                COALESCE(sup.total_supportive_days, 0) AS supportive_days,
+                COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
+                COALESCE(div.max_diff_count, 0) AS diverse_diff_count,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
-                    ELSE DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR)
+                    ELSE DATE_SUB(
+                        DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
+                        INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                    )
                 END AS qualification_date,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
                     ELSE DATEDIFF(
-                        DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
+                        DATE_SUB(
+                            DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                        ),
                         CURDATE()
                     )
                 END AS remaining_days,
@@ -238,7 +247,10 @@ class QualificationEngine
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN 'check_data'
                     WHEN pc.min_years IS NULL THEN 'check_data'
                     WHEN DATEDIFF(
-                        DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
+                        DATE_SUB(
+                            DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                        ),
                         CURDATE()
                     ) <= 0 THEN 'qualified'
                     ELSE 'not_yet'
@@ -251,6 +263,22 @@ class QualificationEngine
                 AND pc.source_level_code = p.current_level_code
                 AND (pc.education_condition = COALESCE(p.education_level, 'BACHELOR') OR pc.education_condition = 'ANY')
                 AND pc.is_active = 1
+            LEFT JOIN (
+                SELECT personnel_id, SUM(effective_days) AS total_supportive_days
+                FROM supportive_experience
+                GROUP BY personnel_id
+            ) sup ON sup.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, SUM(approved_total_days) AS total_equivalence_days
+                FROM position_equivalence
+                WHERE approval_status = 'APPROVED'
+                GROUP BY personnel_id
+            ) eq ON eq.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, MAX(diff_count) AS max_diff_count
+                FROM diverse_experience
+                GROUP BY personnel_id
+            ) div ON div.personnel_id = p.personnel_id
             WHERE p.personnel_id = ?
                 AND p.is_active = 1
         ";
@@ -270,6 +298,18 @@ class QualificationEngine
         $row['current_level_name'] = getLevelName($row['current_level_code'] ?? '');
         $row['remaining_days'] = $row['remaining_days'] !== null ? (int) $row['remaining_days'] : null;
         $row['min_years'] = $row['min_years'] !== null ? (float) $row['min_years'] : null;
+
+        // Diverse status -- only meaningful for M1 (per D-05, D-06, D-07, D-08)
+        if ($targetLevel === 'M1') {
+            $row['diverse_status'] = ((int)$row['diverse_diff_count'] >= 3) ? 'DIFF_PASS' : 'DIFF_NOT_YET';
+        } else {
+            $row['diverse_status'] = null;
+        }
+
+        // Cast numeric fields (per D-13, D-14)
+        $row['supportive_days'] = (int)$row['supportive_days'];
+        $row['equivalence_days'] = (int)$row['equivalence_days'];
+        $row['diverse_diff_count'] = (int)$row['diverse_diff_count'];
 
         return [
             'success' => true,
