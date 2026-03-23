@@ -42,8 +42,8 @@
               </div>
             </div>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div v-for="i in 3" :key="'sk3-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-for="i in 4" :key="'sk4-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div class="flex items-center">
                 <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
                 <div class="ml-4 flex-1 space-y-2">
@@ -92,8 +92,15 @@
           />
         </div>
 
-        <!-- Row 2: 3 stat cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Row 2: 4 stat cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            label="กำลังดำเนินการ"
+            :value="overviewData.checkDataTotal"
+            :icon="Loader"
+            icon-bg-class="bg-blue-50"
+            icon-class="text-blue-600"
+          />
           <StatCard
             label="ถึงเกณฑ์"
             :value="overviewData.qualifiedTotal"
@@ -102,18 +109,18 @@
             icon-class="text-green-600"
           />
           <StatCard
+            label="ใกล้ถึงเกณฑ์"
+            :value="overviewData.nearQualifiedTotal"
+            :icon="Timer"
+            icon-bg-class="bg-orange-50"
+            icon-class="text-orange-600"
+          />
+          <StatCard
             label="ยังไม่ถึงเกณฑ์"
             :value="overviewData.notYetTotal"
             :icon="Clock"
             icon-bg-class="bg-yellow-50"
             icon-class="text-yellow-600"
-          />
-          <StatCard
-            label="ตรวจสอบข้อมูล"
-            :value="overviewData.checkDataTotal"
-            :icon="AlertCircle"
-            icon-bg-class="bg-orange-50"
-            icon-class="text-orange-600"
           />
         </div>
 
@@ -317,7 +324,7 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import {
-  Users, UserCheck, AlertCircle, Clock, Home,
+  Users, UserCheck, AlertCircle, Clock, Timer, Loader, Home,
   Download, Upload, Plus, Eye, Pencil, Trash2,
   Construction
 } from 'lucide-vue-next'
@@ -453,10 +460,17 @@ async function fetchOverviewData() {
     })
     const top5 = allRows.slice(0, 5)
 
+    // ใกล้ถึงเกณฑ์: เหลือ 1-90 วัน (ยังไม่ถึงแต่ใกล้แล้ว)
+    const NEAR_THRESHOLD_DAYS = 90
+    const nearQualifiedTotal = allRows.filter(r =>
+      r.remainingDays != null && r.remainingDays > 0 && r.remainingDays <= NEAR_THRESHOLD_DAYS
+    ).length
+
     overviewData.value = {
       generalTotal,
       academicTotal,
       qualifiedTotal,
+      nearQualifiedTotal,
       notYetTotal,
       checkDataTotal,
       top5,
