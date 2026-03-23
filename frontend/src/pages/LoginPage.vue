@@ -143,8 +143,17 @@ function fillDemo() {
 }
 
 async function skipLogin() {
-  await auth.demoLogin()
-  router.push('/dashboard')
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    auth.logout()
+    await auth.demoLogin()
+    router.push('/dashboard')
+  } catch (e) {
+    errorMsg.value = e.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

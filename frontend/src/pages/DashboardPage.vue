@@ -7,23 +7,24 @@
         <p class="text-gray-600 mt-1">สรุปข้อมูลสำคัญและกิจกรรมล่าสุดของระบบการจัดการข้าราชการ</p>
       </div>
       <div class="flex items-center space-x-3">
-        <button class="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
-          <Download class="w-4 h-4" />
-          <span>ส่งออกรายงาน</span>
-        </button>
-        <button class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-          <RefreshCw class="w-4 h-4" />
+        <button @click="fetchDashboard" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
           <span>รีเฟรช</span>
         </button>
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="loading && !stats.totalPersonnel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <SkeletonLoader v-for="i in 4" :key="i" height="h-28" />
+    </div>
+
     <!-- Statistics Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <StatCard label="จำนวนข้าราชการทั้งหมด" value="2,847" change="+12%" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" sparkline sparkline-color="bg-blue-200" />
-      <StatCard label="ผู้พ้นทดลองปีนี้" value="156" change="+8%" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" sparkline sparkline-color="bg-green-200" />
-      <StatCard label="Candidate Lists" value="89" change="+3%" :icon="Users" icon-bg-class="bg-orange-50" icon-class="text-orange-600" sparkline sparkline-color="bg-orange-200" />
-      <StatCard label="ผู้เกษียณปีนี้" value="24" change="+15%" :icon="UserMinus" icon-bg-class="bg-purple-50" icon-class="text-purple-600" sparkline sparkline-color="bg-purple-200" />
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <StatCard label="จำนวนข้าราชการทั้งหมด" :value="stats.totalPersonnel.toLocaleString()" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" />
+      <StatCard label="ติดตามพ้นทดลอง" :value="stats.probationTotal.toLocaleString()" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" />
+      <StatCard label="ผู้มีคุณสมบัติเลื่อนระดับ" :value="stats.candidateTotal.toLocaleString()" :icon="TrendingUp" icon-bg-class="bg-orange-50" icon-class="text-orange-600" />
+      <StatCard label="การนับเวลาเพิ่มเติม" :value="stats.timeCountTotal.toLocaleString()" :icon="Clock" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
     </div>
 
     <!-- Main Content Grid -->
@@ -54,7 +55,7 @@
                     <span class="text-sm font-medium text-gray-900">{{ task.title }}</span>
                   </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ task.count }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ task.count }} คน</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full" :class="task.priorityColor">
                     {{ task.priority }}
@@ -74,7 +75,7 @@
         </div>
       </div>
 
-      <!-- Right Column: Quick Actions + Recent Activity -->
+      <!-- Right Column: Quick Actions + Summary -->
       <div class="space-y-6">
         <!-- Quick Actions -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -97,79 +98,146 @@
           </div>
         </div>
 
-        <!-- Recent Activity -->
+        <!-- Probation Summary -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">กิจกรรมล่าสุด</h3>
-            <Activity class="w-5 h-5 text-blue-500" />
+            <h3 class="text-lg font-semibold text-gray-900">สรุปพ้นทดลอง</h3>
+            <UserCheck class="w-5 h-5 text-blue-500" />
           </div>
           <div class="space-y-3">
-            <div v-for="(act, i) in recentActivities" :key="i" class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div class="w-2 h-2 rounded-full mt-2" :class="act.dotColor"></div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900">{{ act.action }}</p>
-                <p class="text-xs text-gray-500 mt-1">{{ act.time }}</p>
-              </div>
+            <div class="flex justify-between items-center p-2 rounded-lg bg-blue-50">
+              <span class="text-sm text-blue-700">กำลังดำเนินการ</span>
+              <span class="text-sm font-bold text-blue-700">{{ probationSummary.inProgress }}</span>
+            </div>
+            <div class="flex justify-between items-center p-2 rounded-lg bg-orange-50">
+              <span class="text-sm text-orange-700">ใกล้ครบกำหนด</span>
+              <span class="text-sm font-bold text-orange-700">{{ probationSummary.nearDeadline }}</span>
+            </div>
+            <div class="flex justify-between items-center p-2 rounded-lg bg-red-50">
+              <span class="text-sm text-red-700">เกินกำหนด</span>
+              <span class="text-sm font-bold text-red-700">{{ probationSummary.overdue }}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- System Status -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-900">สถานะระบบ</h2>
-        <div class="flex items-center space-x-2">
-          <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">ปกติ</span>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div v-for="status in systemStatus" :key="status.label" class="text-center p-4 rounded-lg" :class="status.bgColor">
-          <component :is="status.icon" class="w-6 h-6 mx-auto mb-2" :class="status.color" />
-          <p class="text-sm font-medium" :class="status.textColor">{{ status.label }}</p>
-          <p class="text-xs opacity-75" :class="status.textColor">{{ status.value }}</p>
-        </div>
-      </div>
+    <!-- Error Message -->
+    <div v-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4">
+      <p class="text-red-700 text-sm">{{ error }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import StatCard from '@/components/StatCard.vue'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import { useApi } from '@/composables/useApi.js'
+import { useCandidates } from '@/composables/useCandidates.js'
 import {
-  Users, UserCheck, UserMinus, Award, Clock, TrendingUp,
-  Download, RefreshCw, AlertCircle, Zap, Activity,
-  Database, ShieldCheck,
+  Users, UserCheck, TrendingUp, Clock,
+  RefreshCw, AlertCircle, Zap,
 } from 'lucide-vue-next'
 
-const priorityTasks = [
-  { title: 'ข้าราชการครบกำหนดพ้นทดลอง', count: '12 คน', priority: 'เร่งด่วน', priorityColor: 'bg-red-100 text-red-800', icon: UserCheck, iconColor: 'text-red-500', route: '/probation-end' },
-  { title: 'รายชื่อผู้มีสิทธิ์เลื่อนตำแหน่ง', count: '28 คน', priority: 'สำคัญ', priorityColor: 'bg-orange-100 text-orange-800', icon: TrendingUp, iconColor: 'text-orange-500', route: '/candidates/general' },
-  { title: 'ข้าราชการใกล้เกษียณ (6 เดือน)', count: '15 คน', priority: 'ปกติ', priorityColor: 'bg-blue-100 text-blue-800', icon: UserMinus, iconColor: 'text-blue-500', route: '/retirement-report' },
-  { title: 'เครื่องราชอิสริยาภรณ์รอดำเนินการ', count: '7 คน', priority: 'ปกติ', priorityColor: 'bg-green-100 text-green-800', icon: Award, iconColor: 'text-green-500', route: '/royal-decorations' },
-]
+const api = useApi()
+const { fetchByLevel } = useCandidates()
+
+const loading = ref(false)
+const error = ref('')
+
+const stats = ref({
+  totalPersonnel: 0,
+  probationTotal: 0,
+  candidateTotal: 0,
+  timeCountTotal: 0,
+})
+
+const probationSummary = ref({
+  inProgress: 0,
+  nearDeadline: 0,
+  overdue: 0,
+})
+
+const priorityTasks = ref([])
 
 const quickActions = [
   { title: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, color: 'bg-blue-500', route: '/probation-end' },
   { title: 'เลื่อนระดับตำแหน่ง', icon: TrendingUp, color: 'bg-green-500', route: '/candidates/general' },
-  { title: 'รายงานผู้เกษียณ', icon: UserMinus, color: 'bg-purple-500', route: '/retirement-report' },
-  { title: 'เครื่องราชอิสริยาภรณ์', icon: Award, color: 'bg-orange-500', route: '/royal-decorations' },
+  { title: 'การนับเวลาเกื้อกูล', icon: Clock, color: 'bg-purple-500', route: '/supportive' },
 ]
 
-const recentActivities = [
-  { action: 'มีผู้สมัครพ้นทดลองปฏิบัติราชการ', time: '2 นาทีที่แล้ว', dotColor: 'bg-green-500' },
-  { action: 'อัพเดตข้อมูลเครื่องราชอิสริยาภรณ์', time: '1 ชั่วโมงที่แล้ว', dotColor: 'bg-blue-500' },
-  { action: 'รายงานผู้เกษียณรอการตรวจสอบ', time: '3 ชั่วโมงที่แล้ว', dotColor: 'bg-orange-500' },
-  { action: 'สร้างรายงานการนับเวลาเกื้อกูล', time: '1 วันที่แล้ว', dotColor: 'bg-green-500' },
-]
+async function fetchDashboard() {
+  loading.value = true
+  error.value = ''
 
-const systemStatus = [
-  { label: 'ฐานข้อมูล', value: 'ออนไลน์', icon: Database, color: 'text-green-600', bgColor: 'bg-green-50', textColor: 'text-green-700' },
-  { label: 'ระบบสำรอง', value: 'พร้อมใช้งาน', icon: ShieldCheck, color: 'text-blue-600', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
-  { label: 'ผู้ใช้ออนไลน์', value: '23 คน', icon: Users, color: 'text-purple-600', bgColor: 'bg-purple-50', textColor: 'text-purple-700' },
-  { label: 'อัพเดทล่าสุด', value: '2 ชม. ที่แล้ว', icon: Clock, color: 'text-gray-600', bgColor: 'bg-gray-50', textColor: 'text-gray-700' },
-]
+  try {
+    // ดึงข้อมูลสรุปจาก /dashboard endpoint เดียว + จำนวน candidates
+    const [dashboardRes, ...candidateResults] = await Promise.allSettled([
+      api.get('/dashboard'),
+      fetchByLevel('K2', { limit: 1 }),
+      fetchByLevel('K3', { limit: 1 }),
+      fetchByLevel('K4', { limit: 1 }),
+      fetchByLevel('O2', { limit: 1 }),
+      fetchByLevel('O3', { limit: 1 }),
+    ])
+
+    // สถิติจาก /dashboard
+    if (dashboardRes.status === 'fulfilled' && dashboardRes.value) {
+      const d = dashboardRes.value
+      stats.value.totalPersonnel = d.total_personnel || 0
+      stats.value.probationTotal = d.probation?.total || 0
+      stats.value.timeCountTotal = d.time_counting?.total || 0
+      probationSummary.value = {
+        inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
+        nearDeadline: d.probation?.near_deadline || 0,
+        overdue: d.probation?.overdue || 0,
+      }
+    }
+
+    // จำนวน candidates รวมทุกระดับ (ใช้ pagination.total แทน data.length)
+    let totalCandidates = 0
+    for (const result of candidateResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        totalCandidates += result.value.pagination?.total || result.value.data?.length || 0
+      }
+    }
+    stats.value.candidateTotal = totalCandidates
+
+    // สร้างรายการงานสำคัญจากข้อมูลจริง
+    const tasks = []
+    if (probationSummary.value.nearDeadline > 0 || probationSummary.value.overdue > 0) {
+      tasks.push({
+        title: 'ข้าราชการใกล้ครบ/เกินกำหนดพ้นทดลอง',
+        count: probationSummary.value.nearDeadline + probationSummary.value.overdue,
+        priority: probationSummary.value.overdue > 0 ? 'เร่งด่วน' : 'สำคัญ',
+        priorityColor: probationSummary.value.overdue > 0 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800',
+        icon: UserCheck,
+        iconColor: probationSummary.value.overdue > 0 ? 'text-red-500' : 'text-orange-500',
+        route: '/probation-end',
+      })
+    }
+    if (totalCandidates > 0) {
+      tasks.push({
+        title: 'รายชื่อผู้มีคุณสมบัติเลื่อนระดับ',
+        count: totalCandidates,
+        priority: 'สำคัญ',
+        priorityColor: 'bg-orange-100 text-orange-800',
+        icon: TrendingUp,
+        iconColor: 'text-orange-500',
+        route: '/candidates/general',
+      })
+    }
+    priorityTasks.value = tasks
+
+  } catch (err) {
+    error.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
+    console.error('Dashboard fetch error:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchDashboard)
 </script>
