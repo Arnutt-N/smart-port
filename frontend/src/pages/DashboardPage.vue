@@ -218,9 +218,9 @@ async function fetchDashboard() {
     ])
 
     let timeTotal = 0
-    if (supportiveRes.status === 'fulfilled') timeTotal += supportiveRes.value?.summary?.total || 0
-    if (diverseRes.status === 'fulfilled') timeTotal += diverseRes.value?.summary?.total || 0
-    if (equivalenceRes.status === 'fulfilled') timeTotal += equivalenceRes.value?.summary?.total || 0
+    if (supportiveRes.status === 'fulfilled') timeTotal += supportiveRes.value?.pagination?.total || 0
+    if (diverseRes.status === 'fulfilled') timeTotal += diverseRes.value?.pagination?.total || 0
+    if (equivalenceRes.status === 'fulfilled') timeTotal += equivalenceRes.value?.pagination?.total || 0
     stats.value.timeCountTotal = timeTotal
 
     // Build priority tasks from real data
