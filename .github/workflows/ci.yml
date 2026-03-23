@@ -23,7 +23,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - run: npm ci
+      - name: Install dependencies
+        run: rm -f package-lock.json && npm install
 
       - name: Run tests
         run: npm test
