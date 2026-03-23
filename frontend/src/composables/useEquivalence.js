@@ -12,7 +12,7 @@ export function useEquivalence() {
     const result = await api.get(`/equivalence?${params}`)
     return {
       success: result.success,
-      data: result.data.map(mapRow),
+      data: (result.data || []).map(mapRow),
       summary: result.summary,
       pagination: result.pagination,
     }

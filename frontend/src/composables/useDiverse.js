@@ -12,7 +12,7 @@ export function useDiverse() {
     const result = await api.get(`/diverse?${params}`)
     return {
       success: result.success,
-      data: result.data.map(mapRow),
+      data: (result.data || []).map(mapRow),
       summary: result.summary,
       pagination: result.pagination,
     }

@@ -12,7 +12,7 @@ export function useProbation() {
     const result = await api.get(`/probation?${params}`)
     return {
       success: result.success,
-      data: result.data.map(mapProbationRow),
+      data: (result.data || []).map(mapProbationRow),
       summary: result.summary,
       pagination: result.pagination,
     }

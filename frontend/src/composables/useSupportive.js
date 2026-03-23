@@ -12,7 +12,7 @@ export function useSupportive() {
     const result = await api.get(`/supportive?${params}`)
     return {
       success: result.success,
-      data: result.data.map(mapRow),
+      data: (result.data || []).map(mapRow),
       summary: result.summary,
       pagination: result.pagination,
     }
