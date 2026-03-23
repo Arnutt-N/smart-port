@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { Shield, AtSign, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-vue-next'

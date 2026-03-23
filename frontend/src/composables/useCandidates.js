@@ -20,7 +20,7 @@ export function useCandidates() {
 
   // คำนวณสถานะแสดงผลจาก remaining_days และ backend status
   function computeDisplayStatus(backendStatus, remainingDays) {
-    const days = remainingDays !== null ? parseInt(remainingDays) : null
+    const days = (remainingDays !== null && remainingDays !== undefined) ? parseInt(remainingDays, 10) : null
 
     // ถ้า backend บอกว่า qualified + มีข้อมูลว่ากำลังเลื่อนตำแหน่ง
     // (สำหรับ v2: ตรวจสอบจาก promotion_evaluation table)
@@ -34,7 +34,7 @@ export function useCandidates() {
     }
 
     // คำนวณจาก remaining_days
-    if (days === null) return 'NOT_MET'
+    if (days === null || isNaN(days)) return 'NOT_MET'
     if (days > 30) return 'NOT_MET'           // > 30 วัน = ยังไม่ถึงเกณฑ์ (สีเหลือง)
     if (days >= 1) return 'NEAR_MET'          // 1-30 วัน = ใกล้ถึงเกณฑ์ (สีส้ม)
     if (days === 0) return 'MET'              // ครบเกณฑ์วันนี้ (สีเขียว)
