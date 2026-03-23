@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: การนับเวลาเพิ่มเติม
 status: unknown
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-03-22T17:56:30.063Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-23T00:15:25.679Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** HR สามารถบันทึกข้อมูลการนับเกื้อกูล การนับแตกต่าง และการเทียบตำแหน่ง แล้วนำไปรวมคำนวณวันครบกำหนดเลื่อนระดับใน Candidate List ได้อัตโนมัติ
-**Current focus:** Phase 06 — frontend-crud-pages
+**Current focus:** Phase 07 — qualificationengine-integration
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
+Phase: 07 (qualificationengine-integration) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 06 P02 | 2min | 1 tasks | 1 files |
 | Phase 06 P04 | 3min | 1 tasks | 1 files |
 | Phase 06 P03 | 3min | 1 tasks | 1 files |
+| Phase 07 P01 | 4min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Modal CRUD pattern with personnel autocomplete for supportive experience page
 - [Phase 06]: Approve modal pre-fills dates from request dates; status counts computed client-side from current rows
 - [Phase 06]: Two-column from/to layout for diverse experience modal with 4-dimension checkboxes and live diffCountPreview
+- [Phase 07]: FLOOR for fractional effective_days -- conservative rounding ensures person never qualifies earlier than they should
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T17:46:26.212Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-03-23T00:15:25.670Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None

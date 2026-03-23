@@ -82,7 +82,7 @@ Plans:
   5. Candidate list UI reflects the adjusted qualification dates from the engine
 **Plans:** 2 plans
 Plans:
-- [ ] 07-01-PLAN.md — Extend QualificationEngine with supportive/diverse/equivalence LEFT JOIN subqueries
+- [x] 07-01-PLAN.md — Extend QualificationEngine with supportive/diverse/equivalence LEFT JOIN subqueries
 - [ ] 07-02-PLAN.md — Add 3 new columns to Candidate List UI (supportive days, diverse badge, equivalence days)
 
 ## Progress
