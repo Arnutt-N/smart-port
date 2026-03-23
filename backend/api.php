@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 include 'config.php';
 include 'auth.php';
+include_once 'helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -105,18 +106,68 @@ switch ($path[0]) {
 
     case 'photos':
         if ($method == 'POST') {
-            $servant_id = $_POST['servant_id'];
-            $file = $_FILES['photo'];
-            $file_name = basename($file['name']);
+            $servant_id = intval($_POST['servant_id'] ?? 0);
+            $file = $_FILES['photo'] ?? null;
+
+            if ($servant_id <= 0 || !is_array($file)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid upload request']);
+                break;
+            }
+
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Upload failed']);
+                break;
+            }
+
+            $file_name = basename($file['name'] ?? '');
+            if ($file_name === '') {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid file name']);
+                break;
+            }
+
+            if (!is_dir(UPLOAD_DIR)) {
+                mkdir(UPLOAD_DIR, 0775, true);
+            }
+
             $file_path = UPLOAD_DIR . $file_name;
-            if (move_uploaded_file($file['tmp_name'], $file_path)) {
-                $stmt = $pdo->prepare("INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)");
+            if (!move_uploaded_file($file['tmp_name'], $file_path)) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Upload failed']);
+                break;
+            }
+
+            try {
+                $pdo->beginTransaction();
+
+                $stmt = $pdo->prepare(
+                    "INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)"
+                );
                 $stmt->execute([$servant_id, $file_name, $file_path]);
-                $photo_id = $pdo->lastInsertId();
-                // Call procedure
-                $pdo->query("CALL sp_generate_photo_versions($photo_id)");
-                echo json_encode(['success' => true, 'path' => $file_path]);
-            } else {
+
+                $photo_id = (int) $pdo->lastInsertId();
+                $versions = createPhotoVersions($pdo, $photo_id, $file_name);
+
+                $pdo->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'photo_id' => $photo_id,
+                    'path' => $file_path,
+                    'versions' => $versions,
+                ]);
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                if (is_file($file_path)) {
+                    @unlink($file_path);
+                }
+
+                http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
             }
         }
@@ -124,7 +175,7 @@ switch ($path[0]) {
 
     case 'forecast':
         if ($method == 'GET') {
-            $pdo->query("CALL sp_calculate_promotion_eligibility()");
+            callProcedureIfExists($pdo, 'sp_calculate_promotion_eligibility');
             $stmt = $pdo->query("SELECT * FROM advance_notifications");
             $forecasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode($forecasts);
