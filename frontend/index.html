@@ -4,118 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="ระบบสมุดพก - Smart Port Management System สำหรับการจัดการข้อมูลข้าราชการ">
-  <meta name="keywords" content="ระบบสมุดพก, Smart Port, Government, HR Management">
-  <meta name="author" content="Smart Port Development Team">
-  
-  <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#0ea5e9">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Smart Port">
-  
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Material Design Icons -->
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  
   <title>ระบบสมุดพก | Smart Port Management System</title>
 </head>
 <body class="font-thai bg-gray-50 antialiased">
-  <!-- Minimal Loading Screen -->
-  <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
-    <div class="text-center">
-      <!-- Modern Spinner -->
-      <div class="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-      
-      <!-- Loading Text -->
-      <p class="text-gray-600 text-lg font-medium">Loading...</p>
-    </div>
-  </div>
-
-  <!-- App Container -->
-  <div id="app" class="min-h-screen">
-    <!-- Navigation Bar -->
-    <nav id="navbar" class="hidden bg-white shadow-sm border-b border-gray-200">
-      <!-- Navigation content will be inserted here -->
-    </nav>
-
-    <!-- Main Content -->
-    <main id="main-content" class="transition-all duration-300">
-      <!-- Page content will be inserted here -->
-    </main>
-
-    <!-- Footer -->
-    <footer id="footer" class="hidden bg-government-800 text-white py-8">
-      <!-- Footer content will be inserted here -->
-    </footer>
-  </div>
-
-  <!-- Toast Notifications -->
-  <div id="toast-container" class="fixed top-4 right-4 z-40 space-y-2">
-    <!-- Toast notifications will be inserted here -->
-  </div>
-
-  <!-- Modal Container -->
-  <div id="modal-container" class="hidden fixed inset-0 z-50">
-    <!-- Modals will be inserted here -->
-  </div>
-
+  <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
-  
-  <!-- Simple Loading Manager Script -->
-  <script>
-    // Simple Loading Manager
-    class SimpleLoadingManager {
-      constructor() {
-        this.init()
-      }
-
-      init() {
-        // Auto-hide loading after 2 seconds
-        setTimeout(() => {
-          this.hideLoading()
-        }, 2000)
-      }
-
-      hideLoading() {
-        const loadingScreen = document.getElementById('loading-screen')
-        if (loadingScreen) {
-          loadingScreen.style.opacity = '0'
-          loadingScreen.style.transition = 'opacity 0.5s ease-out'
-          
-          setTimeout(() => {
-            loadingScreen.classList.add('hidden')
-          }, 500)
-        }
-      }
-
-      // Public method to show loading manually
-      show() {
-        const loadingScreen = document.getElementById('loading-screen')
-        if (loadingScreen) {
-          loadingScreen.classList.remove('hidden')
-          loadingScreen.style.opacity = '1'
-        }
-      }
-
-      // Public method to hide loading manually
-      hide() {
-        this.hideLoading()
-      }
-    }
-
-    // Initialize simple loading manager
-    window.simpleLoading = new SimpleLoadingManager()
-  </script>
 </body>
 </html>
