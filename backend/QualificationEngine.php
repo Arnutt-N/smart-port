@@ -167,13 +167,6 @@ class QualificationEngine
             $row['remaining_days'] = $row['remaining_days'] !== null ? (int) $row['remaining_days'] : null;
             $row['min_years'] = $row['min_years'] !== null ? (float) $row['min_years'] : null;
 
-            // Diverse status -- only meaningful for M1 (per D-05, D-06, D-07, D-08)
-            if ($targetLevel === 'M1') {
-                $row['diverse_status'] = ((int)$row['diverse_diff_count'] >= 3) ? 'DIFF_PASS' : 'DIFF_NOT_YET';
-            } else {
-                $row['diverse_status'] = null;
-            }
-
             // Cast numeric fields (per D-13, D-14)
             $row['supportive_days'] = (int)$row['supportive_days'];
             $row['equivalence_days'] = (int)$row['equivalence_days'];
@@ -298,13 +291,6 @@ class QualificationEngine
         $row['current_level_name'] = getLevelName($row['current_level_code'] ?? '');
         $row['remaining_days'] = $row['remaining_days'] !== null ? (int) $row['remaining_days'] : null;
         $row['min_years'] = $row['min_years'] !== null ? (float) $row['min_years'] : null;
-
-        // Diverse status -- only meaningful for M1 (per D-05, D-06, D-07, D-08)
-        if ($targetLevel === 'M1') {
-            $row['diverse_status'] = ((int)$row['diverse_diff_count'] >= 3) ? 'DIFF_PASS' : 'DIFF_NOT_YET';
-        } else {
-            $row['diverse_status'] = null;
-        }
 
         // Cast numeric fields (per D-13, D-14)
         $row['supportive_days'] = (int)$row['supportive_days'];
