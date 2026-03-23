@@ -12,7 +12,7 @@ export function useCandidates() {
     const result = await api.get(`/candidates/${targetLevel}?${params}`)
     return {
       success: result.success,
-      data: result.data.map(mapCandidateRow),
+      data: (result.data || []).map(mapCandidateRow),
       summary: result.summary,
       pagination: result.pagination,
     }
