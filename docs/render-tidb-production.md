@@ -1,0 +1,125 @@
+# Render + TiDB Production Setup
+
+This project currently deploys cleanly on Render when:
+
+- frontend is a Render Static Site
+- backend is a Docker-based Render Web Service
+- backend reads TiDB Cloud credentials from Render environment variables
+
+The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port/render.yaml).
+
+## 1. Recommended Render layout
+
+- `smart-port`
+  - Type: Static Site
+  - Root Directory: `frontend`
+  - Build Command: `npm install && npm run build`
+  - Publish Directory: `dist`
+- `smartport-backend`
+  - Type: Web Service
+  - Runtime: Docker
+  - Root Directory: `backend`
+  - Dockerfile: `backend/Dockerfile`
+  - Health Check Path: `/`
+
+## 2. Required backend environment variables
+
+Set these on the `smartport-backend` Render service:
+
+| Key | Value |
+| --- | --- |
+| `MYSQL_HOST` | TiDB host from the TiDB Cloud connection dialog |
+| `MYSQL_PORT` | `4000` |
+| `MYSQL_DATABASE` | `civil_service_mgmt` |
+| `MYSQL_USER` | TiDB username |
+| `MYSQL_PASSWORD` | TiDB password |
+| `MYSQL_SSL` | `true` |
+| `JWT_SECRET` | long random secret |
+
+Notes:
+
+- The backend falls back to `MYSQL_HOST=db` when `MYSQL_HOST` is missing in [backend/config.php](D:/hrProject/smart-port/backend/config.php#L12), which is why Render currently returns a database connection error.
+- The backend connects to the database before routing requests in [backend/api.php](D:/hrProject/smart-port/backend/api.php#L20), so even `/api/auth/login` fails if TiDB env values are missing.
+
+## 3. Frontend environment variables
+
+Set this on the `smart-port` static site:
+
+| Key | Value |
+| --- | --- |
+| `VITE_API_URL` | `/api` |
+
+This works together with the rewrite rules in [render.yaml](D:/hrProject/smart-port/render.yaml), so the browser calls the frontend origin and Render forwards `/api/*` to `https://smartport-backend.onrender.com/*`.
+
+## 4. TiDB bootstrap
+
+Before testing production data pages, import the schema into TiDB Cloud:
+
+1. Create the `civil_service_mgmt` database in TiDB Cloud if it does not exist yet.
+2. Run [database/tidb-init.sql](D:/hrProject/smart-port/database/tidb-init.sql) against that database.
+3. If you have production seed data, import it after the schema load.
+
+## 5. Manual Render dashboard checklist
+
+If you are updating the existing services instead of recreating them from the Blueprint:
+
+1. Open Render Dashboard.
+2. Edit `smartport-backend` environment variables.
+3. Add or correct all TiDB values listed above.
+4. Redeploy `smartport-backend`.
+5. Edit `smart-port` environment variables.
+6. Set `VITE_API_URL=/api`.
+7. Add static site rewrite rules:
+   - Rewrite `/api/*` -> `https://smartport-backend.onrender.com/*`
+   - Rewrite `/*` -> `/index.html`
+8. Redeploy `smart-port`.
+
+Important:
+
+- `sync: false` values in `render.yaml` only prompt during initial Blueprint creation. If your services already exist, add those secrets manually in Render.
+- `JWT_SECRET` in the Blueprint is generated only when the environment variable does not already exist.
+
+## 6. Verification
+
+After redeploying:
+
+1. Check backend health:
+
+```bash
+curl -i https://smartport-backend.onrender.com/
+```
+
+Expected result: `200 OK` with JSON similar to `{"status":"success","message":"Smart Port API is running."}`
+
+2. Check login:
+
+```bash
+curl -i \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin","password":"admin123"}' \
+  https://smartport-backend.onrender.com/api/auth/login
+```
+
+Expected result: JSON token payload, not a database connection error.
+
+3. Open the frontend:
+
+```text
+https://smart-port.onrender.com/
+```
+
+Expected result:
+
+- no white blank screen during first route load
+- login page renders
+- login succeeds if TiDB env is correct
+
+## 7. Current production failure mode
+
+If Render still returns an error like:
+
+```text
+php_network_getaddresses: getaddrinfo for db failed
+```
+
+then `MYSQL_HOST` was not loaded from Render and the backend is still using the local Docker fallback instead of TiDB Cloud.
