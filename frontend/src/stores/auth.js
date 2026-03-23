@@ -37,11 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function demoLogin() {
-    const demoToken = `demo-token-${Date.now()}`
-    setAuth({
-      token: demoToken,
-      user: { id: 1, email: 'admin@smartport.gov.th', name: 'Administrator' },
-    })
+    await login({ email: 'admin', password: 'admin123' })
   }
 
   function logout() {

@@ -84,7 +84,7 @@ describe('useCandidates', () => {
       levelStartDate: '1 ม.ค. 2567',
       qualificationDate: '1 ม.ค. 2568',
       remainingDays: 45,
-      status: 'qualified',
+      status: 'NOT_MET',
       department: 'กองบริหาร',
     })
   })

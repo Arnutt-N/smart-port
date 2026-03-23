@@ -61,14 +61,19 @@ function getAuthHeader() {
     if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
         return str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
     }
-    
+
+    // Apache rewrite sets REDIRECT_HTTP_AUTHORIZATION
+    if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        return str_replace('Bearer ', '', $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+    }
+
     if (function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
         if (isset($headers['Authorization'])) {
             return str_replace('Bearer ', '', $headers['Authorization']);
         }
     }
-    
+
     return null;
 }
 ?>

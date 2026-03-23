@@ -17,14 +17,11 @@ FROM php:8.3-apache
 # เปิดใช้งาน mod_rewrite สำหรับ routing (เช่น .htaccess)
 RUN a2enmod rewrite
 
-# --- FIX for PostgreSQL ---
-# ติดตั้ง client library ของ PostgreSQL (libpq-dev)
-# และติดตั้ง PHP extension สำหรับ PostgreSQL (pdo_pgsql) แทน pdo_mysql
+# ติดตั้ง PHP extensions สำหรับ MySQL
 RUN apt-get update && apt-get install -y \
-    libpq-dev \
     libzip-dev \
     unzip \
-    && docker-php-ext-install pdo_pgsql zip opcache \
+    && docker-php-ext-install pdo_mysql zip opcache \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # เปิดใช้งาน OPcache สำหรับ production
