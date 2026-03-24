@@ -116,9 +116,22 @@ function getDiverseList(PDO $pdo): void
     }
     unset($row);
 
+    // Summary จาก full dataset
+    $summaryStmt = $pdo->query("
+        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
+               SUM(CASE WHEN diff_count >= 3 THEN 1 ELSE 0 END) AS qualified_count
+        FROM diverse_experience
+    ");
+    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
         'data' => $rows,
+        'summary' => [
+            'total' => $total,
+            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+            'qualified_count' => (int) ($summaryRow['qualified_count'] ?? 0),
+        ],
         'pagination' => [
             'total' => $total,
             'limit' => $limit,

@@ -403,11 +403,18 @@ const ui = useUiStore()
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
+const summary = ref(null)
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-// Stat counts
-const passCount = computed(() => rows.value.filter(r => r.diffCount >= 3).length)
-const notYetCount = computed(() => rows.value.filter(r => r.diffCount < 3).length)
+// Stat counts — ใช้ summary จาก backend (full dataset) ถ้ามี
+const passCount = computed(() => {
+  if (summary.value?.qualified_count != null) return summary.value.qualified_count
+  return rows.value.filter(r => r.diffCount >= 3).length
+})
+const notYetCount = computed(() => {
+  if (summary.value) return (summary.value.total || 0) - (summary.value.qualified_count || 0)
+  return rows.value.filter(r => r.diffCount < 3).length
+})
 
 // Search with IME guard
 const searchQuery = ref('')
@@ -471,8 +478,8 @@ function onPersonnelSearch() {
       return
     }
     try {
-      const result = await api.get(`/civil-servants?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
-      personnelResults.value = result.data || result || []
+      const result = await api.get(`/personnel?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
+      personnelResults.value = result.data || []
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []
@@ -486,7 +493,7 @@ function onPersonnelCompositionEnd() {
 }
 
 function selectPersonnel(person) {
-  formData.value.personnel_id = person.servant_id
+  formData.value.personnel_id = person.personnel_id
   selectedPersonnelName.value = person.full_name
   personnelSearch.value = person.full_name
   personnelResults.value = []
@@ -509,6 +516,7 @@ async function fetchData() {
       offset: pagination.value.offset,
     })
     rows.value = result.data
+    summary.value = result.summary || null
     pagination.value = result.pagination
   } catch (err) {
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'

@@ -113,9 +113,22 @@ function getSupportiveList(PDO $pdo): void
     }
     unset($row);
 
+    // Summary จาก full dataset (ไม่ใช่ current page)
+    $summaryStmt = $pdo->query("
+        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
+               SUM(effective_days) AS total_effective_days
+        FROM supportive_experience
+    ");
+    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
         'data' => $rows,
+        'summary' => [
+            'total' => $total,
+            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+            'total_effective_days' => (float) ($summaryRow['total_effective_days'] ?? 0),
+        ],
         'pagination' => [
             'total' => $total,
             'limit' => $limit,

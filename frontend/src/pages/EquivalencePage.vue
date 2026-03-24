@@ -486,6 +486,7 @@ const ui = useUiStore()
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
+const summary = ref(null)
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
 // Search state with IME guard
@@ -548,6 +549,7 @@ async function fetchData() {
       offset: pagination.value.offset,
     })
     rows.value = result.data
+    summary.value = result.summary || null
     pagination.value = result.pagination
   } catch (err) {
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
@@ -583,8 +585,8 @@ function onPersonnelSearch() {
   }
   personnelTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/civil-servants?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
-      personnelResults.value = result.data || result || []
+      const result = await api.get(`/personnel?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
+      personnelResults.value = result.data || []
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []
@@ -594,7 +596,7 @@ function onPersonnelSearch() {
 }
 
 function selectPersonnel(person) {
-  formData.value.personnel_id = person.servant_id
+  formData.value.personnel_id = person.personnel_id
   personnelSearch.value = person.full_name
   showPersonnelDropdown.value = false
   formErrors.value.personnel_id = ''

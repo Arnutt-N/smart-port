@@ -317,6 +317,39 @@ switch ($path[0]) {
         }
         break;
 
+    case 'personnel':
+        if ($method == 'GET') {
+            $pdo = getDB();
+            $search = $_GET['search'] ?? '';
+            $limit = intval($_GET['limit'] ?? 10);
+
+            if (empty($search)) {
+                echo json_encode(['success' => true, 'data' => []]);
+                break;
+            }
+
+            $searchTerm = "%{$search}%";
+            $stmt = $pdo->prepare("
+                SELECT p.personnel_id, p.citizen_id,
+                       CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                       p.first_name, p.last_name,
+                       pos.position_name AS current_position,
+                       o.org_name AS department
+                FROM personnel p
+                LEFT JOIN `position` pos ON p.current_position_id = pos.position_id
+                LEFT JOIN organization o ON p.current_org_id = o.org_id
+                WHERE p.is_active = 1
+                  AND (p.first_name LIKE ? OR p.last_name LIKE ? OR p.citizen_id LIKE ?)
+                ORDER BY p.first_name, p.last_name
+                LIMIT {$limit}
+            ");
+            $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'data' => $rows]);
+        }
+        break;
+
     case 'candidates':
         $pdo = getDB();
         include __DIR__ . '/routes/candidates.php';
