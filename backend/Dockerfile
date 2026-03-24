@@ -47,5 +47,9 @@ RUN mkdir -p /var/www/html/uploads \
 RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL JWT_SECRET" \
     >> /etc/apache2/conf-enabled/passenv.conf
 
+# บังคับให้ Apache/PHP ตอบ UTF-8 เสมอ เพื่อป้องกันข้อความภาษาไทยเพี้ยนบน production
+RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf \
+    && printf "default_charset = \"UTF-8\"\n" > /usr/local/etc/php/conf.d/charset.ini
+
 # เปิด port 80
 EXPOSE 80

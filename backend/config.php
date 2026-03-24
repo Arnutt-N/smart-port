@@ -9,7 +9,7 @@ function env($key, $default = '') {
     return getenv($key) ?: ($_ENV[$key] ?? ($_SERVER[$key] ?? $default));
 }
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=UTF-8');
 
 // JWT Secret — อ่านจาก env var ก่อน ถ้าไม่มีใช้ค่า default (dev only)
 define('JWT_SECRET', env('JWT_SECRET', 'your_secret_key_here'));
