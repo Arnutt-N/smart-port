@@ -97,6 +97,7 @@ switch ($path[0]) {
     case 'profile':
         $id = $path[1] ?? null;
         if ($method == 'GET' && $id) {
+            $pdo = getDB();
             $stmt = $pdo->prepare("SELECT * FROM v_civil_servants_current WHERE servant_id = ?");
             $stmt->execute([$id]);
             $profile = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -140,6 +141,7 @@ switch ($path[0]) {
             }
 
             try {
+                $pdo = getDB();
                 $pdo->beginTransaction();
 
                 $stmt = $pdo->prepare(
@@ -175,6 +177,7 @@ switch ($path[0]) {
 
     case 'forecast':
         if ($method == 'GET') {
+            $pdo = getDB();
             callProcedureIfExists($pdo, 'sp_calculate_promotion_eligibility');
             $stmt = $pdo->query("SELECT * FROM advance_notifications");
             $forecasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -184,6 +187,7 @@ switch ($path[0]) {
 
     case 'civil-servants':
         if ($method == 'GET') {
+            $pdo = getDB();
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
             $offset = intval($_GET['offset'] ?? 0);
@@ -201,7 +205,7 @@ switch ($path[0]) {
             }
 
             $sql = "
-                SELECT 
+                SELECT
                     cs.servant_id,
                     cs.employee_id,
                     cs.citizen_id,
@@ -245,6 +249,8 @@ switch ($path[0]) {
 
     case 'dashboard':
         if ($method == 'GET') {
+            $pdo = getDB();
+
             // จำนวนบุคลากรทั้งหมด (จาก personnel table)
             $stmt = $pdo->query("SELECT COUNT(*) as total FROM personnel WHERE is_active = 1");
             $totalPersonnel = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
@@ -253,11 +259,35 @@ switch ($path[0]) {
             $stmt = $pdo->query("SELECT COUNT(*) as total FROM probation_enrollment");
             $probationTotal = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-            $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 1 AND 30");
-            $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+            // vw_probation_dashboard อาจพังบน TiDB (definer issue) — ใช้ try-catch
+            $probationNear = 0;
+            $probationOverdue = 0;
+            try {
+                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 1 AND 30");
+                $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-            $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0");
-            $probationOverdue = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0");
+                $probationOverdue = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+            } catch (PDOException $e) {
+                // View ไม่สามารถใช้งานได้ — fallback คำนวณจาก base tables
+                try {
+                    $stmt = $pdo->query("
+                        SELECT COUNT(*) as c FROM probation_enrollment
+                        WHERE overall_status = 'IN_PROGRESS'
+                        AND DATEDIFF(end_date, CURDATE()) BETWEEN 1 AND 30
+                    ");
+                    $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+
+                    $stmt = $pdo->query("
+                        SELECT COUNT(*) as c FROM probation_enrollment
+                        WHERE overall_status = 'IN_PROGRESS'
+                        AND DATEDIFF(end_date, CURDATE()) < 0
+                    ");
+                    $probationOverdue = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+                } catch (PDOException $e2) {
+                    // ถ้ายัง fail อีก ใช้ค่า 0
+                }
+            }
 
             // จำนวนการนับเวลาเพิ่มเติม
             $stmt = $pdo->query("SELECT COUNT(*) as c FROM supportive_experience");
@@ -288,26 +318,31 @@ switch ($path[0]) {
         break;
 
     case 'candidates':
+        $pdo = getDB();
         include __DIR__ . '/routes/candidates.php';
         handleCandidates($pdo, $method, $path);
         break;
 
     case 'probation':
+        $pdo = getDB();
         include __DIR__ . '/routes/probation.php';
         handleProbation($pdo, $method, $path);
         break;
 
     case 'supportive':
+        $pdo = getDB();
         include __DIR__ . '/routes/supportive.php';
         handleSupportive($pdo, $method, $path);
         break;
 
     case 'diverse':
+        $pdo = getDB();
         include __DIR__ . '/routes/diverse.php';
         handleDiverse($pdo, $method, $path);
         break;
 
     case 'equivalence':
+        $pdo = getDB();
         include __DIR__ . '/routes/equivalence.php';
         handleEquivalence($pdo, $method, $path);
         break;
