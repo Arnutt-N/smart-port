@@ -135,14 +135,12 @@ import { RouterLink } from 'vue-router'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import { useApi } from '@/composables/useApi.js'
-import { useCandidates } from '@/composables/useCandidates.js'
 import {
   Users, UserCheck, TrendingUp, Clock,
   RefreshCw, AlertCircle, Zap,
 } from 'lucide-vue-next'
 
 const api = useApi()
-const { fetchByLevel } = useCandidates()
 
 const loading = ref(false)
 const error = ref('')
@@ -173,37 +171,20 @@ async function fetchDashboard() {
   error.value = ''
 
   try {
-    // ดึงข้อมูลสรุปจาก /dashboard endpoint เดียว + จำนวน candidates
-    const [dashboardRes, ...candidateResults] = await Promise.allSettled([
-      api.get('/dashboard'),
-      fetchByLevel('K2', { limit: 1 }),
-      fetchByLevel('K3', { limit: 1 }),
-      fetchByLevel('K4', { limit: 1 }),
-      fetchByLevel('O2', { limit: 1 }),
-      fetchByLevel('O3', { limit: 1 }),
-    ])
+    // ดึงข้อมูลสรุปจาก /dashboard endpoint เดียว (รวม candidate totals)
+    const d = await api.get('/dashboard')
 
-    // สถิติจาก /dashboard
-    if (dashboardRes.status === 'fulfilled' && dashboardRes.value) {
-      const d = dashboardRes.value
-      stats.value.totalPersonnel = d.total_personnel || 0
-      stats.value.probationTotal = d.probation?.total || 0
-      stats.value.timeCountTotal = d.time_counting?.total || 0
-      probationSummary.value = {
-        inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
-        nearDeadline: d.probation?.near_deadline || 0,
-        overdue: d.probation?.overdue || 0,
-      }
+    stats.value.totalPersonnel = d.total_personnel || 0
+    stats.value.probationTotal = d.probation?.total || 0
+    stats.value.timeCountTotal = d.time_counting?.total || 0
+    stats.value.candidateTotal = d.candidates?.total || 0
+    probationSummary.value = {
+      inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
+      nearDeadline: d.probation?.near_deadline || 0,
+      overdue: d.probation?.overdue || 0,
     }
 
-    // จำนวน candidates รวมทุกระดับ (ใช้ pagination.total แทน data.length)
-    let totalCandidates = 0
-    for (const result of candidateResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        totalCandidates += result.value.pagination?.total || result.value.data?.length || 0
-      }
-    }
-    stats.value.candidateTotal = totalCandidates
+    const totalCandidates = d.candidates?.total || 0
 
     // สร้างรายการงานสำคัญจากข้อมูลจริง
     const tasks = []

@@ -299,6 +299,32 @@ switch ($path[0]) {
             $stmt = $pdo->query("SELECT COUNT(*) as c FROM position_equivalence");
             $equivalenceCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
+            // Candidate totals ต่อระดับ (ลด fan-out จาก 5 requests เหลือ 1 query)
+            $candidateTotals = [];
+            try {
+                $stmt = $pdo->query("
+                    SELECT current_level_code, COUNT(*) AS cnt
+                    FROM personnel
+                    WHERE is_active = 1 AND current_level_code IS NOT NULL
+                    GROUP BY current_level_code
+                ");
+                $levelCounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Map source levels → target levels
+                $levelMap = ['K1' => 'K2', 'K2' => 'K3', 'K3' => 'K4', 'O1' => 'O2', 'O2' => 'O3'];
+                foreach ($levelCounts as $row) {
+                    $source = $row['current_level_code'];
+                    if (isset($levelMap[$source])) {
+                        $target = $levelMap[$source];
+                        $candidateTotals[$target] = ($candidateTotals[$target] ?? 0) + (int) $row['cnt'];
+                    }
+                }
+            } catch (PDOException $e) {
+                // ถ้า query fail ส่งค่าว่าง — frontend จะ fallback ยิง candidates endpoints เอง
+            }
+
+            $candidateGrandTotal = array_sum($candidateTotals);
+
             echo json_encode([
                 'success' => true,
                 'total_personnel' => $totalPersonnel,
@@ -312,6 +338,10 @@ switch ($path[0]) {
                     'diverse' => $diverseCount,
                     'equivalence' => $equivalenceCount,
                     'total' => $supportiveCount + $diverseCount + $equivalenceCount,
+                ],
+                'candidates' => [
+                    'total' => $candidateGrandTotal,
+                    'by_level' => $candidateTotals,
                 ],
             ]);
         }
