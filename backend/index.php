@@ -1,6 +1,6 @@
 <?php
 // ตั้งค่า header ให้ตอบกลับเป็น JSON
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=UTF-8');
 
 // สร้างข้อมูลตอบกลับเป็น array
 $response = [
