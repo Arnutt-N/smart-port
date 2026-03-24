@@ -59,6 +59,25 @@ Before testing production data pages, import the schema into TiDB Cloud:
 2. Run [database/tidb-init.sql](D:/hrProject/smart-port/database/tidb-init.sql) against that database.
 3. If you have production seed data, import it after the schema load.
 
+Important for Thai text and other UTF-8 data:
+
+- Always specify `utf8mb4` explicitly on both export and import when moving data between MySQL/TiDB instances.
+- If you skip the charset flag during import, UTF-8 bytes can be double-encoded and Thai text may appear as mojibake on production.
+
+Recommended commands:
+
+```bash
+# Export
+mysqldump --default-character-set=utf8mb4 --set-charset ...
+
+# Import
+mysql --default-character-set=utf8mb4 ...
+```
+
+Operational note:
+
+- Files like `database/reimport-data.sql` are generated repair/import artifacts for a specific environment and should not be committed as normal source files.
+
 ## 5. Manual Render dashboard checklist
 
 If you are updating the existing services instead of recreating them from the Blueprint:
