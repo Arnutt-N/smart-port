@@ -56,6 +56,8 @@ uploads/*
 !uploads/.gitkeep
 backend/uploads/*
 !backend/uploads/.gitkeep
+database/export-*.sql
+database/reimport-data.sql
 
 # Test coverage
 coverage/
