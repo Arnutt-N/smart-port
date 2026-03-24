@@ -66,34 +66,67 @@ function getProbationList(PDO $pdo): void
     $limit = intval($_GET['limit'] ?? 20);
     $offset = intval($_GET['offset'] ?? 0);
 
-    // Base query จาก vw_probation_dashboard (view already filters IN_PROGRESS and computes remaining_days)
-    $baseQuery = "SELECT enrollment_id, personnel_id, full_name, position_name,
-                         department, probation_start AS start_date, probation_end AS end_date,
-                         remaining_days, overall_status AS status,
-                         total_tasks, completed_tasks
-                  FROM vw_probation_dashboard";
-
-    $countQuery = "SELECT COUNT(*) AS total FROM vw_probation_dashboard";
-
     $where = '';
     $params = [];
 
-    if (!empty($search)) {
-        $where = " WHERE (full_name LIKE ? OR position_name LIKE ? OR department LIKE ?)";
-        $searchTerm = "%{$search}%";
-        $params = [$searchTerm, $searchTerm, $searchTerm];
+    // ลองใช้ view ก่อน ถ้าพัง (TiDB definer issue) ใช้ fallback query จาก base tables
+    try {
+        $baseQuery = "SELECT enrollment_id, personnel_id, full_name, position_name,
+                             department, probation_start AS start_date, probation_end AS end_date,
+                             remaining_days, overall_status AS status,
+                             total_tasks, completed_tasks
+                      FROM vw_probation_dashboard";
+        $countQuery = "SELECT COUNT(*) AS total FROM vw_probation_dashboard";
+
+        if (!empty($search)) {
+            $where = " WHERE (full_name LIKE ? OR position_name LIKE ? OR department LIKE ?)";
+            $searchTerm = "%{$search}%";
+            $params = [$searchTerm, $searchTerm, $searchTerm];
+        }
+
+        // Test the view first
+        $sql = $baseQuery . $where . " ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // Fallback: query จาก base tables โดยตรง (ไม่มี task_progress / stakeholder subqueries)
+        $baseQuery = "SELECT pe.enrollment_id, pe.personnel_id,
+                             CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                             pos.position_name, o.org_name AS department,
+                             pe.start_date, pe.end_date,
+                             DATEDIFF(pe.end_date, CURDATE()) AS remaining_days,
+                             pe.overall_status AS status,
+                             0 AS total_tasks, 0 AS completed_tasks
+                      FROM probation_enrollment pe
+                      JOIN personnel p ON pe.personnel_id = p.personnel_id
+                      LEFT JOIN organization o ON p.current_org_id = o.org_id
+                      LEFT JOIN position pos ON p.current_position_id = pos.position_id
+                      WHERE pe.overall_status = 'IN_PROGRESS'";
+        $countQuery = "SELECT COUNT(*) AS total FROM probation_enrollment WHERE overall_status = 'IN_PROGRESS'";
+
+        $where = '';
+        $params = [];
+        if (!empty($search)) {
+            $where = " AND (CONCAT(p.first_name, ' ', p.last_name) LIKE ? OR pos.position_name LIKE ? OR o.org_name LIKE ?)";
+            $searchTerm = "%{$search}%";
+            $params = [$searchTerm, $searchTerm, $searchTerm];
+        }
+
+        $sql = $baseQuery . $where . " ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Data query with ordering and pagination
-    $sql = $baseQuery . $where . " ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     // Count query for pagination
-    $countStmt = $pdo->prepare($countQuery . $where);
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
+    try {
+        $countStmt = $pdo->prepare($countQuery . $where);
+        $countStmt->execute($params);
+        $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
+    } catch (PDOException $e) {
+        $total = count($rows);
+    }
 
     // เพิ่มวันที่ภาษาไทยและนับ summary
     $inProgress = 0;
