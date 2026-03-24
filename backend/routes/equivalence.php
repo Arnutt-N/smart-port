@@ -107,9 +107,22 @@ function getEquivalenceList(PDO $pdo): void
     }
     unset($row);
 
+    // Summary จาก full dataset
+    $summaryStmt = $pdo->query("
+        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
+               SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days
+        FROM position_equivalence
+    ");
+    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
         'data' => $rows,
+        'summary' => [
+            'total' => $total,
+            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+            'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
+        ],
         'pagination' => [
             'total' => $total,
             'limit' => $limit,

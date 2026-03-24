@@ -128,25 +128,37 @@ function getProbationList(PDO $pdo): void
         $total = count($rows);
     }
 
-    // เพิ่มวันที่ภาษาไทยและนับ summary
+    // Summary: คำนวณจาก full dataset (ไม่ใช่ current page)
     $inProgress = 0;
     $nearDeadline = 0;
     $overdue = 0;
+    try {
+        $summaryStmt = $pdo->query("
+            SELECT
+                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) > 0 THEN 1 ELSE 0 END) AS in_progress,
+                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) BETWEEN 1 AND 30 THEN 1 ELSE 0 END) AS near_deadline,
+                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) <= 0 THEN 1 ELSE 0 END) AS overdue
+            FROM probation_enrollment
+            WHERE overall_status = 'IN_PROGRESS'
+        ");
+        $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
+        $inProgress = (int) ($summaryRow['in_progress'] ?? 0);
+        $nearDeadline = (int) ($summaryRow['near_deadline'] ?? 0);
+        $overdue = (int) ($summaryRow['overdue'] ?? 0);
+    } catch (PDOException $e) {
+        // fallback: นับจาก current page rows
+        foreach ($rows as $r) {
+            $rem = intval($r['remaining_days'] ?? 0);
+            if ($rem > 0) $inProgress++;
+            if ($rem >= 1 && $rem <= 30) $nearDeadline++;
+            if ($rem <= 0) $overdue++;
+        }
+    }
 
+    // เพิ่มวันที่ภาษาไทย
     foreach ($rows as &$row) {
         $row['start_date_thai'] = formatThaiDate($row['start_date']);
         $row['end_date_thai'] = formatThaiDate($row['end_date']);
-
-        $remaining = intval($row['remaining_days']);
-        if ($remaining > 0) {
-            $inProgress++;
-        }
-        if ($remaining >= 1 && $remaining <= 30) {
-            $nearDeadline++;
-        }
-        if ($remaining <= 0) {
-            $overdue++;
-        }
     }
     unset($row);
 

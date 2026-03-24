@@ -325,6 +325,7 @@ const ui = useUiStore()
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
+const summary = ref(null)
 const pagination = ref({ total: 0, limit: 20, offset: 0 })
 
 // Search with Thai IME guard
@@ -361,6 +362,7 @@ const deletingId = ref(null)
 
 // Computed stats
 const distinctPersonnelCount = computed(() => {
+  if (summary.value?.distinct_personnel != null) return summary.value.distinct_personnel
   const ids = new Set(rows.value.map(r => r.personnelId))
   return ids.size
 })
@@ -389,6 +391,7 @@ async function fetchData() {
       offset: pagination.value.offset,
     })
     rows.value = result.data
+    summary.value = result.summary || null
     pagination.value = result.pagination
   } catch (err) {
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
@@ -506,8 +509,8 @@ function onPersonnelInput() {
   }
   personnelTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/civil-servants?search=${encodeURIComponent(val)}&limit=10`)
-      personnelResults.value = result.data || result || []
+      const result = await api.get(`/personnel?search=${encodeURIComponent(val)}&limit=10`)
+      personnelResults.value = result.data || []
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []
@@ -517,7 +520,7 @@ function onPersonnelInput() {
 }
 
 function selectPersonnel(person) {
-  formData.value.personnel_id = person.servant_id
+  formData.value.personnel_id = person.personnel_id
   personnelSearch.value = person.full_name
   personnelResults.value = []
   showPersonnelDropdown.value = false
