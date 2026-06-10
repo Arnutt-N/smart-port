@@ -14,23 +14,30 @@ class QualificationEngine
 {
     private PDO $pdo;
 
+    /** ระดับเป้าหมายทั้งหมดที่แสดงในภาพรวม แยกตามประเภทตำแหน่ง */
+    private const OVERVIEW_LEVELS = [
+        'general' => ['O2', 'O3'],
+        'academic' => ['K2', 'K3', 'K4'],
+    ];
+
+    /** เกณฑ์ "ใกล้ถึงเกณฑ์" — เหลือ 1-90 วัน (ตรงกับ NEAR_THRESHOLD_DAYS ฝั่ง frontend) */
+    private const NEAR_THRESHOLD_DAYS = 90;
+
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
     }
 
     /**
-     * คำนวณคุณสมบัติเลื่อนระดับสำหรับบุคลากรทั้งหมดที่อยู่ในระดับต้นทาง
+     * สร้าง base SELECT query + parameters สำหรับ target level ที่กำหนด
+     * แชร์ระหว่าง computeForLevel และ computeOverview เพื่อไม่ให้ SQL ซ้ำสองก๊อปปี้
      *
      * @param string $targetLevel รหัสระดับเป้าหมาย (e.g. K2, K3, O2)
-     * @param string|null $search คำค้นหา (ชื่อ, นามสกุล, ตำแหน่ง)
-     * @param int $limit จำนวนรายการต่อหน้า
-     * @param int $offset เริ่มต้นจากรายการที่
-     * @return array ผลลัพธ์พร้อม data, summary, pagination
+     * @return array|null ['sql' => baseSelect, 'params' => params] หรือ null ถ้าไม่มี source levels
      */
-    public function computeForLevel(string $targetLevel, ?string $search, int $limit, int $offset): array
+    private function buildBaseQuery(string $targetLevel): ?array
     {
-        // Step 1: ดึง source level codes สำหรับ target level นี้
+        // ดึง source level codes สำหรับ target level นี้
         $stmt = $this->pdo->prepare(
             'SELECT DISTINCT source_level_code FROM promotion_criteria WHERE target_level_code = ? AND is_active = 1'
         );
@@ -38,15 +45,9 @@ class QualificationEngine
         $sourceLevels = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         if (empty($sourceLevels)) {
-            return [
-                'success' => true,
-                'data' => [],
-                'summary' => ['total' => 0, 'qualified' => 0, 'not_yet' => 0, 'check_data' => 0],
-                'pagination' => ['total' => 0, 'limit' => $limit, 'offset' => $offset, 'has_more' => false]
-            ];
+            return null;
         }
 
-        // Step 2: Build main query
         $placeholders = implode(',', array_fill(0, count($sourceLevels), '?'));
 
         $baseSelect = "
@@ -120,8 +121,36 @@ class QualificationEngine
         ";
 
         // Build params: targetLevel for JOIN, then source levels for IN clause
-        $params = [$targetLevel];
-        $params = array_merge($params, $sourceLevels);
+        $params = array_merge([$targetLevel], $sourceLevels);
+
+        return ['sql' => $baseSelect, 'params' => $params];
+    }
+
+    /**
+     * คำนวณคุณสมบัติเลื่อนระดับสำหรับบุคลากรทั้งหมดที่อยู่ในระดับต้นทาง
+     *
+     * @param string $targetLevel รหัสระดับเป้าหมาย (e.g. K2, K3, O2)
+     * @param string|null $search คำค้นหา (ชื่อ, นามสกุล, ตำแหน่ง)
+     * @param int $limit จำนวนรายการต่อหน้า
+     * @param int $offset เริ่มต้นจากรายการที่
+     * @return array ผลลัพธ์พร้อม data, summary, pagination
+     */
+    public function computeForLevel(string $targetLevel, ?string $search, int $limit, int $offset): array
+    {
+        // Step 1-2: สร้าง base query (แชร์ logic กับ computeOverview)
+        $base = $this->buildBaseQuery($targetLevel);
+
+        if ($base === null) {
+            return [
+                'success' => true,
+                'data' => [],
+                'summary' => ['total' => 0, 'qualified' => 0, 'not_yet' => 0, 'check_data' => 0],
+                'pagination' => ['total' => 0, 'limit' => $limit, 'offset' => $offset, 'has_more' => false]
+            ];
+        }
+
+        $baseSelect = $base['sql'];
+        $params = $base['params'];
 
         // Step 3: Apply search filter
         $searchClause = '';
@@ -189,6 +218,110 @@ class QualificationEngine
                 'offset' => $offset,
                 'has_more' => ($offset + $limit) < $total,
             ]
+        ];
+    }
+
+    /**
+     * สรุปภาพรวมบัญชีรายชื่อทุกระดับ (ทั่วไป + วิชาการ) จาก full dataset
+     * แทนการให้ frontend ยิงรายระดับแล้วรวมเลขเอง (ผิดเมื่อข้อมูลเกิน limit ต่อหน้า)
+     *
+     * @return array summary รวมทุกระดับ, by_level รายระดับ, top5 ใกล้ครบเกณฑ์ที่สุดข้ามระดับ
+     */
+    public function computeOverview(): array
+    {
+        $summary = [
+            'general_total' => 0,
+            'academic_total' => 0,
+            'qualified_total' => 0,
+            'near_qualified_total' => 0,
+            'not_yet_total' => 0,
+            'check_data_total' => 0,
+        ];
+        $byLevel = [];
+        $top5Pool = [];
+
+        foreach (self::OVERVIEW_LEVELS as $category => $levels) {
+            foreach ($levels as $level) {
+                $base = $this->buildBaseQuery($level);
+
+                // ระดับที่ไม่มีเกณฑ์ active — ใส่ค่าศูนย์ทั้งแถว ห้าม error
+                if ($base === null) {
+                    $byLevel[$level] = ['total' => 0, 'qualified' => 0, 'not_yet' => 0, 'check_data' => 0, 'near_qualified' => 0];
+                    continue;
+                }
+
+                // Summary ต่อระดับจาก full dataset (BETWEEN 1 AND 90 — NULL ไม่ถูกนับโดยธรรมชาติ)
+                $summarySql = "
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN sub.status = 'qualified' THEN 1 ELSE 0 END) AS qualified,
+                        SUM(CASE WHEN sub.status = 'not_yet' THEN 1 ELSE 0 END) AS not_yet,
+                        SUM(CASE WHEN sub.status = 'check_data' THEN 1 ELSE 0 END) AS check_data,
+                        SUM(CASE WHEN sub.remaining_days BETWEEN 1 AND " . self::NEAR_THRESHOLD_DAYS . " THEN 1 ELSE 0 END) AS near_qualified
+                    FROM ({$base['sql']}) AS sub
+                ";
+                $stmt = $this->pdo->prepare($summarySql);
+                $stmt->execute($base['params']);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                $levelSummary = [
+                    'total' => (int) ($row['total'] ?? 0),
+                    'qualified' => (int) ($row['qualified'] ?? 0),
+                    'not_yet' => (int) ($row['not_yet'] ?? 0),
+                    'check_data' => (int) ($row['check_data'] ?? 0),
+                    'near_qualified' => (int) ($row['near_qualified'] ?? 0),
+                ];
+                $byLevel[$level] = $levelSummary;
+
+                $summary[$category === 'general' ? 'general_total' : 'academic_total'] += $levelSummary['total'];
+                $summary['qualified_total'] += $levelSummary['qualified'];
+                $summary['near_qualified_total'] += $levelSummary['near_qualified'];
+                $summary['not_yet_total'] += $levelSummary['not_yet'];
+                $summary['check_data_total'] += $levelSummary['check_data'];
+
+                // Top 5 ของระดับนี้ — NULL remaining_days ไปท้ายสุด (ตรง logic ฝั่ง frontend เดิม)
+                $dataSql = "{$base['sql']} ORDER BY (remaining_days IS NULL), remaining_days ASC LIMIT 5";
+                $dataStmt = $this->pdo->prepare($dataSql);
+                $dataStmt->execute($base['params']);
+                $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Format fields ให้ตรงกับ data row ของ computeForLevel + ระบุระดับเป้าหมาย
+                foreach ($rows as &$r) {
+                    $r['target_level'] = $level;
+                    $r['qualification_date_thai'] = formatThaiDate($r['qualification_date']);
+                    $r['level_start_date_thai'] = formatThaiDate($r['current_level_start_date']);
+                    $r['current_level_name'] = getLevelName($r['current_level_code'] ?? '');
+                    $r['remaining_days'] = $r['remaining_days'] !== null ? (int) $r['remaining_days'] : null;
+                    $r['min_years'] = $r['min_years'] !== null ? (float) $r['min_years'] : null;
+                    $r['supportive_days'] = (int) $r['supportive_days'];
+                    $r['equivalence_days'] = (int) $r['equivalence_days'];
+                    $r['diverse_diff_count'] = (int) $r['diverse_diff_count'];
+                }
+                unset($r);
+
+                $top5Pool = array_merge($top5Pool, $rows);
+            }
+        }
+
+        // รวมทุกระดับ → เรียง remaining_days น้อยสุดก่อน (NULL ท้ายสุด) → ตัด 5 อันดับแรก
+        usort($top5Pool, function (array $a, array $b): int {
+            if ($a['remaining_days'] === null && $b['remaining_days'] === null) {
+                return 0;
+            }
+            if ($a['remaining_days'] === null) {
+                return 1;
+            }
+            if ($b['remaining_days'] === null) {
+                return -1;
+            }
+            return $a['remaining_days'] <=> $b['remaining_days'];
+        });
+
+        return [
+            'success' => true,
+            'summary' => $summary,
+            'by_level' => $byLevel,
+            'top5' => array_slice($top5Pool, 0, 5),
         ];
     }
 
