@@ -5,6 +5,7 @@
 // จัดการเส้นทาง API สำหรับบัญชีรายชื่อผู้มีคุณสมบัติเลื่อนระดับ
 //
 // Endpoints:
+//   GET /candidates/overview                 — สรุปภาพรวมทุกระดับ (ทั่วไป + วิชาการ) จาก full dataset
 //   GET /candidates/{targetLevel}            — รายชื่อบุคลากรพร้อมสถานะคุณสมบัติ
 //   GET /candidates/{targetLevel}/{id}       — รายละเอียดคุณสมบัติรายบุคคล
 // ============================================================================
@@ -25,6 +26,13 @@ function handleCandidates(PDO $pdo, string $method, array $path): void
     if ($method !== 'GET') {
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed']);
+        return;
+    }
+
+    // GET /candidates/overview — สรุปภาพรวมทุกระดับ (ต้องเช็คก่อน treat path[1] เป็น targetLevel)
+    if (strtolower($path[1] ?? '') === 'overview') {
+        $engine = new QualificationEngine($pdo);
+        echo json_encode($engine->computeOverview());
         return;
     }
 

@@ -107,10 +107,14 @@ function getEquivalenceList(PDO $pdo): void
     }
     unset($row);
 
-    // Summary จาก full dataset
+    // Summary จาก full dataset — แยกนับตามสถานะอนุมัติ
+    // distinct_personnel นับเฉพาะคนที่มีรายการ APPROVED จริง (ไม่นับ PENDING/REJECTED)
     $summaryStmt = $pdo->query("
-        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
-               SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days
+        SELECT COUNT(DISTINCT CASE WHEN approval_status = 'APPROVED' THEN personnel_id END) AS distinct_personnel,
+               SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days,
+               SUM(CASE WHEN approval_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
+               SUM(CASE WHEN approval_status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count,
+               SUM(CASE WHEN approval_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_count
         FROM position_equivalence
     ");
     $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
@@ -122,6 +126,9 @@ function getEquivalenceList(PDO $pdo): void
             'total' => $total,
             'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
             'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
+            'pending_count' => (int) ($summaryRow['pending_count'] ?? 0),
+            'approved_count' => (int) ($summaryRow['approved_count'] ?? 0),
+            'rejected_count' => (int) ($summaryRow['rejected_count'] ?? 0),
         ],
         'pagination' => [
             'total' => $total,
