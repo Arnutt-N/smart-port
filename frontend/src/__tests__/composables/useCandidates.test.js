@@ -53,6 +53,73 @@ describe('useCandidates', () => {
     expect(url).toContain('offset=20')
   })
 
+  it('fetchOverview calls the overview endpoint', async () => {
+    mockGet.mockResolvedValue({ success: true, summary: {}, by_level: {}, top5: [] })
+
+    const { fetchOverview } = useCandidates()
+    await fetchOverview()
+
+    expect(mockGet).toHaveBeenCalledTimes(1)
+    expect(mockGet.mock.calls[0][0]).toBe('/candidates/overview')
+  })
+
+  it('fetchOverview passes summary through and maps top5 rows', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      summary: {
+        general_total: 2,
+        academic_total: 5,
+        qualified_total: 6,
+        near_qualified_total: 0,
+        not_yet_total: 1,
+        check_data_total: 0,
+      },
+      by_level: { K2: { total: 3 } },
+      top5: [{
+        personnel_id: 7,
+        full_name: 'สมหญิง ขยัน',
+        current_position: 'เจ้าพนักงานธุรการ',
+        current_level_code: 'O1',
+        current_level_name: 'ปฏิบัติงาน',
+        level_start_date_thai: '1 ม.ค. 2566',
+        qualification_date_thai: '1 ม.ค. 2569',
+        remaining_days: 10,
+        status: 'not_yet',
+        department: 'กองกลาง',
+        supportive_days: 15,
+        equivalence_days: 30,
+        diverse_status: 'DIFF_PASS',
+        target_level: 'O2',
+      }],
+    })
+
+    const { fetchOverview } = useCandidates()
+    const result = await fetchOverview()
+
+    expect(result.summary.general_total).toBe(2)
+    expect(result.summary.qualified_total).toBe(6)
+    expect(result.byLevel.K2.total).toBe(3)
+    expect(result.top5).toHaveLength(1)
+    expect(result.top5[0].name).toBe('สมหญิง ขยัน')
+    expect(result.top5[0].currentLevelName).toBe('ปฏิบัติงาน')
+    expect(result.top5[0].remainingDays).toBe(10)
+    expect(result.top5[0].status).toBe('NEAR_MET')
+    expect(result.top5[0].supportiveDays).toBe(15)
+    expect(result.top5[0].equivalenceDays).toBe(30)
+    expect(result.top5[0].diverseStatus).toBe('DIFF_PASS')
+  })
+
+  it('fetchOverview tolerates missing fields in response', async () => {
+    mockGet.mockResolvedValue({ success: true })
+
+    const { fetchOverview } = useCandidates()
+    const result = await fetchOverview()
+
+    expect(result.summary).toEqual({})
+    expect(result.byLevel).toEqual({})
+    expect(result.top5).toEqual([])
+  })
+
   it('maps snake_case API response to camelCase', async () => {
     mockGet.mockResolvedValue({
       success: true,

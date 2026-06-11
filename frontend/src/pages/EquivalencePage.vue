@@ -26,7 +26,7 @@
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard
         label="คำขอทั้งหมด"
-        :value="pagination.total"
+        :value="totalCount"
         :icon="FileText"
         icon-bg-class="bg-blue-50"
         icon-class="text-blue-600"
@@ -529,13 +529,23 @@ const rejectingId = ref(null)
 const showViewModal = ref(false)
 const viewingRecord = ref(null)
 
-// Computed status counts from current rows
+// Status counts — ใช้ summary จาก backend (full dataset) ถ้ามี, fallback นับจาก rows หน้าปัจจุบัน
 const statusCounts = computed(() => {
+  if (summary.value?.pending_count != null) {
+    return {
+      pending: summary.value.pending_count ?? 0,
+      approved: summary.value.approved_count ?? 0,
+      rejected: summary.value.rejected_count ?? 0,
+    }
+  }
   const pending = rows.value.filter(r => r.approvalStatus === 'PENDING').length
   const approved = rows.value.filter(r => r.approvalStatus === 'APPROVED').length
   const rejected = rows.value.filter(r => r.approvalStatus === 'REJECTED').length
   return { pending, approved, rejected }
 })
+
+// คำขอทั้งหมด — full dataset จาก summary เพื่อให้สอดคล้องกับ 3 cards ข้างบนเมื่อมี search
+const totalCount = computed(() => summary.value?.total ?? pagination.value.total)
 
 // ==================== Data fetching ====================
 

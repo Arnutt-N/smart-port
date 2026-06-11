@@ -118,17 +118,13 @@
                 <StatusBadge :status="row.status" />
               </td>
               <td class="px-6 py-3 text-sm">
-                <div class="flex items-center gap-2">
-                  <button class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="ดูรายละเอียด">
-                    <Eye class="w-4 h-4" />
-                  </button>
-                  <button class="p-1 text-gray-400 hover:text-yellow-600 transition-colors" title="แก้ไข">
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <button class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ลบ">
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  @click="openView(row)"
+                  class="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                  title="ดูรายละเอียด"
+                >
+                  <Eye class="w-4 h-4" />
+                </button>
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -152,6 +148,66 @@
       :offset="pagination.offset"
       @update:offset="val => { pagination.offset = val; fetchData() }"
     />
+
+    <!-- ==================== View Modal ==================== -->
+    <Teleport to="body">
+      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">รายละเอียดการทดลองปฏิบัติราชการ</h2>
+          </div>
+          <div class="px-6 py-4 space-y-3">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p class="text-xs text-gray-500">ชื่อ-สกุล</p>
+                <p class="text-sm font-medium text-gray-900">{{ viewingRow?.name }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">สถานะ</p>
+                <StatusBadge v-if="viewingRow" :status="viewingRow.status" />
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">ตำแหน่ง</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.position || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">หน่วยงาน</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.department || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันเริ่มทดลอง</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.startDate || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันครบกำหนด</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.endDate || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันคงเหลือ</p>
+                <p class="text-sm" :class="getRemainingDaysClass(viewingRow?.remainingDays)">
+                  {{ formatRemainingDays(viewingRow?.remainingDays) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">ภารกิจ</p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.totalTasks != null ? `${viewingRow.completedTasks ?? 0}/${viewingRow.totalTasks} ภารกิจ` : '-' }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <button
+              @click="showViewModal = false"
+              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ปิด
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -164,7 +220,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Eye, Pencil, Trash2, Search } from 'lucide-vue-next'
+import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Eye, Search } from 'lucide-vue-next'
 
 const { fetchList } = useProbation()
 
@@ -177,6 +233,15 @@ const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 // Search with 300ms debounce
 const searchQuery = ref('')
 let searchTimeout = null
+
+// View modal state
+const showViewModal = ref(false)
+const viewingRow = ref(null)
+
+function openView(row) {
+  viewingRow.value = row
+  showViewModal.value = true
+}
 
 async function fetchData() {
   loading.value = true
