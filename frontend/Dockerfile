@@ -12,13 +12,13 @@ ARG VITE_API_URL=http://localhost:8000
 # กำหนด working directory ภายใน container
 WORKDIR /app
 
-# คัดลอกเฉพาะ package.json เท่านั้น เพื่อบังคับให้ npm install
-# สร้าง dependency tree ใหม่ที่เหมาะสมกับ Linux
-COPY package.json ./
+# คัดลอก package.json พร้อม lockfile — npm ci เลือก optional deps
+# ตาม platform ของ container เอง (lockfile ใช้ข้ามแพลตฟอร์มได้)
+# การ resolve ใหม่โดยไม่มี lockfile เสี่ยง registry breakage เช่น workspace:* protocol
+COPY package.json package-lock.json ./
 
-# ติดตั้ง dependencies ใหม่สำหรับ Linux platform
-# ไม่ copy lockfile เพราะสร้างจาก Windows — ให้ npm resolve ใหม่
-RUN npm install
+# ติดตั้งตาม lockfile แบบ deterministic
+RUN npm ci
 
 # คัดลอกไฟล์ source code ทั้งหมดเข้ามาใน image
 # (ไฟล์ที่ไม่จำเป็นจะถูกกรองออกโดย .dockerignore)
