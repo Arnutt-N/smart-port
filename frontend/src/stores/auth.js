@@ -33,10 +33,10 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(readStoredJson('user'))
 
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
+  const isAdmin = computed(() => user.value?.role === 'admin')
 
   function isTokenValid() {
     if (!token.value) return false
-    if (token.value.startsWith('demo-token-')) return true
     try {
       const payload = JSON.parse(atob(token.value.split('.')[1]))
       return payload.exp * 1000 > Date.now()
@@ -66,10 +66,6 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function demoLogin() {
-    await login({ email: 'admin', password: 'admin123' })
-  }
-
   function logout() {
     token.value = ''
     refreshToken.value = ''
@@ -81,5 +77,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
   }
 
-  return { token, user, isAuthenticated, isTokenValid, setAuth, login, demoLogin, logout }
+  return { token, user, isAuthenticated, isAdmin, isTokenValid, setAuth, login, logout }
 })

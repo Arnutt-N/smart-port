@@ -137,10 +137,11 @@
                     <button @click="openEdit(row)" class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
                       <Pencil class="w-4 h-4" />
                     </button>
-                    <button @click="openApprove(row)" class="p-1 text-gray-400 hover:text-green-600 transition-colors" title="อนุมัติ">
+                    <!-- อนุมัติ/ไม่อนุมัติ — admin เท่านั้น (backend เช็ค role ซ้ำอีกชั้น) -->
+                    <button v-if="auth.isAdmin" @click="openApprove(row)" class="p-1 text-gray-400 hover:text-green-600 transition-colors" title="อนุมัติ">
                       <Check class="w-4 h-4" />
                     </button>
-                    <button @click="confirmReject(row.equivalenceId)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ไม่อนุมัติ">
+                    <button v-if="auth.isAdmin" @click="confirmReject(row.equivalenceId)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ไม่อนุมัติ">
                       <X class="w-4 h-4" />
                     </button>
                   </template>
@@ -468,6 +469,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useEquivalence } from '@/composables/useEquivalence.js'
 import { useApi } from '@/composables/useApi.js'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -481,6 +483,7 @@ import {
 const { fetchList, create, update, approve, reject } = useEquivalence()
 const api = useApi()
 const ui = useUiStore()
+const auth = useAuthStore()
 
 // Data state
 const loading = ref(false)

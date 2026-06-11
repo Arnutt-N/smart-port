@@ -52,6 +52,12 @@ const routes = [
         props: { title: 'การจัดการระบบ', description: 'การจัดการระบบ - กำลังพัฒนา' },
       },
       {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/pages/UserManagementPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'time-counting',
         name: 'time-counting',
         component: () => import('@/pages/SupportivePage.vue'),
@@ -100,6 +106,11 @@ router.beforeEach(async (to) => {
   }
 
   if (to.path === '/login' && auth.isAuthenticated) {
+    return '/dashboard'
+  }
+
+  // หน้า admin only — operator เด้งกลับ dashboard
+  if (to.meta.requiresAdmin && auth.user?.role !== 'admin') {
     return '/dashboard'
   }
 })

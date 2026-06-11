@@ -29,17 +29,17 @@
         <!-- Login Form -->
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">อีเมล</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้</label>
             <div class="relative">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <AtSign class="h-5 w-5 text-gray-400" />
+                <User class="h-5 w-5 text-gray-400" />
               </div>
               <!-- #1: Input focus animation -->
               <input
-                v-model="form.email"
-                type="email"
+                v-model="form.username"
+                type="text"
                 class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:shadow-lg focus:shadow-blue-500/10 focus:-translate-y-px"
-                placeholder="กรุณาใส่อีเมลของคุณ"
+                placeholder="กรุณาใส่ชื่อผู้ใช้ของคุณ"
                 autocomplete="username"
               />
             </div>
@@ -87,23 +87,6 @@
             {{ loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ' }}
           </button>
         </form>
-
-        <!-- #7: Compact demo section -->
-        <div class="mt-5 pt-4 border-t border-gray-200">
-          <div class="flex items-center gap-3 mb-3 px-1">
-            <div class="flex-1">
-              <p class="text-[11px] text-gray-400">ทดสอบ: <span class="text-gray-500">admin@smartport.gov.th</span> / <span class="text-gray-500">admin123</span></p>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button @click="fillDemo" class="flex-1 py-2 text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 rounded-lg transition-all cursor-pointer">
-              กรอกข้อมูลตัวอย่าง
-            </button>
-            <button @click="skipLogin" class="flex-1 py-2 text-xs font-medium text-gray-400 hover:bg-gray-50 hover:text-gray-600 rounded-lg transition-all cursor-pointer">
-              ข้ามการเข้าสู่ระบบ
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -113,12 +96,12 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
-import { Shield, AtSign, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-vue-next'
+import { Shield, User, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-vue-next'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const form = reactive({ email: '', password: '' })
+const form = reactive({ username: '', password: '' })
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
@@ -128,26 +111,7 @@ async function handleLogin() {
   errorMsg.value = ''
   loading.value = true
   try {
-    await auth.login({ email: form.email, password: form.password })
-    router.push('/dashboard')
-  } catch (e) {
-    errorMsg.value = e.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'
-  } finally {
-    loading.value = false
-  }
-}
-
-function fillDemo() {
-  form.email = 'admin@smartport.gov.th'
-  form.password = 'admin123'
-}
-
-async function skipLogin() {
-  loading.value = true
-  errorMsg.value = ''
-  try {
-    auth.logout()
-    await auth.demoLogin()
+    await auth.login({ username: form.username, password: form.password })
     router.push('/dashboard')
   } catch (e) {
     errorMsg.value = e.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'

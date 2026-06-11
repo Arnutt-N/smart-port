@@ -37,8 +37,8 @@
         >
           <!-- User info header -->
           <div class="px-4 py-3 border-b border-gray-100">
-            <p class="text-sm font-medium text-gray-900">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">{{ auth.user?.email || 'admin@smartport.gov.th' }}</p>
+            <p class="text-sm font-medium text-gray-900">{{ auth.user?.name || 'ผู้ใช้' }}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{{ auth.user?.email || auth.user?.username || '' }}</p>
           </div>
 
           <!-- Menu items -->
@@ -93,6 +93,7 @@ const pageTitles = {
   '/dashboard': 'Dashboard',
   '/probation-end': 'พ้นทดลองปฏิบัติราชการ',
   '/candidates': 'Candidate Lists',
+  '/users': 'จัดการผู้ใช้',
   '/analytics': 'การวิเคราะห์ข้อมูล',
   '/admin': 'การจัดการระบบ',
   '/time-counting': 'การนับเวลาเกื้อกูล',
