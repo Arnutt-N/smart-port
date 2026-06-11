@@ -8,12 +8,12 @@ function base64url_decode($data) {
     return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
 }
 
-function generateJWT($user_id) {
+function generateJWT($user_id, $role = 'operator') {
     $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
     $payload = json_encode([
         'iat' => time(),
         'exp' => time() + 3600, // หมดอายุ 1 ชม.
-        'data' => ['user_id' => $user_id]
+        'data' => ['user_id' => $user_id, 'role' => $role]
     ]);
     
     $headerEncoded = base64url_encode($header);
@@ -56,24 +56,49 @@ function validateJWT($token) {
     return $payload['data'];
 }
 
+// แยก token จากค่า header "Bearer <token>" — รองรับ prefix ทุกตัวพิมพ์ (Bearer/bearer)
+function extractBearerToken(string $headerValue): ?string {
+    if (stripos($headerValue, 'Bearer ') === 0) {
+        return substr($headerValue, 7);
+    }
+    return null;
+}
+
 function getAuthHeader() {
     // Check for Authorization header in different ways
     if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        return str_replace('Bearer ', '', $_SERVER['HTTP_AUTHORIZATION']);
+        return extractBearerToken($_SERVER['HTTP_AUTHORIZATION']);
     }
 
     // Apache rewrite sets REDIRECT_HTTP_AUTHORIZATION
     if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        return str_replace('Bearer ', '', $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+        return extractBearerToken($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
     }
 
     if (function_exists('apache_request_headers')) {
         $headers = apache_request_headers();
         if (isset($headers['Authorization'])) {
-            return str_replace('Bearer ', '', $headers['Authorization']);
+            return extractBearerToken($headers['Authorization']);
         }
     }
 
     return null;
+}
+
+// ดึงข้อมูล user จาก JWT ของ request ปัจจุบัน — คืน ['user_id'=>.., 'role'=>..] หรือ null
+function currentUser(): ?array {
+    $payload = validateJWT(getAuthHeader());
+    return is_array($payload) ? $payload : null;
+}
+
+// บังคับ role admin — ส่ง 403 แล้วจบ request ถ้าไม่ใช่
+function requireAdmin(): array {
+    $user = currentUser();
+    if (!$user || ($user['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['error' => 'ต้องเป็นผู้ดูแลระบบเท่านั้น']);
+        exit;
+    }
+    return $user;
 }
 ?>
