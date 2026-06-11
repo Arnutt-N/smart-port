@@ -79,10 +79,12 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <p class="text-white text-sm font-medium truncate">{{ auth.user?.name || 'ผู้ดูแลระบบ' }}</p>
-              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium shrink-0">Admin</span>
+              <p class="text-white text-sm font-medium truncate">{{ auth.user?.name || 'ผู้ใช้' }}</p>
+              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium shrink-0">
+                {{ auth.user?.role === 'admin' ? 'Admin' : 'Operator' }}
+              </span>
             </div>
-            <p class="text-gray-400 text-xs truncate mt-0.5">{{ auth.user?.email || 'admin@smartport.com' }}</p>
+            <p class="text-gray-400 text-xs truncate mt-0.5">{{ auth.user?.email || auth.user?.username || '' }}</p>
           </div>
         </div>
       </div>
@@ -91,13 +93,13 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import {
   X, BookOpen, LayoutDashboard, UserCheck, Users, Clock, Award, UserMinus,
-  Briefcase, FileText, Trophy, ChevronRight,
+  Briefcase, FileText, Trophy, ChevronRight, UserCog,
 } from 'lucide-vue-next'
 
 defineProps({ open: Boolean })
@@ -107,7 +109,7 @@ const route = useRoute()
 const auth = useAuthStore()
 const openSubmenus = reactive(new Set())
 
-const menuItems = [
+const menuItems = computed(() => [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, to: '/probation-end' },
   {
@@ -130,10 +132,14 @@ const menuItems = [
   },
   { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },
   { id: 'retirement-report', label: 'รายงานผู้เกษียณ', icon: UserMinus, to: '/retirement-report' },
+  // เมนูจัดการผู้ใช้ — admin เท่านั้น
+  ...(auth.user?.role === 'admin'
+    ? [{ id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' }]
+    : []),
   { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
   { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/analytics' },
   { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/analytics' },
-]
+])
 
 function toggleSubmenu(id) {
   if (openSubmenus.has(id)) {
@@ -146,4 +152,5 @@ function toggleSubmenu(id) {
 function isParentActive(item) {
   return item.children?.some((c) => route.path === c.to)
 }
+
 </script>
