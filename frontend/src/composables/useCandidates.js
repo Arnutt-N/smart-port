@@ -18,6 +18,17 @@ export function useCandidates() {
     }
   }
 
+  // ภาพรวมทุกระดับจาก aggregate ฝั่ง backend (แทนการยิง 5 requests แล้วรวมเลขฝั่ง client)
+  async function fetchOverview() {
+    const result = await api.get('/candidates/overview')
+    return {
+      success: result.success,
+      summary: result.summary || {},
+      byLevel: result.by_level || {},
+      top5: (result.top5 || []).map(mapCandidateRow),
+    }
+  }
+
   // คำนวณสถานะแสดงผลจาก remaining_days และ backend status
   function computeDisplayStatus(backendStatus, remainingDays) {
     const days = (remainingDays !== null && remainingDays !== undefined) ? parseInt(remainingDays, 10) : null
@@ -59,5 +70,5 @@ export function useCandidates() {
     }
   }
 
-  return { fetchByLevel }
+  return { fetchByLevel, fetchOverview }
 }

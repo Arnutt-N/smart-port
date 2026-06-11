@@ -6,6 +6,13 @@
     <h3 class="text-base font-medium text-gray-900 mb-1">{{ title }}</h3>
     <p class="text-sm text-gray-500 text-center max-w-sm">{{ description }}</p>
     <slot />
+    <button
+      v-if="actionLabel"
+      class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+      @click="emit('action')"
+    >
+      {{ actionLabel }}
+    </button>
   </div>
 </template>
 
@@ -13,8 +20,11 @@
 import { Inbox } from 'lucide-vue-next'
 
 defineProps({
-  icon: { type: Object, default: () => Inbox },
+  icon: { type: [Object, Function], default: () => Inbox },
   title: { type: String, default: 'ไม่พบข้อมูล' },
   description: { type: String, default: 'ยังไม่มีข้อมูลในขณะนี้' },
+  actionLabel: { type: String, default: '' },
 })
+
+const emit = defineEmits(['action'])
 </script>

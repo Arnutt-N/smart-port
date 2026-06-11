@@ -13,17 +13,6 @@
         <h1 class="text-2xl font-bold text-gray-900">{{ currentConfig.title }}</h1>
         <p class="text-sm text-gray-500 mt-1">{{ currentConfig.subtitle }}</p>
       </div>
-      <div v-if="hasSubTabs" class="flex gap-2">
-        <button class="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg">
-          <Download class="w-4 h-4" /> ส่งออก
-        </button>
-        <button class="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg">
-          <Upload class="w-4 h-4" /> นำเข้า
-        </button>
-        <button class="flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg">
-          <Plus class="w-4 h-4" /> เพิ่มรายชื่อ
-        </button>
-      </div>
     </div>
 
     <!-- ==================== OVERVIEW SECTION ==================== -->
@@ -205,9 +194,6 @@
             @input="onSearchInput"
           />
         </div>
-        <button class="flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-          ตัวกรอง
-        </button>
       </div>
 
       <!-- Loading state -->
@@ -277,17 +263,13 @@
                   <StatusBadge :status="row.status" />
                 </td>
                 <td class="px-6 py-3">
-                  <div class="flex items-center gap-2">
-                    <button class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded" title="ดูรายละเอียด">
-                      <Eye class="w-4 h-4" />
-                    </button>
-                    <button class="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded" title="แก้ไข">
-                      <Pencil class="w-4 h-4" />
-                    </button>
-                    <button class="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="ลบ">
-                      <Trash2 class="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    @click="openView(row)"
+                    class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+                    title="ดูรายละเอียด"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
                 </td>
               </tr>
               <tr v-if="rows.length === 0">
@@ -311,6 +293,77 @@
         />
       </template>
     </template>
+
+    <!-- ==================== View Modal ==================== -->
+    <Teleport to="body">
+      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">รายละเอียดผู้มีคุณสมบัติ</h2>
+          </div>
+          <div class="px-6 py-4 space-y-3">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p class="text-xs text-gray-500">ชื่อ-สกุล</p>
+                <p class="text-sm font-medium text-gray-900">{{ viewingRow?.name }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">สถานะ</p>
+                <StatusBadge v-if="viewingRow" :status="viewingRow.status" />
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">ตำแหน่งปัจจุบัน</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.currentPosition || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">ระดับตำแหน่ง</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.currentLevelName || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">สังกัด</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.department || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันเข้าสู่ระดับปัจจุบัน</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.levelStartDate || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันที่ครบกำหนด</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.qualificationDate || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันคงเหลือ</p>
+                <p class="text-sm" :class="getCandidateRemainingDaysClass(viewingRow?.remainingDays)">
+                  {{ formatRemainingDays(viewingRow?.remainingDays) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันเกื้อกูล</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.supportiveDays > 0 ? `${viewingRow.supportiveDays} วัน` : '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">วันเทียบ ตน.</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.equivalenceDays > 0 ? `${viewingRow.equivalenceDays} วัน` : '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500">สถานะ 3 ต่าง</p>
+                <StatusBadge v-if="viewingRow?.diverseStatus" :status="viewingRow.diverseStatus" />
+                <p v-else class="text-sm text-gray-400">-</p>
+              </div>
+            </div>
+          </div>
+          <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <button
+              @click="showViewModal = false"
+              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ปิด
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -325,15 +378,14 @@ import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import {
   Users, UserCheck, AlertCircle, Clock, Timer, Loader, Home,
-  Download, Upload, Plus, Eye, Pencil, Trash2,
-  Construction
+  Eye, Construction
 } from 'lucide-vue-next'
 
 const props = defineProps({
   section: { type: String, default: 'overview' },
 })
 
-const { fetchByLevel } = useCandidates()
+const { fetchByLevel, fetchOverview } = useCandidates()
 
 // Sub-tab state (reactive, not router per D-04)
 const activeSubTab = ref(null)
@@ -349,10 +401,19 @@ const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 const searchQuery = ref('')
 let searchTimeout = null
 
-// Overview state (separate because it merges multiple API calls)
+// Overview state
 const overviewLoading = ref(false)
 const overviewError = ref(null)
 const overviewData = ref(null)
+
+// View modal state
+const showViewModal = ref(false)
+const viewingRow = ref(null)
+
+function openView(row) {
+  viewingRow.value = row
+  showViewModal.value = true
+}
 
 // Configuration maps
 const subTabConfig = {
@@ -423,57 +484,21 @@ async function fetchData() {
   }
 }
 
-// Fetch overview data (Promise.allSettled for all 5 levels per D-08)
+// Fetch overview data — aggregate จาก backend ครั้งเดียว (เลขถูกต้องทั้ง dataset เสมอ)
 async function fetchOverviewData() {
   overviewLoading.value = true
   overviewError.value = null
   try {
-    const levels = ['O2', 'O3', 'K2', 'K3', 'K4']
-    const results = await Promise.allSettled(
-      levels.map(level => fetchByLevel(level, { limit: 100, offset: 0 }))
-    )
-
-    // Extract fulfilled results mapped by level
-    const dataByLevel = {}
-    levels.forEach((level, i) => {
-      if (results[i].status === 'fulfilled') {
-        dataByLevel[level] = results[i].value
-      } else {
-        dataByLevel[level] = { data: [], summary: { total: 0, qualified: 0, not_yet: 0, check_data: 0 } }
-      }
-    })
-
-    const generalTotal = (dataByLevel.O2.summary?.total || 0) + (dataByLevel.O3.summary?.total || 0)
-    const academicTotal = (dataByLevel.K2.summary?.total || 0) + (dataByLevel.K3.summary?.total || 0) + (dataByLevel.K4.summary?.total || 0)
-
-    const allSummaries = Object.values(dataByLevel).map(d => d.summary || {})
-    const qualifiedTotal = allSummaries.reduce((sum, s) => sum + (s.qualified || 0), 0)
-    const notYetTotal = allSummaries.reduce((sum, s) => sum + (s.not_yet || 0), 0)
-    const checkDataTotal = allSummaries.reduce((sum, s) => sum + (s.check_data || 0), 0)
-
-    // Top 5 nearest deadline: concatenate all data, sort by remainingDays asc (null last), take 5
-    const allRows = Object.values(dataByLevel).flatMap(d => d.data || [])
-    allRows.sort((a, b) => {
-      if (a.remainingDays === null || a.remainingDays === undefined) return 1
-      if (b.remainingDays === null || b.remainingDays === undefined) return -1
-      return a.remainingDays - b.remainingDays
-    })
-    const top5 = allRows.slice(0, 5)
-
-    // ใกล้ถึงเกณฑ์: เหลือ 1-90 วัน (ยังไม่ถึงแต่ใกล้แล้ว)
-    const NEAR_THRESHOLD_DAYS = 90
-    const nearQualifiedTotal = allRows.filter(r =>
-      r.remainingDays != null && r.remainingDays > 0 && r.remainingDays <= NEAR_THRESHOLD_DAYS
-    ).length
-
+    const result = await fetchOverview()
+    const s = result.summary
     overviewData.value = {
-      generalTotal,
-      academicTotal,
-      qualifiedTotal,
-      nearQualifiedTotal,
-      notYetTotal,
-      checkDataTotal,
-      top5,
+      generalTotal: s.general_total || 0,
+      academicTotal: s.academic_total || 0,
+      qualifiedTotal: s.qualified_total || 0,
+      nearQualifiedTotal: s.near_qualified_total || 0,
+      notYetTotal: s.not_yet_total || 0,
+      checkDataTotal: s.check_data_total || 0,
+      top5: result.top5,
     }
   } catch (err) {
     overviewError.value = err.message || 'ไม่สามารถโหลดข้อมูลภาพรวมได้'
