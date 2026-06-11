@@ -11,14 +11,21 @@ function env($key, $default = '') {
 
 header('Content-Type: application/json; charset=UTF-8');
 
-// JWT Secret — อ่านจาก env var ก่อน ถ้าไม่มีใช้ค่า default (dev only)
-define('JWT_SECRET', env('JWT_SECRET', 'your_secret_key_here'));
+// JWT Secret — ต้องมาจาก env var เท่านั้น
+// ห้ามมี default: ค่า fallback ใน source สาธารณะ = ใครก็ forge token ได้
+$jwtSecret = env('JWT_SECRET', '');
+if ($jwtSecret === '') {
+    http_response_code(500);
+    echo json_encode(['error' => 'Server configuration error']);
+    exit;
+}
+define('JWT_SECRET', $jwtSecret);
 define('UPLOAD_DIR', __DIR__ . '/uploads/');
 
 // ============================================================================
 // Lazy PDO Connection
 // สร้าง connection เฉพาะเมื่อ route ต้องใช้ DB จริงๆ
-// ช่วยให้ login (hardcoded) เร็วขึ้นมากเพราะไม่ต้องรอ TiDB SSL handshake
+// (OPTIONS preflight และ error responses ไม่ต้องรอ TiDB SSL handshake)
 // ============================================================================
 $pdo = null;
 

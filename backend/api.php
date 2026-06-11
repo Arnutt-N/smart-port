@@ -32,8 +32,8 @@ if ($path[0] === 'api') {
 
 $token = getAuthHeader();
 
-// Skip authentication for login and options
-if (!in_array($path[0], ['login', 'auth']) && $method !== 'OPTIONS') {
+// Skip authentication for auth endpoints and options
+if ($path[0] !== 'auth' && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -43,55 +43,15 @@ if (!in_array($path[0], ['login', 'auth']) && $method !== 'OPTIONS') {
 
 switch ($path[0]) {
     case 'auth':
-        if ($path[1] === 'login' && $method == 'POST') {
-            $data = json_decode(file_get_contents('php://input'), true);
-
-            // รองรับทั้ง email/password และ username/password
-            $email = $data['email'] ?? $data['username'] ?? '';
-            $password = $data['password'] ?? '';
-
-            // Simple validation (ควรเช็คกับ database จริง)
-            if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
-                $token = generateJWT(1); // user_id = 1
-                echo json_encode([
-                    'token' => $token,
-                    'user' => [
-                        'id' => 1,
-                        'email' => 'admin@smartport.gov.th',
-                        'name' => 'Administrator'
-                    ]
-                ]);
-            } else {
-                http_response_code(401);
-                echo json_encode(['error' => 'Invalid credentials']);
-            }
-        }
+        $pdo = getDB();
+        include __DIR__ . '/routes/auth.php';
+        handleAuth($pdo, $method, $path);
         break;
 
-    case 'login':
-        if ($method == 'POST') {
-            $data = json_decode(file_get_contents('php://input'), true);
-
-            // รองรับทั้ง email/password และ username/password
-            $email = $data['email'] ?? $data['username'] ?? '';
-            $password = $data['password'] ?? '';
-
-            // Simple validation (ควรเช็คกับ database จริง)
-            if (($email == 'admin@smartport.gov.th' || $email == 'admin') && $password == 'admin123') {
-                $token = generateJWT(1); // user_id = 1
-                echo json_encode([
-                    'token' => $token,
-                    'user' => [
-                        'id' => 1,
-                        'email' => 'admin@smartport.gov.th',
-                        'name' => 'Administrator'
-                    ]
-                ]);
-            } else {
-                http_response_code(401);
-                echo json_encode(['error' => 'Invalid credentials']);
-            }
-        }
+    case 'users':
+        $pdo = getDB();
+        include __DIR__ . '/routes/users.php';
+        handleUsers($pdo, $method, $path);
         break;
 
     case 'profile':

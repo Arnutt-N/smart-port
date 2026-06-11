@@ -66,8 +66,9 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
 function getEquivalenceList(PDO $pdo): void
 {
     $personnelId = $_GET['personnel_id'] ?? null;
-    $limit = intval($_GET['limit'] ?? 20);
-    $offset = intval($_GET['offset'] ?? 0);
+    // clamp กัน limit มหาศาล / offset ติดลบ
+    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
+    $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $baseQuery = "SELECT pe.*,
                          CONCAT(p.first_name, ' ', p.last_name) AS full_name,
@@ -193,8 +194,14 @@ function createEquivalence(PDO $pdo): void
     // คำนวณ request_total_days จากวันที่เริ่มต้นและสิ้นสุด (DATEDIFF+1)
     $requestTotalDays = null;
     if (!empty($data['request_start_date']) && !empty($data['request_end_date'])) {
-        $startDate = new DateTime($data['request_start_date']);
-        $endDate = new DateTime($data['request_end_date']);
+        try {
+            $startDate = new DateTime($data['request_start_date']);
+            $endDate = new DateTime($data['request_end_date']);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
         $requestTotalDays = $endDate->diff($startDate)->days + 1;
     }
 
@@ -249,6 +256,9 @@ function updateEquivalence(PDO $pdo, int $id): void
     $newStatus = $data['approval_status'] ?? null;
 
     if ($newStatus !== null) {
+        // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (operator แก้ field ปกติได้)
+        $approver = requireAdmin();
+
         // ตรวจสอบ transition ที่อนุญาต
         $validTransitions = ['PENDING' => ['APPROVED', 'REJECTED']];
         $currentStatus = $current['approval_status'];
@@ -268,14 +278,18 @@ function updateEquivalence(PDO $pdo, int $id): void
             }
 
             // คำนวณ approved_total_days (DATEDIFF+1)
-            $approvedStart = new DateTime($data['approved_start_date']);
-            $approvedEnd = new DateTime($data['approved_end_date']);
+            try {
+                $approvedStart = new DateTime($data['approved_start_date']);
+                $approvedEnd = new DateTime($data['approved_end_date']);
+            } catch (Exception $e) {
+                http_response_code(400);
+                echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+                return;
+            }
             $approvedTotalDays = $approvedEnd->diff($approvedStart)->days + 1;
 
-            // ดึง user_id จาก JWT สำหรับ approved_by
-            $token = getAuthHeader();
-            $payload = validateJWT($token);
-            $userId = $payload['user_id'] ?? null;
+            // ผู้อนุมัติจาก JWT (ผ่าน requireAdmin แล้ว) สำหรับ approved_by
+            $userId = $approver['user_id'] ?? null;
 
             $sql = "UPDATE position_equivalence
                     SET approval_status = 'APPROVED',
@@ -323,8 +337,14 @@ function updateEquivalence(PDO $pdo, int $id): void
     $startDate = $data['request_start_date'] ?? $current['request_start_date'];
     $endDate = $data['request_end_date'] ?? $current['request_end_date'];
     if ((isset($data['request_start_date']) || isset($data['request_end_date'])) && !empty($startDate) && !empty($endDate)) {
-        $start = new DateTime($startDate);
-        $end = new DateTime($endDate);
+        try {
+            $start = new DateTime($startDate);
+            $end = new DateTime($endDate);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
         $requestTotalDays = $end->diff($start)->days + 1;
         $sets[] = "request_total_days = ?";
         $params[] = $requestTotalDays;
