@@ -1,7 +1,282 @@
--- Smart Port: Combined Schema for TiDB Cloud
--- รวมทุกไฟล์ตามลำดับ พร้อมปิด FK check
+-- Smart Port: Combined Schema for TiDB Cloud / MySQL 8 (rebuild ทั้งระบบจากไฟล์เดียว)
+-- Layers: 01 core (civil_servants), 02 photo/extra, 03 personnel stubs,
+--         04 career path, 05 probation, 06 seed, 07 education, 08 v11, 09 auth
+-- Import: mysql --default-character-set=utf8mb4 <db_name> < tidb-init.sql
+-- TiDB: ไม่ใช้ ENUM/TRIGGER/DEFINER (ENUM ต้นฉบับแปลงเป็น VARCHAR แล้ว validate ฝั่ง PHP)
 
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- ============================================
+-- FILE: 01-schema.sql (mysql_database_design.sql)
+-- ============================================
+-- ENUM ต้นฉบับแปลงเป็น VARCHAR ตาม convention TiDB (เหมือน 09-auth-users.sql)
+-- ไม่มี CREATE DATABASE/USE — ระบุชื่อ database ตอน import
+
+-- Core lookup table for name prefixes.
+CREATE TABLE prefixes (
+    prefix_id INT PRIMARY KEY AUTO_INCREMENT,
+    prefix_code VARCHAR(10) UNIQUE NOT NULL,
+    prefix_name_th VARCHAR(50) NOT NULL,
+    prefix_name_en VARCHAR(50),
+    prefix_short VARCHAR(20),
+    gender VARCHAR(5) DEFAULT 'A',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Core civil servant profile table.
+CREATE TABLE civil_servants (
+    servant_id INT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) UNIQUE NOT NULL,
+    citizen_id VARCHAR(13) UNIQUE NOT NULL,
+    prefix_id INT,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    birth_date DATE NOT NULL,
+    appointment_date DATE NOT NULL,
+    retirement_date DATE,
+    servant_status VARCHAR(20) DEFAULT 'active',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (prefix_id) REFERENCES prefixes(prefix_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Uploaded photo records for each civil servant.
+CREATE TABLE civil_servant_photos (
+    photo_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id INT NOT NULL,
+    photo_type VARCHAR(20) NOT NULL DEFAULT 'profile',
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    photo_status VARCHAR(30) DEFAULT 'pending_approval',
+    is_primary TINYINT(1) NOT NULL DEFAULT 0,
+    upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- เวอร์ชันภาพ — schema simple ตาม backend/helpers.php ที่ INSERT แค่
+-- (photo_id, version_type, file_name) จึงไม่ใช้เวอร์ชัน rich ของ layer 02
+CREATE TABLE photo_versions (
+    version_id INT PRIMARY KEY AUTO_INCREMENT,
+    photo_id INT NOT NULL,
+    version_type VARCHAR(50) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (photo_id) REFERENCES civil_servant_photos(photo_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Current profile view.
+CREATE VIEW v_civil_servants_current AS
+SELECT
+    cs.servant_id,
+    CONCAT(p.prefix_name_th, cs.first_name, ' ', cs.last_name) AS full_name,
+    csp.file_path AS photo_path
+FROM civil_servants cs
+LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+LEFT JOIN civil_servant_photos csp
+    ON cs.servant_id = csp.servant_id
+    AND csp.is_primary = TRUE;
+
+-- Sample data for a clean bootstrap.
+INSERT INTO prefixes (prefix_code, prefix_name_th) VALUES ('MR', 'นาย');
+INSERT INTO civil_servants (
+    employee_id,
+    citizen_id,
+    prefix_id,
+    first_name,
+    last_name,
+    birth_date,
+    appointment_date
+) VALUES (
+    'EMP001',
+    '1234567890123',
+    1,
+    'สมชาย',
+    'ไทยแท้',
+    '1980-01-01',
+    '2000-01-01'
+);
+
+-- ============================================
+-- FILE: 02-data.sql (photo_management_system.sql)
+-- ============================================
+
+-- ตาราง advance_notifications (การแจ้งเตือนล่วงหน้า)
+CREATE TABLE advance_notifications (
+    notification_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id INT NOT NULL,
+    notification_type VARCHAR(30) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    due_date DATE,
+    priority VARCHAR(20) DEFAULT 'medium',
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP NULL,
+    read_at TIMESTAMP NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
+    INDEX idx_servant_type (servant_id, notification_type),
+    INDEX idx_due_date (due_date),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง performance_proposals (ผลงานและข้อเสนอ)
+CREATE TABLE performance_proposals (
+    proposal_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id INT NOT NULL,
+    proposal_type VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    impact_description TEXT,
+    quantitative_result DECIMAL(15,2),
+    result_unit VARCHAR(50),
+    submission_date DATE NOT NULL,
+    evaluation_score DECIMAL(3,2), -- 0.00 - 5.00
+    evaluator_id INT,
+    evaluation_date DATE,
+    status VARCHAR(20) DEFAULT 'draft',
+    approval_level VARCHAR(20) DEFAULT 'department',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (evaluator_id) REFERENCES civil_servants(servant_id),
+    INDEX idx_servant_type (servant_id, proposal_type),
+    INDEX idx_status (status),
+    INDEX idx_submission_date (submission_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง task_assignments (การจัดการงาน)
+CREATE TABLE task_assignments (
+    task_id INT PRIMARY KEY AUTO_INCREMENT,
+    assignee_id INT NOT NULL,
+    assigner_id INT,
+    task_title VARCHAR(255) NOT NULL,
+    task_description TEXT,
+    priority VARCHAR(20) DEFAULT 'medium',
+    status VARCHAR(20) DEFAULT 'pending',
+    assigned_date DATE NOT NULL,
+    due_date DATE,
+    completion_date DATE,
+    estimated_hours DECIMAL(5,2),
+    actual_hours DECIMAL(5,2),
+    completion_percentage TINYINT DEFAULT 0,
+    notes TEXT,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (assignee_id) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (assigner_id) REFERENCES civil_servants(servant_id),
+    INDEX idx_assignee_status (assignee_id, status),
+    INDEX idx_due_date (due_date),
+    INDEX idx_priority (priority)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง ml_predictions (การคาดการณ์ AI)
+CREATE TABLE ml_predictions (
+    prediction_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id INT NOT NULL,
+    prediction_type VARCHAR(30) NOT NULL,
+    prediction_data JSON,
+    confidence_score DECIMAL(3,2), -- 0.00 - 1.00
+    prediction_date DATE NOT NULL,
+    valid_until DATE,
+    model_version VARCHAR(50),
+    accuracy_score DECIMAL(3,2),
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
+    INDEX idx_servant_type (servant_id, prediction_type),
+    INDEX idx_prediction_date (prediction_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง career_paths (เส้นทางความก้าวหน้า)
+CREATE TABLE career_paths (
+    path_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id INT NOT NULL,
+    current_position VARCHAR(255),
+    target_position VARCHAR(255),
+    estimated_timeline_months INT,
+    required_skills TEXT,
+    required_training TEXT,
+    probability_score DECIMAL(3,2),
+    path_status VARCHAR(20) DEFAULT 'active',
+    created_by INT,
+    approved_by INT,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (created_by) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (approved_by) REFERENCES civil_servants(servant_id),
+    INDEX idx_servant_status (servant_id, path_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง candidate_lists (รายชื่อผู้สมัคร)
+CREATE TABLE candidate_lists (
+    list_id INT PRIMARY KEY AUTO_INCREMENT,
+    list_name VARCHAR(255) NOT NULL,
+    position_title VARCHAR(255),
+    department VARCHAR(255),
+    criteria_json JSON,
+    created_by INT,
+    status VARCHAR(20) DEFAULT 'draft',
+    max_candidates INT DEFAULT 10,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES civil_servants(servant_id),
+    INDEX idx_status (status),
+    INDEX idx_created_by (created_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง candidate_list_members (สมาชิกในรายชื่อผู้สมัคร)
+CREATE TABLE candidate_list_members (
+    member_id INT PRIMARY KEY AUTO_INCREMENT,
+    list_id INT NOT NULL,
+    servant_id INT NOT NULL,
+    score DECIMAL(5,2),
+    ranking INT,
+    match_percentage DECIMAL(3,2),
+    notes TEXT,
+    added_by INT,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (list_id) REFERENCES candidate_lists(list_id),
+    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (added_by) REFERENCES civil_servants(servant_id),
+    UNIQUE KEY unique_list_servant (list_id, servant_id),
+    INDEX idx_ranking (list_id, ranking)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ตาราง network_connections (เครือข่ายบุคลากร)
+CREATE TABLE network_connections (
+    connection_id INT PRIMARY KEY AUTO_INCREMENT,
+    servant_id_1 INT NOT NULL,
+    servant_id_2 INT NOT NULL,
+    connection_type VARCHAR(20) NOT NULL,
+    strength VARCHAR(20) DEFAULT 'medium',
+    established_date DATE,
+    last_interaction DATE,
+    interaction_count INT DEFAULT 0,
+    notes TEXT,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (servant_id_1) REFERENCES civil_servants(servant_id),
+    FOREIGN KEY (servant_id_2) REFERENCES civil_servants(servant_id),
+    UNIQUE KEY unique_connection (servant_id_1, servant_id_2),
+    INDEX idx_servant_type (servant_id_1, connection_type),
+    INDEX idx_strength (strength)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- หมายเหตุ: photo_versions ไม่เอาเวอร์ชันของไฟล์นี้ (ENUM + file_path NOT NULL)
+-- เพราะ backend/helpers.php INSERT แค่ (photo_id, version_type, file_name)
+-- — ใช้ schema จาก layer 01 ที่สอดคล้องกับโค้ดจริง
 
 -- ============================================
 -- FILE: 03-personnel-stubs.sql
@@ -40,11 +315,20 @@ CREATE TABLE `position` (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ผู้ใช้งานระบบ
+-- ผู้ใช้งานระบบ (schema เต็มจาก 09-auth-users.sql — ไม่ต้อง ALTER ทีหลัง)
 CREATE TABLE users (
     user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(200) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    password_hash VARCHAR(255) NULL,
+    full_name VARCHAR(200) NULL,
+    email VARCHAR(200) NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'operator',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+    last_login_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- หลักสูตรฝึกอบรม
@@ -928,5 +1212,34 @@ VALUES
 -- NOTE: Additional supportive_job_series mappings (เจ้าพนักงานธุรการ O-series,
 -- and full PDF pages 32-82 coverage) should be added by HR or via admin UI.
 -- These 14 rows cover the K-series วิชาการ group confirmed from gap_analysis SQL comments.
+
+-- ============================================
+-- FILE: 09-auth-users.sql
+-- ============================================
+-- ตาราง users สร้างแบบเต็มไว้แล้วใน section 03 (ไม่ต้อง ALTER)
+-- เหลือเฉพาะ login_attempts + seed admin
+
+-- บันทึกความพยายาม login สำหรับ rate limiting
+-- (Render free tier ไม่มี Redis และ filesystem ไม่ persist — เก็บใน DB)
+CREATE TABLE login_attempts (
+    attempt_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(200) NOT NULL,
+    ip_address VARCHAR(45) NULL,
+    is_success TINYINT(1) NOT NULL DEFAULT 0,
+    attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_login_attempts_user_time (username, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seed admin คนแรก (กัน lock-out) — รหัสผ่านชั่วคราว 'admin123'
+-- ต้องเปลี่ยนทันทีหลัง deploy production (must_change_password = 1)
+-- ใช้ upsert เผื่อกรณี import ทับ dump เก่าที่ seed แถว (1,'admin') ไว้แล้ว
+INSERT INTO users (username, password_hash, full_name, role, is_active, must_change_password)
+VALUES ('admin', '$2y$10$Vrl20xAh4dvfwpDt/pWnTOcMuCzjj8353VKy348pb80StKqkENMcm', 'ผู้ดูแลระบบ', 'admin', 1, 1)
+ON DUPLICATE KEY UPDATE
+    password_hash = VALUES(password_hash),
+    full_name = VALUES(full_name),
+    role = VALUES(role),
+    is_active = VALUES(is_active),
+    must_change_password = VALUES(must_change_password);
 
 SET FOREIGN_KEY_CHECKS = 1;
