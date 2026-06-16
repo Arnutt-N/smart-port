@@ -228,25 +228,19 @@
           <!-- วันเริ่มต้น -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น</label>
-            <input
+            <ThaiDatePicker
               v-model="formData.start_date"
-              type="date"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              :class="formErrors.start_date ? 'border-red-500' : 'border-gray-300'"
+              :error="formErrors.start_date ? 'กรุณาระบุวันเริ่มต้น' : ''"
             />
-            <p v-if="formErrors.start_date" class="text-xs text-red-500 mt-1">กรุณาระบุวันเริ่มต้น</p>
           </div>
 
           <!-- วันสิ้นสุด -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด</label>
-            <input
+            <ThaiDatePicker
               v-model="formData.end_date"
-              type="date"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              :class="formErrors.end_date ? 'border-red-500' : 'border-gray-300'"
+              :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''"
             />
-            <p v-if="formErrors.end_date" class="text-xs text-red-500 mt-1">กรุณาระบุวันสิ้นสุด</p>
           </div>
 
           <!-- หมายเหตุ -->
@@ -312,6 +306,8 @@ import { useSupportive } from '@/composables/useSupportive.js'
 import { useApi } from '@/composables/useApi.js'
 import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
+import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
+import { ymdToDate } from '@/utils/thaiDate.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
@@ -374,7 +370,8 @@ const recentCount = computed(() => {
   const currentYear = now.getFullYear()
   const count = rows.value.filter(r => {
     if (!r.startDate) return false
-    const d = new Date(r.startDate)
+    const d = ymdToDate(r.startDate)
+    if (!d) return false
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear
   }).length
   return count || 'N/A'

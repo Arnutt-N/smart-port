@@ -247,25 +247,19 @@
             <!-- request_start_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น (คำขอ) <span class="text-red-500">*</span></label>
-              <input
+              <ThaiDatePicker
                 v-model="formData.request_start_date"
-                type="date"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                :class="formErrors.request_start_date ? 'border-red-300' : 'border-gray-300'"
+                :error="formErrors.request_start_date || ''"
               />
-              <p v-if="formErrors.request_start_date" class="text-xs text-red-500 mt-1">{{ formErrors.request_start_date }}</p>
             </div>
 
             <!-- request_end_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด (คำขอ) <span class="text-red-500">*</span></label>
-              <input
+              <ThaiDatePicker
                 v-model="formData.request_end_date"
-                type="date"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                :class="formErrors.request_end_date ? 'border-red-300' : 'border-gray-300'"
+                :error="formErrors.request_end_date || ''"
               />
-              <p v-if="formErrors.request_end_date" class="text-xs text-red-500 mt-1">{{ formErrors.request_end_date }}</p>
             </div>
 
             <!-- approval_order_ref -->
@@ -316,21 +310,13 @@
             <!-- approved_start_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้นที่อนุมัติ <span class="text-red-500">*</span></label>
-              <input
-                v-model="approveForm.approved_start_date"
-                type="date"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <ThaiDatePicker v-model="approveForm.approved_start_date" />
             </div>
 
             <!-- approved_end_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุดที่อนุมัติ <span class="text-red-500">*</span></label>
-              <input
-                v-model="approveForm.approved_end_date"
-                type="date"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <ThaiDatePicker v-model="approveForm.approved_end_date" />
             </div>
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
@@ -471,6 +457,7 @@ import { useApi } from '@/composables/useApi.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import StatCard from '@/components/StatCard.vue'
+import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'

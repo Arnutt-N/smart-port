@@ -231,23 +231,17 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
-                <input
+                <ThaiDatePicker
                   v-model="formData.from_start_date"
-                  type="date"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  :class="{ 'border-red-500': validationErrors.from_start_date }"
+                  :error="validationErrors.from_start_date || ''"
                 />
-                <p v-if="validationErrors.from_start_date" class="text-red-500 text-xs mt-1">{{ validationErrors.from_start_date }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด <span class="text-red-500">*</span></label>
-                <input
+                <ThaiDatePicker
                   v-model="formData.from_end_date"
-                  type="date"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  :class="{ 'border-red-500': validationErrors.from_end_date }"
+                  :error="validationErrors.from_end_date || ''"
                 />
-                <p v-if="validationErrors.from_end_date" class="text-red-500 text-xs mt-1">{{ validationErrors.from_end_date }}</p>
               </div>
             </div>
 
@@ -278,23 +272,17 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
-                <input
+                <ThaiDatePicker
                   v-model="formData.to_start_date"
-                  type="date"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  :class="{ 'border-red-500': validationErrors.to_start_date }"
+                  :error="validationErrors.to_start_date || ''"
                 />
-                <p v-if="validationErrors.to_start_date" class="text-red-500 text-xs mt-1">{{ validationErrors.to_start_date }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด <span class="text-red-500">*</span></label>
-                <input
+                <ThaiDatePicker
                   v-model="formData.to_end_date"
-                  type="date"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  :class="{ 'border-red-500': validationErrors.to_end_date }"
+                  :error="validationErrors.to_end_date || ''"
                 />
-                <p v-if="validationErrors.to_end_date" class="text-red-500 text-xs mt-1">{{ validationErrors.to_end_date }}</p>
               </div>
             </div>
           </div>
@@ -386,6 +374,7 @@ import { useDiverse } from '@/composables/useDiverse.js'
 import { useApi } from '@/composables/useApi.js'
 import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
+import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
