@@ -1059,6 +1059,25 @@ INSERT INTO promotion_criteria (target_level_code, target_level_name, source_lev
 ('O2', 'ชำนาญงาน', 'O1', 'ปฏิบัติงาน', 5.0, 'HIGH_VOCATIONAL', 'ALL', 1, '2024-03-22'),
 ('O3', 'อาวุโส', 'O2', 'ชำนาญงาน', 6.0, 'ANY', 'ALL', 1, '2024-03-22');
 
+-- Executive track: อำนวยการ M1/M2 + บริหาร S1/S2 (reference config)
+-- คำนวณจริงใน QualificationEngine::buildExecutiveQuery (multi-path) — ตัวเลขต้องตรงกับ engine
+-- เกณฑ์ pin จาก Excel master-prep (to-M1/M2/S1/S2); อ้างอิง นร 1006/ว5 (22 มี.ค. 67)
+INSERT INTO promotion_criteria
+  (target_level_code, target_level_name, source_level_code, source_level_name, min_years,
+   education_condition, career_track, combination_group, combination_min_years,
+   requires_equiv_years, requires_screening, description, legal_reference, is_active, effective_date)
+VALUES
+('M1', 'อำนวยการ ต้น', 'K3', 'ชำนาญการพิเศษ', 3.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง K3 ครบ 3 ปี + ผ่าน 3 ต่าง', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('M1', 'อำนวยการ ต้น', 'O3', 'อาวุโส', 6.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง O3 ครบ 6 ปี + ผ่าน 3 ต่าง', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('M2', 'อำนวยการ สูง', 'M1', 'อำนวยการ ต้น', 1.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง M1 ครบ 1 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('M2', 'อำนวยการ สูง', 'K3', 'ชำนาญการพิเศษ', 4.0, 'ANY', 'ALL', 1, 4.0, NULL, 0, 'M1+K3 รวม 4 ปี หรือ K3 ครบ 4 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('M2', 'อำนวยการ สูง', 'O3', 'อาวุโส', 7.0, 'ANY', 'ALL', 2, 7.0, NULL, 0, 'M1+O3 รวม 7 ปี หรือ O3 ครบ 7 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('M2', 'อำนวยการ สูง', 'K4', 'เชี่ยวชาญ', 0.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'K4 + ผ่าน 3 ต่าง (lateral)', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('S1', 'บริหาร ต้น', 'M1', 'อำนวยการ ต้น', 2.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง M1 ครบ 2 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('S1', 'บริหาร ต้น', 'M2', 'อำนวยการ สูง', 2.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง M2 ครบ 2 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('S1', 'บริหาร ต้น', 'K4', 'เชี่ยวชาญ', 2.0, 'ANY', 'ALL', NULL, NULL, 2.0, 0, 'ดำรง K4 ครบ 2 ปี + เทียบตำแหน่งอำนวยการ', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22'),
+('S2', 'บริหาร สูง', 'S1', 'บริหาร ต้น', 1.0, 'ANY', 'ALL', NULL, NULL, NULL, 0, 'ดำรง S1 ครบ 1 ปี', 'นร 1006/ว5 (22 มี.ค. 67)', 1, '2024-03-22');
+
 -- ############################################################################
 -- SECTION 3: SAMPLE PERSONNEL RECORDS (per D-12)
 -- บุคลากรตัวอย่าง — ระดับและวันที่เข้าสู่ระดับหลากหลาย
