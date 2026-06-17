@@ -188,7 +188,7 @@
               >
                 <button
                   v-for="person in personnelResults"
-                  :key="person.servant_id"
+                  :key="person.personnel_id"
                   type="button"
                   @click="selectPersonnel(person)"
                   class="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
