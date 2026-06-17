@@ -45,7 +45,7 @@ function handleCandidates(PDO $pdo, string $method, array $path): void
     }
 
     // ตรวจสอบว่าเป็นระดับเป้าหมายที่ถูกต้อง
-    $validTargets = ['K2', 'K3', 'K4', 'O2', 'O3'];
+    $validTargets = ['K2', 'K3', 'K4', 'O2', 'O3', 'M1', 'M2', 'S1', 'S2'];
     if (!in_array(strtoupper($targetLevel), $validTargets)) {
         http_response_code(400);
         echo json_encode([
