@@ -20,8 +20,8 @@
       <!-- Overview Loading Skeleton (custom 2+3 layout) -->
       <template v-if="overviewLoading">
         <div class="animate-pulse space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-for="i in 2" :key="'sk2-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-for="i in 4" :key="'sk2-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div class="flex items-center">
                 <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
                 <div class="ml-4 flex-1 space-y-2">
@@ -63,8 +63,8 @@
 
       <!-- Overview Data -->
       <template v-else-if="overviewData">
-        <!-- Row 1: 2 stat cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Row 1: 4 stat cards (ทั่วไป / วิชาการ / อำนวยการ / บริหาร) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             label="ประเภททั่วไป"
             :value="overviewData.generalTotal"
@@ -78,6 +78,20 @@
             :icon="UserCheck"
             icon-bg-class="bg-purple-50"
             icon-class="text-purple-600"
+          />
+          <StatCard
+            label="ประเภทอำนวยการ"
+            :value="overviewData.supportiveTotal"
+            :icon="Briefcase"
+            icon-bg-class="bg-amber-50"
+            icon-class="text-amber-600"
+          />
+          <StatCard
+            label="ประเภทบริหาร"
+            :value="overviewData.managementTotal"
+            :icon="Building2"
+            icon-bg-class="bg-rose-50"
+            icon-class="text-rose-600"
           />
         </div>
 
@@ -157,16 +171,7 @@
       </template>
     </template>
 
-    <!-- ==================== PLACEHOLDER SECTIONS (support/management) ==================== -->
-    <template v-else-if="isPlaceholder">
-      <EmptyState
-        :icon="Construction"
-        title="อยู่ระหว่างพัฒนา"
-        description="ฟีเจอร์นี้อยู่ระหว่างการพัฒนา จะเปิดให้ใช้งานในเร็วๆ นี้"
-      />
-    </template>
-
-    <!-- ==================== SUB-TAB SECTIONS (general/academic) ==================== -->
+    <!-- ==================== SUB-TAB SECTIONS (general/academic/support/management) ==================== -->
     <template v-else-if="hasSubTabs">
       <!-- Pill sub-tab buttons -->
       <div class="flex gap-2 mb-6">
@@ -378,7 +383,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import {
   Users, UserCheck, AlertCircle, Clock, Timer, Loader, Home,
-  Eye, Construction
+  Eye, Briefcase, Building2
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -426,6 +431,14 @@ const subTabConfig = {
     { level: 'K3', label: 'ชำนาญการพิเศษ' },
     { level: 'K4', label: 'เชี่ยวชาญ' },
   ],
+  support: [
+    { level: 'M1', label: 'อำนวยการต้น' },
+    { level: 'M2', label: 'อำนวยการสูง' },
+  ],
+  management: [
+    { level: 'S1', label: 'บริหารต้น' },
+    { level: 'S2', label: 'บริหารสูง' },
+  ],
 }
 
 const categoryConfig = {
@@ -460,7 +473,6 @@ const categoryConfig = {
 const currentConfig = computed(() => categoryConfig[props.section] || categoryConfig.overview)
 const currentSubTabs = computed(() => subTabConfig[props.section] || [])
 const isOverview = computed(() => props.section === 'overview')
-const isPlaceholder = computed(() => ['support', 'management'].includes(props.section))
 const hasSubTabs = computed(() => currentSubTabs.value.length > 0)
 
 // Fetch data for sub-tab level pages
@@ -494,6 +506,8 @@ async function fetchOverviewData() {
     overviewData.value = {
       generalTotal: s.general_total || 0,
       academicTotal: s.academic_total || 0,
+      supportiveTotal: s.supportive_total || 0,
+      managementTotal: s.management_total || 0,
       qualifiedTotal: s.qualified_total || 0,
       nearQualifiedTotal: s.near_qualified_total || 0,
       notYetTotal: s.not_yet_total || 0,
@@ -526,8 +540,6 @@ function onPageChange(newOffset) {
 watch(() => props.section, (newSection) => {
   if (newSection === 'overview') {
     fetchOverviewData()
-  } else if (['support', 'management'].includes(newSection)) {
-    // Placeholder sections -- do nothing
   } else {
     const tabs = subTabConfig[newSection]
     if (tabs && tabs.length > 0) {
@@ -540,7 +552,7 @@ watch(() => props.section, (newSection) => {
 
 watch(activeSubTab, (newTab) => {
   if (!newTab) return
-  if (isOverview.value || isPlaceholder.value) return
+  if (isOverview.value) return
   // Reset offset and search when sub-tab changes (Pitfall 4)
   pagination.value.offset = 0
   searchQuery.value = ''
@@ -551,8 +563,6 @@ watch(activeSubTab, (newTab) => {
 onMounted(() => {
   if (props.section === 'overview') {
     fetchOverviewData()
-  } else if (['support', 'management'].includes(props.section)) {
-    // Placeholder -- do nothing
   } else {
     const tabs = subTabConfig[props.section]
     if (tabs && tabs.length > 0) {

@@ -18,7 +18,15 @@ class QualificationEngine
     private const OVERVIEW_LEVELS = [
         'general' => ['O2', 'O3'],
         'academic' => ['K2', 'K3', 'K4'],
+        'supportive' => ['M1', 'M2'],
+        'management' => ['S1', 'S2'],
     ];
+
+    /**
+     * ระดับสายอำนวยการ(M1/M2)/บริหาร(S1/S2) — ใช้ buildExecutiveQuery (multi-path combination)
+     * แทน buildBaseQuery (linear) เพราะเกณฑ์อ้าง "ระดับก่อนหน้า" + gate (3 ต่าง / เทียบตำแหน่ง)
+     */
+    private const EXECUTIVE_LEVELS = ['M1', 'M2', 'S1', 'S2'];
 
     /** เกณฑ์ "ใกล้ถึงเกณฑ์" — เหลือ 1-90 วัน (ตรงกับ NEAR_THRESHOLD_DAYS ฝั่ง frontend) */
     private const NEAR_THRESHOLD_DAYS = 90;
@@ -127,6 +135,195 @@ class QualificationEngine
     }
 
     /**
+     * เลือก query builder ตามประเภทระดับเป้าหมาย
+     * M/S (อำนวยการ/บริหาร) = multi-path combination; K/O (วิชาการ/ทั่วไป) = linear
+     */
+    private function buildQuery(string $targetLevel): ?array
+    {
+        return in_array($targetLevel, self::EXECUTIVE_LEVELS, true)
+            ? $this->buildExecutiveQuery($targetLevel)
+            : $this->buildBaseQuery($targetLevel);
+    }
+
+    /**
+     * สร้าง query สำหรับสายอำนวยการ(M1/M2)/บริหาร(S1/S2) — multi-path combination
+     *
+     * ต่างจาก buildBaseQuery (linear) ตรงที่:
+     *   - แต่ละระดับมีได้หลาย "เส้นทาง" (path) ที่ผ่านเกณฑ์ → เลือกวันที่ "เร็วสุด" (MIN) = วันมีคุณสมบัติ
+     *   - บาง path อ้าง "ระดับก่อนหน้า" (prev-level) จาก personnel_position_history (combination)
+     *   - gate: M1 ต้องผ่าน 3 ต่าง (diverse_experience), S1(K4) ต้องมีเทียบตำแหน่ง (position_equivalence)
+     *     ถ้าขาด precondition → ไม่มี path → status = check_data
+     *
+     * เกณฑ์ pin จาก Excel master-prep (ชีท to-M1/M2/S1/S2) — ดู research/executive-track-criteria.md
+     * คืน column shape เดียวกับ buildBaseQuery เพื่อให้ computeForLevel/computeOverview reuse ได้
+     *
+     * @param string $targetLevel M1, M2, S1, S2
+     * @return array|null ['sql' => ..., 'params' => []] (constant ทั้งหมด ไม่มี user input → ปลอดภัยจาก injection)
+     */
+    private function buildExecutiveQuery(string $targetLevel): ?array
+    {
+        // gate: ผ่าน 3 ต่าง (วันครบ = MIN(qualified_date) ที่ diff_count >= 3)
+        $div = "JOIN (
+                    SELECT personnel_id, MIN(qualified_date) AS diverse_date
+                    FROM diverse_experience
+                    WHERE diff_count >= 3 AND qualified_date IS NOT NULL
+                    GROUP BY personnel_id
+                ) dv ON dv.personnel_id = e.personnel_id";
+        // gate: มีเทียบตำแหน่ง (อำนวยการ) ที่อนุมัติแล้ว
+        $eqGate = "JOIN (
+                    SELECT personnel_id
+                    FROM position_equivalence
+                    WHERE approval_status = 'APPROVED'
+                    GROUP BY personnel_id
+                ) eqx ON eqx.personnel_id = e.personnel_id";
+        // prev-level start date (combination) — วันเข้าระดับก่อนหน้าจากประวัติการดำรงตำแหน่ง
+        $histK3 = "JOIN (
+                    SELECT personnel_id, MIN(effective_date) AS level_start
+                    FROM personnel_position_history WHERE position_level = 'K3'
+                    GROUP BY personnel_id
+                ) hk3 ON hk3.personnel_id = e.personnel_id";
+        $histO3 = "JOIN (
+                    SELECT personnel_id, MIN(effective_date) AS level_start
+                    FROM personnel_position_history WHERE position_level = 'O3'
+                    GROUP BY personnel_id
+                ) ho3 ON ho3.personnel_id = e.personnel_id";
+
+        // current_level_start_date ต้องไม่ NULL สำหรับ path ที่นับจากระดับปัจจุบัน
+        $curOk = "e.is_active = 1 AND e.current_level_start_date IS NOT NULL";
+
+        switch ($targetLevel) {
+            case 'M1': // ดำรง K3 +3ปี หรือ O3 +6ปี + ผ่าน 3 ต่าง; วันมีคุณสมบัติ = MAX(วันดำรงครบ, วันครบ3ต่าง)
+                $sources = ['K3', 'O3'];
+                $paths = [
+                    "SELECT e.personnel_id, GREATEST(DATE_ADD(e.current_level_start_date, INTERVAL 3 YEAR), dv.diverse_date) AS qual_date
+                     FROM personnel e {$div} WHERE e.current_level_code = 'K3' AND {$curOk}",
+                    "SELECT e.personnel_id, GREATEST(DATE_ADD(e.current_level_start_date, INTERVAL 6 YEAR), dv.diverse_date) AS qual_date
+                     FROM personnel e {$div} WHERE e.current_level_code = 'O3' AND {$curOk}",
+                ];
+                break;
+
+            case 'M2': // M1+1 / M1+K3รวม4 / M1+O3รวม7 / K3+4 / O3+7 / K4+3ต่าง (เลือก path เร็วสุด)
+                $sources = ['M1', 'K3', 'O3', 'K4'];
+                $paths = [
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 1 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'M1' AND {$curOk}",
+                    // combination นับจาก level_start ใน history (ไม่ใช้ current_level_start_date);
+                    // effective_date เป็น NOT NULL → level_start ไม่มีทางเป็น NULL แต่ guard ไว้กัน data สกปรก
+                    "SELECT e.personnel_id, DATE_ADD(hk3.level_start, INTERVAL 4 YEAR) AS qual_date
+                     FROM personnel e {$histK3} WHERE e.current_level_code = 'M1' AND e.is_active = 1 AND hk3.level_start IS NOT NULL",
+                    "SELECT e.personnel_id, DATE_ADD(ho3.level_start, INTERVAL 7 YEAR) AS qual_date
+                     FROM personnel e {$histO3} WHERE e.current_level_code = 'M1' AND e.is_active = 1 AND ho3.level_start IS NOT NULL",
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 4 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'K3' AND {$curOk}",
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 7 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'O3' AND {$curOk}",
+                    "SELECT e.personnel_id, GREATEST(e.current_level_start_date, dv.diverse_date) AS qual_date
+                     FROM personnel e {$div} WHERE e.current_level_code = 'K4' AND {$curOk}",
+                ];
+                break;
+
+            case 'S1': // M1/M2/K4 ดำรง +2ปี (K4 ต้องมีเทียบตำแหน่งอำนวยการ)
+                $sources = ['M1', 'M2', 'K4'];
+                $paths = [
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 2 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'M1' AND {$curOk}",
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 2 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'M2' AND {$curOk}",
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 2 YEAR) AS qual_date
+                     FROM personnel e {$eqGate} WHERE e.current_level_code = 'K4' AND {$curOk}",
+                ];
+                break;
+
+            case 'S2': // S1 ดำรง +1ปี (combination บต+อต/อส+เทียบ ≥3 = follow-up รอ verify Excel)
+                $sources = ['S1'];
+                $paths = [
+                    "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 1 YEAR) AS qual_date
+                     FROM personnel e WHERE e.current_level_code = 'S1' AND {$curOk}",
+                ];
+                break;
+
+            default:
+                return null;
+        }
+
+        $pathsUnion = implode("\n            UNION ALL\n            ", $paths);
+        $sourceList = "'" . implode("','", $sources) . "'";
+        $minYearsCase = $this->executiveMinYearsCase($targetLevel);
+
+        $sql = "
+            SELECT
+                p.personnel_id,
+                CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                pos.position_name AS current_position,
+                p.current_level_code,
+                p.current_level_start_date,
+                COALESCE(p.education_level, 'BACHELOR') AS education_level,
+                {$minYearsCase} AS min_years,
+                o.org_name AS department,
+                COALESCE(sup.total_supportive_days, 0) AS supportive_days,
+                COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
+                COALESCE(dex.max_diff_count, 0) AS diverse_diff_count,
+                pa.qual_date AS qualification_date,
+                CASE WHEN pa.qual_date IS NULL THEN NULL ELSE DATEDIFF(pa.qual_date, CURDATE()) END AS remaining_days,
+                CASE
+                    WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN 'check_data'
+                    WHEN pa.qual_date IS NULL THEN 'check_data'
+                    WHEN DATEDIFF(pa.qual_date, CURDATE()) <= 0 THEN 'qualified'
+                    ELSE 'not_yet'
+                END AS status
+            FROM personnel p
+            LEFT JOIN position pos ON p.current_position_id = pos.position_id
+            LEFT JOIN organization o ON p.current_org_id = o.org_id
+            LEFT JOIN (
+                SELECT personnel_id, SUM(effective_days) AS total_supportive_days
+                FROM supportive_experience
+                GROUP BY personnel_id
+            ) sup ON sup.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, SUM(approved_total_days) AS total_equivalence_days
+                FROM position_equivalence
+                WHERE approval_status = 'APPROVED'
+                GROUP BY personnel_id
+            ) eq ON eq.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, MAX(diff_count) AS max_diff_count
+                FROM diverse_experience
+                GROUP BY personnel_id
+            ) dex ON dex.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, MIN(qual_date) AS qual_date
+                FROM (
+            {$pathsUnion}
+                ) u
+                GROUP BY personnel_id
+            ) pa ON pa.personnel_id = p.personnel_id
+            WHERE p.current_level_code IN ({$sourceList})
+                AND p.is_active = 1
+        ";
+
+        return ['sql' => $sql, 'params' => []];
+    }
+
+    /**
+     * เกณฑ์ขั้นต่ำ (ปี) สำหรับแสดงผล — อิง path ตรงตามระดับปัจจุบัน (ไม่รวม combination)
+     */
+    private function executiveMinYearsCase(string $targetLevel): string
+    {
+        switch ($targetLevel) {
+            case 'M1':
+                return "CASE p.current_level_code WHEN 'K3' THEN 3.0 WHEN 'O3' THEN 6.0 ELSE NULL END";
+            case 'M2':
+                return "CASE p.current_level_code WHEN 'M1' THEN 1.0 WHEN 'K3' THEN 4.0 WHEN 'O3' THEN 7.0 WHEN 'K4' THEN 0.0 ELSE NULL END";
+            case 'S1':
+                return "2.0";
+            case 'S2':
+                return "1.0";
+            default:
+                return "NULL";
+        }
+    }
+
+    /**
      * คำนวณคุณสมบัติเลื่อนระดับสำหรับบุคลากรทั้งหมดที่อยู่ในระดับต้นทาง
      *
      * @param string $targetLevel รหัสระดับเป้าหมาย (e.g. K2, K3, O2)
@@ -137,8 +334,8 @@ class QualificationEngine
      */
     public function computeForLevel(string $targetLevel, ?string $search, int $limit, int $offset): array
     {
-        // Step 1-2: สร้าง base query (แชร์ logic กับ computeOverview)
-        $base = $this->buildBaseQuery($targetLevel);
+        // Step 1-2: สร้าง base query (แชร์ logic กับ computeOverview) — dispatch K/O linear vs M/S combination
+        $base = $this->buildQuery($targetLevel);
 
         if ($base === null) {
             return [
@@ -232,6 +429,8 @@ class QualificationEngine
         $summary = [
             'general_total' => 0,
             'academic_total' => 0,
+            'supportive_total' => 0,
+            'management_total' => 0,
             'qualified_total' => 0,
             'near_qualified_total' => 0,
             'not_yet_total' => 0,
@@ -242,7 +441,7 @@ class QualificationEngine
 
         foreach (self::OVERVIEW_LEVELS as $category => $levels) {
             foreach ($levels as $level) {
-                $base = $this->buildBaseQuery($level);
+                $base = $this->buildQuery($level);
 
                 // ระดับที่ไม่มีเกณฑ์ active — ใส่ค่าศูนย์ทั้งแถว ห้าม error
                 if ($base === null) {
@@ -273,7 +472,7 @@ class QualificationEngine
                 ];
                 $byLevel[$level] = $levelSummary;
 
-                $summary[$category === 'general' ? 'general_total' : 'academic_total'] += $levelSummary['total'];
+                $summary[$category . '_total'] += $levelSummary['total'];
                 $summary['qualified_total'] += $levelSummary['qualified'];
                 $summary['near_qualified_total'] += $levelSummary['near_qualified'];
                 $summary['not_yet_total'] += $levelSummary['not_yet'];
@@ -334,6 +533,11 @@ class QualificationEngine
      */
     public function computeDetail(string $targetLevel, int $personnelId): ?array
     {
+        // M/S (อำนวยการ/บริหาร) ใช้ multi-path เดียวกับ list — detail ต้องตรงกับ list เสมอ (legal)
+        if (in_array($targetLevel, self::EXECUTIVE_LEVELS, true)) {
+            return $this->computeExecutiveDetail($targetLevel, $personnelId);
+        }
+
         $sql = "
             SELECT
                 p.personnel_id,
@@ -429,6 +633,54 @@ class QualificationEngine
         $row['supportive_days'] = (int)$row['supportive_days'];
         $row['equivalence_days'] = (int)$row['equivalence_days'];
         $row['diverse_diff_count'] = (int)$row['diverse_diff_count'];
+
+        return [
+            'success' => true,
+            'data' => $row,
+        ];
+    }
+
+    /**
+     * รายละเอียดรายบุคคลสำหรับสายอำนวยการ/บริหาร — ใช้ buildExecutiveQuery เดียวกับ list
+     * เพื่อให้ qualification_date/status ใน detail ตรงกับ list เสมอ (ไม่คำนวณซ้ำคนละสูตร)
+     */
+    private function computeExecutiveDetail(string $targetLevel, int $personnelId): ?array
+    {
+        $base = $this->buildExecutiveQuery($targetLevel);
+        if ($base === null) {
+            return null;
+        }
+
+        // กรองรายบุคคลจาก query เดียวกับ list
+        $sql = "SELECT * FROM ({$base['sql']}) AS sub WHERE sub.personnel_id = ?";
+        $params = array_merge($base['params'], [$personnelId]);
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        // เติม field เฉพาะ detail ที่ไม่อยู่ใน list query
+        $extraStmt = $this->pdo->prepare(
+            'SELECT citizen_id, first_name, last_name, hire_date FROM personnel WHERE personnel_id = ?'
+        );
+        $extraStmt->execute([$personnelId]);
+        $extra = $extraStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $row = array_merge($extra, $row);
+
+        // Formatted fields (ให้ตรงกับ computeDetail ของ K/O)
+        $row['qualification_date_thai'] = formatThaiDate($row['qualification_date'] ?? null);
+        $row['level_start_date_thai'] = formatThaiDate($row['current_level_start_date'] ?? null);
+        $row['hire_date_thai'] = formatThaiDate($row['hire_date'] ?? null);
+        $row['current_level_name'] = getLevelName($row['current_level_code'] ?? '');
+        $row['education_condition'] = 'ANY'; // M/S ไม่ผูกเงื่อนไขวุฒิ
+        $row['remaining_days'] = $row['remaining_days'] !== null ? (int) $row['remaining_days'] : null;
+        $row['min_years'] = $row['min_years'] !== null ? (float) $row['min_years'] : null;
+        $row['supportive_days'] = (int) $row['supportive_days'];
+        $row['equivalence_days'] = (int) $row['equivalence_days'];
+        $row['diverse_diff_count'] = (int) $row['diverse_diff_count'];
 
         return [
             'success' => true,
