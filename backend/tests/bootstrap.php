@@ -13,6 +13,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 // Source files อยู่ใน global namespace (โค้ดเดิมใช้ include_once) — โหลดเอง
 require_once __DIR__ . '/../helpers.php';
 require_once __DIR__ . '/../QualificationEngine.php';
+require_once __DIR__ . '/../ImportService.php';
 
 /**
  * สร้าง PDO สำหรับ integration test — อ่าน env เดียวกับ config.php::getDB()

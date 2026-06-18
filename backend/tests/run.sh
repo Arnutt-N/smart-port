@@ -70,7 +70,7 @@ docker run --rm \
   "${IMAGE}" \
   sh -c '
     set -e
-    composer install --no-interaction --no-progress 2>/dev/null \
-      || composer update --no-interaction --no-progress
+    composer install --no-interaction --no-progress --ignore-platform-req=ext-gd 2>/dev/null \
+      || composer update --no-interaction --no-progress --ignore-platform-req=ext-gd
     php vendor/bin/phpunit "$@"
   ' -- "$@"
