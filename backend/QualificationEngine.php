@@ -187,9 +187,30 @@ class QualificationEngine
                     FROM personnel_position_history WHERE position_level = 'O3'
                     GROUP BY personnel_id
                 ) ho3 ON ho3.personnel_id = e.personnel_id";
+        // วันเทียบตำแหน่งสะสม (อนุมัติแล้ว) — gate + ค่า สำหรับ S2 paths (บต/ทว + เทียบ)
+        $eqvSum = "JOIN (
+                    SELECT personnel_id, SUM(approved_total_days) AS eqv_days
+                    FROM position_equivalence
+                    WHERE approval_status = 'APPROVED'
+                    GROUP BY personnel_id
+                ) eqs ON eqs.personnel_id = e.personnel_id AND eqs.eqv_days > 0";
+        // วันดำรง M1/M2 สะสม (ช่วงปิด end_date NOT NULL) — S2 path บต/ทว + อต-อส + เทียบ
+        $msTenure = "LEFT JOIN (
+                    SELECT personnel_id, SUM(DATEDIFF(end_date, effective_date)) AS ms_days
+                    FROM personnel_position_history
+                    WHERE position_level IN ('M1','M2') AND end_date IS NOT NULL
+                    GROUP BY personnel_id
+                ) mst ON mst.personnel_id = e.personnel_id";
 
         // current_level_start_date ต้องไม่ NULL สำหรับ path ที่นับจากระดับปัจจุบัน
         $curOk = "e.is_active = 1 AND e.current_level_start_date IS NOT NULL";
+
+        // S2 backdate combination (Excel: today หักล้าง → start − Σวันหักลบ + 3ปี, พื้น = start+1วัน)
+        $s2Backdate = static fn (string $subtractDays): string =>
+            "GREATEST(
+                DATE_ADD(DATE_SUB(e.current_level_start_date, INTERVAL ({$subtractDays}) DAY), INTERVAL 3 YEAR),
+                DATE_ADD(e.current_level_start_date, INTERVAL 1 DAY)
+            )";
 
         switch ($targetLevel) {
             case 'M1': // ดำรง K3 +3ปี หรือ O3 +6ปี + ผ่าน 3 ต่าง; วันมีคุณสมบัติ = MAX(วันดำรงครบ, วันครบ3ต่าง)
@@ -234,11 +255,23 @@ class QualificationEngine
                 ];
                 break;
 
-            case 'S2': // S1 ดำรง +1ปี (combination บต+อต/อส+เทียบ ≥3 = follow-up รอ verify Excel)
-                $sources = ['S1'];
+            case 'S2': // S1+1ปี / บต+เทียบ / บต+อต-อส+เทียบ / ทว(K5)+อต-อส+เทียบ ≥3ปี (เลือก path เร็วสุด)
+                $sources = ['S1', 'K5'];
+                $ac3 = $s2Backdate('eqs.eqv_days');                              // บต + เทียบ
+                $ag3 = $s2Backdate('eqs.eqv_days + COALESCE(mst.ms_days, 0)');   // บต + อต/อส + เทียบ
                 $paths = [
+                    // W3: บต ดำรง 1 ปี
                     "SELECT e.personnel_id, DATE_ADD(e.current_level_start_date, INTERVAL 1 YEAR) AS qual_date
                      FROM personnel e WHERE e.current_level_code = 'S1' AND {$curOk}",
+                    // AC3: บต + เทียบตำแหน่ง รวม ≥ 3 ปี (gate: มีเทียบ)
+                    "SELECT e.personnel_id, {$ac3} AS qual_date
+                     FROM personnel e {$eqvSum} WHERE e.current_level_code = 'S1' AND {$curOk}",
+                    // AG3: บต + อต/อส (prev M1/M2) + เทียบ รวม ≥ 3 ปี
+                    "SELECT e.personnel_id, {$ag3} AS qual_date
+                     FROM personnel e {$eqvSum} {$msTenure} WHERE e.current_level_code = 'S1' AND {$curOk}",
+                    // AK3: ทว(K5) + อต/อส + เทียบ รวม ≥ 3 ปี
+                    "SELECT e.personnel_id, {$ag3} AS qual_date
+                     FROM personnel e {$eqvSum} {$msTenure} WHERE e.current_level_code = 'K5' AND {$curOk}",
                 ];
                 break;
 

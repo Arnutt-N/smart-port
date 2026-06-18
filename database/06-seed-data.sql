@@ -147,3 +147,28 @@ INSERT INTO diverse_experience (personnel_id, is_diff_job_series, is_diff_org, i
 -- เทียบตำแหน่งอำนวยการ (อนุมัติ) — 106 สำหรับ S1(K4)
 INSERT INTO position_equivalence (personnel_id, actual_position, equivalent_type, approved_start_date, approved_end_date, approved_total_days, approval_status) VALUES
 (106, 'ผู้เชี่ยวชาญ', 'อำนวยการ', '2022-01-01', '2024-01-01', 730, 'APPROVED');
+
+-- ############################################################################
+-- SECTION 9: S2 COMBINATION + M2 K4 FIXTURES (เฉพาะ local/Docker — ไม่อยู่ใน prod)
+-- golden cases สำหรับ buildExecutiveQuery S2 (4 paths) + M2 K4 verify
+-- backdate (Excel): วันคุณสมบัติ = GREATEST(start − Σวันหักลบ + 3ปี, start+1วัน)
+-- ############################################################################
+
+INSERT INTO personnel (personnel_id, citizen_id, first_name, last_name, hire_date, current_position_id, current_org_id, current_level_start_date, current_level_code, is_active) VALUES
+(108, '1100100200108', 'ทดสอบ S1', 'บส-ไม่มีเทียบ', '2010-01-01', 1, 1, '2022-01-01', 'S1', 1),  -- S2 = W3 (S1+1) = 2023-01-01
+(109, '1100100200109', 'ทดสอบ S1', 'บส-เทียบ',      '2008-01-01', 1, 1, '2020-06-01', 'S1', 1),  -- S2 = AC3 (บต+เทียบ 900ว) = 2020-12-14
+(110, '1100100200110', 'ทดสอบ K5', 'บส-ทว-เทียบ',   '2005-01-01', 1, 1, '2021-01-01', 'K5', 1),  -- S2 = AK3 (ทว+อต/อส 300ว+เทียบ 400ว) = 2022-02-01
+(111, '1100100200111', 'ทดสอบ K4', 'สู่อำนวยการสูง', '2009-01-01', 1, 1, '2021-01-01', 'K4', 1);  -- M2 = K4+3ต่าง = MAX(2021-01-01, 2023-06-01) = 2023-06-01
+
+-- เทียบตำแหน่ง (S2): 109 = 900 วัน, 110 = 400 วัน (approved_total_days ใช้คำนวณตรง)
+INSERT INTO position_equivalence (personnel_id, actual_position, equivalent_type, approved_start_date, approved_end_date, approved_total_days, approval_status) VALUES
+(109, 'ผู้เชี่ยวชาญ',   'อำนวยการ', '2018-01-01', '2020-06-19', 900, 'APPROVED'),
+(110, 'ผู้ทรงคุณวุฒิ', 'อำนวยการ', '2019-01-01', '2020-02-05', 400, 'APPROVED');
+
+-- prev M1/M2 history สำหรับ 110 (ms_days = DATEDIFF(2018-10-28, 2018-01-01) = 300)
+INSERT INTO personnel_position_history (personnel_id, position_id, org_id, position_name, position_level, effective_date, end_date, job_series_name) VALUES
+(110, 1, 1, 'ผู้อำนวยการสูง', 'M2', '2018-01-01', '2018-10-28', 'อำนวยการ');
+
+-- 3 ต่าง สำหรับ 111 (M2 K4 path) — qualified_date 2023-06-01 > K4 start → MAX = 2023-06-01
+INSERT INTO diverse_experience (personnel_id, is_diff_job_series, is_diff_org, is_diff_location, is_diff_work_nature, qualified_date) VALUES
+(111, 1, 1, 1, 0, '2023-06-01');

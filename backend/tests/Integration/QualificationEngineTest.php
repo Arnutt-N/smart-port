@@ -39,9 +39,9 @@ final class QualificationEngineTest extends TestCase
         // ยืนยันว่า seed executive (101-107) ถูก import แล้ว ก่อนเชื่อ golden values
         try {
             $count = (int) self::$pdo
-                ->query('SELECT COUNT(*) FROM personnel WHERE personnel_id BETWEEN 101 AND 107')
+                ->query('SELECT COUNT(*) FROM personnel WHERE personnel_id BETWEEN 101 AND 111')
                 ->fetchColumn();
-            self::$seedReady = $count >= 7;
+            self::$seedReady = $count >= 11;
         } catch (Throwable $e) {
             self::$seedReady = false;
         }
@@ -56,7 +56,7 @@ final class QualificationEngineTest extends TestCase
         }
         if (!self::$seedReady) {
             self::markTestSkipped(
-                'seed executive (personnel 101-107) ไม่ครบ — รัน: docker compose down -v && docker compose up -d --build db backend'
+                'seed executive (personnel 101-111) ไม่ครบ — รัน: docker compose down -v && docker compose up -d --build db backend'
             );
         }
         $this->engine = new QualificationEngine(self::$pdo);
@@ -96,6 +96,14 @@ final class QualificationEngineTest extends TestCase
             'S1 จาก M1 +2ปี'                          => ['S1', 103, '2022-08-26'],
             'S1 จาก K4 +2ปี (มีเทียบตำแหน่ง)'         => ['S1', 106, '2024-01-01'],
             'S2 จาก S1 +1ปี'                          => ['S2', 107, '2025-01-01'],
+
+            // --- M2 K4 (verify Excel to-M2!U3 = MAX(วันเข้า K4, วันครบ 3 ต่าง)) ---
+            'M2 จาก K4 + 3 ต่าง (MAX K4_start, 3ต่าง)' => ['M2', 111, '2023-06-01'],
+
+            // --- S2 combination (Excel to-S2 backdate; today หักล้าง → deterministic) ---
+            'S2 บต+เทียบ 900ว (AC3 backdate)'          => ['S2', 109, '2020-12-14'],
+            'S2 ทว(K5)+อต/อส 300ว+เทียบ 400ว (AK3)'   => ['S2', 110, '2022-02-01'],
+            'S2 S1 ไม่มีเทียบ → เฉพาะ W3 (+1ปี)'       => ['S2', 108, '2023-01-01'],
 
             // --- K/O linear (buildBaseQuery) — coverage ใหม่ ไม่เคยมี automated test ---
             'K2 จาก K1 +6ปี (BACHELOR)'               => ['K2', 1, '2026-06-01'],
