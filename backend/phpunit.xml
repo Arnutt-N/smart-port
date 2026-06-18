@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PHPUnit configuration — Smart Port backend
+  รันใน php:8.3-cli container (host ไม่มี php) ผ่าน tests/run.sh
+  สองชุด: Unit (pure PHP, ไม่ต้อง DB) + Integration (ต้อง MySQL จาก docker compose)
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="depends,defects"
+         failOnWarning="true"
+         failOnRisky="true"
+         beStrictAboutOutputDuringTests="true">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <file>QualificationEngine.php</file>
+            <file>helpers.php</file>
+        </include>
+    </source>
+</phpunit>
