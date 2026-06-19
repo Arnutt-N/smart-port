@@ -33,9 +33,14 @@ function handleImport(PDO $pdo, string $method, array $path): void
     }
 
     // rate limit: นับ import ของ user นี้ในหน้าต่างล่าสุด (กัน abuse/DoS) — pattern เดียวกับ login_attempts
-    $pdo->exec('DELETE FROM import_log WHERE imported_at < NOW() - INTERVAL 1 DAY');
+    // cleanup ห่อ try-catch: ถ้า import_log ยังไม่มี/ชั่วคราวล่ม จะไม่ทำให้ทั้ง endpoint 500
+    try {
+        $pdo->exec('DELETE FROM import_log WHERE imported_at < NOW() - INTERVAL 1 DAY');
+    } catch (Throwable $e) {
+        error_log('[import] log cleanup skip: ' . $e->getMessage());
+    }
     $rl = $pdo->prepare(
-        'SELECT COUNT(*) FROM import_log WHERE user_id = ? AND imported_at > NOW() - INTERVAL ' . IMPORT_RATE_WINDOW_MIN . ' MINUTE'
+        'SELECT COUNT(*) FROM import_log WHERE user_id = ? AND imported_at > NOW() - INTERVAL ' . (int) IMPORT_RATE_WINDOW_MIN . ' MINUTE'
     );
     $rl->execute([$userId]);
     if ((int) $rl->fetchColumn() >= IMPORT_RATE_MAX) {
@@ -77,18 +82,21 @@ function handleImport(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    // pre-log attempt ก่อน import — กัน rate-limit bypass (นับทันที) + audit ไว้แม้ import crash
+    $logStmt = $pdo->prepare('INSERT INTO import_log (user_id, filename) VALUES (?, ?)');
+    $logStmt->execute([$userId, mb_substr((string) ($file['name'] ?? ''), 0, 300)]);
+    $logId = (int) $pdo->lastInsertId();
+
     $result = (new ImportService($pdo))->importFromFile((string) $file['tmp_name']);
 
-    // audit log (OWASP A09) — ไม่เก็บ citizen_id (PII)
-    $log = $pdo->prepare(
-        'INSERT INTO import_log (user_id, filename, personnel_count, is_success, error_summary) VALUES (?, ?, ?, ?, ?)'
-    );
-    $log->execute([
-        $userId,
-        mb_substr((string) ($file['name'] ?? ''), 0, 300),
+    // อัปเดตผลลง audit log (OWASP A09) — ไม่เก็บ citizen_id (PII)
+    $pdo->prepare(
+        'UPDATE import_log SET personnel_count = ?, is_success = ?, error_summary = ? WHERE log_id = ?'
+    )->execute([
         (int) ($result['summary']['personnel'] ?? 0),
         $result['success'] ? 1 : 0,
         $result['success'] ? null : mb_substr(implode(' | ', $result['errors']), 0, 500),
+        $logId,
     ]);
 
     http_response_code($result['success'] ? 200 : 422);

@@ -87,11 +87,12 @@ class ImportService
                 $result[$name] = [];
                 continue;
             }
-            $rows = $ws->toArray(null, true, false, false); // raw values, 0-indexed
-            array_shift($rows); // ตัด header
-            if (count($rows) > self::MAX_ROWS_PER_SHEET) {
+            // กัน OOM/DoS: เช็คจาก metadata ก่อนโหลดทั้งชีตเข้า memory (-1 = ตัด header)
+            if ($ws->getHighestDataRow() - 1 > self::MAX_ROWS_PER_SHEET) {
                 throw new RuntimeException("ชีต {$name} มีข้อมูลเกิน " . self::MAX_ROWS_PER_SHEET . ' แถว');
             }
+            $rows = $ws->toArray(null, true, false, false); // raw values, 0-indexed
+            array_shift($rows); // ตัด header
 
             $parsed = [];
             foreach ($rows as $row) {
@@ -310,11 +311,11 @@ class ImportService
         if (isset($cache[$clean])) {
             return $cache[$clean];
         }
-        $sel = $this->pdo->prepare("SELECT {$idCol} FROM `{$table}` WHERE {$nameCol} = ? LIMIT 1");
+        $sel = $this->pdo->prepare("SELECT `{$idCol}` FROM `{$table}` WHERE `{$nameCol}` = ? LIMIT 1");
         $sel->execute([$clean]);
         $id = $sel->fetchColumn();
         if ($id === false) {
-            $ins = $this->pdo->prepare("INSERT INTO `{$table}` ({$nameCol}) VALUES (?)");
+            $ins = $this->pdo->prepare("INSERT INTO `{$table}` (`{$nameCol}`) VALUES (?)");
             $ins->execute([$clean]);
             $id = $this->pdo->lastInsertId();
             if ((int) $id < 1) {

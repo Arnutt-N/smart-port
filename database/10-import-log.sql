@@ -12,5 +12,6 @@ CREATE TABLE IF NOT EXISTS import_log (
     is_success TINYINT(1) NOT NULL DEFAULT 0,
     error_summary VARCHAR(500) NULL,
     imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_import_log_user_time (user_id, imported_at)
+    KEY idx_import_log_user_time (user_id, imported_at),
+    KEY idx_import_log_time (imported_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
