@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 สร้างไฟล์ Excel สำหรับ HR data import tooling:
-  - docs/import-template.xlsx           เทมเพลตให้ HR กรอก (header ไทย + 1 แถวตัวอย่าง)
+  - frontend/public/import-template.xlsx   เทมเพลตให้ HR กรอก (static asset, header ไทย + 1 แถวตัวอย่าง)
   - backend/tests/fixtures/import-sample.xlsx   ข้อมูลทดสอบ (ImportServiceTest)
 
 คอลัมน์ต้องเรียงตรงกับ ImportService::SHEETS (อ่านตามตำแหน่ง ไม่ใช่ชื่อ header)
@@ -41,7 +41,8 @@ def build(path, data):
 
 
 # เทมเพลต: 1 แถวตัวอย่างต่อชีต (HR ลบก่อนกรอกจริง)
-build('docs/import-template.xlsx', {
+# single-source ที่ frontend/public — Vite/Nginx serve เป็น static → ปุ่มดาวน์โหลดใน ImportPage ชี้ /import-template.xlsx
+build('frontend/public/import-template.xlsx', {
     'Personnel':   [['1100100200001', 'สมชาย(ตัวอย่าง-ลบก่อนใช้)', 'ใจดี', '2010-01-01', 'K3', '2020-01-01', 'MASTER', 'สำนักงานปลัดกระทรวงยุติธรรม', 'นักทรัพยากรบุคคลชำนาญการพิเศษ']],
     'Diverse':     [['1100100200001', '1', '1', '1', '0', '2018-01-01']],
     'Equivalence': [['1100100200001', 'ผู้เชี่ยวชาญ', 'อำนวยการ', '730', 'APPROVED', '2020-01-01', '2022-01-01']],
