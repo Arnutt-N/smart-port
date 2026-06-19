@@ -1,20 +1,16 @@
 name: CI
 
+# ⚠️ Auto-trigger ปิดชั่วคราว (GitHub Actions quota ฟรีหมด) — 2026-06-19
+# Verify แทนด้วย local: bash backend/tests/run.sh (backend, Docker) + cd frontend && npm ci && npm test && npm run build
+# เปิดกลับ: คืน push/pull_request block ด้านล่าง (ดู git log ของไฟล์นี้) แล้วลบ workflow_dispatch
 on:
-  push:
-    branches: [main, feat/backend-apis, feat/frontend-vue3]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'project-log-md/**'
-      - '.claude/**'
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'project-log-md/**'
-      - '.claude/**'
+  workflow_dispatch:
+  # push:
+  #   branches: [main, feat/backend-apis, feat/frontend-vue3]
+  #   paths-ignore: ['**.md', 'docs/**', 'project-log-md/**', '.claude/**']
+  # pull_request:
+  #   branches: [main]
+  #   paths-ignore: ['**.md', 'docs/**', 'project-log-md/**', '.claude/**']
 
 # ยกเลิก run เก่าเมื่อ push ทับ branch/PR เดิม (ประหยัด Actions minutes)
 concurrency:

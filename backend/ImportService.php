@@ -22,13 +22,20 @@ class ImportService
 
     /** ลำดับคอลัมน์ของแต่ละชีต (ต้องตรงกับ import-template.xlsx) */
     private const SHEETS = [
-        'Personnel'   => ['citizen_id', 'first_name', 'last_name', 'hire_date', 'current_level_code', 'current_level_start_date', 'education_level'],
+        'Personnel'   => ['citizen_id', 'first_name', 'last_name', 'hire_date', 'current_level_code', 'current_level_start_date', 'education_level', 'org_name', 'position_name'],
         'Diverse'     => ['citizen_id', 'is_diff_job_series', 'is_diff_org', 'is_diff_location', 'is_diff_work_nature', 'qualified_date'],
         'Equivalence' => ['citizen_id', 'actual_position', 'equivalent_type', 'approved_total_days', 'approval_status', 'approved_start_date', 'approved_end_date'],
-        'History'     => ['citizen_id', 'position_level', 'effective_date', 'end_date', 'position_name'],
+        'History'     => ['citizen_id', 'position_level', 'effective_date', 'end_date', 'position_name', 'org_name'],
     ];
 
+    /** จำกัดจำนวนแถวต่อชีต — กัน OOM/DoS จากไฟล์ใหญ่ */
+    private const MAX_ROWS_PER_SHEET = 5000;
+
     private PDO $pdo;
+
+    /** cache ชื่อ(normalized) → id ภายใน 1 batch (reset ที่ต้น persist) — กัน N+1 + dup ในไฟล์เดียว */
+    private array $orgCache = [];
+    private array $positionCache = [];
 
     public function __construct(PDO $pdo)
     {
@@ -49,7 +56,8 @@ class ImportService
         try {
             $sheets = $this->parseWorkbook($xlsxPath);
         } catch (Throwable $e) {
-            return ['success' => false, 'summary' => [], 'errors' => ['อ่านไฟล์ Excel ไม่ได้: ' . $e->getMessage()]];
+            error_log('[ImportService] parse failed: ' . $e->getMessage());
+            return ['success' => false, 'summary' => [], 'errors' => ['อ่านไฟล์ Excel ไม่ได้ — ตรวจสอบว่าเป็นไฟล์ .xlsx ที่ถูกต้องและไม่ใหญ่เกินไป']];
         }
 
         $errors = $this->validate($sheets);
@@ -67,7 +75,10 @@ class ImportService
      */
     private function parseWorkbook(string $xlsxPath): array
     {
-        $book = IOFactory::load($xlsxPath);
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);     // ปิด formula/style/external-ref (ลด attack surface)
+        $reader->setReadEmptyCells(false);
+        $book = $reader->load($xlsxPath);
         $result = [];
 
         foreach (self::SHEETS as $name => $cols) {
@@ -75,6 +86,10 @@ class ImportService
             if ($ws === null) {
                 $result[$name] = [];
                 continue;
+            }
+            // กัน OOM/DoS: เช็คจาก metadata ก่อนโหลดทั้งชีตเข้า memory (-1 = ตัด header)
+            if ($ws->getHighestDataRow() - 1 > self::MAX_ROWS_PER_SHEET) {
+                throw new RuntimeException("ชีต {$name} มีข้อมูลเกิน " . self::MAX_ROWS_PER_SHEET . ' แถว');
             }
             $rows = $ws->toArray(null, true, false, false); // raw values, 0-indexed
             array_shift($rows); // ตัด header
@@ -122,6 +137,12 @@ class ImportService
             if (!in_array($p['current_level_code'] ?? '', self::VALID_LEVELS, true)) {
                 $errors[] = "Personnel แถว {$rowNo}: current_level_code ไม่ถูกต้อง (" . implode('/', self::VALID_LEVELS) . ')';
             }
+            if (($p['org_name'] ?? '') === '') {
+                $errors[] = "Personnel แถว {$rowNo}: ต้องระบุหน่วยงาน";
+            }
+            if (($p['position_name'] ?? '') === '') {
+                $errors[] = "Personnel แถว {$rowNo}: ต้องระบุตำแหน่ง";
+            }
             $this->checkDate($p['current_level_start_date'] ?? null, true, "Personnel แถว {$rowNo}: current_level_start_date", $errors);
             $this->checkDate($p['hire_date'] ?? null, false, "Personnel แถว {$rowNo}: hire_date", $errors);
         }
@@ -146,7 +167,7 @@ class ImportService
             $rowNo = $i + 2;
             $cid = (string) ($r['citizen_id'] ?? '');
             if (!isset($validCitizens[$cid])) {
-                $errors[] = "{$sheet} แถว {$rowNo}: citizen_id {$cid} ไม่มีในชีต Personnel";
+                $errors[] = "{$sheet} แถว {$rowNo}: เลขบัตรประชาชนไม่ตรงกับชีต Personnel";
             }
             foreach ($required as $field => $rule) {
                 $val = $r[$field] ?? null;
@@ -169,16 +190,20 @@ class ImportService
      */
     private function persist(array $sheets): array
     {
+        // reset cache ต่อ batch — กัน id จาก batch ก่อน (ที่อาจ rollback) ค้าง
+        $this->orgCache = [];
+        $this->positionCache = [];
         $this->pdo->beginTransaction();
         try {
             $idByCitizen = [];
             $pStmt = $this->pdo->prepare(
                 'INSERT INTO personnel (citizen_id, first_name, last_name, hire_date, current_position_id, current_org_id, current_level_start_date, current_level_code, education_level, is_active)
-                 VALUES (?, ?, ?, ?, 1, 1, ?, ?, ?, 1)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
             );
             foreach ($sheets['Personnel'] as $p) {
                 $pStmt->execute([
                     $p['citizen_id'], $p['first_name'], $p['last_name'], $this->dateOrNull($p['hire_date']),
+                    $this->resolvePosition($p['position_name'] ?? null), $this->resolveOrg($p['org_name'] ?? null),
                     $p['current_level_start_date'], $p['current_level_code'], $p['education_level'] ?: 'BACHELOR',
                 ]);
                 $idByCitizen[(string) $p['citizen_id']] = (int) $this->pdo->lastInsertId();
@@ -211,11 +236,12 @@ class ImportService
 
             $hStmt = $this->pdo->prepare(
                 'INSERT INTO personnel_position_history (personnel_id, position_id, org_id, position_name, position_level, effective_date, end_date, job_series_name)
-                 VALUES (?, 1, 1, ?, ?, ?, ?, ?)'
+                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?)'
             );
             foreach ($sheets['History'] as $h) {
                 $hStmt->execute([
-                    $idByCitizen[(string) $h['citizen_id']], $h['position_name'] ?: '', $h['position_level'],
+                    $idByCitizen[(string) $h['citizen_id']], $this->resolveOrg($h['org_name'] ?? null),
+                    $h['position_name'] ?: '', $h['position_level'],
                     $h['effective_date'], $this->dateOrNull($h['end_date']), $h['position_name'] ?: '',
                 ]);
             }
@@ -236,11 +262,68 @@ class ImportService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            return ['success' => false, 'summary' => [], 'errors' => ['insert ล้มเหลว (rollback ทั้งหมด): ' . $e->getMessage()]];
+            // duplicate key (1062) = citizen_id ซ้ำกับข้อมูลที่มีอยู่ → ข้อความเป็นมิตร (ไม่รั่ว SQL)
+            if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+                return ['success' => false, 'summary' => [], 'errors' => ['พบเลขบัตรประชาชนซ้ำกับข้อมูลที่มีอยู่ในระบบ — กรุณาตรวจไฟล์']];
+            }
+            error_log('[ImportService] persist failed: ' . $e->getMessage());
+            return ['success' => false, 'summary' => [], 'errors' => ['บันทึกข้อมูลไม่สำเร็จ (rollback ทั้งหมด) — กรุณาติดต่อผู้ดูแลระบบ']];
         }
     }
 
     // ---- helpers --------------------------------------------------------
+
+    /** normalize ชื่อ (trim + ยุบ whitespace) + reject HTML; คืน '' ถ้าว่าง */
+    private function cleanName(?string $name): string
+    {
+        $n = preg_replace('/\s+/u', ' ', trim((string) $name));
+        if ($n !== '' && preg_match('/[<>]/', $n)) {
+            throw new RuntimeException("ชื่อหน่วยงาน/ตำแหน่งมีอักขระต้องห้าม (< >)");
+        }
+        return $n;
+    }
+
+    private function resolveOrg(?string $name): ?int
+    {
+        return $this->resolveByName($name, $this->orgCache, 'organization', 'org_id', 'org_name');
+    }
+
+    private function resolvePosition(?string $name): ?int
+    {
+        return $this->resolveByName($name, $this->positionCache, 'position', 'position_id', 'position_name');
+    }
+
+    /**
+     * find-or-create by name (SELECT-then-insert + in-batch cache) — ต้องเรียกใน transaction.
+     * table/column เป็นค่าคงที่ภายใน (ไม่ใช่ user input) — ชื่อที่ผู้ใช้กรอก bind ผ่าน ? เสมอ
+     *
+     * @param array<string,int> $cache
+     */
+    private function resolveByName(?string $name, array &$cache, string $table, string $idCol, string $nameCol): ?int
+    {
+        if (!$this->pdo->inTransaction()) {
+            throw new LogicException('resolveByName ต้องเรียกภายใน transaction');
+        }
+        $clean = $this->cleanName($name);
+        if ($clean === '') {
+            return null;
+        }
+        if (isset($cache[$clean])) {
+            return $cache[$clean];
+        }
+        $sel = $this->pdo->prepare("SELECT `{$idCol}` FROM `{$table}` WHERE `{$nameCol}` = ? LIMIT 1");
+        $sel->execute([$clean]);
+        $id = $sel->fetchColumn();
+        if ($id === false) {
+            $ins = $this->pdo->prepare("INSERT INTO `{$table}` (`{$nameCol}`) VALUES (?)");
+            $ins->execute([$clean]);
+            $id = $this->pdo->lastInsertId();
+            if ((int) $id < 1) {
+                throw new RuntimeException("INSERT {$table} ไม่คืน id");
+            }
+        }
+        return $cache[$clean] = (int) $id;
+    }
 
     private function isBlankRow(array $row): bool
     {

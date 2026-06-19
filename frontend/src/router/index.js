@@ -58,6 +58,12 @@ const routes = [
         meta: { requiresAdmin: true },
       },
       {
+        path: 'import',
+        name: 'import',
+        component: () => import('@/pages/ImportPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'time-counting',
         name: 'time-counting',
         component: () => import('@/pages/SupportivePage.vue'),

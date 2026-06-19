@@ -99,7 +99,7 @@ import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import {
   X, BookOpen, LayoutDashboard, UserCheck, Users, Clock, Award, UserMinus,
-  Briefcase, FileText, Trophy, ChevronRight, UserCog,
+  Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp,
 } from 'lucide-vue-next'
 
 defineProps({ open: Boolean })
@@ -132,9 +132,12 @@ const menuItems = computed(() => [
   },
   { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },
   { id: 'retirement-report', label: 'รายงานผู้เกษียณ', icon: UserMinus, to: '/retirement-report' },
-  // เมนูจัดการผู้ใช้ — admin เท่านั้น
+  // เมนู admin เท่านั้น — นำเข้าข้อมูล + จัดการผู้ใช้
   ...(auth.user?.role === 'admin'
-    ? [{ id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' }]
+    ? [
+        { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
+        { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
+      ]
     : []),
   { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
   { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/analytics' },
