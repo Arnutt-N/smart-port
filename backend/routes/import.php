@@ -11,9 +11,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../ImportService.php';
 
+const IMPORT_MAX_BYTES = 5 * 1024 * 1024;   // 5MB
+const IMPORT_RATE_MAX = 10;                  // จำนวนครั้งต่อหน้าต่าง
+const IMPORT_RATE_WINDOW_MIN = 15;           // นาที
+
 function handleImport(PDO $pdo, string $method, array $path): void
 {
-    requireAdmin();
+    $user = requireAdmin();
+    $userId = (int) ($user['user_id'] ?? 0);
 
     if ($method !== 'POST') {
         http_response_code(405);
@@ -27,8 +32,21 @@ function handleImport(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    // rate limit: นับ import ของ user นี้ในหน้าต่างล่าสุด (กัน abuse/DoS) — pattern เดียวกับ login_attempts
+    $pdo->exec('DELETE FROM import_log WHERE imported_at < NOW() - INTERVAL 1 DAY');
+    $rl = $pdo->prepare(
+        'SELECT COUNT(*) FROM import_log WHERE user_id = ? AND imported_at > NOW() - INTERVAL ' . IMPORT_RATE_WINDOW_MIN . ' MINUTE'
+    );
+    $rl->execute([$userId]);
+    if ((int) $rl->fetchColumn() >= IMPORT_RATE_MAX) {
+        http_response_code(429);
+        echo json_encode(['error' => 'นำเข้าบ่อยเกินไป กรุณารอสักครู่'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     $file = $_FILES['file'] ?? null;
-    if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+    if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+        || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
         http_response_code(400);
         echo json_encode(['error' => 'กรุณาแนบไฟล์ Excel (field: file)'], JSON_UNESCAPED_UNICODE);
         return;
@@ -40,7 +58,38 @@ function handleImport(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    // size cap ด้วย filesize จริง (ไม่เชื่อ $_FILES['size'] ที่ client ปลอมได้) — fail-fast ก่อนเปิดไฟล์
+    if ((int) filesize($file['tmp_name']) > IMPORT_MAX_BYTES) {
+        http_response_code(413);
+        echo json_encode(['error' => 'ไฟล์ใหญ่เกิน 5MB'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    // magic bytes: .xlsx = ZIP (PK\x03\x04) — กันไฟล์ปลอมนามสกุล
+    $fh = fopen($file['tmp_name'], 'rb');
+    $magic = $fh ? (string) fread($fh, 4) : '';
+    if ($fh) {
+        fclose($fh);
+    }
+    if (strlen($magic) < 4 || $magic !== "PK\x03\x04") {
+        http_response_code(415);
+        echo json_encode(['error' => 'ไฟล์ไม่ใช่ .xlsx ที่ถูกต้อง'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     $result = (new ImportService($pdo))->importFromFile((string) $file['tmp_name']);
+
+    // audit log (OWASP A09) — ไม่เก็บ citizen_id (PII)
+    $log = $pdo->prepare(
+        'INSERT INTO import_log (user_id, filename, personnel_count, is_success, error_summary) VALUES (?, ?, ?, ?, ?)'
+    );
+    $log->execute([
+        $userId,
+        mb_substr((string) ($file['name'] ?? ''), 0, 300),
+        (int) ($result['summary']['personnel'] ?? 0),
+        $result['success'] ? 1 : 0,
+        $result['success'] ? null : mb_substr(implode(' | ', $result['errors']), 0, 500),
+    ]);
 
     http_response_code($result['success'] ? 200 : 422);
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
