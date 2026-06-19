@@ -19,6 +19,11 @@ function handleImport(PDO $pdo, string $method, array $path): void
 {
     $user = requireAdmin();
     $userId = (int) ($user['user_id'] ?? 0);
+    if ($userId < 1) {
+        http_response_code(401);
+        echo json_encode(['error' => 'โทเคนไม่สมบูรณ์ กรุณาเข้าสู่ระบบใหม่'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
 
     if ($method !== 'POST') {
         http_response_code(405);
@@ -72,10 +77,13 @@ function handleImport(PDO $pdo, string $method, array $path): void
 
     // magic bytes: .xlsx = ZIP (PK\x03\x04) — กันไฟล์ปลอมนามสกุล
     $fh = fopen($file['tmp_name'], 'rb');
-    $magic = $fh ? (string) fread($fh, 4) : '';
-    if ($fh) {
-        fclose($fh);
+    if ($fh === false) {
+        http_response_code(500);
+        echo json_encode(['error' => 'ไม่สามารถอ่านไฟล์เพื่อตรวจสอบได้'], JSON_UNESCAPED_UNICODE);
+        return;
     }
+    $magic = (string) fread($fh, 4);
+    fclose($fh);
     if (strlen($magic) < 4 || $magic !== "PK\x03\x04") {
         http_response_code(415);
         echo json_encode(['error' => 'ไฟล์ไม่ใช่ .xlsx ที่ถูกต้อง'], JSON_UNESCAPED_UNICODE);
