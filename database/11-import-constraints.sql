@@ -13,13 +13,16 @@
 
 -- ---- UNIQUE (safety net กัน dup จาก race) -----------------------------------
 -- resolver normalize ชื่อ (trim + ยุบ whitespace) ก่อน insert อยู่แล้ว → ค่าที่เก็บ normalized
--- UNIQUE บน SHA2(name) (functional index) กัน collision จาก prefix index บน VARCHAR ยาว >191
--- MySQL 8.0.13+ / TiDB: functional key part ต้องครอบ double-paren
+-- ใช้ generated STORED column + UNIQUE บน SHA2(name) — กัน collision จาก prefix index บน VARCHAR ยาว >191
+-- เลือก generated column แทน functional index ((SHA2(...))) เพราะ TiDB รองรับ generated/stored ตรงๆ
+-- แต่ functional/expression index ต้อง tidb_enable_expression_index=ON (อาจ restricted บน TiDB Cloud Serverless)
 ALTER TABLE organization
-  ADD UNIQUE KEY uq_org_name_hash ((SHA2(org_name, 256)));
+  ADD COLUMN org_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(org_name, 256)) STORED,
+  ADD UNIQUE KEY uq_org_name_hash (org_name_hash);
 
 ALTER TABLE `position`
-  ADD UNIQUE KEY uq_position_name_hash ((SHA2(position_name, 256)));
+  ADD COLUMN position_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(position_name, 256)) STORED,
+  ADD UNIQUE KEY uq_position_name_hash (position_name_hash);
 
 -- ---- FK indexes (เร่ง join/lookup ของ candidate views + resolver) ------------
 ALTER TABLE personnel
