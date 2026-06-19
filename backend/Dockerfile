@@ -7,7 +7,9 @@ WORKDIR /app
 
 COPY composer.json composer.lock* ./
 
-RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optimize-autoloader
+# ext-gd ถูก declare โดย phpspreadsheet แต่ใช้เฉพาะ export รูป — การอ่าน xlsx (import) ไม่ใช้
+# จึง ignore platform req เพื่อไม่ต้องลง gd (libpng/jpeg/freetype) ที่ทำให้ image ใหญ่
+RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optimize-autoloader --ignore-platform-req=ext-gd
 
 # =========================================================================
 # STAGE 2: Production Stage

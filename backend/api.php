@@ -370,6 +370,12 @@ switch ($path[0]) {
         handleEquivalence($pdo, $method, $path);
         break;
 
+    case 'import':
+        $pdo = getDB();
+        include __DIR__ . '/routes/import.php';
+        handleImport($pdo, $method, $path);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
