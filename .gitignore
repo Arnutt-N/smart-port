@@ -77,4 +77,9 @@ admin-dashboard-integration-test.html
 .npm/
 .yarn/
 
+# PHP / Composer / PHPUnit
+backend/vendor/
+backend/.phpunit.cache/
+backend/.phpunit.result.cache
+
 secrets/

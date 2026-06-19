@@ -1,0 +1,17 @@
+# ============================================================================
+# Dockerfile.test — PHPUnit runner image สำหรับ Smart Port backend
+# host ไม่มี php และ production image build แบบ --no-dev (ไม่มี phpunit)
+# ใช้ composer:2.7 (alpine) เป็น base — มี composer + git + unzip พร้อม
+# (เลี่ยง apt/port-80; ดึง pdo_mysql ผ่าน apk บน HTTPS) ใช้โดย tests/run.sh
+# ============================================================================
+FROM composer:2.7
+
+# pdo_mysql สำหรับ integration test — ต้องมี build tools ($PHPIZE_DEPS) ชั่วคราว
+# pdo_mysql ใช้ mysqlnd ที่ bundled มา ไม่ต้องลง mysql client lib เพิ่ม
+RUN apk add --no-cache $PHPIZE_DEPS libzip-dev \
+    && docker-php-ext-install pdo_mysql zip
+
+# composer image ตั้ง ENTRYPOINT=composer — ล้างเพื่อให้ run.sh สั่ง sh -c ได้ตรง
+ENTRYPOINT []
+
+WORKDIR /app
