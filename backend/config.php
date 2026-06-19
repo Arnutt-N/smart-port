@@ -9,6 +9,20 @@ function env($key, $default = '') {
     return getenv($key) ?: ($_ENV[$key] ?? ($_SERVER[$key] ?? $default));
 }
 
+// สร้าง PDO SSL options — fail-closed: เปิด SSL แต่ไม่มี CA = error ไม่ใช่ต่อแบบ insecure เงียบๆ
+function buildSslOptions(string $useSSL, string $caPath): array {
+    if ($useSSL !== 'true' && $useSSL !== '1') {
+        return [];
+    }
+    if ($caPath === '' || !is_readable($caPath)) {
+        throw new RuntimeException('MYSQL_SSL เปิดอยู่แต่ MYSQL_SSL_CA ไม่ได้ตั้งค่าหรืออ่านไม่ได้');
+    }
+    return [
+        PDO::MYSQL_ATTR_SSL_CA                 => $caPath,
+        PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true,
+    ];
+}
+
 header('Content-Type: application/json; charset=UTF-8');
 
 // JWT Secret — ต้องมาจาก env var เท่านั้น
@@ -51,11 +65,8 @@ function getDB(): PDO {
         PDO::ATTR_EMULATE_PREPARES   => false,
     ];
 
-    // TiDB Cloud ต้องใช้ SSL — เปิดเมื่อตั้ง MYSQL_SSL=true
-    if ($useSSL === 'true' || $useSSL === '1') {
-        $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
-        $options[PDO::MYSQL_ATTR_SSL_CA] = '';
-    }
+    // TiDB Cloud ต้องใช้ SSL — เปิดเมื่อ MYSQL_SSL=true (verify cert จริง, fail-closed)
+    $options += buildSslOptions($useSSL, env('MYSQL_SSL_CA', ''));
 
     // Docker local ใช้ persistent connection ได้ แต่ production ไม่ควรใช้
     if ($host === 'db' || $host === 'localhost' || $host === '127.0.0.1') {

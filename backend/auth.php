@@ -36,7 +36,13 @@ function validateJWT($token) {
     }
     
     list($headerEncoded, $payloadEncoded, $signatureEncoded) = $parts;
-    
+
+    // ตรวจ alg ใน header ก่อน — defense-in-depth กัน algorithm-confusion (รับเฉพาะ HS256)
+    $header = json_decode(base64url_decode($headerEncoded), true);
+    if (!is_array($header) || ($header['alg'] ?? '') !== 'HS256') {
+        return false;
+    }
+
     // Verify signature
     $signature = base64url_decode($signatureEncoded);
     $expectedSignature = hash_hmac('sha256', $headerEncoded . "." . $payloadEncoded, JWT_SECRET, true);
