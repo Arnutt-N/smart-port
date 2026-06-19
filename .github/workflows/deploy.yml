@@ -1,13 +1,14 @@
 name: Deploy to Render
 
+# ⚠️ Auto-deploy ปิดชั่วคราว (GitHub Actions quota ฟรีหมด) — 2026-06-19
+# Deploy แทนด้วย: Render dashboard (Manual Deploy) หรือ curl RENDER_DEPLOY_HOOK_URL เอง
+# หรือเปิด Auto-Deploy ฝั่ง Render (ให้ Render watch branch main) แทน GH Actions
+# เปิดกลับ: คืน push block ด้านล่าง แล้วลบ workflow_dispatch
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'project-log-md/**'
-      - '.claude/**'
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths-ignore: ['**.md', 'docs/**', 'project-log-md/**', '.claude/**']
 
 jobs:
   deploy:
