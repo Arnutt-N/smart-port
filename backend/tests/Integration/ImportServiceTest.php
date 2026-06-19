@@ -100,6 +100,48 @@ final class ImportServiceTest extends TestCase
         self::assertNotSame((int) $row['current_position_id'], (int) $row2['current_position_id']);
     }
 
+    #[Test]
+    public function it_rejects_personnel_missing_org_or_position(): void
+    {
+        // validate() เป็น pure (ไม่แตะ DB) — เรียกตรงผ่าน reflection
+        $svc = new ImportService(self::$pdo);
+        $ref = new \ReflectionMethod($svc, 'validate');
+        $ref->setAccessible(true);
+        $sheets = [
+            'Personnel' => [[
+                'citizen_id' => '1100100299010', 'first_name' => 'ก', 'last_name' => 'ข',
+                'hire_date' => '2010-01-01', 'current_level_code' => 'K3',
+                'current_level_start_date' => '2020-01-01', 'education_level' => 'MASTER',
+                'org_name' => '', 'position_name' => '',
+            ]],
+            'Diverse' => [], 'Equivalence' => [], 'History' => [],
+        ];
+        $errors = $ref->invoke($svc, $sheets);
+        self::assertNotEmpty($errors);
+        self::assertStringContainsString('หน่วยงาน', implode(' ', $errors));
+    }
+
+    #[Test]
+    public function it_returns_friendly_error_on_reimport(): void
+    {
+        $svc = new ImportService(self::$pdo);
+        $first = $svc->importFromFile(self::SAMPLE);
+        self::assertTrue($first['success'], 'import แรกต้องสำเร็จ: ' . implode(' | ', $first['errors']));
+
+        // import ไฟล์เดิมซ้ำ → citizen_id ชน UNIQUE → ต้องได้ error ภาษาไทยที่เป็นมิตร (ไม่รั่ว SQL)
+        $second = $svc->importFromFile(self::SAMPLE);
+        self::assertFalse($second['success']);
+        self::assertStringContainsString('เลขบัตรประชาชนซ้ำ', implode(' ', $second['errors']));
+        self::assertStringNotContainsString('SQLSTATE', implode(' ', $second['errors']));
+    }
+
+    #[Test]
+    public function it_caps_rows_per_sheet(): void
+    {
+        $ref = new \ReflectionClassConstant(ImportService::class, 'MAX_ROWS_PER_SHEET');
+        self::assertLessThanOrEqual(5000, $ref->getValue());
+    }
+
     private function personnelId(string $citizenId): int
     {
         $stmt = self::$pdo->prepare('SELECT personnel_id FROM personnel WHERE citizen_id = ?');

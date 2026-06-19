@@ -28,6 +28,9 @@ class ImportService
         'History'     => ['citizen_id', 'position_level', 'effective_date', 'end_date', 'position_name', 'org_name'],
     ];
 
+    /** จำกัดจำนวนแถวต่อชีต — กัน OOM/DoS จากไฟล์ใหญ่ */
+    private const MAX_ROWS_PER_SHEET = 5000;
+
     private PDO $pdo;
 
     /** cache ชื่อ(normalized) → id ภายใน 1 batch (reset ที่ต้น persist) — กัน N+1 + dup ในไฟล์เดียว */
@@ -53,7 +56,8 @@ class ImportService
         try {
             $sheets = $this->parseWorkbook($xlsxPath);
         } catch (Throwable $e) {
-            return ['success' => false, 'summary' => [], 'errors' => ['อ่านไฟล์ Excel ไม่ได้: ' . $e->getMessage()]];
+            error_log('[ImportService] parse failed: ' . $e->getMessage());
+            return ['success' => false, 'summary' => [], 'errors' => ['อ่านไฟล์ Excel ไม่ได้ — ตรวจสอบว่าเป็นไฟล์ .xlsx ที่ถูกต้องและไม่ใหญ่เกินไป']];
         }
 
         $errors = $this->validate($sheets);
@@ -71,7 +75,10 @@ class ImportService
      */
     private function parseWorkbook(string $xlsxPath): array
     {
-        $book = IOFactory::load($xlsxPath);
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);     // ปิด formula/style/external-ref (ลด attack surface)
+        $reader->setReadEmptyCells(false);
+        $book = $reader->load($xlsxPath);
         $result = [];
 
         foreach (self::SHEETS as $name => $cols) {
@@ -82,6 +89,9 @@ class ImportService
             }
             $rows = $ws->toArray(null, true, false, false); // raw values, 0-indexed
             array_shift($rows); // ตัด header
+            if (count($rows) > self::MAX_ROWS_PER_SHEET) {
+                throw new RuntimeException("ชีต {$name} มีข้อมูลเกิน " . self::MAX_ROWS_PER_SHEET . ' แถว');
+            }
 
             $parsed = [];
             foreach ($rows as $row) {
@@ -126,6 +136,12 @@ class ImportService
             if (!in_array($p['current_level_code'] ?? '', self::VALID_LEVELS, true)) {
                 $errors[] = "Personnel แถว {$rowNo}: current_level_code ไม่ถูกต้อง (" . implode('/', self::VALID_LEVELS) . ')';
             }
+            if (($p['org_name'] ?? '') === '') {
+                $errors[] = "Personnel แถว {$rowNo}: ต้องระบุหน่วยงาน";
+            }
+            if (($p['position_name'] ?? '') === '') {
+                $errors[] = "Personnel แถว {$rowNo}: ต้องระบุตำแหน่ง";
+            }
             $this->checkDate($p['current_level_start_date'] ?? null, true, "Personnel แถว {$rowNo}: current_level_start_date", $errors);
             $this->checkDate($p['hire_date'] ?? null, false, "Personnel แถว {$rowNo}: hire_date", $errors);
         }
@@ -150,7 +166,7 @@ class ImportService
             $rowNo = $i + 2;
             $cid = (string) ($r['citizen_id'] ?? '');
             if (!isset($validCitizens[$cid])) {
-                $errors[] = "{$sheet} แถว {$rowNo}: citizen_id {$cid} ไม่มีในชีต Personnel";
+                $errors[] = "{$sheet} แถว {$rowNo}: เลขบัตรประชาชนไม่ตรงกับชีต Personnel";
             }
             foreach ($required as $field => $rule) {
                 $val = $r[$field] ?? null;
@@ -245,7 +261,12 @@ class ImportService
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            return ['success' => false, 'summary' => [], 'errors' => ['insert ล้มเหลว (rollback ทั้งหมด): ' . $e->getMessage()]];
+            // duplicate key (1062) = citizen_id ซ้ำกับข้อมูลที่มีอยู่ → ข้อความเป็นมิตร (ไม่รั่ว SQL)
+            if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+                return ['success' => false, 'summary' => [], 'errors' => ['พบเลขบัตรประชาชนซ้ำกับข้อมูลที่มีอยู่ในระบบ — กรุณาตรวจไฟล์']];
+            }
+            error_log('[ImportService] persist failed: ' . $e->getMessage());
+            return ['success' => false, 'summary' => [], 'errors' => ['บันทึกข้อมูลไม่สำเร็จ (rollback ทั้งหมด) — กรุณาติดต่อผู้ดูแลระบบ']];
         }
     }
 
