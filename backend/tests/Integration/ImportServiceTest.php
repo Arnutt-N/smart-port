@@ -77,6 +77,29 @@ final class ImportServiceTest extends TestCase
         self::assertNotEmpty($result['errors']);
     }
 
+    #[Test]
+    public function it_resolves_org_position_not_hardcoded_id_1(): void
+    {
+        (new ImportService(self::$pdo))->importFromFile(self::SAMPLE);
+
+        $stmt = self::$pdo->prepare(
+            'SELECT current_org_id, current_position_id FROM personnel WHERE citizen_id = ?'
+        );
+        $stmt->execute(['1100100299001']);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        self::assertNotNull($row['current_org_id']);
+        self::assertNotSame(1, (int) $row['current_org_id'], 'org ต้องไม่ใช่ hardcode id=1');
+        self::assertNotNull($row['current_position_id']);
+
+        // ชื่อ org ซ้ำ 2 แถว (กองบริหารทรัพยากรบุคคล) → reuse org_id เดียวกัน
+        $stmt->execute(['1100100299002']);
+        $row2 = $stmt->fetch(PDO::FETCH_ASSOC);
+        self::assertSame((int) $row['current_org_id'], (int) $row2['current_org_id'], 'org ชื่อซ้ำต้อง reuse id เดิม');
+        // ตำแหน่งต่างกัน (ชำนาญการ vs ผู้อำนวยการกอง) → position_id ต่างกัน
+        self::assertNotSame((int) $row['current_position_id'], (int) $row2['current_position_id']);
+    }
+
     private function personnelId(string $citizenId): int
     {
         $stmt = self::$pdo->prepare('SELECT personnel_id FROM personnel WHERE citizen_id = ?');
@@ -92,6 +115,9 @@ final class ImportServiceTest extends TestCase
             self::$pdo->exec("DELETE FROM position_equivalence WHERE personnel_id IN ({$ids})");
             self::$pdo->exec("DELETE FROM personnel_position_history WHERE personnel_id IN ({$ids})");
             self::$pdo->exec("DELETE FROM personnel WHERE citizen_id LIKE '11001002990%'");
+            // org/position ที่ fixture สร้างใหม่ (ชื่อเฉพาะ test) — ลบหลัง personnel เพื่อไม่ชน FK
+            self::$pdo->exec("DELETE FROM organization WHERE org_name = 'กองบริหารทรัพยากรบุคคล'");
+            self::$pdo->exec("DELETE FROM `position` WHERE position_name IN ('นักทรัพยากรบุคคลชำนาญการ', 'ผู้อำนวยการกอง')");
         } catch (Throwable $e) {
             // ตารางอาจยังไม่มีในบาง schema — ปล่อยให้ test จริงจับ
         }

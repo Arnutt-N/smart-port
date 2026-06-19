@@ -22,13 +22,17 @@ class ImportService
 
     /** ลำดับคอลัมน์ของแต่ละชีต (ต้องตรงกับ import-template.xlsx) */
     private const SHEETS = [
-        'Personnel'   => ['citizen_id', 'first_name', 'last_name', 'hire_date', 'current_level_code', 'current_level_start_date', 'education_level'],
+        'Personnel'   => ['citizen_id', 'first_name', 'last_name', 'hire_date', 'current_level_code', 'current_level_start_date', 'education_level', 'org_name', 'position_name'],
         'Diverse'     => ['citizen_id', 'is_diff_job_series', 'is_diff_org', 'is_diff_location', 'is_diff_work_nature', 'qualified_date'],
         'Equivalence' => ['citizen_id', 'actual_position', 'equivalent_type', 'approved_total_days', 'approval_status', 'approved_start_date', 'approved_end_date'],
-        'History'     => ['citizen_id', 'position_level', 'effective_date', 'end_date', 'position_name'],
+        'History'     => ['citizen_id', 'position_level', 'effective_date', 'end_date', 'position_name', 'org_name'],
     ];
 
     private PDO $pdo;
+
+    /** cache ชื่อ(normalized) → id ภายใน 1 batch (reset ที่ต้น persist) — กัน N+1 + dup ในไฟล์เดียว */
+    private array $orgCache = [];
+    private array $positionCache = [];
 
     public function __construct(PDO $pdo)
     {
@@ -169,16 +173,20 @@ class ImportService
      */
     private function persist(array $sheets): array
     {
+        // reset cache ต่อ batch — กัน id จาก batch ก่อน (ที่อาจ rollback) ค้าง
+        $this->orgCache = [];
+        $this->positionCache = [];
         $this->pdo->beginTransaction();
         try {
             $idByCitizen = [];
             $pStmt = $this->pdo->prepare(
                 'INSERT INTO personnel (citizen_id, first_name, last_name, hire_date, current_position_id, current_org_id, current_level_start_date, current_level_code, education_level, is_active)
-                 VALUES (?, ?, ?, ?, 1, 1, ?, ?, ?, 1)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)'
             );
             foreach ($sheets['Personnel'] as $p) {
                 $pStmt->execute([
                     $p['citizen_id'], $p['first_name'], $p['last_name'], $this->dateOrNull($p['hire_date']),
+                    $this->resolvePosition($p['position_name'] ?? null), $this->resolveOrg($p['org_name'] ?? null),
                     $p['current_level_start_date'], $p['current_level_code'], $p['education_level'] ?: 'BACHELOR',
                 ]);
                 $idByCitizen[(string) $p['citizen_id']] = (int) $this->pdo->lastInsertId();
@@ -211,11 +219,12 @@ class ImportService
 
             $hStmt = $this->pdo->prepare(
                 'INSERT INTO personnel_position_history (personnel_id, position_id, org_id, position_name, position_level, effective_date, end_date, job_series_name)
-                 VALUES (?, 1, 1, ?, ?, ?, ?, ?)'
+                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?)'
             );
             foreach ($sheets['History'] as $h) {
                 $hStmt->execute([
-                    $idByCitizen[(string) $h['citizen_id']], $h['position_name'] ?: '', $h['position_level'],
+                    $idByCitizen[(string) $h['citizen_id']], $this->resolveOrg($h['org_name'] ?? null),
+                    $h['position_name'] ?: '', $h['position_level'],
                     $h['effective_date'], $this->dateOrNull($h['end_date']), $h['position_name'] ?: '',
                 ]);
             }
@@ -241,6 +250,58 @@ class ImportService
     }
 
     // ---- helpers --------------------------------------------------------
+
+    /** normalize ชื่อ (trim + ยุบ whitespace) + reject HTML; คืน '' ถ้าว่าง */
+    private function cleanName(?string $name): string
+    {
+        $n = preg_replace('/\s+/u', ' ', trim((string) $name));
+        if ($n !== '' && preg_match('/[<>]/', $n)) {
+            throw new RuntimeException("ชื่อหน่วยงาน/ตำแหน่งมีอักขระต้องห้าม (< >)");
+        }
+        return $n;
+    }
+
+    private function resolveOrg(?string $name): ?int
+    {
+        return $this->resolveByName($name, $this->orgCache, 'organization', 'org_id', 'org_name');
+    }
+
+    private function resolvePosition(?string $name): ?int
+    {
+        return $this->resolveByName($name, $this->positionCache, 'position', 'position_id', 'position_name');
+    }
+
+    /**
+     * find-or-create by name (SELECT-then-insert + in-batch cache) — ต้องเรียกใน transaction.
+     * table/column เป็นค่าคงที่ภายใน (ไม่ใช่ user input) — ชื่อที่ผู้ใช้กรอก bind ผ่าน ? เสมอ
+     *
+     * @param array<string,int> $cache
+     */
+    private function resolveByName(?string $name, array &$cache, string $table, string $idCol, string $nameCol): ?int
+    {
+        if (!$this->pdo->inTransaction()) {
+            throw new LogicException('resolveByName ต้องเรียกภายใน transaction');
+        }
+        $clean = $this->cleanName($name);
+        if ($clean === '') {
+            return null;
+        }
+        if (isset($cache[$clean])) {
+            return $cache[$clean];
+        }
+        $sel = $this->pdo->prepare("SELECT {$idCol} FROM `{$table}` WHERE {$nameCol} = ? LIMIT 1");
+        $sel->execute([$clean]);
+        $id = $sel->fetchColumn();
+        if ($id === false) {
+            $ins = $this->pdo->prepare("INSERT INTO `{$table}` ({$nameCol}) VALUES (?)");
+            $ins->execute([$clean]);
+            $id = $this->pdo->lastInsertId();
+            if ((int) $id < 1) {
+                throw new RuntimeException("INSERT {$table} ไม่คืน id");
+            }
+        }
+        return $cache[$clean] = (int) $id;
+    }
 
     private function isBlankRow(array $row): bool
     {
