@@ -83,3 +83,12 @@ backend/.phpunit.cache/
 backend/.phpunit.result.cache
 
 secrets/
+
+# Session/debug artifacts — ห้าม track (diff dumps, crash dumps, debug screenshots)
+*diff.txt
+*.stackdump
+/probation-check.png
+
+# Local agent/tool dirs (config/session — อาจมีข้อมูล local ที่ไม่ควร public)
+.claude/
+.playwright-cli/
