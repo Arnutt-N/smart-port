@@ -26,9 +26,11 @@ SELECT COUNT(*) FROM personnel WHERE current_org_id = 1 OR current_position_id =
 ```
 
 ## 3. Apply migrations (ตามลำดับ)
+> ⚠️ prod อยู่แค่ #11 → **ต้อง apply 10 ด้วย** (verify 2026-06-20: import_log ยังไม่มีบน prod)
 ```sql
+SOURCE database/10-import-log.sql;            -- ตาราง import_log (audit + rate limit) — ต้องมาก่อน 12
 SOURCE database/11-import-constraints.sql;   -- UNIQUE (generated STORED column) + FK indexes
-SOURCE database/12-import-log-fk.sql;         -- FK import_log.user_id → users
+SOURCE database/12-import-log-fk.sql;         -- FK import_log.user_id → users (ต้องมี import_log ก่อน)
 ```
 **migration 11 ใช้ generated STORED column** (`org_name_hash`/`position_name_hash` = `SHA2(name,256)`) + UNIQUE บน column นั้น — เลือกแทน functional index `((SHA2(...)))` เพราะ TiDB รองรับ generated/stored ตรงๆ ส่วน expression index ต้อง `tidb_enable_expression_index=ON` (อาจ restricted บน Serverless)
 
