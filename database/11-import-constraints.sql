@@ -13,24 +13,19 @@
 
 -- ---- UNIQUE (safety net กัน dup จาก race) -----------------------------------
 -- resolver normalize ชื่อ (trim + ยุบ whitespace) ก่อน insert อยู่แล้ว → ค่าที่เก็บ normalized
--- ใช้ generated STORED column + UNIQUE บน SHA2(name) — กัน collision จาก prefix index บน VARCHAR ยาว >191
--- เลือก generated column แทน functional index ((SHA2(...))) เพราะ TiDB รองรับ generated/stored ตรงๆ
--- แต่ functional/expression index ต้อง tidb_enable_expression_index=ON (อาจ restricted บน TiDB Cloud Serverless)
-ALTER TABLE organization
-  ADD COLUMN org_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(org_name, 256)) STORED,
-  ADD UNIQUE KEY uq_org_name_hash (org_name_hash);
+-- ใช้ generated VIRTUAL column + UNIQUE บน SHA2(name) — กัน collision จาก prefix index บน VARCHAR ยาว >191
+-- ⚠️ ต้องเป็น VIRTUAL ไม่ใช่ STORED: TiDB ห้าม ADD STORED generated column ผ่าน ALTER (ERROR 3106)
+--    VIRTUAL ใช้ได้ทั้ง TiDB + MySQL 8 และ UNIQUE index บน virtual generated column ยัง enforce ได้
+-- แยก ADD COLUMN กับ ADD UNIQUE ออกจากกัน: TiDB ห้าม index อ้าง column ที่เพิ่งเพิ่มใน ALTER เดียวกัน (ERROR 1072)
+ALTER TABLE organization ADD COLUMN org_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(org_name, 256)) VIRTUAL;
+ALTER TABLE organization ADD UNIQUE KEY uq_org_name_hash (org_name_hash);
+ALTER TABLE `position` ADD COLUMN position_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(position_name, 256)) VIRTUAL;
+ALTER TABLE `position` ADD UNIQUE KEY uq_position_name_hash (position_name_hash);
 
-ALTER TABLE `position`
-  ADD COLUMN position_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(position_name, 256)) STORED,
-  ADD UNIQUE KEY uq_position_name_hash (position_name_hash);
-
--- ---- FK indexes (เร่ง join/lookup ของ candidate views + resolver) ------------
-ALTER TABLE personnel
-  ADD INDEX idx_personnel_org (current_org_id),
-  ADD INDEX idx_personnel_position (current_position_id);
-
-ALTER TABLE personnel_position_history
-  ADD INDEX idx_pph_org (org_id),
-  ADD INDEX idx_pph_position (position_id);
+-- ---- FK indexes (เร่ง join/lookup ของ candidate views + resolver) — แยก ALTER ต่อ index ----
+ALTER TABLE personnel ADD INDEX idx_personnel_org (current_org_id);
+ALTER TABLE personnel ADD INDEX idx_personnel_position (current_position_id);
+ALTER TABLE personnel_position_history ADD INDEX idx_pph_org (org_id);
+ALTER TABLE personnel_position_history ADD INDEX idx_pph_position (position_id);
 
 -- หมายเหตุ: personnel_position_history(personnel_id) มี FK index จาก FK constraint อยู่แล้ว
