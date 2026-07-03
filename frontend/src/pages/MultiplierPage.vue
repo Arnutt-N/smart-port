@@ -202,12 +202,18 @@
       </div>
     </template>
 
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      v-if="showModal"
+      class="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="multiplier-modal-title"
+    >
       <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeModal"></div>
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-gray-900">เพิ่มรายการทวีคูณ</h3>
-          <button class="text-gray-400 hover:text-gray-600" @click="closeModal">
+          <h3 id="multiplier-modal-title" class="text-lg font-semibold text-gray-900">เพิ่มรายการทวีคูณ</h3>
+          <button class="text-gray-400 hover:text-gray-600" @click="closeModal" aria-label="ปิด">
             <X class="w-5 h-5" />
           </button>
         </div>
@@ -322,7 +328,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '@/composables/useApi.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import StatCard from '@/components/StatCard.vue'
@@ -489,9 +495,12 @@ function queuePersonnelSearch() {
   personnelSearchTimeout = setTimeout(async () => {
     try {
       const result = await api.get(`/personnel?search=${encodeURIComponent(query)}&limit=10`)
+      // กัน race: ถ้า user พิมพ์ต่อจนคำค้นเปลี่ยนไปแล้ว ให้ทิ้งผลเก่านี้ (ไม่ทับผลใหม่)
+      if (query !== personnelSearch.value.trim()) return
       personnelResults.value = result.data || []
       showPersonnelDropdown.value = true
     } catch {
+      if (query !== personnelSearch.value.trim()) return
       personnelResults.value = []
       showPersonnelDropdown.value = false
     }
@@ -519,7 +528,17 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
 }
 
+function onGlobalKeydown(e) {
+  if (e.key === 'Escape' && showModal.value) closeModal()
+}
+
 onMounted(() => {
   fetchData()
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+  clearTimeout(personnelSearchTimeout)
 })
 </script>

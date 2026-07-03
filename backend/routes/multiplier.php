@@ -13,29 +13,40 @@ include_once __DIR__ . '/../helpers.php';
 
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
-    switch ($method) {
-        case 'GET':
-            $resource = $path[1] ?? '';
-            if ($resource === 'areas') {
-                getMultiplierAreas($pdo);
-                return;
-            }
-            if ($resource === '') {
-                getMultiplierList($pdo);
-                return;
-            }
-            http_response_code(404);
-            echo json_encode(['error' => 'Not found']);
-            return;
+    // ทั้งฟีเจอร์ทวีคูณเป็นงาน HR/admin เท่านั้น — ไม่มี self-service ใน MVP
+    // (JWT payload มีแค่ user_id/role ไม่มี personnel_id ผูกตัวตน จึงยัง scope ตาม record ไม่ได้)
+    $user = requireAdmin();
 
-        case 'POST':
-            createMultiplier($pdo);
-            return;
+    try {
+        switch ($method) {
+            case 'GET':
+                $resource = $path[1] ?? '';
+                if ($resource === 'areas') {
+                    getMultiplierAreas($pdo);
+                    return;
+                }
+                if ($resource === '') {
+                    getMultiplierList($pdo);
+                    return;
+                }
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
+                return;
 
-        default:
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            return;
+            case 'POST':
+                createMultiplier($pdo, $user);
+                return;
+
+            default:
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed']);
+                return;
+        }
+    } catch (PDOException $e) {
+        // กัน PDOException หลุดออกไปเป็น HTML 500 / leak รายละเอียด SQL
+        error_log('[multiplier] DB error: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'เกิดข้อผิดพลาดในการเข้าถึงฐานข้อมูล']);
     }
 }
 
@@ -118,8 +129,9 @@ function getMultiplierAreas(PDO $pdo): void
 function getMultiplierList(PDO $pdo): void
 {
     $personnelId = $_GET['personnel_id'] ?? null;
-    $limit = intval($_GET['limit'] ?? 20);
-    $offset = intval($_GET['offset'] ?? 0);
+    // clamp กัน limit=-1 (SQL error) และ limit ใหญ่เกิน (resource exhaustion)
+    $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
+    $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $where = [];
     $params = [];
@@ -189,7 +201,7 @@ function getMultiplierList(PDO $pdo): void
     ]);
 }
 
-function createMultiplier(PDO $pdo): void
+function createMultiplier(PDO $pdo, array $user): void
 {
     $data = json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) {
@@ -207,6 +219,16 @@ function createMultiplier(PDO $pdo): void
         }
     }
 
+    // ตรวจว่า personnel_id มีอยู่จริงก่อน เพื่อคืน 404 ที่อ่านง่าย แทนที่จะปล่อยให้ FK ระเบิดเป็น 500
+    $personnelId = intval($data['personnel_id']);
+    $personCheck = $pdo->prepare('SELECT 1 FROM personnel WHERE personnel_id = ? LIMIT 1');
+    $personCheck->execute([$personnelId]);
+    if (!$personCheck->fetchColumn()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+        return;
+    }
+
     try {
         $computed = computeMultiplierFields(
             $pdo,
@@ -220,17 +242,36 @@ function createMultiplier(PDO $pdo): void
         return;
     }
 
+    // กันการนับซ้ำ: ปฏิเสธถ้า "ช่วงที่นับได้จริง" (eligible period) ทับกับรายการเดิมของบุคคลนี้
+    // เพราะ bonus_days aggregate จากช่วงเหล่านี้ การทับ = double-count วันเลื่อนระดับ
+    $overlapStmt = $pdo->prepare("
+        SELECT COUNT(*) FROM multiplier_experience
+        WHERE personnel_id = ?
+          AND eligible_start_date <= ?
+          AND eligible_end_date >= ?
+    ");
+    $overlapStmt->execute([
+        $personnelId,
+        $computed['eligible_end_date'],
+        $computed['eligible_start_date'],
+    ]);
+    if ((int) $overlapStmt->fetchColumn() > 0) {
+        http_response_code(409);
+        echo json_encode(['error' => 'ช่วงวันที่นับทวีคูณทับซ้อนกับรายการเดิมของบุคลากรนี้']);
+        return;
+    }
+
     $sql = "INSERT INTO multiplier_experience
             (personnel_id, area_multiplier_id, province, district, basis_type,
              start_date, end_date, eligible_start_date, eligible_end_date,
              service_days, eligible_days, multiplier_ratio, effective_days,
              bonus_days, net_end_date, net_years, net_months, net_day_remainder,
-             proof_reference, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+             proof_reference, description, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
-        intval($data['personnel_id']),
+        $personnelId,
         $computed['area_multiplier_id'],
         $computed['province'],
         $computed['district'],
@@ -250,6 +291,7 @@ function createMultiplier(PDO $pdo): void
         $computed['net_day_remainder'],
         $data['proof_reference'] ?? null,
         $data['description'] ?? null,
+        $user['user_id'] ?? null,
     ]);
 
     http_response_code(201);
@@ -262,8 +304,10 @@ function createMultiplier(PDO $pdo): void
 
 function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startDateStr, string $endDateStr): array
 {
-    $startDate = DateTime::createFromFormat('Y-m-d', $startDateStr);
-    $endDate = DateTime::createFromFormat('Y-m-d', $endDateStr);
+    // ใช้ format ที่มี '|' ต่อท้าย เพื่อ reset เวลาเป็น 00:00:00 (ไม่งั้น createFromFormat
+    // จะเติมเวลาปัจจุบัน ทำให้ diff กับวันที่จาก DB (00:00:00) คลาดเคลื่อน ±1 วัน)
+    $startDate = DateTime::createFromFormat('Y-m-d|', $startDateStr);
+    $endDate = DateTime::createFromFormat('Y-m-d|', $endDateStr);
 
     if (!$startDate || !$endDate) {
         throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง');
@@ -284,8 +328,10 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
         throw new InvalidArgumentException('ไม่พบพื้นที่ทวีคูณที่ใช้งานได้');
     }
 
-    $effectiveStart = new DateTime($area['effective_start_date']);
-    $effectiveEnd = $area['effective_end_date'] ? new DateTime($area['effective_end_date']) : clone $endDate;
+    $effectiveStart = (new DateTime($area['effective_start_date']))->setTime(0, 0, 0);
+    $effectiveEnd = $area['effective_end_date']
+        ? (new DateTime($area['effective_end_date']))->setTime(0, 0, 0)
+        : clone $endDate;
 
     $eligibleStart = maxDate($startDate, $effectiveStart);
     $eligibleEnd = minDate($endDate, $effectiveEnd);

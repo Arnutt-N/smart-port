@@ -60,6 +60,7 @@ CREATE TABLE multiplier_experience (
     net_day_remainder INT,
     proof_reference VARCHAR(500),
     description TEXT,
+    created_by BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
