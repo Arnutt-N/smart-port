@@ -358,6 +358,12 @@ switch ($path[0]) {
         handleSupportive($pdo, $method, $path);
         break;
 
+    case 'multiplier':
+        $pdo = getDB();
+        include __DIR__ . '/routes/multiplier.php';
+        handleMultiplier($pdo, $method, $path);
+        break;
+
     case 'diverse':
         $pdo = getDB();
         include __DIR__ . '/routes/diverse.php';

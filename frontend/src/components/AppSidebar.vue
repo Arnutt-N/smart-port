@@ -126,6 +126,7 @@ const menuItems = computed(() => [
     id: 'time-extra', label: 'การนับเวลาเพิ่มเติม', icon: Clock,
     children: [
       { id: 'time-counting', label: 'การนับเกื้อกูล', to: '/time-counting' },
+      { id: 'time-multiplier', label: 'การนับทวีคูณ', to: '/time-multiplier' },
       { id: 'time-difference', label: 'การนับแตกต่าง', to: '/time-difference' },
       { id: 'position-compare', label: 'การเทียบตำแหน่ง', to: '/position-compare' },
     ],

@@ -1,0 +1,15 @@
+row_id,province,district,whole_province,basis_type,multiplier_ratio,effective_start_date,effective_end_date,legal_reference,source_reference,verified_by,verified_date,notes
+M-001,ยะลา,,yes,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm whole-province coverage
+M-002,ปัตตานี,,yes,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm whole-province coverage
+M-003,นราธิวาส,,yes,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm whole-province coverage
+M-004,สงขลา,เทพา,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm district eligibility
+M-005,สงขลา,สะบ้าย้อย,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm district eligibility
+M-006,สงขลา,นาทวี,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm district eligibility
+M-007,สงขลา,จะนะ,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Confirm district eligibility
+M-008,สตูล,TODO อำเภอ 1,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Must be one of confirmed four districts
+M-009,สตูล,TODO อำเภอ 2,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Must be one of confirmed four districts
+M-010,สตูล,TODO อำเภอ 3,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Must be one of confirmed four districts
+M-011,สตูล,TODO อำเภอ 4,no,MARTIAL_LAW,200.00,2004-01-26,2004-09-30,TODO,TODO,TODO,TODO,Must be one of confirmed four districts
+E-001,ยะลา,,yes,EMERGENCY_DECREE,200.00,TODO,TODO,TODO,TODO,TODO,TODO,Post-2548 coverage
+E-002,ปัตตานี,,yes,EMERGENCY_DECREE,200.00,TODO,TODO,TODO,TODO,TODO,TODO,Post-2548 coverage
+E-003,นราธิวาส,,yes,EMERGENCY_DECREE,200.00,TODO,TODO,TODO,TODO,TODO,TODO,Post-2548 coverage

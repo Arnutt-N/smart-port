@@ -1,0 +1,11 @@
+case_id,personnel_ref,province,district,service_start_date,service_end_date,expected_eligible_start_date,expected_eligible_end_date,expected_service_days,expected_eligible_days,expected_effective_days,expected_bonus_days,expected_net_years,expected_net_months,expected_net_days,excel_source_ref,verified_by,verified_date,notes
+TC-001,Example clamp start,ยะลา,,2004-01-01,2004-02-10,2004-01-26,2004-02-10,41,16,32,16,0,1,2,TODO,TODO,TODO,Starts before effective period
+TC-002,Example clamp end,ยะลา,,2004-08-01,2004-10-15,2004-08-01,2004-09-30,76,61,122,61,0,4,2,TODO,TODO,TODO,Ends after effective period
+TC-003,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-004,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-005,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-006,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-007,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-008,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-009,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-010,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
