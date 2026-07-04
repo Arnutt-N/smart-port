@@ -88,7 +88,7 @@ ALTER TABLE special_area_multiplier ADD COLUMN created_by BIGINT NULL;
 
 ### 5.1 หน้าใหม่ `frontend/src/pages/MultiplierAreasPage.vue`
 
-- Route `/multiplier/areas` — lazy-load, `meta.requiresAdmin` (pattern มีแล้วใน router)
+- Route `/time-multiplier/areas` (ตาม naming เดิมของ SPA `/time-multiplier`; backend API = `/multiplier/areas`) — lazy-load, `meta.requiresAdmin` (pattern มีแล้วใน router)
 - Sidebar: เพิ่มรายการ "จัดการพื้นที่พิเศษ" ใกล้รายการทวีคูณเดิม
 - โครงหน้า:
   - Summary cards: จำนวนพื้นที่ทั้งหมด / ใช้งานอยู่ / รอยืนยันแหล่งอ้างอิง (`source_pending`)
