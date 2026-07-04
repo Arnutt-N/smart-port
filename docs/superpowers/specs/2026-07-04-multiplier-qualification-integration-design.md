@@ -46,7 +46,7 @@ FLOOR(COALESCE(sup..,0) + COALESCE(eq..,0))
 
 - ไม่มี record ทวีคูณ → `COALESCE` เป็น 0 → ผลลัพธ์เดิมไม่เปลี่ยน (backward-compatible)
 - `bonus_days` เป็น `DECIMAL(10,2)` → `FLOOR` ตัดเศษ สอดคล้องกับ treatment เดิมของ supportive/equivalence
-- บุคลากรสาย M/S ที่มีทวีคูณ → **ไม่ได้รับผลรอบนี้** (out of scope); response ของ executive จะไม่มี field `multiplier_days` → frontend ต้อง treat missing = 0 (known asymmetry — บันทึกไว้เพื่อทำ path executive รอบหน้า)
+- บุคลากรสาย M/S ที่มีทวีคูณ → **ไม่ได้รับผลกับ qualification_date รอบนี้** (out of scope); แต่ response ของ executive **มี** field `multiplier_days = 0` (hardcoded display-only ผ่าน `?? 0` cast ใน `computeExecutiveDetail`) เพื่อให้ API shape uniform กับ linear — ไม่ต้องให้ frontend เดา missing key. การเครดิตทวีคูณเข้าเกณฑ์ M/S จริง = slice รอบหน้า
 
 ## 6. Worked example (ใช้ตรวจ static + UAT)
 
