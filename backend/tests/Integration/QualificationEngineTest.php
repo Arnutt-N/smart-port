@@ -175,4 +175,80 @@ final class QualificationEngineTest extends TestCase
             'qualification_date ของ detail ไม่ตรงกับ list'
         );
     }
+
+    /**
+     * #22 multiplier: bonus_days จาก multiplier_experience ต้องลด qualification_date
+     * ของสายตรง (linear) เท่ากับจำนวน bonus_days พอดี
+     *
+     * relative-shift + cleanup: insert 1 row ชั่วคราวให้ personnel 1 (K2) → วัดก่อน/หลัง
+     * → DELETE ใน finally (ไม่กระทบ golden ของ personnel 1 ที่ test อื่นใช้)
+     * ไม่ผูก golden ตายตัว — พิสูจน์ว่า "ลด bonus_days วันพอดี" ตรง design §6
+     */
+    #[Test]
+    public function it_subtracts_multiplier_bonus_days_from_qualification_date(): void
+    {
+        $target = 'K2';
+        $personnelId = 1;
+        $bonusDays = 100;
+
+        // schema 13 (special_area_multiplier) ต้องมี — ไม่งั้น skip (ไม่ fail suite เดิม)
+        try {
+            $areaId = (int) self::$pdo
+                ->query('SELECT MIN(area_multiplier_id) FROM special_area_multiplier')
+                ->fetchColumn();
+        } catch (Throwable $e) {
+            self::markTestSkipped('ตาราง special_area_multiplier ไม่พบ — schema 13 อาจยังไม่ถูก mount/seed');
+        }
+        if ($areaId <= 0) {
+            self::markTestSkipped('special_area_multiplier ว่าง — re-seed: docker compose down -v && up -d --build db');
+        }
+
+        $before = $this->engine->computeDetail($target, $personnelId);
+        self::assertNotNull($before, "computeDetail('{$target}', {$personnelId}) คืน null — ตรวจ seed");
+        self::assertSame(0, $before['data']['multiplier_days'], 'baseline personnel 1 ต้องไม่มีทวีคูณใน seed');
+        $baseDate = $before['data']['qualification_date'];
+        self::assertNotNull($baseDate, 'baseline qualification_date ต้องไม่ null (personnel 1 ข้อมูลครบ)');
+
+        $insert = self::$pdo->prepare(
+            'INSERT INTO multiplier_experience
+                (personnel_id, area_multiplier_id, province, basis_type,
+                 start_date, end_date, eligible_start_date, eligible_end_date,
+                 eligible_days, multiplier_ratio, effective_days, bonus_days)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+
+        try {
+            // ratio 200%: base 100 → effective 200, bonus 100 (เฉพาะ bonus ที่ engine ใช้)
+            $insert->execute([
+                $personnelId, $areaId, 'ยะลา', 'MARTIAL_LAW',
+                '2004-01-26', '2004-09-30', '2004-01-26', '2004-09-30',
+                $bonusDays, 200.00, 200.00, $bonusDays,
+            ]);
+
+            $after = $this->engine->computeDetail($target, $personnelId);
+            self::assertNotNull($after);
+            self::assertSame(
+                $bonusDays,
+                $after['data']['multiplier_days'],
+                'multiplier_days ต้องสะท้อน bonus_days ที่ seed'
+            );
+
+            $afterDate = $after['data']['qualification_date'];
+            $shift = (new \DateTime($baseDate))->diff(new \DateTime($afterDate))->days;
+            self::assertSame(
+                $bonusDays,
+                $shift,
+                "qualification_date ต้องเลื่อนเข้ามา {$bonusDays} วันพอดี ({$baseDate} → {$afterDate})"
+            );
+            self::assertLessThan(
+                $baseDate,
+                $afterDate,
+                'qualification_date หลังเพิ่มทวีคูณต้อง "เร็วขึ้น" (น้อยกว่า baseline)'
+            );
+        } finally {
+            self::$pdo
+                ->prepare('DELETE FROM multiplier_experience WHERE personnel_id = ? AND area_multiplier_id = ?')
+                ->execute([$personnelId, $areaId]);
+        }
+    }
 }

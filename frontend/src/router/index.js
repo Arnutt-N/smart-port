@@ -69,6 +69,11 @@ const routes = [
         component: () => import('@/pages/SupportivePage.vue'),
       },
       {
+        path: 'time-multiplier',
+        name: 'time-multiplier',
+        component: () => import('@/pages/MultiplierPage.vue'),
+      },
+      {
         path: 'time-difference',
         name: 'time-difference',
         component: () => import('@/pages/DiversePage.vue'),
