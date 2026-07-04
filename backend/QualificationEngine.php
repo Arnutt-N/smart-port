@@ -71,11 +71,12 @@ class QualificationEngine
                 COALESCE(sup.total_supportive_days, 0) AS supportive_days,
                 COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
                 COALESCE(dex.max_diff_count, 0) AS diverse_diff_count,
+                COALESCE(mult.total_multiplier_days, 0) AS multiplier_days,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
                     ELSE DATE_SUB(
                         DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                        INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                        INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                     )
                 END AS qualification_date,
                 CASE
@@ -83,7 +84,7 @@ class QualificationEngine
                     ELSE DATEDIFF(
                         DATE_SUB(
                             DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                         ),
                         CURDATE()
                     )
@@ -94,7 +95,7 @@ class QualificationEngine
                     WHEN DATEDIFF(
                         DATE_SUB(
                             DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                         ),
                         CURDATE()
                     ) <= 0 THEN 'qualified'
@@ -124,6 +125,11 @@ class QualificationEngine
                 FROM diverse_experience
                 GROUP BY personnel_id
             ) dex ON dex.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, SUM(bonus_days) AS total_multiplier_days
+                FROM multiplier_experience
+                GROUP BY personnel_id
+            ) mult ON mult.personnel_id = p.personnel_id
             WHERE p.current_level_code IN ({$placeholders})
                 AND p.is_active = 1
         ";
@@ -430,6 +436,7 @@ class QualificationEngine
             $row['supportive_days'] = (int)$row['supportive_days'];
             $row['equivalence_days'] = (int)$row['equivalence_days'];
             $row['diverse_diff_count'] = (int)$row['diverse_diff_count'];
+            $row['multiplier_days'] = (int)($row['multiplier_days'] ?? 0);
         }
         unset($row);
 
@@ -528,6 +535,7 @@ class QualificationEngine
                     $r['supportive_days'] = (int) $r['supportive_days'];
                     $r['equivalence_days'] = (int) $r['equivalence_days'];
                     $r['diverse_diff_count'] = (int) $r['diverse_diff_count'];
+                    $r['multiplier_days'] = (int) ($r['multiplier_days'] ?? 0);
                 }
                 unset($r);
 
@@ -589,11 +597,12 @@ class QualificationEngine
                 COALESCE(sup.total_supportive_days, 0) AS supportive_days,
                 COALESCE(eq.total_equivalence_days, 0) AS equivalence_days,
                 COALESCE(dex.max_diff_count, 0) AS diverse_diff_count,
+                COALESCE(mult.total_multiplier_days, 0) AS multiplier_days,
                 CASE
                     WHEN p.current_level_code IS NULL OR p.current_level_start_date IS NULL THEN NULL
                     ELSE DATE_SUB(
                         DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                        INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                        INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                     )
                 END AS qualification_date,
                 CASE
@@ -601,7 +610,7 @@ class QualificationEngine
                     ELSE DATEDIFF(
                         DATE_SUB(
                             DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                         ),
                         CURDATE()
                     )
@@ -612,7 +621,7 @@ class QualificationEngine
                     WHEN DATEDIFF(
                         DATE_SUB(
                             DATE_ADD(p.current_level_start_date, INTERVAL CAST(pc.min_years AS UNSIGNED) YEAR),
-                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0)) AS UNSIGNED) DAY
+                            INTERVAL CAST(FLOOR(COALESCE(sup.total_supportive_days, 0) + COALESCE(eq.total_equivalence_days, 0) + COALESCE(mult.total_multiplier_days, 0)) AS UNSIGNED) DAY
                         ),
                         CURDATE()
                     ) <= 0 THEN 'qualified'
@@ -642,6 +651,11 @@ class QualificationEngine
                 FROM diverse_experience
                 GROUP BY personnel_id
             ) dex ON dex.personnel_id = p.personnel_id
+            LEFT JOIN (
+                SELECT personnel_id, SUM(bonus_days) AS total_multiplier_days
+                FROM multiplier_experience
+                GROUP BY personnel_id
+            ) mult ON mult.personnel_id = p.personnel_id
             WHERE p.personnel_id = ?
                 AND p.is_active = 1
         ";
@@ -666,6 +680,7 @@ class QualificationEngine
         $row['supportive_days'] = (int)$row['supportive_days'];
         $row['equivalence_days'] = (int)$row['equivalence_days'];
         $row['diverse_diff_count'] = (int)$row['diverse_diff_count'];
+        $row['multiplier_days'] = (int)($row['multiplier_days'] ?? 0);
 
         return [
             'success' => true,
@@ -714,6 +729,7 @@ class QualificationEngine
         $row['supportive_days'] = (int) $row['supportive_days'];
         $row['equivalence_days'] = (int) $row['equivalence_days'];
         $row['diverse_diff_count'] = (int) $row['diverse_diff_count'];
+        $row['multiplier_days'] = (int) ($row['multiplier_days'] ?? 0);
 
         return [
             'success' => true,
