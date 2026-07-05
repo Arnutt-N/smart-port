@@ -64,6 +64,7 @@ services:
       - ./database/11-import-constraints.sql:/docker-entrypoint-initdb.d/11-import-constraints.sql
       - ./database/12-import-log-fk.sql:/docker-entrypoint-initdb.d/12-import-log-fk.sql
       - ./database/13-multiplier-time-counting.sql:/docker-entrypoint-initdb.d/13-multiplier-time-counting.sql
+      - ./database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s
