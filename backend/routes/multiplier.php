@@ -34,6 +34,10 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
                 return;
 
             case 'POST':
+                if (($path[1] ?? '') === 'areas') {
+                    createMultiplierArea($pdo, $user);
+                    return;
+                }
                 createMultiplier($pdo, $user);
                 return;
 
@@ -104,15 +108,7 @@ function getMultiplierAreas(PDO $pdo): void
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($rows as &$row) {
-        $row['area_multiplier_id'] = (int) $row['area_multiplier_id'];
-        $row['multiplier_ratio'] = (float) $row['multiplier_ratio'];
-        $row['is_active'] = (int) $row['is_active'];
-        $row['effective_start_date_thai'] = formatThaiDate($row['effective_start_date']);
-        $row['effective_end_date_thai'] = $row['effective_end_date'] ? formatThaiDate($row['effective_end_date']) : null;
-        $row['area_label'] = $row['district']
-            ? "{$row['province']} / {$row['district']}"
-            : "{$row['province']} / ทั้งจังหวัด";
-        $row['source_pending'] = str_contains((string) $row['legal_reference'], 'SOURCE_PENDING');
+        decorateAreaRow($row);
     }
     unset($row);
 
@@ -370,6 +366,89 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
         'net_months' => $netMonths,
         'net_day_remainder' => $netDayRemainder,
     ];
+}
+
+function decorateAreaRow(array &$row): void
+{
+    $row['area_multiplier_id'] = (int) $row['area_multiplier_id'];
+    $row['multiplier_ratio'] = (float) $row['multiplier_ratio'];
+    $row['is_active'] = (int) $row['is_active'];
+    $row['effective_start_date_thai'] = formatThaiDate($row['effective_start_date']);
+    $row['effective_end_date_thai'] = $row['effective_end_date'] ? formatThaiDate($row['effective_end_date']) : null;
+    $row['area_label'] = $row['district']
+        ? "{$row['province']} / {$row['district']}"
+        : "{$row['province']} / ทั้งจังหวัด";
+    $row['source_pending'] = str_contains((string) $row['legal_reference'], 'SOURCE_PENDING');
+}
+
+/**
+ * ดึงพื้นที่ 1 แถว (รวมที่ปิดใช้งาน) พร้อม decorate — คืน null ถ้าไม่พบ
+ */
+function fetchAreaRow(PDO $pdo, int $areaId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM special_area_multiplier WHERE area_multiplier_id = ?');
+    $stmt->execute([$areaId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    decorateAreaRow($row);
+    return $row;
+}
+
+function createMultiplierArea(PDO $pdo, array $user): void
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
+
+    $validated = validateAreaInput($data);
+    if ($validated['error'] !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $validated['error']]);
+        return;
+    }
+    $v = $validated['values'];
+
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO special_area_multiplier
+                (province, district, basis_type, multiplier_ratio,
+                 effective_start_date, effective_end_date,
+                 legal_reference, source_reference, is_active, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
+        );
+        $stmt->execute([
+            $v['province'],
+            $v['district'],
+            $v['basis_type'],
+            $v['multiplier_ratio'],
+            $v['effective_start_date'],
+            $v['effective_end_date'],
+            $v['legal_reference'],
+            $v['source_reference'],
+            $user['user_id'] ?? null,
+        ]);
+    } catch (PDOException $e) {
+        // unique index uq_area_multiplier_exact_period = source of truth เรื่องซ้ำ (กัน race — ไม่ pre-check)
+        if ($e->getCode() === '23000') {
+            http_response_code(409);
+            echo json_encode(['error' => 'มีพื้นที่/ฐานประกาศ/วันเริ่มมีผลชุดนี้อยู่แล้ว']);
+            return;
+        }
+        throw $e; // ให้ catch กลางใน handleMultiplier ตอบ 500 generic
+    }
+
+    $areaId = (int) $pdo->lastInsertId();
+    http_response_code(201);
+    echo json_encode([
+        'success' => true,
+        'area_multiplier_id' => $areaId,
+        'data' => fetchAreaRow($pdo, $areaId),
+    ]);
 }
 
 function decorateMultiplierRow(array &$row): void
