@@ -41,6 +41,19 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
                 createMultiplier($pdo, $user);
                 return;
 
+            case 'PUT':
+                if (
+                    ($path[1] ?? '') === 'areas'
+                    && ctype_digit($path[2] ?? '')
+                    && ($path[3] ?? '') === 'status'
+                ) {
+                    setMultiplierAreaStatus($pdo, (int) $path[2]);
+                    return;
+                }
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
+                return;
+
             default:
                 http_response_code(405);
                 echo json_encode(['error' => 'Method not allowed']);
@@ -449,6 +462,31 @@ function createMultiplierArea(PDO $pdo, array $user): void
         'area_multiplier_id' => $areaId,
         'data' => fetchAreaRow($pdo, $areaId),
     ]);
+}
+
+function setMultiplierAreaStatus(PDO $pdo, int $areaId): void
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    $isActive = is_array($data) ? ($data['is_active'] ?? null) : null;
+    // รับเฉพาะ 0/1 (int หรือ string) — ค่าอื่นตอบ 400
+    if (!in_array($isActive, [0, 1, '0', '1'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'กรุณาระบุ is_active เป็น 0 หรือ 1']);
+        return;
+    }
+
+    // UPDATE ก่อนแล้วค่อยอ่านกลับ — idempotent โดยธรรมชาติ (ตั้งค่าเดิมซ้ำ = 200 ปกติ)
+    $pdo->prepare('UPDATE special_area_multiplier SET is_active = ? WHERE area_multiplier_id = ?')
+        ->execute([(int) $isActive, $areaId]);
+
+    $row = fetchAreaRow($pdo, $areaId);
+    if ($row === null) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบพื้นที่ตามรหัสที่ระบุ']);
+        return;
+    }
+
+    echo json_encode(['success' => true, 'data' => $row]);
 }
 
 function decorateMultiplierRow(array &$row): void
