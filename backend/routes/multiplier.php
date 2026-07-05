@@ -420,3 +420,89 @@ function minDate(DateTime $a, DateTime $b): DateTime
 {
     return $a < $b ? clone $a : clone $b;
 }
+
+/**
+ * ตรวจ + normalize input สำหรับเพิ่มพื้นที่ทวีคูณ (pure function — unit-testable)
+ * ratio ต้องอยู่ใน [100, 999.99] (เพดาน DECIMAL(5,2)); วันที่ต้องเป็น Y-m-d จริง
+ * (เช็ค warning ของ createFromFormat กัน overflow เช่น '2004-13-45')
+ *
+ * @return array{error: ?string, values: ?array}
+ */
+function validateAreaInput(array $data): array
+{
+    $province = trim((string) ($data['province'] ?? ''));
+    if ($province === '') {
+        return ['error' => 'กรุณาระบุ province', 'values' => null];
+    }
+
+    $basisType = trim((string) ($data['basis_type'] ?? ''));
+    if ($basisType === '') {
+        return ['error' => 'กรุณาระบุ basis_type', 'values' => null];
+    }
+
+    $ratioRaw = $data['multiplier_ratio'] ?? null;
+    if (!is_numeric($ratioRaw)) {
+        return ['error' => 'กรุณาระบุ multiplier_ratio เป็นตัวเลข', 'values' => null];
+    }
+    $ratio = (float) $ratioRaw;
+    if ($ratio < 100.0 || $ratio > 999.99) {
+        return ['error' => 'multiplier_ratio ต้องอยู่ระหว่าง 100 ถึง 999.99', 'values' => null];
+    }
+
+    $start = parseStrictDate((string) ($data['effective_start_date'] ?? ''));
+    if ($start === null) {
+        return ['error' => 'effective_start_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
+    }
+
+    $end = null;
+    $endRaw = trim((string) ($data['effective_end_date'] ?? ''));
+    if ($endRaw !== '') {
+        $end = parseStrictDate($endRaw);
+        if ($end === null) {
+            return ['error' => 'effective_end_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
+        }
+        if ($end < $start) {
+            return ['error' => 'effective_end_date ต้องไม่น้อยกว่า effective_start_date', 'values' => null];
+        }
+    }
+
+    $legal = trim((string) ($data['legal_reference'] ?? ''));
+    if (mb_strlen($legal) > 300) {
+        return ['error' => 'legal_reference ยาวเกิน 300 ตัวอักษร', 'values' => null];
+    }
+
+    $source = trim((string) ($data['source_reference'] ?? ''));
+    if (mb_strlen($source) > 500) {
+        return ['error' => 'source_reference ยาวเกิน 500 ตัวอักษร', 'values' => null];
+    }
+
+    $district = trim((string) ($data['district'] ?? ''));
+
+    return ['error' => null, 'values' => [
+        'province' => $province,
+        'district' => $district === '' ? null : $district,
+        'basis_type' => $basisType,
+        'multiplier_ratio' => $ratio,
+        'effective_start_date' => $start->format('Y-m-d'),
+        'effective_end_date' => $end?->format('Y-m-d'),
+        'legal_reference' => $legal === '' ? null : $legal,
+        'source_reference' => $source === '' ? null : $source,
+    ]];
+}
+
+/**
+ * parse Y-m-d แบบเข้มงวด — คืน null ถ้า format ผิดหรือมี overflow (เดือน 13, วัน 45)
+ * ('Y-m-d|' reset เวลาเป็น 00:00:00 ตาม pattern เดิมใน computeMultiplierFields)
+ */
+function parseStrictDate(string $value): ?DateTime
+{
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
