@@ -127,6 +127,10 @@ const menuItems = computed(() => [
     children: [
       { id: 'time-counting', label: 'การนับเกื้อกูล', to: '/time-counting' },
       { id: 'time-multiplier', label: 'การนับทวีคูณ', to: '/time-multiplier' },
+      // จัดการ master data พื้นที่ทวีคูณ — admin เท่านั้น (ตรงกับ meta.requiresAdmin ของ route)
+      ...(auth.user?.role === 'admin'
+        ? [{ id: 'time-multiplier-areas', label: 'จัดการพื้นที่พิเศษ', to: '/time-multiplier/areas' }]
+        : []),
       { id: 'time-difference', label: 'การนับแตกต่าง', to: '/time-difference' },
       { id: 'position-compare', label: 'การเทียบตำแหน่ง', to: '/position-compare' },
     ],

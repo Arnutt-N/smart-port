@@ -74,6 +74,12 @@ const routes = [
         component: () => import('@/pages/MultiplierPage.vue'),
       },
       {
+        path: 'time-multiplier/areas',
+        name: 'time-multiplier-areas',
+        component: () => import('@/pages/MultiplierAreasPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'time-difference',
         name: 'time-difference',
         component: () => import('@/pages/DiversePage.vue'),
