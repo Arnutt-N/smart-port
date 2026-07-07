@@ -153,8 +153,15 @@
       />
 
       <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="border-b border-gray-100 px-6 py-4">
+        <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
           <h2 class="text-base font-semibold text-gray-900">Master data พื้นที่พิเศษ</h2>
+          <RouterLink
+            v-if="isAdmin"
+            to="/time-multiplier/areas"
+            class="text-sm text-blue-600 hover:text-blue-700"
+          >
+            จัดการพื้นที่ →
+          </RouterLink>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full">
@@ -331,6 +338,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '@/composables/useApi.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
+import { useAuthStore } from '@/stores/auth.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -351,6 +359,8 @@ import {
 
 const api = useApi()
 const { fetchList, fetchAreas, create } = useMultiplier()
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.user?.role === 'admin')
 
 const loading = ref(false)
 const saving = ref(false)

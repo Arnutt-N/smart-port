@@ -34,7 +34,24 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
                 return;
 
             case 'POST':
+                if (($path[1] ?? '') === 'areas') {
+                    createMultiplierArea($pdo, $user);
+                    return;
+                }
                 createMultiplier($pdo, $user);
+                return;
+
+            case 'PUT':
+                if (
+                    ($path[1] ?? '') === 'areas'
+                    && ctype_digit($path[2] ?? '')
+                    && ($path[3] ?? '') === 'status'
+                ) {
+                    setMultiplierAreaStatus($pdo, (int) $path[2]);
+                    return;
+                }
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
                 return;
 
             default:
@@ -104,15 +121,7 @@ function getMultiplierAreas(PDO $pdo): void
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($rows as &$row) {
-        $row['area_multiplier_id'] = (int) $row['area_multiplier_id'];
-        $row['multiplier_ratio'] = (float) $row['multiplier_ratio'];
-        $row['is_active'] = (int) $row['is_active'];
-        $row['effective_start_date_thai'] = formatThaiDate($row['effective_start_date']);
-        $row['effective_end_date_thai'] = $row['effective_end_date'] ? formatThaiDate($row['effective_end_date']) : null;
-        $row['area_label'] = $row['district']
-            ? "{$row['province']} / {$row['district']}"
-            : "{$row['province']} / ทั้งจังหวัด";
-        $row['source_pending'] = str_contains((string) $row['legal_reference'], 'SOURCE_PENDING');
+        decorateAreaRow($row);
     }
     unset($row);
 
@@ -372,6 +381,115 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
     ];
 }
 
+function decorateAreaRow(array &$row): void
+{
+    $row['area_multiplier_id'] = (int) $row['area_multiplier_id'];
+    $row['multiplier_ratio'] = (float) $row['multiplier_ratio'];
+    $row['is_active'] = (int) $row['is_active'];
+    $row['effective_start_date_thai'] = formatThaiDate($row['effective_start_date']);
+    $row['effective_end_date_thai'] = $row['effective_end_date'] ? formatThaiDate($row['effective_end_date']) : null;
+    $row['area_label'] = $row['district']
+        ? "{$row['province']} / {$row['district']}"
+        : "{$row['province']} / ทั้งจังหวัด";
+    $legalReference = trim((string) $row['legal_reference']);
+    $row['source_pending'] = $legalReference === '' || str_contains($legalReference, 'SOURCE_PENDING');
+}
+
+/**
+ * ดึงพื้นที่ 1 แถว (รวมที่ปิดใช้งาน) พร้อม decorate — คืน null ถ้าไม่พบ
+ */
+function fetchAreaRow(PDO $pdo, int $areaId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM special_area_multiplier WHERE area_multiplier_id = ?');
+    $stmt->execute([$areaId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    decorateAreaRow($row);
+    return $row;
+}
+
+function createMultiplierArea(PDO $pdo, array $user): void
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
+
+    $validated = validateAreaInput($data);
+    if ($validated['error'] !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $validated['error']]);
+        return;
+    }
+    $v = $validated['values'];
+
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO special_area_multiplier
+                (province, district, basis_type, multiplier_ratio,
+                 effective_start_date, effective_end_date,
+                 legal_reference, source_reference, is_active, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
+        );
+        $stmt->execute([
+            $v['province'],
+            $v['district'],
+            $v['basis_type'],
+            $v['multiplier_ratio'],
+            $v['effective_start_date'],
+            $v['effective_end_date'],
+            $v['legal_reference'],
+            $v['source_reference'],
+            $user['user_id'] ?? null,
+        ]);
+    } catch (PDOException $e) {
+        // unique index uq_area_multiplier_exact_period = source of truth เรื่องซ้ำ (กัน race — ไม่ pre-check)
+        if ($e->getCode() === '23000') {
+            http_response_code(409);
+            echo json_encode(['error' => 'มีพื้นที่/ฐานประกาศ/วันเริ่มมีผลชุดนี้อยู่แล้ว']);
+            return;
+        }
+        throw $e; // ให้ catch กลางใน handleMultiplier ตอบ 500 generic
+    }
+
+    $areaId = (int) $pdo->lastInsertId();
+    http_response_code(201);
+    echo json_encode([
+        'success' => true,
+        'area_multiplier_id' => $areaId,
+        'data' => fetchAreaRow($pdo, $areaId),
+    ]);
+}
+
+function setMultiplierAreaStatus(PDO $pdo, int $areaId): void
+{
+    $data = json_decode(file_get_contents('php://input'), true);
+    $isActive = is_array($data) ? ($data['is_active'] ?? null) : null;
+    // รับเฉพาะ 0/1 (int หรือ string) — ค่าอื่นตอบ 400
+    if (!in_array($isActive, [0, 1, '0', '1'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'กรุณาระบุ is_active เป็น 0 หรือ 1']);
+        return;
+    }
+
+    // UPDATE ก่อนแล้วค่อยอ่านกลับ — idempotent โดยธรรมชาติ (ตั้งค่าเดิมซ้ำ = 200 ปกติ)
+    $pdo->prepare('UPDATE special_area_multiplier SET is_active = ? WHERE area_multiplier_id = ?')
+        ->execute([(int) $isActive, $areaId]);
+
+    $row = fetchAreaRow($pdo, $areaId);
+    if ($row === null) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบพื้นที่ตามรหัสที่ระบุ']);
+        return;
+    }
+
+    echo json_encode(['success' => true, 'data' => $row]);
+}
+
 function decorateMultiplierRow(array &$row): void
 {
     $intFields = [
@@ -419,4 +537,90 @@ function maxDate(DateTime $a, DateTime $b): DateTime
 function minDate(DateTime $a, DateTime $b): DateTime
 {
     return $a < $b ? clone $a : clone $b;
+}
+
+/**
+ * ตรวจ + normalize input สำหรับเพิ่มพื้นที่ทวีคูณ (pure function — unit-testable)
+ * ratio ต้องอยู่ใน [100, 999.99] (เพดาน DECIMAL(5,2)); วันที่ต้องเป็น Y-m-d จริง
+ * (เช็ค warning ของ createFromFormat กัน overflow เช่น '2004-13-45')
+ *
+ * @return array{error: ?string, values: ?array}
+ */
+function validateAreaInput(array $data): array
+{
+    $province = trim((string) ($data['province'] ?? ''));
+    if ($province === '') {
+        return ['error' => 'กรุณาระบุ province', 'values' => null];
+    }
+
+    $basisType = trim((string) ($data['basis_type'] ?? ''));
+    if ($basisType === '') {
+        return ['error' => 'กรุณาระบุ basis_type', 'values' => null];
+    }
+
+    $ratioRaw = $data['multiplier_ratio'] ?? null;
+    if (!is_numeric($ratioRaw)) {
+        return ['error' => 'กรุณาระบุ multiplier_ratio เป็นตัวเลข', 'values' => null];
+    }
+    $ratio = (float) $ratioRaw;
+    if ($ratio < 100.0 || $ratio > 999.99) {
+        return ['error' => 'multiplier_ratio ต้องอยู่ระหว่าง 100 ถึง 999.99', 'values' => null];
+    }
+
+    $start = parseStrictDate((string) ($data['effective_start_date'] ?? ''));
+    if ($start === null) {
+        return ['error' => 'effective_start_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
+    }
+
+    $end = null;
+    $endRaw = trim((string) ($data['effective_end_date'] ?? ''));
+    if ($endRaw !== '') {
+        $end = parseStrictDate($endRaw);
+        if ($end === null) {
+            return ['error' => 'effective_end_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
+        }
+        if ($end < $start) {
+            return ['error' => 'effective_end_date ต้องไม่น้อยกว่า effective_start_date', 'values' => null];
+        }
+    }
+
+    $legal = trim((string) ($data['legal_reference'] ?? ''));
+    if (mb_strlen($legal) > 300) {
+        return ['error' => 'legal_reference ยาวเกิน 300 ตัวอักษร', 'values' => null];
+    }
+
+    $source = trim((string) ($data['source_reference'] ?? ''));
+    if (mb_strlen($source) > 500) {
+        return ['error' => 'source_reference ยาวเกิน 500 ตัวอักษร', 'values' => null];
+    }
+
+    $district = trim((string) ($data['district'] ?? ''));
+
+    return ['error' => null, 'values' => [
+        'province' => $province,
+        'district' => $district === '' ? null : $district,
+        'basis_type' => $basisType,
+        'multiplier_ratio' => $ratio,
+        'effective_start_date' => $start->format('Y-m-d'),
+        'effective_end_date' => $end?->format('Y-m-d'),
+        'legal_reference' => $legal === '' ? null : $legal,
+        'source_reference' => $source === '' ? null : $source,
+    ]];
+}
+
+/**
+ * parse Y-m-d แบบเข้มงวด — คืน null ถ้า format ผิดหรือมี overflow (เดือน 13, วัน 45)
+ * ('Y-m-d|' reset เวลาเป็น 00:00:00 ตาม pattern เดิมใน computeMultiplierFields)
+ */
+function parseStrictDate(string $value): ?DateTime
+{
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
 }

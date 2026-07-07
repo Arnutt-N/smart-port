@@ -54,6 +54,22 @@ export function useMultiplier() {
     return api.post('/multiplier', data)
   }
 
+  async function createArea(data) {
+    const result = await api.post('/multiplier/areas', data)
+    return {
+      success: result.success,
+      areaMultiplierId: result.area_multiplier_id,
+      data: mapArea(result.data),
+    }
+  }
+
+  async function setAreaStatus(areaMultiplierId, isActive) {
+    const result = await api.put(`/multiplier/areas/${areaMultiplierId}/status`, {
+      is_active: isActive ? 1 : 0,
+    })
+    return { success: result.success, data: mapArea(result.data) }
+  }
+
   function mapRow(row) {
     return {
       multiplierId: row.multiplier_id,
@@ -85,5 +101,5 @@ export function useMultiplier() {
     }
   }
 
-  return { fetchList, fetchAreas, create }
+  return { fetchList, fetchAreas, create, createArea, setAreaStatus }
 }
