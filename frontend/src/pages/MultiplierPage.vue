@@ -112,6 +112,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันจริง</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันทวีคูณ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สุทธิ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -130,9 +131,27 @@
                 <td class="px-6 py-3 text-sm text-gray-700">
                   {{ row.netYears }} ปี {{ row.netMonths }} เดือน {{ row.netDayRemainder }} วัน
                 </td>
+                <td class="px-6 py-3 text-sm">
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      @click="openEditModal(row)"
+                      title="แก้ไข"
+                    >
+                      <Pencil class="w-4 h-4" />
+                    </button>
+                    <button
+                      class="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      @click="openDeleteConfirm(row)"
+                      title="ลบ"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
               <tr v-if="rows.length === 0">
-                <td colspan="8">
+                <td colspan="9">
                   <EmptyState
                     title="ยังไม่มีรายการ"
                     description="เพิ่มรายการปฏิบัติงานในพื้นที่พิเศษเพื่อให้ระบบคำนวณวันทวีคูณ"
@@ -219,7 +238,9 @@
       <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeModal"></div>
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h3 id="multiplier-modal-title" class="text-lg font-semibold text-gray-900">เพิ่มรายการทวีคูณ</h3>
+          <h3 id="multiplier-modal-title" class="text-lg font-semibold text-gray-900">
+            {{ isEditMode ? 'แก้ไขรายการทวีคูณ' : 'เพิ่มรายการทวีคูณ' }}
+          </h3>
           <button class="text-gray-400 hover:text-gray-600" @click="closeModal" aria-label="ปิด">
             <X class="w-5 h-5" />
           </button>
@@ -332,6 +353,53 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Confirmation Dialog -->
+  <div
+    v-if="showDeleteConfirm"
+    class="fixed inset-0 z-50 flex items-center justify-center"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="delete-confirm-title"
+  >
+    <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeDeleteConfirm"></div>
+    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+          <AlertTriangle class="w-5 h-5 text-red-600" />
+        </div>
+        <div class="flex-1">
+          <h3 id="delete-confirm-title" class="text-lg font-semibold text-gray-900 mb-2">ยืนยันการลบ</h3>
+          <p class="text-sm text-gray-600 mb-1">คุณต้องการลบรายการทวีคูณนี้หรือไม่?</p>
+          <div v-if="deletingRow" class="mt-3 p-3 bg-gray-50 rounded text-sm">
+            <div class="font-medium text-gray-900">{{ deletingRow.fullName }}</div>
+            <div class="text-gray-600">{{ deletingRow.areaLabel }}</div>
+            <div class="text-gray-600">{{ deletingRow.startDateThai }} - {{ deletingRow.endDateThai }}</div>
+            <div class="text-gray-600 mt-1">วันทวีคูณ: {{ formatNumber(deletingRow.bonusDays) }} วัน</div>
+          </div>
+          <p class="text-sm text-red-600 mt-3">การลบจะไม่สามารถยกเลิกได้</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-3 mt-6">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          @click="closeDeleteConfirm"
+          :disabled="saving"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+          @click="handleDelete"
+          :disabled="saving"
+        >
+          {{ saving ? 'กำลังลบ...' : 'ลบรายการ' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -351,14 +419,16 @@ import {
   FileText,
   Home,
   MapPinned,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   X,
 } from 'lucide-vue-next'
 
 const api = useApi()
-const { fetchList, fetchAreas, create } = useMultiplier()
+const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
 
@@ -373,6 +443,10 @@ const areaSummary = ref({ total: 0, source_pending: 0 })
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 const areaSearchQuery = ref('')
 const showModal = ref(false)
+const isEditMode = ref(false)
+const editingId = ref(null)
+const showDeleteConfirm = ref(false)
+const deletingRow = ref(null)
 const formErrors = ref({})
 const personnelSearch = ref('')
 const personnelResults = ref([])
@@ -424,6 +498,8 @@ function onPageChange(offset) {
 }
 
 function openCreateModal() {
+  isEditMode.value = false
+  editingId.value = null
   formData.value = emptyForm()
   personnelSearch.value = ''
   personnelResults.value = []
@@ -433,9 +509,56 @@ function openCreateModal() {
   showModal.value = true
 }
 
+function openEditModal(row) {
+  isEditMode.value = true
+  editingId.value = row.multiplierId
+  formData.value = {
+    personnel_id: row.personnelId,
+    area_multiplier_id: row.areaMultiplierId,
+    start_date: row.startDate,
+    end_date: row.endDate,
+    proof_reference: row.proofReference || '',
+    description: row.description || '',
+  }
+  personnelSearch.value = row.fullName
+  personnelResults.value = []
+  showPersonnelDropdown.value = false
+  formErrors.value = {}
+  submitError.value = ''
+  showModal.value = true
+}
+
+function openDeleteConfirm(row) {
+  deletingRow.value = row
+  showDeleteConfirm.value = true
+}
+
+function closeDeleteConfirm() {
+  if (saving.value) return
+  showDeleteConfirm.value = false
+  deletingRow.value = null
+}
+
+async function handleDelete() {
+  if (!deletingRow.value) return
+  saving.value = true
+  try {
+    await remove(deletingRow.value.multiplierId)
+    showDeleteConfirm.value = false
+    deletingRow.value = null
+    await fetchData()
+  } catch (err) {
+    alert(err.message || 'ไม่สามารถลบรายการได้')
+  } finally {
+    saving.value = false
+  }
+}
+
 function closeModal() {
   if (saving.value) return
   showModal.value = false
+  isEditMode.value = false
+  editingId.value = null
 }
 
 async function handleSubmit() {
@@ -445,11 +568,18 @@ async function handleSubmit() {
 
   saving.value = true
   try {
-    await create({
+    const payload = {
       ...formData.value,
       personnel_id: Number(formData.value.personnel_id),
       area_multiplier_id: Number(formData.value.area_multiplier_id),
-    })
+    }
+
+    if (isEditMode.value && editingId.value) {
+      await update(editingId.value, payload)
+    } else {
+      await create(payload)
+    }
+
     showModal.value = false
     pagination.value.offset = 0
     await fetchData()
