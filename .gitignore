@@ -96,3 +96,10 @@ secrets/
 
 # Session logs (prompts/paths/เนื้อหา session — local เท่านั้น)
 project-log-md/
+
+# Binary reference assets — เก็บ local เท่านั้น (ไฟล์ใหญ่/สื่อ ไม่เข้า git; ถ้าต้องแชร์ให้ใช้ LFS หรือ storage ภายนอก)
+docs/*.pdf
+docs/documents/
+docs/images/
+docs/scrennshorts/
+docs/project-documents/*.docx
