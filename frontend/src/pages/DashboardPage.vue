@@ -27,6 +27,49 @@
       <StatCard label="การนับเวลาเพิ่มเติม" :value="stats.timeCountTotal.toLocaleString()" :icon="Clock" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
     </div>
 
+    <!-- Multiplier Summary Section -->
+    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg shadow-sm border border-indigo-100 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-indigo-100 rounded-lg">
+            <Clock class="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">สรุปการนับทวีคูณ</h3>
+            <p class="text-sm text-gray-600">การนับเวลาราชการในพื้นที่พิเศษเป็นทวีคูณ</p>
+          </div>
+        </div>
+        <RouterLink
+          to="/time-multiplier"
+          class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+        >
+          ดูทั้งหมด →
+        </RouterLink>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+          <div class="text-sm text-gray-600 mb-1">รายการทั้งหมด</div>
+          <div class="text-2xl font-bold text-gray-900">{{ multiplierSummary.totalRecords.toLocaleString() }}</div>
+          <div class="text-xs text-gray-500 mt-1">รายการ</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+          <div class="text-sm text-gray-600 mb-1">จำนวนบุคลากร</div>
+          <div class="text-2xl font-bold text-indigo-600">{{ multiplierSummary.distinctPersonnel.toLocaleString() }}</div>
+          <div class="text-xs text-gray-500 mt-1">คน</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+          <div class="text-sm text-gray-600 mb-1">วันทวีคูณรวม</div>
+          <div class="text-2xl font-bold text-purple-600">{{ formatNumber(multiplierSummary.totalBonusDays) }}</div>
+          <div class="text-xs text-gray-500 mt-1">วัน</div>
+        </div>
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+          <div class="text-sm text-gray-600 mb-1">ประมาณการ</div>
+          <div class="text-2xl font-bold text-green-600">{{ multiplierSummary.totalBonusYears.toLocaleString() }}</div>
+          <div class="text-xs text-gray-500 mt-1">ปี</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Priority Tasks (2/3 width) -->
@@ -158,6 +201,13 @@ const probationSummary = ref({
   overdue: 0,
 })
 
+const multiplierSummary = ref({
+  totalRecords: 0,
+  distinctPersonnel: 0,
+  totalBonusDays: 0,
+  totalBonusYears: 0,
+})
+
 const priorityTasks = ref([])
 
 const quickActions = [
@@ -165,6 +215,10 @@ const quickActions = [
   { title: 'เลื่อนระดับตำแหน่ง', icon: TrendingUp, color: 'bg-green-500', route: '/candidates/general' },
   { title: 'การนับเวลาเกื้อกูล', icon: Clock, color: 'bg-purple-500', route: '/supportive' },
 ]
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value)
+}
 
 async function fetchDashboard() {
   loading.value = true
@@ -182,6 +236,13 @@ async function fetchDashboard() {
       inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
       nearDeadline: d.probation?.near_deadline || 0,
       overdue: d.probation?.overdue || 0,
+    }
+
+    multiplierSummary.value = {
+      totalRecords: d.multiplier?.total_records || 0,
+      distinctPersonnel: d.multiplier?.distinct_personnel || 0,
+      totalBonusDays: d.multiplier?.total_bonus_days || 0,
+      totalBonusYears: d.multiplier?.total_bonus_years || 0,
     }
 
     const totalCandidates = d.candidates?.total || 0

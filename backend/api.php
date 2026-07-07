@@ -346,6 +346,32 @@ switch ($path[0]) {
 
             $candidateGrandTotal = array_sum($candidateTotals);
 
+            // Multiplier summary (รวมสถิติการนับทวีคูณ)
+            $multiplierStats = [
+                'total_records' => 0,
+                'distinct_personnel' => 0,
+                'total_bonus_days' => 0,
+                'total_bonus_years' => 0,
+            ];
+            try {
+                $stmt = $pdo->query("
+                    SELECT
+                        COUNT(*) AS total_records,
+                        COUNT(DISTINCT personnel_id) AS distinct_personnel,
+                        COALESCE(SUM(bonus_days), 0) AS total_bonus_days
+                    FROM multiplier_experience
+                ");
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($row) {
+                    $multiplierStats['total_records'] = (int) $row['total_records'];
+                    $multiplierStats['distinct_personnel'] = (int) $row['distinct_personnel'];
+                    $multiplierStats['total_bonus_days'] = (float) $row['total_bonus_days'];
+                    $multiplierStats['total_bonus_years'] = round($multiplierStats['total_bonus_days'] / 365, 1);
+                }
+            } catch (PDOException $e) {
+                // ถ้า query fail ส่งค่า default
+            }
+
             echo json_encode([
                 'success' => true,
                 'total_personnel' => $totalPersonnel,
@@ -360,6 +386,7 @@ switch ($path[0]) {
                     'equivalence' => $equivalenceCount,
                     'total' => $supportiveCount + $diverseCount + $equivalenceCount,
                 ],
+                'multiplier' => $multiplierStats,
                 'candidates' => [
                     'total' => $candidateGrandTotal,
                     'by_level' => $candidateTotals,
