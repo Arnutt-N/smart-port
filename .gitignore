@@ -92,6 +92,7 @@ secrets/
 # Local agent/tool dirs (config/session — อาจมีข้อมูล local ที่ไม่ควร public)
 .claude/
 .playwright-cli/
+.playwright-mcp/
 
 # Session logs (prompts/paths/เนื้อหา session — local เท่านั้น)
 project-log-md/
