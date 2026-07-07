@@ -1,3 +1,6 @@
+-- บังคับ client charset เป็น utf8mb4 กัน mojibake ตอน docker init (client default อาจเป็น latin1)
+SET NAMES utf8mb4;
+
 -- ============================================================================
 -- 07-add-education-level.sql
 -- Add education_level column to personnel table
