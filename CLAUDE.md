@@ -6,6 +6,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Smart Port is an HR management system for Thai government agencies (ระบบบริหารงานบุคคล). It features civil servant profiles, position tracking, career management, and administrative dashboards. The UI and comments are primarily in Thai.
 
+## Agent Skill Collections (Reference)
+
+ดูรายละเอียดเต็มที่ **`.claude/skill-collections-comparison.md`** — เปรียบเทียบ skill collections 5 ชุด (superpowers · ecc · mattpocock · addyosmani · karpathy) พร้อม capability matrix และคำแนะนำ stack ใช้ประกอบการเลือก skill ให้เหมาะกับงาน
+
+- **หลัก layering (5 ระดับชั้น):** karpathy (behavioral baseline) → superpowers (process discipline) → mattpocock/addyosmani (SDLC playbook) → ecc (domain/language breadth)
+- **Stack ในเครื่องนี้:** superpowers + ecc + mattpocock (active); addyosmani (ติดตั้งแต่ disabled)
+- **เลือก skill สำหรับ Smart Port (PHP/Vue/MySQL):**
+  - Security/PII → `ecc:security-review`, `ecc:security-scan`
+  - โค้ดรีวิว → `ecc:php-review`, `ecc:vue-review`
+  - DB/Migration → `ecc:mysql-patterns`, `ecc:database-migrations`
+  - Browser E2E / smoke test → `ecc:browser-qa` + chrome-devtools MCP
+  - Debug → `superpowers:systematic-debugging` หรือ `diagnosing-bugs`
+  - วางแผน → `ecc:plan-prd` + `grilling`
+- **ข้อควรระวัง:** อย่าเปิด plugin ที่ทับซ้อนกัน (addyosmani ≈ ecc) พร้อมกัน — สร้าง routing noise
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default Matt Pocock triage label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: use root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Development Commands
 
 ### Local Development (Docker)
@@ -37,20 +66,21 @@ Database name: `civil_service_mgmt`. Connection config is in `backend/config.php
 ## Architecture
 
 ### Frontend (`frontend/`)
-Vanilla JavaScript SPA built with Vite + Tailwind CSS. No framework (no React/Vue).
+Vue 3 SPA built with Vite + Tailwind CSS.
 
-- **Routing**: Custom `Router` class in `src/utils/router.js` using History API with regex-based path matching
-- **Pages**: Each page is a JS module in `src/pages/` that renders HTML into the DOM
-- **Services**: `src/services/apiService.js` wraps Axios with interceptors; `src/services/authService.js` manages JWT tokens in `localStorage`
-- **Events**: Centralized `EventManager` in `src/utils/eventManager.js` for cross-component communication
-- **Entry points**: `index.html` (main app) and `admin.html` (admin panel), configured as multi-page in `vite.config.js`
+- **Routing**: Vue Router 4 in `src/router/index.js` with `beforeEach` auth guards (redirects unauthenticated users to `/login`)
+- **Pages**: Route views in `src/pages/` as `*Page.vue` components (e.g. `DashboardPage.vue`, `CandidateListsPage.vue`)
+- **Components & layouts**: Reusable UI in `src/components/`, page shells in `src/layouts/`
+- **API layer**: `src/composables/useApi.js` wraps Fetch with automatic JWT injection and 401 auto-logout
+- **State**: Pinia stores in `src/stores/` (`auth.js` for token/user, `ui.js` for toasts)
+- **Entry**: `index.html` → `src/main.js` bootstraps `App.vue`
 - **Production**: Multi-stage Docker build (Node → Nginx). Nginx config in `frontend/nginx.conf` handles SPA routing and API proxying
 
 ### Backend (`backend/`)
 Pure PHP REST API with no framework.
 
 - **Single entry point**: `api.php` is the API gateway — all requests route through it via `.htaccess` rewrite rules
-- **Routing**: `switch` statement on URL path segments in `api.php`
+- **Routing**: `switch` statement on URL path segments in `api.php`, delegating to feature handlers in `backend/routes/` (e.g. `routes/import.php`, `routes/probation.php`)
 - **Auth**: JWT (HMAC-SHA256) implemented in `auth.php` using `firebase/php-jwt`. Token expiry: 1 hour. Login endpoints (`/auth/login` and `/login`) are unauthenticated; all other routes require a valid JWT in the `Authorization` header
 - **Database**: PDO with prepared statements. Connection setup in `config.php`
 - **Dependencies**: Managed via Composer (`composer.json`), only dependency is `firebase/php-jwt`
@@ -68,11 +98,10 @@ Pure PHP REST API with no framework.
 - **Language**: UI text, code comments, and database content are in Thai. Maintain Thai language when modifying user-facing strings
 - **Tailwind theme**: Custom color palette defined in `frontend/tailwind.config.js` — primary colors use sky-blue, with government-slate secondary tones
 - **Font**: Noto Sans Thai is the primary typeface
-- **Auth flow**: JWT stored in `localStorage` under keys `authToken` / `auth_token`. ApiService auto-attaches the token via request interceptor
+- **Auth flow**: JWT stored in `localStorage` under keys `authToken` / `auth_token`. The `useApi()` composable auto-attaches the token via request interceptor
 - **CORS**: Currently hardcoded to `https://smart-port.onrender.com` in `backend/api.php`
 - **Deployment**: Production runs on Render (`smart-port.onrender.com`)
 
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **Smart Port — Candidate List & Probation Tracking**
@@ -88,9 +117,7 @@ Pure PHP REST API with no framework.
 - **Language**: All UI in Thai (ภาษาไทย)
 - **Auth**: Existing JWT flow must be maintained
 - **Docker**: Must work within existing docker-compose setup
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:codebase/STACK.md -->
 ## Technology Stack
 
 ## Languages
@@ -178,14 +205,12 @@ Pure PHP REST API with no framework.
 ## Notable Architectural Decisions
 - **No framework for backend:** Custom REST API routing via switch statement and .htaccess rewrites
 - **Vue 3 with SPA:** Single-page application with client-side routing and state management
-- **Multi-page Vite config:** Support for both main app (`index.html`) and admin panel (`admin.html`)
+- **Single-page Vite build:** `index.html` is the sole entry; admin-only views are Vue Router routes guarded by `meta.requiresAdmin`, not a separate HTML page
 - **API proxy in dev:** Vite dev server proxies `/api` requests to avoid CORS issues locally
 - **JWT with custom implementation:** Backend uses both firebase/php-jwt and custom JWT functions
 - **Tailwind 4:** Modern CSS framework with `@tailwindcss/vite` plugin for optimal build performance
 - **Docker multi-stage builds:** Optimized container images for frontend (Node → Nginx) and backend (Composer → PHP)
-<!-- GSD:stack-end -->
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
 ## Naming Patterns
@@ -202,7 +227,7 @@ Pure PHP REST API with no framework.
 - Computed properties: camelCase (e.g., `badgeClass`, `statusLabel`)
 - Constants in Vue: camelCase object keys in maps (e.g., `statusMap`, `toastClasses`, `toastIcons`)
 - PHP variables: camelCase (e.g., `$method`, `$path`, `$token`, `$data`, `$email`, `$password`)
-- Not explicitly used in this codebase (Vanilla JS/PHP)
+- Not explicitly used in this codebase (Vue 3/PHP)
 - Props object keys: camelCase (e.g., `status`, `label`, `requiresAuth`)
 - Response payload keys: snake_case from backend, accessed via destructuring (e.g., `servant_id`, `file_name`, `is_active`)
 ## Code Style
@@ -296,9 +321,7 @@ Pure PHP REST API with no framework.
 - PDO with prepared statements exclusively
 - `execute()` with array of parameters prevents SQL injection
 - `fetch(PDO::FETCH_ASSOC)` for single row, `fetchAll()` for multiple
-<!-- GSD:conventions-end -->
 
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
 ## Pattern Overview
@@ -421,24 +444,3 @@ Pure PHP REST API with no framework.
 - Hardcoded to `https://smart-port.onrender.com` in `backend/api.php` line 4
 - Allows methods: GET, POST, PUT, DELETE, OPTIONS
 - Allows headers: Content-Type, Authorization, X-Requested-With
-<!-- GSD:architecture-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->
