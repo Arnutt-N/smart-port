@@ -1,3 +1,6 @@
+-- บังคับ client charset เป็น utf8mb4 กัน mojibake ตอน docker init (client default อาจเป็น latin1)
+SET NAMES utf8mb4;
+
 -- ============================================================================
 -- 13-multiplier-time-counting.sql
 -- การนับเวลาราชการเป็นทวีคูณ

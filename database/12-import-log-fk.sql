@@ -1,3 +1,6 @@
+-- บังคับ client charset เป็น utf8mb4 กัน mojibake ตอน docker init (client default อาจเป็น latin1)
+SET NAMES utf8mb4;
+
 -- ============================================================================
 -- 12-import-log-fk.sql
 -- FK import_log.user_id → users(user_id) — audit log อ้าง user ที่มีจริง (governance)

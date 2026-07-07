@@ -1,3 +1,6 @@
+-- บังคับ client charset เป็น utf8mb4 กัน mojibake ตอน docker init (client default อาจเป็น latin1)
+SET NAMES utf8mb4;
+
 -- ============================================================================
 -- 10-import-log.sql
 -- Audit log การนำเข้า Excel (OWASP A09) + ใช้นับ rate limit ของ import endpoint
