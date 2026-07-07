@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    // ลบ "jsx": "react-jsx" เพราะไม่จำเป็นใน Vanilla JS
+    // ลบ "jsx": "react-jsx" เพราะโปรเจกต์นี้เป็น Vue 3 (ใช้ .vue SFC ไม่ใช่ JSX)
     "strict": true,
     "noUnusedLocals": true,  // เปลี่ยนเป็น true เพื่อ strict มากขึ้น
     "noUnusedParameters": true,  // เปลี่ยนเป็น true
@@ -19,7 +19,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "allowJs": true,  // เพิ่มเพื่อ support .js files ใน Vanilla
+    "allowJs": true,  // เพิ่มเพื่อรองรับไฟล์ .js ที่ใช้งานร่วมกับ .vue/.ts
     "esModuleInterop": true,  // เพิ่มสำหรับ import modules
     "types": ["vite/client"]  // เพิ่มสำหรับ Vite env types
   },
