@@ -391,7 +391,8 @@ function decorateAreaRow(array &$row): void
     $row['area_label'] = $row['district']
         ? "{$row['province']} / {$row['district']}"
         : "{$row['province']} / ทั้งจังหวัด";
-    $row['source_pending'] = str_contains((string) $row['legal_reference'], 'SOURCE_PENDING');
+    $legalReference = trim((string) $row['legal_reference']);
+    $row['source_pending'] = $legalReference === '' || str_contains($legalReference, 'SOURCE_PENDING');
 }
 
 /**
