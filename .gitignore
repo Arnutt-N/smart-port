@@ -59,6 +59,10 @@ backend/uploads/*
 database/export-*.sql
 database/reimport-data.sql
 
+# Rate limiter runtime state (file-based sliding window) — local เท่านั้น
+backend/storage/rate_limits/*
+!backend/storage/rate_limits/.gitkeep
+
 # Test coverage
 coverage/
 .nyc_output/
