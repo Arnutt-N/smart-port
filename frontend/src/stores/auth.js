@@ -30,6 +30,7 @@ function readStoredJson(key, fallback = null) {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(readStoredString('auth_token'))
   const refreshToken = ref(readStoredString('refresh_token'))
+  const csrfToken = ref(readStoredString('csrf_token'))
   const user = ref(readStoredJson('user'))
 
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
@@ -47,10 +48,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setAuth(data) {
     token.value = data.token
+    csrfToken.value = data.csrf_token || ''
     user.value = data.user
     refreshToken.value = data.refreshToken || ''
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('user', JSON.stringify(data.user))
+    if (data.csrf_token) {
+      localStorage.setItem('csrf_token', data.csrf_token)
+    }
     if (data.refreshToken) {
       localStorage.setItem('refresh_token', data.refreshToken)
     } else {
@@ -69,13 +74,15 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     token.value = ''
     refreshToken.value = ''
+    csrfToken.value = ''
     user.value = null
     localStorage.removeItem('auth_token')
     localStorage.removeItem('authToken')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('csrf_token')
     localStorage.removeItem('user')
   }
 
-  return { token, user, isAuthenticated, isAdmin, isTokenValid, setAuth, login, logout }
+  return { token, csrfToken, user, isAuthenticated, isAdmin, isTokenValid, setAuth, login, logout }
 })

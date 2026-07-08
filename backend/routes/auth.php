@@ -102,10 +102,11 @@ function loginUser(PDO $pdo): void
     $pdo->prepare("UPDATE users SET last_login_at = NOW() WHERE user_id = ?")
         ->execute([$user['user_id']]);
 
-    $token = generateJWT((int) $user['user_id'], $user['role']);
+    $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
 
     echo json_encode([
-        'token' => $token,
+        'token' => $jwtResult['token'],
+        'csrf_token' => $jwtResult['csrf_token'],
         'user' => [
             'id' => (int) $user['user_id'],
             'username' => $user['username'],

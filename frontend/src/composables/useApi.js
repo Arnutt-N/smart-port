@@ -13,6 +13,12 @@ async function request(url, options = {}) {
     headers.Authorization = `Bearer ${auth.token}`
   }
 
+  // Add CSRF token for state-changing requests
+  const method = options.method || 'GET'
+  if (['POST', 'PUT', 'DELETE'].includes(method) && auth.csrfToken) {
+    headers['X-CSRF-Token'] = auth.csrfToken
+  }
+
   if (options.body instanceof FormData) {
     delete headers['Content-Type']
   }

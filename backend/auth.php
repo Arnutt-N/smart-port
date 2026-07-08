@@ -9,20 +9,30 @@ function base64url_decode($data) {
 }
 
 function generateJWT($user_id, $role = 'operator') {
+    // Generate CSRF token for double-submit pattern
+    $csrfToken = bin2hex(random_bytes(32));
+
     $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
     $payload = json_encode([
         'iat' => time(),
         'exp' => time() + 3600, // หมดอายุ 1 ชม.
+        'csrf' => $csrfToken, // CSRF token embedded in JWT
         'data' => ['user_id' => $user_id, 'role' => $role]
     ]);
-    
+
     $headerEncoded = base64url_encode($header);
     $payloadEncoded = base64url_encode($payload);
-    
+
     $signature = hash_hmac('sha256', $headerEncoded . "." . $payloadEncoded, JWT_SECRET, true);
     $signatureEncoded = base64url_encode($signature);
-    
-    return $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+
+    $token = $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+
+    // Return both JWT and CSRF token separately
+    return [
+        'token' => $token,
+        'csrf_token' => $csrfToken
+    ];
 }
 
 function validateJWT($token) {
