@@ -101,20 +101,4 @@ function getAuthHeader() {
     return null;
 }
 
-// ดึงข้อมูล user จาก JWT ของ request ปัจจุบัน — คืน ['user_id'=>.., 'role'=>..] หรือ null
-function currentUser(): ?array {
-    $payload = validateJWT(getAuthHeader());
-    return is_array($payload) ? $payload : null;
-}
-
-// บังคับ role admin — ส่ง 403 แล้วจบ request ถ้าไม่ใช่
-function requireAdmin(): array {
-    $user = currentUser();
-    if (!$user || ($user['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'ต้องเป็นผู้ดูแลระบบเท่านั้น']);
-        exit;
-    }
-    return $user;
-}
 ?>

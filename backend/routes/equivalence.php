@@ -16,6 +16,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 /**
  * จัดการ request สำหรับ position equivalence endpoints
@@ -179,6 +180,7 @@ function getEquivalenceDetail(PDO $pdo, int $id): void
  */
 function createEquivalence(PDO $pdo): void
 {
+    requirePermission('create', 'equivalence');
     $data = json_decode(file_get_contents('php://input'), true);
 
     // ตรวจสอบข้อมูลที่จำเป็น
@@ -239,6 +241,8 @@ function createEquivalence(PDO $pdo): void
  */
 function updateEquivalence(PDO $pdo, int $id): void
 {
+    // ครอบทั้งฟังก์ชัน — ทั้งแก้ field ปกติและอนุมัติ/ปฏิเสธ ต้องผ่านสิทธิ์ update:equivalence ก่อนเสมอ
+    requirePermission('update', 'equivalence');
     $data = json_decode(file_get_contents('php://input'), true);
 
     // ดึงข้อมูลปัจจุบัน
@@ -256,8 +260,9 @@ function updateEquivalence(PDO $pdo, int $id): void
     $newStatus = $data['approval_status'] ?? null;
 
     if ($newStatus !== null) {
-        // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (operator แก้ field ปกติได้)
-        $approver = requireAdmin();
+        // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (resource แยกจาก 'equivalence' ปกติที่ operator แก้ field ได้)
+        requirePermission('update', 'equivalence_approval');
+        $approver = getAuthenticatedUser();
 
         // ตรวจสอบ transition ที่อนุญาต
         $validTransitions = ['PENDING' => ['APPROVED', 'REJECTED']];
@@ -306,6 +311,21 @@ function updateEquivalence(PDO $pdo, int $id): void
                 $userId,
                 $id
             ]);
+
+            logAudit(
+                $pdo,
+                $userId,
+                'UPDATE',
+                'position_equivalence',
+                $id,
+                ['approval_status' => $currentStatus],
+                [
+                    'approval_status' => 'APPROVED',
+                    'approved_start_date' => $data['approved_start_date'],
+                    'approved_end_date' => $data['approved_end_date'],
+                    'approved_total_days' => $approvedTotalDays,
+                ]
+            );
         } elseif ($newStatus === 'REJECTED') {
             $sql = "UPDATE position_equivalence
                     SET approval_status = 'REJECTED',
@@ -315,6 +335,16 @@ function updateEquivalence(PDO $pdo, int $id): void
                     WHERE equivalence_id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id]);
+
+            logAudit(
+                $pdo,
+                $approver['user_id'],
+                'UPDATE',
+                'position_equivalence',
+                $id,
+                ['approval_status' => $currentStatus],
+                ['approval_status' => 'REJECTED']
+            );
         }
 
         echo json_encode(['success' => true]);

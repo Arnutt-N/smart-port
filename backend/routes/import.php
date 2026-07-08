@@ -10,6 +10,7 @@ declare(strict_types=1);
 // ============================================================================
 
 require_once __DIR__ . '/../ImportService.php';
+require_once __DIR__ . '/../audit.php';
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;   // 5MB
 const IMPORT_RATE_MAX = 10;                  // จำนวนครั้งต่อหน้าต่าง
@@ -17,7 +18,8 @@ const IMPORT_RATE_WINDOW_MIN = 15;           // นาที
 
 function handleImport(PDO $pdo, string $method, array $path): void
 {
-    $user = requireAdmin();
+    requirePermission('create', 'import');
+    $user = getAuthenticatedUser();
     $userId = (int) ($user['user_id'] ?? 0);
     if ($userId < 1) {
         http_response_code(401);
@@ -97,7 +99,7 @@ function handleImport(PDO $pdo, string $method, array $path): void
 
     $result = (new ImportService($pdo))->importFromFile((string) $file['tmp_name']);
 
-    // อัปเดตผลลง audit log (OWASP A09) — ไม่เก็บ citizen_id (PII)
+    // อัปเดตผลลง import_log (OWASP A09) — ไม่เก็บ citizen_id (PII)
     $pdo->prepare(
         'UPDATE import_log SET personnel_count = ?, is_success = ?, error_summary = ? WHERE log_id = ?'
     )->execute([
@@ -106,6 +108,22 @@ function handleImport(PDO $pdo, string $method, array $path): void
         $result['success'] ? null : mb_substr(implode(' | ', $result['errors']), 0, 500),
         $logId,
     ]);
+
+    // Audit log: บันทึกสรุปผลนำเข้า — เฉพาะตัวเลข/สถานะ ไม่มี PII (citizen_id, ชื่อ-สกุล)
+    logAudit(
+        $pdo,
+        $userId,
+        'CREATE',
+        'import',
+        $logId,
+        null,
+        [
+            'filename' => mb_substr((string) ($file['name'] ?? ''), 0, 300),
+            'personnel_count' => (int) ($result['summary']['personnel'] ?? 0),
+            'success' => $result['success'],
+            'error_count' => count($result['errors'] ?? []),
+        ]
+    );
 
     http_response_code($result['success'] ? 200 : 422);
     echo json_encode($result, JSON_UNESCAPED_UNICODE);

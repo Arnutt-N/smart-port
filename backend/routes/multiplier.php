@@ -10,15 +10,20 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
     // DEBUG: Log routing info
     error_log('[multiplier] method=' . $method . ', path=' . json_encode($path));
 
-    // ทั้งฟีเจอร์ทวีคูณเป็นงาน HR/admin เท่านั้น — ไม่มี self-service ใน MVP
-    // (JWT payload มีแค่ user_id/role ไม่มี personnel_id ผูกตัวตน จึงยัง scope ตาม record ไม่ได้)
-    $user = requireAdmin();
+    // GET = read, POST = create, PUT = update, DELETE = delete
+    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
+    $action = $actionMap[$method] ?? 'read';
+    requirePermission($action, 'multiplier');
+
+    // ดึง user จาก JWT (สำหรับ audit log)
+    $user = getAuthenticatedUser();
 
     try {
         switch ($method) {
@@ -357,10 +362,29 @@ function createMultiplier(PDO $pdo, array $user): void
         $user['user_id'] ?? null,
     ]);
 
+    $multiplierId = intval($pdo->lastInsertId());
+
+    // Audit log: บันทึกการสร้างรายการทวีคูณ
+    logAudit(
+        $pdo,
+        $user['user_id'],
+        'CREATE',
+        'multiplier_experience',
+        $multiplierId,
+        null,
+        [
+            'personnel_id' => $personnelId,
+            'area_multiplier_id' => $computed['area_multiplier_id'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
+            'bonus_days' => $computed['bonus_days'],
+        ]
+    );
+
     http_response_code(201);
     echo json_encode([
         'success' => true,
-        'multiplier_id' => intval($pdo->lastInsertId()),
+        'multiplier_id' => $multiplierId,
         'computed' => $computed,
     ]);
 }
@@ -511,6 +535,24 @@ function createMultiplierArea(PDO $pdo, array $user): void
     }
 
     $areaId = (int) $pdo->lastInsertId();
+
+    // Audit log: บันทึกการสร้างพื้นที่พิเศษ
+    logAudit(
+        $pdo,
+        $user['user_id'],
+        'CREATE',
+        'special_area_multiplier',
+        $areaId,
+        null,
+        [
+            'province' => $v['province'],
+            'district' => $v['district'],
+            'basis_type' => $v['basis_type'],
+            'multiplier_ratio' => $v['multiplier_ratio'],
+            'effective_start_date' => $v['effective_start_date'],
+        ]
+    );
+
     http_response_code(201);
     echo json_encode([
         'success' => true,
@@ -521,6 +563,7 @@ function createMultiplierArea(PDO $pdo, array $user): void
 
 function setMultiplierAreaStatus(PDO $pdo, int $areaId): void
 {
+    $user = getAuthenticatedUser();
     $data = json_decode(file_get_contents('php://input'), true);
     $isActive = is_array($data) ? ($data['is_active'] ?? null) : null;
     // รับเฉพาะ 0/1 (int หรือ string) — ค่าอื่นตอบ 400
@@ -530,16 +573,30 @@ function setMultiplierAreaStatus(PDO $pdo, int $areaId): void
         return;
     }
 
+    // ดึงค่าก่อนแก้ไขเพื่อ audit log
+    $beforeRow = fetchAreaRow($pdo, $areaId);
+    if ($beforeRow === null) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบพื้นที่ตามรหัสที่ระบุ']);
+        return;
+    }
+
     // UPDATE ก่อนแล้วค่อยอ่านกลับ — idempotent โดยธรรมชาติ (ตั้งค่าเดิมซ้ำ = 200 ปกติ)
     $pdo->prepare('UPDATE special_area_multiplier SET is_active = ? WHERE area_multiplier_id = ?')
         ->execute([(int) $isActive, $areaId]);
 
     $row = fetchAreaRow($pdo, $areaId);
-    if ($row === null) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบพื้นที่ตามรหัสที่ระบุ']);
-        return;
-    }
+
+    // Audit log: บันทึกการเปลี่ยนสถานะพื้นที่พิเศษ
+    logAudit(
+        $pdo,
+        $user['user_id'],
+        'UPDATE',
+        'special_area_multiplier',
+        $areaId,
+        ['is_active' => $beforeRow['is_active']],
+        ['is_active' => $row['is_active']]
+    );
 
     echo json_encode(['success' => true, 'data' => $row]);
 }
