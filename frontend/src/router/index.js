@@ -58,6 +58,12 @@ const routes = [
         meta: { requiresAdmin: true },
       },
       {
+        path: 'audit',
+        name: 'audit',
+        component: () => import('@/pages/AuditLogPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'import',
         name: 'import',
         component: () => import('@/pages/ImportPage.vue'),
