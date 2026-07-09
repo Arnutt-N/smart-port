@@ -16,6 +16,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 /**
  * จัดการ request สำหรับ position equivalence endpoints
@@ -65,6 +66,7 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
  */
 function getEquivalenceList(PDO $pdo): void
 {
+    requirePermission('read', 'equivalence');
     $personnelId = $_GET['personnel_id'] ?? null;
     // clamp กัน limit มหาศาล / offset ติดลบ
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
@@ -145,6 +147,7 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
+    requirePermission('read', 'equivalence');
     $sql = "SELECT pe.*,
                    CONCAT(p.first_name, ' ', p.last_name) AS full_name,
                    u.username AS approved_by_name
@@ -179,6 +182,7 @@ function getEquivalenceDetail(PDO $pdo, int $id): void
  */
 function createEquivalence(PDO $pdo): void
 {
+    requirePermission('create', 'equivalence');
     $data = json_decode(file_get_contents('php://input'), true);
 
     // ตรวจสอบข้อมูลที่จำเป็น
@@ -239,6 +243,8 @@ function createEquivalence(PDO $pdo): void
  */
 function updateEquivalence(PDO $pdo, int $id): void
 {
+    // ครอบทั้งฟังก์ชัน — ทั้งแก้ field ปกติและอนุมัติ/ปฏิเสธ ต้องผ่านสิทธิ์ update:equivalence ก่อนเสมอ
+    requirePermission('update', 'equivalence');
     $data = json_decode(file_get_contents('php://input'), true);
 
     // ดึงข้อมูลปัจจุบัน
@@ -256,8 +262,9 @@ function updateEquivalence(PDO $pdo, int $id): void
     $newStatus = $data['approval_status'] ?? null;
 
     if ($newStatus !== null) {
-        // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (operator แก้ field ปกติได้)
-        $approver = requireAdmin();
+        // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (resource แยกจาก 'equivalence' ปกติที่ operator แก้ field ได้)
+        requirePermission('update', 'equivalence_approval');
+        $approver = getAuthenticatedUser();
 
         // ตรวจสอบ transition ที่อนุญาต
         $validTransitions = ['PENDING' => ['APPROVED', 'REJECTED']];
@@ -288,7 +295,7 @@ function updateEquivalence(PDO $pdo, int $id): void
             }
             $approvedTotalDays = $approvedEnd->diff($approvedStart)->days + 1;
 
-            // ผู้อนุมัติจาก JWT (ผ่าน requireAdmin แล้ว) สำหรับ approved_by
+            // ผู้อนุมัติจาก JWT (ผ่าน requirePermission('update', 'equivalence_approval') แล้ว) สำหรับ approved_by
             $userId = $approver['user_id'] ?? null;
 
             $sql = "UPDATE position_equivalence
@@ -306,7 +313,24 @@ function updateEquivalence(PDO $pdo, int $id): void
                 $userId,
                 $id
             ]);
+
+            logAudit(
+                $pdo,
+                $userId,
+                'UPDATE',
+                'position_equivalence',
+                $id,
+                ['approval_status' => $currentStatus],
+                [
+                    'approval_status' => 'APPROVED',
+                    'approved_start_date' => $data['approved_start_date'],
+                    'approved_end_date' => $data['approved_end_date'],
+                    'approved_total_days' => $approvedTotalDays,
+                ]
+            );
         } elseif ($newStatus === 'REJECTED') {
+            $userId = $approver['user_id'] ?? null;
+
             $sql = "UPDATE position_equivalence
                     SET approval_status = 'REJECTED',
                         approved_start_date = NULL,
@@ -315,6 +339,16 @@ function updateEquivalence(PDO $pdo, int $id): void
                     WHERE equivalence_id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id]);
+
+            logAudit(
+                $pdo,
+                $userId,
+                'UPDATE',
+                'position_equivalence',
+                $id,
+                ['approval_status' => $currentStatus],
+                ['approval_status' => 'REJECTED']
+            );
         }
 
         echo json_encode(['success' => true]);

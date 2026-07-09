@@ -30,7 +30,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://backend
+        - VITE_API_URL=/api
     container_name: smartport-frontend
     ports:
       - "8081:80" # ใช้ port 8081
@@ -65,6 +65,7 @@ services:
       - ./database/12-import-log-fk.sql:/docker-entrypoint-initdb.d/12-import-log-fk.sql
       - ./database/13-multiplier-time-counting.sql:/docker-entrypoint-initdb.d/13-multiplier-time-counting.sql
       - ./database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql
+      - ./backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/15-audit-log.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s

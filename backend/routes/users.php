@@ -12,6 +12,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 const PASSWORD_MIN_LENGTH = 8;
 const VALID_ROLES = ['admin', 'operator'];
@@ -20,7 +21,8 @@ const VALID_ROLES = ['admin', 'operator'];
 const USER_PUBLIC_COLUMNS = 'user_id, username, full_name, email, role, is_active, must_change_password, last_login_at, created_at';
 
 /**
- * จัดการ request สำหรับ user management endpoints (ทุก method ต้องเป็น admin)
+ * จัดการ request สำหรับ user management endpoints
+ * GET = read (admin+operator ดูได้), POST/PUT = create/update (admin เท่านั้น ตาม permission matrix)
  *
  * @param PDO $pdo Database connection
  * @param string $method HTTP method
@@ -28,7 +30,9 @@ const USER_PUBLIC_COLUMNS = 'user_id, username, full_name, email, role, is_activ
  */
 function handleUsers(PDO $pdo, string $method, array $path): void
 {
-    $auth = requireAdmin();
+    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update'];
+    requirePermission($actionMap[$method] ?? 'read', 'users');
+    $auth = getAuthenticatedUser();
 
     switch ($method) {
         case 'GET':
@@ -36,7 +40,7 @@ function handleUsers(PDO $pdo, string $method, array $path): void
             break;
 
         case 'POST':
-            createUser($pdo);
+            createUser($pdo, $auth);
             break;
 
         case 'PUT':
@@ -99,7 +103,7 @@ function getUserList(PDO $pdo): void
 /**
  * POST /users — สร้างผู้ใช้ใหม่ (must_change_password = 1 เสมอ)
  */
-function createUser(PDO $pdo): void
+function createUser(PDO $pdo, ?array $auth): void
 {
     $data = json_decode(file_get_contents('php://input'), true);
 
@@ -146,8 +150,26 @@ function createUser(PDO $pdo): void
         throw $e;
     }
 
+    $newUserId = intval($pdo->lastInsertId());
+
+    // Audit log: บันทึกการสร้างผู้ใช้ — ไม่ใส่ password/password_hash ลง after_value
+    logAudit(
+        $pdo,
+        $auth['user_id'],
+        'CREATE',
+        'users',
+        $newUserId,
+        null,
+        [
+            'username' => trim($data['username']),
+            'full_name' => $data['full_name'],
+            'email' => $data['email'] ?? null,
+            'role' => $data['role'],
+        ]
+    );
+
     http_response_code(201);
-    echo json_encode(['success' => true, 'user_id' => intval($pdo->lastInsertId())]);
+    echo json_encode(['success' => true, 'user_id' => $newUserId]);
 }
 
 /**
@@ -162,9 +184,10 @@ function updateUser(PDO $pdo, int $id, array $auth): void
 {
     $data = json_decode(file_get_contents('php://input'), true);
 
-    $stmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
     $stmt->execute([$id]);
-    if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+    $beforeRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$beforeRow) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบผู้ใช้']);
         return;
@@ -224,6 +247,13 @@ function updateUser(PDO $pdo, int $id, array $auth): void
     $sql = "UPDATE users SET " . implode(', ', $sets) . " WHERE user_id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+
+    $afterStmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
+    $afterStmt->execute([$id]);
+    $afterRow = $afterStmt->fetch(PDO::FETCH_ASSOC);
+
+    // Audit log: บันทึกการแก้ไขผู้ใช้ (before/after ไม่มี password_hash อยู่แล้วเพราะไม่อยู่ใน USER_PUBLIC_COLUMNS)
+    logAudit($pdo, $auth['user_id'], 'UPDATE', 'users', $id, $beforeRow, $afterRow);
 
     echo json_encode(['success' => true]);
 }

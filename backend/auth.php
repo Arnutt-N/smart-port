@@ -9,20 +9,30 @@ function base64url_decode($data) {
 }
 
 function generateJWT($user_id, $role = 'operator') {
+    // Generate CSRF token for double-submit pattern
+    $csrfToken = bin2hex(random_bytes(32));
+
     $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
     $payload = json_encode([
         'iat' => time(),
         'exp' => time() + 3600, // หมดอายุ 1 ชม.
+        'csrf' => $csrfToken, // CSRF token embedded in JWT
         'data' => ['user_id' => $user_id, 'role' => $role]
     ]);
-    
+
     $headerEncoded = base64url_encode($header);
     $payloadEncoded = base64url_encode($payload);
-    
+
     $signature = hash_hmac('sha256', $headerEncoded . "." . $payloadEncoded, JWT_SECRET, true);
     $signatureEncoded = base64url_encode($signature);
-    
-    return $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+
+    $token = $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+
+    // Return both JWT and CSRF token separately
+    return [
+        'token' => $token,
+        'csrf_token' => $csrfToken
+    ];
 }
 
 function validateJWT($token) {
@@ -70,41 +80,32 @@ function extractBearerToken(string $headerValue): ?string {
     return null;
 }
 
-function getAuthHeader() {
-    // Check for Authorization header in different ways
-    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        return extractBearerToken($_SERVER['HTTP_AUTHORIZATION']);
+function extractBearerTokenFromRequest(array $server, array $headers = []): ?string {
+    foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION'] as $serverKey) {
+        if (isset($server[$serverKey]) && is_string($server[$serverKey])) {
+            return extractBearerToken($server[$serverKey]);
+        }
     }
 
-    // Apache rewrite sets REDIRECT_HTTP_AUTHORIZATION
-    if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        return extractBearerToken($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
-    }
-
-    if (function_exists('apache_request_headers')) {
-        $headers = apache_request_headers();
-        if (isset($headers['Authorization'])) {
-            return extractBearerToken($headers['Authorization']);
+    foreach ($headers as $name => $value) {
+        if (strcasecmp((string) $name, 'Authorization') === 0 && is_string($value)) {
+            return extractBearerToken($value);
         }
     }
 
     return null;
 }
 
-// ดึงข้อมูล user จาก JWT ของ request ปัจจุบัน — คืน ['user_id'=>.., 'role'=>..] หรือ null
-function currentUser(): ?array {
-    $payload = validateJWT(getAuthHeader());
-    return is_array($payload) ? $payload : null;
+function getAuthHeader(): ?string {
+    $headers = [];
+    if (function_exists('apache_request_headers')) {
+        $requestHeaders = apache_request_headers();
+        if (is_array($requestHeaders)) {
+            $headers = $requestHeaders;
+        }
+    }
+
+    return extractBearerTokenFromRequest($_SERVER, $headers);
 }
 
-// บังคับ role admin — ส่ง 403 แล้วจบ request ถ้าไม่ใช่
-function requireAdmin(): array {
-    $user = currentUser();
-    if (!$user || ($user['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'ต้องเป็นผู้ดูแลระบบเท่านั้น']);
-        exit;
-    }
-    return $user;
-}
 ?>

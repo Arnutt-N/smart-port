@@ -1,0 +1,3 @@
+# บล็อกการเข้าถึงไฟล์ใต้ storage/ โดยตรงผ่าน HTTP (เช่น rate_limits/*.json)
+# ไฟล์พวกนี้ไม่ควรถูก serve ตรงๆ — ต้องผ่าน api.php เท่านั้น (ซึ่งไม่มี route เปิดให้อ่านอยู่แล้ว)
+Require all denied

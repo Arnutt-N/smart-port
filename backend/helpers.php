@@ -136,3 +136,34 @@ function callProcedureIfExists(PDO $pdo, string $procedureName, array $args = []
 
     return true;
 }
+
+/**
+ * Sanitize text input to prevent XSS
+ *
+ * @param string|null $input Raw user input
+ * @return string|null Sanitized text with all HTML tags stripped
+ */
+function sanitizeText(?string $input): ?string
+{
+    if ($input === null || $input === '') {
+        return $input;
+    }
+    // Strip all HTML tags
+    return strip_tags($input);
+}
+
+/**
+ * Sanitize HTML input (allow safe tags only)
+ *
+ * @param string|null $input Raw HTML input
+ * @return string|null HTML with only safe tags allowed
+ */
+function sanitizeHtml(?string $input): ?string
+{
+    if ($input === null || $input === '') {
+        return $input;
+    }
+    // Allow only safe formatting tags
+    $allowedTags = '<p><br><strong><em><ul><ol><li>';
+    return strip_tags($input, $allowedTags);
+}

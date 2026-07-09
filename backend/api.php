@@ -1,15 +1,29 @@
 <?php
 // Smart Port Management System - Enhanced API Gateway
 header('Content-Type: application/json; charset=UTF-8');
-$allowedOrigins = ['https://smart-port.onrender.com', 'https://smartport-backend.onrender.com', 'http://localhost:5174', 'http://localhost:8081'];
+
+// CORS Configuration - อ่านจาก environment variable
+$allowedOriginsEnv = getenv('ALLOWED_ORIGINS') ?: 'https://smart-port.onrender.com';
+$allowedOrigins = array_map('trim', explode(',', $allowedOriginsEnv));
+
+// Development fallback - เพิ่ม localhost ใน development mode
+if (getenv('APP_ENV') === 'development') {
+    $allowedOrigins = array_merge($allowedOrigins, [
+        'http://localhost:5174',
+        'http://localhost:8081'
+    ]);
+}
+
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-if (in_array($origin, $allowedOrigins)) {
+if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: $origin");
 } else {
-    header('Access-Control-Allow-Origin: https://smart-port.onrender.com');
+    // Fallback to first allowed origin
+    header('Access-Control-Allow-Origin: ' . $allowedOrigins[0]);
 }
+
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token');
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -20,6 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 include 'config.php';
 include 'auth.php';
 include_once 'helpers.php';
+include_once 'audit.php';
+include_once 'middleware/csrf.php';
+include_once 'middleware/rate_limit.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -39,6 +56,17 @@ if ($path[0] !== 'auth' && $method !== 'OPTIONS') {
         echo json_encode(['error' => 'Unauthorized']);
         exit;
     }
+
+    // Global rate limiting (หลัง JWT validation)
+    rateLimitGlobal();
+}
+
+// CSRF Protection for state-changing requests
+$statefulMethods = ['POST', 'PUT', 'DELETE'];
+$publicPaths = ['auth', 'login'];
+
+if (in_array($method, $statefulMethods) && !in_array($path[0], $publicPaths)) {
+    requireCSRFToken();
 }
 
 switch ($path[0]) {
@@ -82,18 +110,51 @@ switch ($path[0]) {
                 break;
             }
 
-            $file_name = basename($file['name'] ?? '');
-            if ($file_name === '') {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid file name']);
+            // ✅ Validate file extension
+            $fileName = basename($file['name'] ?? '');
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+
+            if (!in_array($ext, $allowedExtensions, true)) {
+                http_response_code(415);
+                echo json_encode(['error' => 'Invalid file type. Allowed: jpg, jpeg, png, gif']);
                 break;
             }
+
+            // ✅ Validate MIME type
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $file['tmp_name']);
+            finfo_close($finfo);
+
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!in_array($mimeType, $allowedMimes, true)) {
+                http_response_code(415);
+                echo json_encode(['error' => 'Invalid file MIME type']);
+                break;
+            }
+
+            // ✅ Validate image content
+            if (!getimagesize($file['tmp_name'])) {
+                http_response_code(415);
+                echo json_encode(['error' => 'File is not a valid image']);
+                break;
+            }
+
+            // ✅ Size limit: 5MB
+            if (filesize($file['tmp_name']) > 5 * 1024 * 1024) {
+                http_response_code(413);
+                echo json_encode(['error' => 'File too large. Max 5MB']);
+                break;
+            }
+
+            // Generate safe filename
+            $safeFileName = uniqid('photo_', true) . '.' . $ext;
 
             if (!is_dir(UPLOAD_DIR)) {
                 mkdir(UPLOAD_DIR, 0775, true);
             }
 
-            $file_path = UPLOAD_DIR . $file_name;
+            $file_path = UPLOAD_DIR . $safeFileName;
             if (!move_uploaded_file($file['tmp_name'], $file_path)) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
@@ -107,10 +168,10 @@ switch ($path[0]) {
                 $stmt = $pdo->prepare(
                     "INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)"
                 );
-                $stmt->execute([$servant_id, $file_name, $file_path]);
+                $stmt->execute([$servant_id, $safeFileName, $file_path]);
 
                 $photo_id = (int) $pdo->lastInsertId();
-                $versions = createPhotoVersions($pdo, $photo_id, $file_name);
+                $versions = createPhotoVersions($pdo, $photo_id, $safeFileName);
 
                 $pdo->commit();
 
@@ -181,11 +242,11 @@ switch ($path[0]) {
                 {$searchQuery}
                 AND cs.is_active = 1
                 ORDER BY cs.first_name, cs.last_name
-                LIMIT {$limit} OFFSET {$offset}
+                LIMIT ? OFFSET ?
             ";
 
             $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
+            $stmt->execute(array_merge($params, [$limit, $offset]));
             $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Get total count for pagination
@@ -331,9 +392,9 @@ switch ($path[0]) {
                 WHERE p.is_active = 1
                   AND (p.first_name LIKE ? OR p.last_name LIKE ? OR p.citizen_id LIKE ?)
                 ORDER BY p.first_name, p.last_name
-                LIMIT {$limit}
+                LIMIT ?
             ");
-            $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+            $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $limit]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode(['success' => true, 'data' => $rows]);
@@ -362,6 +423,12 @@ switch ($path[0]) {
         $pdo = getDB();
         include __DIR__ . '/routes/multiplier.php';
         handleMultiplier($pdo, $method, $path);
+        break;
+
+    case 'audit':
+        $pdo = getDB();
+        include __DIR__ . '/routes/audit.php';
+        handleAudit($pdo, $method, $path);
         break;
 
     case 'diverse':
