@@ -80,25 +80,32 @@ function extractBearerToken(string $headerValue): ?string {
     return null;
 }
 
-function getAuthHeader() {
-    // Check for Authorization header in different ways
-    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        return extractBearerToken($_SERVER['HTTP_AUTHORIZATION']);
+function extractBearerTokenFromRequest(array $server, array $headers = []): ?string {
+    foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION'] as $serverKey) {
+        if (isset($server[$serverKey]) && is_string($server[$serverKey])) {
+            return extractBearerToken($server[$serverKey]);
+        }
     }
 
-    // Apache rewrite sets REDIRECT_HTTP_AUTHORIZATION
-    if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        return extractBearerToken($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
-    }
-
-    if (function_exists('apache_request_headers')) {
-        $headers = apache_request_headers();
-        if (isset($headers['Authorization'])) {
-            return extractBearerToken($headers['Authorization']);
+    foreach ($headers as $name => $value) {
+        if (strcasecmp((string) $name, 'Authorization') === 0 && is_string($value)) {
+            return extractBearerToken($value);
         }
     }
 
     return null;
+}
+
+function getAuthHeader(): ?string {
+    $headers = [];
+    if (function_exists('apache_request_headers')) {
+        $requestHeaders = apache_request_headers();
+        if (is_array($requestHeaders)) {
+            $headers = $requestHeaders;
+        }
+    }
+
+    return extractBearerTokenFromRequest($_SERVER, $headers);
 }
 
 ?>

@@ -41,13 +41,21 @@ COPY . .
 # คัดลอก vendor ที่ติดตั้งไว้แล้วจาก stage แรก
 COPY --from=vendor /app/vendor/ ./vendor/
 
-# สร้าง directory สำหรับ uploads และกำหนดสิทธิ์ให้ Apache
-RUN mkdir -p /var/www/html/uploads \
-    && chown -R www-data:www-data /var/www/html/uploads
+# สร้าง runtime directories และกำหนดสิทธิ์ให้ Apache
+RUN mkdir -p /var/www/html/uploads /var/www/html/storage/rate_limits \
+    && chown -R www-data:www-data /var/www/html/uploads /var/www/html/storage
 
 # ให้ Apache ส่ง environment variables เข้า PHP
 RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL MYSQL_SSL_CA JWT_SECRET" \
     >> /etc/apache2/conf-enabled/passenv.conf
+
+# ส่ง Authorization header เข้า PHP อย่างสม่ำเสมอสำหรับ Bearer JWT
+RUN printf '%s\n' \
+    'SetEnvIfNoCase Authorization "^(.*)$" HTTP_AUTHORIZATION=$1' \
+    '<Directory /var/www/html>' \
+    '    CGIPassAuth On' \
+    '</Directory>' \
+    > /etc/apache2/conf-enabled/authorization.conf
 
 # บังคับให้ Apache/PHP ตอบ UTF-8 เสมอ เพื่อป้องกันข้อความภาษาไทยเพี้ยนบน production
 RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf \

@@ -198,7 +198,7 @@ function getAuthenticatedUser(): ?array
     try {
         $pdo = getDB();
         $stmt = $pdo->prepare("SELECT user_id, role FROM users WHERE user_id = ? AND is_active = 1");
-        $stmt->execute([$payload['data']['user_id'] ?? 0]);
+        $stmt->execute([$payload['user_id'] ?? 0]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user) {

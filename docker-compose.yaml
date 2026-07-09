@@ -30,7 +30,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://backend
+        - VITE_API_URL=/api
     container_name: smartport-frontend
     ports:
       - "8081:80" # ใช้ port 8081
