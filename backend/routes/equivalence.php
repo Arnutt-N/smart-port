@@ -66,6 +66,7 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
  */
 function getEquivalenceList(PDO $pdo): void
 {
+    requirePermission('read', 'equivalence');
     $personnelId = $_GET['personnel_id'] ?? null;
     // clamp กัน limit มหาศาล / offset ติดลบ
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
@@ -146,6 +147,7 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
+    requirePermission('read', 'equivalence');
     $sql = "SELECT pe.*,
                    CONCAT(p.first_name, ' ', p.last_name) AS full_name,
                    u.username AS approved_by_name
@@ -293,7 +295,7 @@ function updateEquivalence(PDO $pdo, int $id): void
             }
             $approvedTotalDays = $approvedEnd->diff($approvedStart)->days + 1;
 
-            // ผู้อนุมัติจาก JWT (ผ่าน requireAdmin แล้ว) สำหรับ approved_by
+            // ผู้อนุมัติจาก JWT (ผ่าน requirePermission('update', 'equivalence_approval') แล้ว) สำหรับ approved_by
             $userId = $approver['user_id'] ?? null;
 
             $sql = "UPDATE position_equivalence
@@ -327,6 +329,8 @@ function updateEquivalence(PDO $pdo, int $id): void
                 ]
             );
         } elseif ($newStatus === 'REJECTED') {
+            $userId = $approver['user_id'] ?? null;
+
             $sql = "UPDATE position_equivalence
                     SET approval_status = 'REJECTED',
                         approved_start_date = NULL,
@@ -338,7 +342,7 @@ function updateEquivalence(PDO $pdo, int $id): void
 
             logAudit(
                 $pdo,
-                $approver['user_id'],
+                $userId,
                 'UPDATE',
                 'position_equivalence',
                 $id,

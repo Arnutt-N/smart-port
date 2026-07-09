@@ -9,7 +9,9 @@ include_once __DIR__ . '/../audit.php';
 
 function handleAudit(PDO $pdo, string $method, array $path): void
 {
-    // เฉพาะ admin ถึงจะดู audit log ได้
+    // admin อ่านได้เสมอ (wildcard) และ operator อ่านได้ด้วยตาม permission matrix
+    // ('read' => ['*'] ใน audit.php) — ตั้งใจให้ operator ตรวจสอบประวัติได้ แม้ frontend
+    // จะซ่อนเมนูนี้ไว้ให้เห็นเฉพาะ admin ก็ตาม (ดู AppSidebar.vue)
     requirePermission('read', 'audit');
 
     try {

@@ -174,14 +174,24 @@ function requirePermission(string $action, string $resource): void
  */
 function getAuthenticatedUser(): ?array
 {
+    // Memoize ต่อ request — ฟังก์ชันนี้ถูกเรียกซ้ำหลายครั้งต่อ 1 request
+    // (rateLimitGlobal, requireCSRFToken, requirePermission, แล้ว route handler เรียกซ้ำเอง)
+    // token/DB row ไม่เปลี่ยนกลางคันของ request เดียว จึง cache ได้ปลอดภัย
+    static $resolved = false;
+    static $cached = null;
+    if ($resolved) {
+        return $cached;
+    }
+    $resolved = true;
+
     $token = getAuthHeader();
     if (!$token) {
-        return null;
+        return $cached = null;
     }
 
     $payload = validateJWT($token);
     if (!$payload) {
-        return null;
+        return $cached = null;
     }
 
     // ดึง user จาก DB เพื่อ check role ล่าสุด (กัน cache role เก่า)
@@ -200,9 +210,9 @@ function getAuthenticatedUser(): ?array
             }
         }
 
-        return $user ?: null;
+        return $cached = ($user ?: null);
     } catch (PDOException $e) {
         error_log('[Auth] Failed to fetch user: ' . $e->getMessage());
-        return null;
+        return $cached = null;
     }
 }
