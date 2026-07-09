@@ -55,6 +55,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('user', JSON.stringify(data.user))
     if (data.csrf_token) {
       localStorage.setItem('csrf_token', data.csrf_token)
+    } else {
+      localStorage.removeItem('csrf_token')
     }
     if (data.refreshToken) {
       localStorage.setItem('refresh_token', data.refreshToken)

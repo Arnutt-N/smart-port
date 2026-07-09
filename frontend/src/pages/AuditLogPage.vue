@@ -23,25 +23,29 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">ตาราง</label>
+          <label for="audit-filter-table" class="block text-sm font-medium text-gray-700 mb-1">ตาราง</label>
           <select
+            id="audit-filter-table"
             v-model="filters.table"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            @change="fetchData"
+            @change="onFilterChange"
           >
             <option value="">ทั้งหมด</option>
             <option value="multiplier_experience">การนับทวีคูณ</option>
             <option value="special_area_multiplier">พื้นที่พิเศษ</option>
+            <option value="position_equivalence">การเทียบตำแหน่ง</option>
             <option value="personnel">บุคลากร</option>
             <option value="users">ผู้ใช้งาน</option>
+            <option value="import">นำเข้าข้อมูล</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">การกระทำ</label>
+          <label for="audit-filter-action" class="block text-sm font-medium text-gray-700 mb-1">การกระทำ</label>
           <select
+            id="audit-filter-action"
             v-model="filters.action"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            @change="fetchData"
+            @change="onFilterChange"
           >
             <option value="">ทั้งหมด</option>
             <option value="CREATE">สร้าง</option>
@@ -50,21 +54,23 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">ผู้ดำเนินการ</label>
+          <label for="audit-filter-user-id" class="block text-sm font-medium text-gray-700 mb-1">ผู้ดำเนินการ</label>
           <input
-            v-model="filters.userId"
+            id="audit-filter-user-id"
+            v-model.number="filters.userId"
             type="number"
             placeholder="User ID"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            @input="fetchData"
+            @input="onUserIdInput"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนต่อหน้า</label>
+          <label for="audit-filter-limit" class="block text-sm font-medium text-gray-700 mb-1">จำนวนต่อหน้า</label>
           <select
+            id="audit-filter-limit"
             v-model="pagination.limit"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            @change="fetchData"
+            @change="onFilterChange"
           >
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -147,7 +153,7 @@
     </div>
 
     <PaginationBar
-      v-if="pagination.total > 0"
+      v-if="!loading && !error && pagination.total > 0"
       :total="pagination.total"
       :limit="pagination.limit"
       :offset="pagination.offset"
@@ -158,12 +164,15 @@
     <div
       v-if="selectedRow"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="audit-detail-title"
       @click.self="selectedRow = null"
     >
       <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-gray-900">รายละเอียดการเปลี่ยนแปลง</h3>
-          <button @click="selectedRow = null" class="text-gray-400 hover:text-gray-600">
+          <h3 id="audit-detail-title" class="text-lg font-semibold text-gray-900">รายละเอียดการเปลี่ยนแปลง</h3>
+          <button @click="selectedRow = null" class="text-gray-400 hover:text-gray-600" aria-label="ปิด">
             <X class="w-5 h-5" />
           </button>
         </div>
@@ -201,7 +210,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Home, RefreshCw, AlertCircle, X } from 'lucide-vue-next'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -256,6 +265,19 @@ function onPageChange(newOffset) {
   fetchData()
 }
 
+// เปลี่ยน filter/limit ใดๆ ต้องรีเซ็ต offset กลับหน้าแรกก่อนเสมอ
+// ไม่งั้นถ้าอยู่หน้าท้ายๆ แล้ว filter เหลือผลน้อยกว่า offset เดิม จะเห็น "ไม่พบข้อมูล" ทั้งที่มีจริง
+function onFilterChange() {
+  pagination.value.offset = 0
+  fetchData()
+}
+
+let userIdDebounce = null
+function onUserIdInput() {
+  clearTimeout(userIdDebounce)
+  userIdDebounce = setTimeout(onFilterChange, 300)
+}
+
 function showDetail(row) {
   selectedRow.value = row
 }
@@ -282,8 +304,10 @@ function tableName(table) {
   const names = {
     multiplier_experience: 'การนับทวีคูณ',
     special_area_multiplier: 'พื้นที่พิเศษ',
+    position_equivalence: 'การเทียบตำแหน่ง',
     personnel: 'บุคลากร',
     users: 'ผู้ใช้งาน',
+    import: 'นำเข้าข้อมูล',
   }
   return names[table] || table
 }
@@ -300,7 +324,17 @@ function formatDateTime(dateStr) {
   })
 }
 
+function onGlobalKeydown(e) {
+  if (e.key === 'Escape' && selectedRow.value) selectedRow.value = null
+}
+
 onMounted(() => {
   fetchData()
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+  clearTimeout(userIdDebounce)
 })
 </script>
