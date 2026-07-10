@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isChunkLoadError, shouldReloadForChunkError } from '@/utils/chunkGuard.js'
+import { useNavProgress } from '@/composables/useNavProgress.js'
 
 const routes = [
   {
@@ -120,7 +122,11 @@ const router = createRouter({
   routes,
 })
 
+const { isNavigating } = useNavProgress()
+
 router.beforeEach(async (to) => {
+  isNavigating.value = true
+
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
 
@@ -135,6 +141,20 @@ router.beforeEach(async (to) => {
   // หน้า admin only — operator เด้งกลับ dashboard
   if (to.meta.requiresAdmin && auth.user?.role !== 'admin') {
     return '/dashboard'
+  }
+})
+
+router.afterEach(() => {
+  isNavigating.value = false
+})
+
+// chunk เก่าหายหลัง deploy ใหม่ → dynamic import พังและ navigation ถูกยกเลิกเงียบๆ
+// (อาการ: กดเมนูแล้วคอนเทนต์ค้าง/ไม่เปลี่ยน) — hard reload เพื่อดึง asset ชุดใหม่
+router.onError((error, to) => {
+  isNavigating.value = false
+  const target = to?.fullPath ?? window.location.pathname
+  if (isChunkLoadError(error) && shouldReloadForChunkError(target, window.sessionStorage, Date.now())) {
+    window.location.assign(target)
   }
 })
 
