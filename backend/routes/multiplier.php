@@ -76,7 +76,7 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
             case 'DELETE':
                 // DELETE /multiplier/{id} — delete multiplier record
                 if (($path[1] ?? '') !== '' && ctype_digit($path[1])) {
-                    deleteMultiplier($pdo, (int) $path[1]);
+                    deleteMultiplier($pdo, (int) $path[1], $user);
                     return;
                 }
                 http_response_code(404);
@@ -877,13 +877,14 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user): void
     ]);
 }
 
-function deleteMultiplier(PDO $pdo, int $multiplierId): void
+function deleteMultiplier(PDO $pdo, int $multiplierId, array $user): void
 {
-    // ตรวจว่า record มีอยู่จริง
-    $existingStmt = $pdo->prepare('SELECT 1 FROM multiplier_experience WHERE multiplier_id = ?');
+    // ดึงค่าก่อนลบเพื่อ audit log (snapshot ชุดเดียวกับที่ create เก็บเป็น after_value)
+    $existingStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
     $existingStmt->execute([$multiplierId]);
+    $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$existingStmt->fetchColumn()) {
+    if (!$existing) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบรายการที่ระบุ']);
         return;
@@ -892,6 +893,23 @@ function deleteMultiplier(PDO $pdo, int $multiplierId): void
     // ลบ record
     $stmt = $pdo->prepare('DELETE FROM multiplier_experience WHERE multiplier_id = ?');
     $stmt->execute([$multiplierId]);
+
+    // Audit log: บันทึกการลบรายการทวีคูณ
+    logAudit(
+        $pdo,
+        $user['user_id'],
+        'DELETE',
+        'multiplier_experience',
+        $multiplierId,
+        [
+            'personnel_id' => (int) $existing['personnel_id'],
+            'area_multiplier_id' => (int) $existing['area_multiplier_id'],
+            'start_date' => $existing['start_date'],
+            'end_date' => $existing['end_date'],
+            'bonus_days' => (float) $existing['bonus_days'],
+        ],
+        null
+    );
 
     http_response_code(200);
     echo json_encode([
