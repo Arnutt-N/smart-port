@@ -142,3 +142,17 @@ php_network_getaddresses: getaddrinfo for db failed
 ```
 
 then `MYSQL_HOST` was not loaded from Render and the backend is still using the local Docker fallback instead of TiDB Cloud.
+
+## 8. Production verification log
+
+### 2026-07-10 — Audit log rollout (PR #32)
+
+Verified after PR #32 (user management RBAC + audit logging) was squash-merged to `main` and deployed:
+
+- Render frontend and backend health checks passing.
+- Applied `backend/migrations/03-audit-log.sql` to production TiDB (`smartport`): created `audit_log`, `vw_audit_log`, required indexes, and the `user_id -> users(user_id)` FK with `ON DELETE SET NULL`.
+- Authenticated smoke test: production login returned `200`, `/audit` page accessible, `/api/audit?limit=50&offset=0` and `/api/audit?limit=20&offset=0` returned `200` with no failed network requests or console errors.
+- Login redirect re-checked: submit redirects to `/dashboard`, and `/login` redirects to `/dashboard` when already authenticated. The earlier apparent stuck-on-`/login` state was a timing/diagnostic artifact, not a production bug.
+- Inserted one non-sensitive synthetic `audit_log` row (audit ID `1`, run ID `prod-audit-smoke-2026-07-09T22-26-35-628Z`) and confirmed it renders in the Audit page and its detail modal.
+
+Screenshot evidence: [`docs/evidence/prod-audit-verification-2026-07-10/`](evidence/prod-audit-verification-2026-07-10/)
