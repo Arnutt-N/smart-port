@@ -176,7 +176,7 @@
           <h2 class="text-base font-semibold text-gray-900">Master data พื้นที่พิเศษ</h2>
           <RouterLink
             v-if="isAdmin"
-            to="/time-multiplier/areas"
+            to="/settings/special-areas"
             class="text-sm text-blue-600 hover:text-blue-700"
           >
             จัดการพื้นที่ →

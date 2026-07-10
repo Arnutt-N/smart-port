@@ -82,8 +82,13 @@ const routes = [
         component: () => import('@/pages/MultiplierPage.vue'),
       },
       {
+        // path เดิมก่อนย้ายเข้าเมนูแอดมิน — คง redirect ไว้กัน bookmark เก่าพัง
         path: 'time-multiplier/areas',
-        name: 'time-multiplier-areas',
+        redirect: '/settings/special-areas',
+      },
+      {
+        path: 'settings/special-areas',
+        name: 'settings-special-areas',
         component: () => import('@/pages/MultiplierAreasPage.vue'),
         meta: { requiresAdmin: true },
       },
