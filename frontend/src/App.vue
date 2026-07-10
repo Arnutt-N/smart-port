@@ -1,4 +1,7 @@
 <template>
+  <Transition name="nav-progress">
+    <div v-if="isNavigating" class="nav-progress-bar" role="progressbar" aria-label="กำลังโหลดหน้า" />
+  </Transition>
   <RouterView v-slot="{ Component }">
     <Suspense timeout="0">
       <component :is="Component" />
@@ -18,4 +21,33 @@
 
 <script setup>
 import ToastContainer from '@/components/ToastContainer.vue'
+import { useNavProgress } from '@/composables/useNavProgress.js'
+
+const { isNavigating } = useNavProgress()
 </script>
+
+<style scoped>
+.nav-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9999;
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  transform-origin: left;
+  animation: nav-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes nav-progress-slide {
+  0% { transform: scaleX(0); opacity: 1; }
+  60% { transform: scaleX(0.75); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0.4; }
+}
+
+/* หน่วงการโผล่ 150ms — navigation เร็วๆ จะไม่เห็นแถบกระพริบ */
+.nav-progress-enter-active { transition: opacity 100ms ease 150ms; }
+.nav-progress-enter-from { opacity: 0; }
+.nav-progress-leave-active { transition: opacity 120ms ease; }
+.nav-progress-leave-to { opacity: 0; }
+</style>
