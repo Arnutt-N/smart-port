@@ -35,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
   const isAdmin = computed(() => user.value?.role === 'admin')
+  const mustChangePassword = computed(() => Boolean(user.value?.must_change_password))
 
   function isTokenValid() {
     if (!token.value) return false
@@ -73,6 +74,23 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  function setMustChangePassword(required) {
+    if (!user.value) return
+    user.value = { ...user.value, must_change_password: Boolean(required) }
+    localStorage.setItem('user', JSON.stringify(user.value))
+  }
+
+  async function changePassword(currentPassword, newPassword) {
+    const { useApi } = await import('@/composables/useApi.js')
+    const api = useApi()
+    const data = await api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    setMustChangePassword(false)
+    return data
+  }
+
   function logout() {
     token.value = ''
     refreshToken.value = ''
@@ -86,5 +104,18 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
   }
 
-  return { token, csrfToken, user, isAuthenticated, isAdmin, isTokenValid, setAuth, login, logout }
+  return {
+    token,
+    csrfToken,
+    user,
+    isAuthenticated,
+    isAdmin,
+    mustChangePassword,
+    isTokenValid,
+    setAuth,
+    setMustChangePassword,
+    login,
+    changePassword,
+    logout,
+  }
 })

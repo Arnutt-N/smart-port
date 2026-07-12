@@ -14,6 +14,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 /**
  * จัดการ request สำหรับ supportive experience endpoints
@@ -24,6 +25,12 @@ include_once __DIR__ . '/../helpers.php';
  */
 function handleSupportive(PDO $pdo, string $method, array $path): void
 {
+    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
+    if (isset($actionMap[$method])) {
+        requirePermission($actionMap[$method], 'supportive');
+    }
+    $user = getAuthenticatedUser();
+
     switch ($method) {
         case 'GET':
             $id = $path[1] ?? null;
@@ -38,7 +45,7 @@ function handleSupportive(PDO $pdo, string $method, array $path): void
 
         case 'POST':
             // POST /supportive — สร้างรายการใหม่
-            createSupportive($pdo);
+            createSupportive($pdo, $user);
             break;
 
         case 'PUT':
@@ -49,7 +56,7 @@ function handleSupportive(PDO $pdo, string $method, array $path): void
                 return;
             }
             // PUT /supportive/{id} — อัปเดตรายการ
-            updateSupportive($pdo, intval($id));
+            updateSupportive($pdo, intval($id), $user);
             break;
 
         case 'DELETE':
@@ -60,7 +67,7 @@ function handleSupportive(PDO $pdo, string $method, array $path): void
                 return;
             }
             // DELETE /supportive/{id} — ลบรายการ
-            deleteSupportive($pdo, intval($id));
+            deleteSupportive($pdo, intval($id), $user);
             break;
 
         default:
@@ -232,9 +239,9 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
  * POST /supportive — สร้างรายการนับเกื้อกูลใหม่
  * Server-side computation: total_days, effective_days, net_* fields
  */
-function createSupportive(PDO $pdo): void
+function createSupportive(PDO $pdo, array $user, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ตรวจสอบข้อมูลที่จำเป็น
     $required = ['personnel_id', 'job_series_name', 'start_date', 'end_date'];
@@ -277,17 +284,30 @@ function createSupportive(PDO $pdo): void
         $data['description'] ?? null
     ]);
 
-    $supportiveId = $pdo->lastInsertId();
+    $supportiveId = (int) $pdo->lastInsertId();
+    $afterStmt = $pdo->prepare('SELECT * FROM supportive_experience WHERE supportive_id = ?');
+    $afterStmt->execute([$supportiveId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'CREATE',
+        'supportive_experience',
+        $supportiveId,
+        null,
+        $after ?: null
+    );
 
     http_response_code(201);
-    echo json_encode(['success' => true, 'supportive_id' => intval($supportiveId)]);
+    echo json_encode(['success' => true, 'supportive_id' => $supportiveId]);
 }
 
 /**
  * PUT /supportive/{id} — อัปเดตรายการนับเกื้อกูล
  * ถ้า start_date/end_date/job_series_name เปลี่ยน จะคำนวณ computed fields ใหม่
  */
-function updateSupportive(PDO $pdo, int $id): void
+function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     // ตรวจสอบว่ารายการมีอยู่จริง
     $checkStmt = $pdo->prepare("SELECT * FROM supportive_experience WHERE supportive_id = ?");
@@ -300,7 +320,7 @@ function updateSupportive(PDO $pdo, int $id): void
         return;
     }
 
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // Allowed fields (client cannot set computed fields directly)
     $allowed = ['job_series_name', 'start_date', 'end_date', 'primary_series_name', 'description'];
@@ -360,22 +380,48 @@ function updateSupportive(PDO $pdo, int $id): void
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
+    $afterStmt = $pdo->prepare('SELECT * FROM supportive_experience WHERE supportive_id = ?');
+    $afterStmt->execute([$id]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'UPDATE',
+        'supportive_experience',
+        $id,
+        $existing,
+        $after ?: null
+    );
+
     echo json_encode(['success' => true]);
 }
 
 /**
  * DELETE /supportive/{id} — ลบรายการนับเกื้อกูล
  */
-function deleteSupportive(PDO $pdo, int $id): void
+function deleteSupportive(PDO $pdo, int $id, array $user): void
 {
-    $stmt = $pdo->prepare("DELETE FROM supportive_experience WHERE supportive_id = ?");
-    $stmt->execute([$id]);
-
-    if ($stmt->rowCount() === 0) {
+    $beforeStmt = $pdo->prepare('SELECT * FROM supportive_experience WHERE supportive_id = ?');
+    $beforeStmt->execute([$id]);
+    $before = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$before) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบรายการนับเกื้อกูล']);
         return;
     }
+
+    $stmt = $pdo->prepare("DELETE FROM supportive_experience WHERE supportive_id = ?");
+    $stmt->execute([$id]);
+
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'DELETE',
+        'supportive_experience',
+        $id,
+        $before,
+        null
+    );
 
     echo json_encode(['success' => true]);
 }

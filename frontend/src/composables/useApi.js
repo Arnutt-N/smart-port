@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
-async function request(url, options = {}) {
+async function authenticatedFetch(url, options = {}) {
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
 
@@ -35,6 +35,21 @@ async function request(url, options = {}) {
     throw new Error('Unauthorized')
   }
 
+  if (response.status === 403) {
+    const body = await response.clone().json().catch(() => null)
+    if (body?.code === 'PASSWORD_CHANGE_REQUIRED') {
+      auth.setMustChangePassword(true)
+      const router = (await import('@/router')).default
+      router.push('/change-password')
+    }
+  }
+
+  return response
+}
+
+async function request(url, options = {}) {
+  const response = await authenticatedFetch(url, options)
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(error.error || response.statusText)
@@ -50,5 +65,6 @@ export function useApi() {
     put: (url, data) => request(url, { method: 'PUT', body: JSON.stringify(data) }),
     del: (url) => request(url, { method: 'DELETE' }),
     upload: (url, formData) => request(url, { method: 'POST', body: formData }),
+    uploadResponse: (url, formData) => authenticatedFetch(url, { method: 'POST', body: formData }),
   }
 }

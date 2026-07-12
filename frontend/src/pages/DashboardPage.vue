@@ -213,7 +213,7 @@ const priorityTasks = ref([])
 const quickActions = [
   { title: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, color: 'bg-blue-500', route: '/probation-end' },
   { title: 'เลื่อนระดับตำแหน่ง', icon: TrendingUp, color: 'bg-green-500', route: '/candidates/general' },
-  { title: 'การนับเวลาเกื้อกูล', icon: Clock, color: 'bg-purple-500', route: '/supportive' },
+  { title: 'การนับเวลาเกื้อกูล', icon: Clock, color: 'bg-purple-500', route: '/time-counting' },
 ]
 
 function formatNumber(value) {

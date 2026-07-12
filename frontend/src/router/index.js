@@ -10,6 +10,12 @@ const routes = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/change-password',
+    name: 'change-password',
+    component: () => import('@/pages/ChangePasswordPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/',
     component: () => import('@/layouts/AppLayout.vue'),
     meta: { requiresAuth: true },
@@ -137,6 +143,14 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth !== false && !auth.isAuthenticated) {
     return '/login'
+  }
+
+  if (auth.isAuthenticated && auth.mustChangePassword && to.path !== '/change-password') {
+    return '/change-password'
+  }
+
+  if (to.path === '/change-password' && auth.isAuthenticated && !auth.mustChangePassword) {
+    return '/dashboard'
   }
 
   if (to.path === '/login' && auth.isAuthenticated) {

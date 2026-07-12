@@ -4,16 +4,19 @@
 // Authentication Route Handler — เข้าสู่ระบบจากตาราง users จริง
 //
 // Endpoints:
-//   POST /auth/login — ตรวจ username/password กับ DB + rate limit
+//   POST /auth/login           — ตรวจ username/password กับ DB + rate limit
+//   POST /auth/change-password — เปลี่ยนรหัสผ่านที่ถูกบังคับหลังเข้าสู่ระบบ
 //
 // Rate limiting (ตาราง login_attempts):
 //   ผิดติดต่อกัน 5 ครั้งภายใน 15 นาที (นับต่อ username) -> 429
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MINUTES = 15;
+const AUTH_PASSWORD_MIN_LENGTH = 8;
 
 /**
  * จัดการ request สำหรับ auth endpoints
@@ -29,8 +32,89 @@ function handleAuth(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    if (($path[1] ?? '') === 'change-password' && $method === 'POST') {
+        $user = getAuthenticatedUser();
+        if (!$user) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Unauthorized']);
+            return;
+        }
+        changePassword($pdo, $user);
+        return;
+    }
+
     http_response_code(404);
     echo json_encode(['error' => 'Not found']);
+}
+
+/**
+ * POST /auth/change-password — ยืนยันรหัสเดิมและล้าง must_change_password
+ *
+ * @param array{user_id:int} $user
+ * @param array<string,mixed>|null $input ใช้ inject ใน integration tests
+ */
+function changePassword(PDO $pdo, array $user, ?array $input = null): void
+{
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
+
+    $currentPassword = (string) ($data['current_password'] ?? '');
+    $newPassword = (string) ($data['new_password'] ?? '');
+
+    if ($currentPassword === '' || $newPassword === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'กรุณาระบุรหัสผ่านเดิมและรหัสผ่านใหม่']);
+        return;
+    }
+    if (strlen($newPassword) < AUTH_PASSWORD_MIN_LENGTH) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย ' . AUTH_PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
+        return;
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT password_hash, must_change_password
+         FROM users
+         WHERE user_id = ? AND is_active = 1'
+    );
+    $stmt->execute([(int) $user['user_id']]);
+    $account = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$account || !password_verify($currentPassword, (string) $account['password_hash'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รหัสผ่านเดิมไม่ถูกต้อง']);
+        return;
+    }
+    if (password_verify($newPassword, (string) $account['password_hash'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม']);
+        return;
+    }
+
+    $pdo->prepare(
+        'UPDATE users
+         SET password_hash = ?, must_change_password = 0
+         WHERE user_id = ?'
+    )->execute([
+        password_hash($newPassword, PASSWORD_DEFAULT),
+        (int) $user['user_id'],
+    ]);
+
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'UPDATE',
+        'users',
+        (int) $user['user_id'],
+        ['must_change_password' => (bool) $account['must_change_password']],
+        ['must_change_password' => false]
+    );
+
+    echo json_encode(['success' => true]);
 }
 
 /**

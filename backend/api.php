@@ -48,9 +48,11 @@ if ($path[0] === 'api') {
 }
 
 $token = getAuthHeader();
+$isPublicLogin = $path[0] === 'auth' && ($path[1] ?? '') === 'login' && $method === 'POST';
+$isPasswordChange = $path[0] === 'auth' && ($path[1] ?? '') === 'change-password' && $method === 'POST';
 
-// Skip authentication for auth endpoints and options
-if ($path[0] !== 'auth' && $method !== 'OPTIONS') {
+// เฉพาะ login เท่านั้นที่เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
+if (!$isPublicLogin && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -63,10 +65,22 @@ if ($path[0] !== 'auth' && $method !== 'OPTIONS') {
 
 // CSRF Protection for state-changing requests
 $statefulMethods = ['POST', 'PUT', 'DELETE'];
-$publicPaths = ['auth', 'login'];
 
-if (in_array($method, $statefulMethods) && !in_array($path[0], $publicPaths)) {
+if (in_array($method, $statefulMethods, true) && !$isPublicLogin) {
     requireCSRFToken();
+}
+
+// ผู้ใช้ที่ถูกบังคับเปลี่ยนรหัสผ่านเข้าถึงได้เฉพาะ endpoint เปลี่ยนรหัสผ่าน
+if (!$isPublicLogin && !$isPasswordChange && $method !== 'OPTIONS') {
+    $authenticatedUser = getAuthenticatedUser();
+    if ((int) ($authenticatedUser['must_change_password'] ?? 0) === 1) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'Password change required',
+            'code' => 'PASSWORD_CHANGE_REQUIRED',
+        ]);
+        exit;
+    }
 }
 
 switch ($path[0]) {

@@ -27,6 +27,12 @@ include_once __DIR__ . '/../audit.php';
  */
 function handleEquivalence(PDO $pdo, string $method, array $path): void
 {
+    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update'];
+    if (isset($actionMap[$method])) {
+        requirePermission($actionMap[$method], 'equivalence');
+    }
+    $user = getAuthenticatedUser();
+
     switch ($method) {
         case 'GET':
             $id = $path[1] ?? null;
@@ -41,7 +47,7 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
 
         case 'POST':
             // POST /equivalence — สร้างคำขอเทียบตำแหน่งใหม่
-            createEquivalence($pdo);
+            createEquivalence($pdo, $user);
             break;
 
         case 'PUT':
@@ -52,7 +58,7 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
                 return;
             }
             // PUT /equivalence/{id} — อัปเดต / อนุมัติ / ปฏิเสธ
-            updateEquivalence($pdo, intval($id));
+            updateEquivalence($pdo, intval($id), $user);
             break;
 
         default:
@@ -66,7 +72,6 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
  */
 function getEquivalenceList(PDO $pdo): void
 {
-    requirePermission('read', 'equivalence');
     $personnelId = $_GET['personnel_id'] ?? null;
     // clamp กัน limit มหาศาล / offset ติดลบ
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
@@ -147,7 +152,6 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
-    requirePermission('read', 'equivalence');
     $sql = "SELECT pe.*,
                    CONCAT(p.first_name, ' ', p.last_name) AS full_name,
                    u.username AS approved_by_name
@@ -180,10 +184,9 @@ function getEquivalenceDetail(PDO $pdo, int $id): void
  * approval_status จะเป็น PENDING เสมอ ไม่ว่า client จะส่งค่าอะไรมา
  * request_total_days คำนวณฝั่ง server จาก DATEDIFF+1
  */
-function createEquivalence(PDO $pdo): void
+function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
 {
-    requirePermission('create', 'equivalence');
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ตรวจสอบข้อมูลที่จำเป็น
     $required = ['personnel_id', 'actual_position', 'equivalent_type'];
@@ -224,8 +227,22 @@ function createEquivalence(PDO $pdo): void
         $data['approval_order_ref'] ?? null
     ]);
 
+    $equivalenceId = (int) $pdo->lastInsertId();
+    $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
+    $afterStmt->execute([$equivalenceId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'CREATE',
+        'position_equivalence',
+        $equivalenceId,
+        null,
+        $after ?: null
+    );
+
     http_response_code(201);
-    echo json_encode(['success' => true, 'equivalence_id' => intval($pdo->lastInsertId())]);
+    echo json_encode(['success' => true, 'equivalence_id' => $equivalenceId]);
 }
 
 /**
@@ -241,11 +258,9 @@ function createEquivalence(PDO $pdo): void
  *   - อัปเดตเฉพาะ field ที่อนุญาต
  *   - คำนวณ request_total_days ใหม่หากเปลี่ยนวันที่
  */
-function updateEquivalence(PDO $pdo, int $id): void
+function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
-    // ครอบทั้งฟังก์ชัน — ทั้งแก้ field ปกติและอนุมัติ/ปฏิเสธ ต้องผ่านสิทธิ์ update:equivalence ก่อนเสมอ
-    requirePermission('update', 'equivalence');
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ดึงข้อมูลปัจจุบัน
     $stmt = $pdo->prepare("SELECT * FROM position_equivalence WHERE equivalence_id = ?");
@@ -394,6 +409,19 @@ function updateEquivalence(PDO $pdo, int $id): void
     $sql = "UPDATE position_equivalence SET " . implode(', ', $sets) . " WHERE equivalence_id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+
+    $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
+    $afterStmt->execute([$id]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'UPDATE',
+        'position_equivalence',
+        $id,
+        $current,
+        $after ?: null
+    );
 
     echo json_encode(['success' => true]);
 }

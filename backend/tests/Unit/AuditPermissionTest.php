@@ -31,6 +31,9 @@ final class AuditPermissionTest extends TestCase
     {
         return [
             'read multiplier'  => ['read', 'multiplier'],
+            'create supportive' => ['create', 'supportive'],
+            'update diverse'    => ['update', 'diverse'],
+            'delete supportive' => ['delete', 'supportive'],
             'create audit'     => ['create', 'audit'],
             'update users'     => ['update', 'users'],
             'delete anything'  => ['delete', 'ไม่มี resource นี้จริง'],
@@ -51,6 +54,8 @@ final class AuditPermissionTest extends TestCase
     {
         return [
             'multiplier' => ['multiplier'],
+            'supportive' => ['supportive'],
+            'diverse'    => ['diverse'],
             'audit'      => ['audit'],
             'users'      => ['users'],
         ];
@@ -75,6 +80,8 @@ final class AuditPermissionTest extends TestCase
             'candidates (allowed)'   => ['candidates', true],
             'probation (allowed)'    => ['probation', true],
             'equivalence (allowed)'  => ['equivalence', true],
+            'supportive (allowed)'   => ['supportive', true],
+            'diverse (allowed)'      => ['diverse', true],
             'audit (denied)'         => ['audit', false],
             'users (denied)'         => ['users', false],
         ];
@@ -100,6 +107,8 @@ final class AuditPermissionTest extends TestCase
     {
         self::assertFalse(checkPermission('operator', 'delete', 'multiplier'));
         self::assertFalse(checkPermission('operator', 'delete', 'personnel'));
+        self::assertFalse(checkPermission('operator', 'delete', 'supportive'));
+        self::assertFalse(checkPermission('operator', 'delete', 'diverse'));
     }
 
     #[Test]
@@ -117,6 +126,8 @@ final class AuditPermissionTest extends TestCase
         return [
             'multiplier (allowed)' => ['multiplier', true],
             'dashboard (allowed)'  => ['dashboard', true],
+            'supportive (denied)'  => ['supportive', false],
+            'diverse (denied)'     => ['diverse', false],
             'audit (denied)'       => ['audit', false],
             'users (denied)'       => ['users', false],
         ];
@@ -128,6 +139,9 @@ final class AuditPermissionTest extends TestCase
         self::assertFalse(checkPermission('viewer', 'create', 'multiplier'));
         self::assertFalse(checkPermission('viewer', 'update', 'multiplier'));
         self::assertFalse(checkPermission('viewer', 'delete', 'multiplier'));
+        self::assertFalse(checkPermission('viewer', 'create', 'supportive'));
+        self::assertFalse(checkPermission('viewer', 'update', 'diverse'));
+        self::assertFalse(checkPermission('viewer', 'delete', 'supportive'));
     }
 
     #[Test]

@@ -145,19 +145,17 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth.js'
+import { RouterLink } from 'vue-router'
+import { useApi } from '@/composables/useApi.js'
 import {
   Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, ArrowRight,
 } from 'lucide-vue-next'
 
 const MAX_BYTES = 5 * 1024 * 1024
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
 // cache-bust เทมเพลตเมื่อ deploy ใหม่ (อัปเดต query เมื่อแก้คอลัมน์)
 const templateUrl = '/import-template.xlsx?v=2026-06-19'
 
-const router = useRouter()
-const auth = useAuthStore()
+const api = useApi()
 
 const inputEl = ref(null)
 const resultEl = ref(null)
@@ -219,21 +217,13 @@ async function submit() {
   const form = new FormData()
   form.append('file', file.value)
 
-  const headers = {}
-  if (auth.token) headers.Authorization = `Bearer ${auth.token}`
-
   let res
   try {
-    res = await fetch(`${API_BASE}/import/executive`, { method: 'POST', body: form, headers })
-  } catch {
+    res = await api.uploadResponse('/import/executive', form)
+  } catch (error) {
+    if (error?.message === 'Unauthorized') return
     // network error / timeout — fetch ไม่ throw จาก HTTP status แต่ throw จาก network
     showError(['เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่'])
-    return
-  }
-
-  if (res.status === 401) {
-    auth.logout()
-    router.push('/login')
     return
   }
 

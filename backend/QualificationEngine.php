@@ -14,6 +14,12 @@ class QualificationEngine
 {
     private PDO $pdo;
 
+    /** @var array<string, list<string>>|null */
+    private ?array $criteriaSourceCache = null;
+
+    /** @var array<string, array{sql:string,params:array}|null>|null */
+    private ?array $builtQueryCache = null;
+
     /** ระดับเป้าหมายทั้งหมดที่แสดงในภาพรวม แยกตามประเภทตำแหน่ง */
     private const OVERVIEW_LEVELS = [
         'general' => ['O2', 'O3'],
@@ -45,12 +51,7 @@ class QualificationEngine
      */
     private function buildBaseQuery(string $targetLevel): ?array
     {
-        // ดึง source level codes สำหรับ target level นี้
-        $stmt = $this->pdo->prepare(
-            'SELECT DISTINCT source_level_code FROM promotion_criteria WHERE target_level_code = ? AND is_active = 1'
-        );
-        $stmt->execute([$targetLevel]);
-        $sourceLevels = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $sourceLevels = $this->getSourceLevelsForTarget($targetLevel);
 
         if (empty($sourceLevels)) {
             return null;
@@ -146,9 +147,44 @@ class QualificationEngine
      */
     private function buildQuery(string $targetLevel): ?array
     {
-        return in_array($targetLevel, self::EXECUTIVE_LEVELS, true)
+        if ($this->builtQueryCache !== null && array_key_exists($targetLevel, $this->builtQueryCache)) {
+            return $this->builtQueryCache[$targetLevel];
+        }
+
+        $built = in_array($targetLevel, self::EXECUTIVE_LEVELS, true)
             ? $this->buildExecutiveQuery($targetLevel)
             : $this->buildBaseQuery($targetLevel);
+
+        if ($this->builtQueryCache !== null) {
+            $this->builtQueryCache[$targetLevel] = $built;
+        }
+
+        return $built;
+    }
+
+    /**
+     * โหลด promotion_criteria ครั้งเดียวต่อ request overview — ลด N+1 lookup
+     *
+     * @return list<string>
+     */
+    private function getSourceLevelsForTarget(string $targetLevel): array
+    {
+        if ($this->criteriaSourceCache === null) {
+            $this->criteriaSourceCache = [];
+            $stmt = $this->pdo->query(
+                'SELECT target_level_code, source_level_code
+                 FROM promotion_criteria
+                 WHERE is_active = 1'
+            );
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $target = (string) $row['target_level_code'];
+                $source = (string) $row['source_level_code'];
+                $this->criteriaSourceCache[$target][] = $source;
+            }
+        }
+
+        $levels = $this->criteriaSourceCache[$targetLevel] ?? [];
+        return array_values(array_unique($levels));
     }
 
     /**
@@ -466,6 +502,9 @@ class QualificationEngine
      */
     public function computeOverview(): array
     {
+        $this->criteriaSourceCache = null;
+        $this->builtQueryCache = [];
+
         $summary = [
             'general_total' => 0,
             'academic_total' => 0,
@@ -524,7 +563,6 @@ class QualificationEngine
                 $dataStmt->execute($base['params']);
                 $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
 
-                // Format fields ให้ตรงกับ data row ของ computeForLevel + ระบุระดับเป้าหมาย
                 foreach ($rows as &$r) {
                     $r['target_level'] = $level;
                     $r['qualification_date_thai'] = formatThaiDate($r['qualification_date']);

@@ -5,7 +5,7 @@ FROM composer:2.7 AS vendor
 
 WORKDIR /app
 
-COPY composer.json composer.lock* ./
+COPY backend/composer.json backend/composer.lock* ./
 
 # ext-gd ถูก declare โดย phpspreadsheet แต่ใช้เฉพาะ export รูป — การอ่าน xlsx (import) ไม่ใช้
 # จึง ignore platform req เพื่อไม่ต้องลง gd (libpng/jpeg/freetype) ที่ทำให้ image ใหญ่
@@ -35,15 +35,20 @@ opcache.revalidate_freq=0" > /usr/local/etc/php/conf.d/opcache.ini
 
 WORKDIR /var/www/html
 
-# คัดลอก source code ทั้งหมด
-COPY . .
+# คัดลอก backend source + migration SQL (context = repo root)
+COPY backend/ .
+COPY database/ /var/www/database/
 
 # คัดลอก vendor ที่ติดตั้งไว้แล้วจาก stage แรก
 COPY --from=vendor /app/vendor/ ./vendor/
 
 # สร้าง runtime directories และกำหนดสิทธิ์ให้ Apache
 RUN mkdir -p /var/www/html/uploads /var/www/html/storage/rate_limits \
-    && chown -R www-data:www-data /var/www/html/uploads /var/www/html/storage
+    && chown -R www-data:www-data /var/www/html/uploads /var/www/html/storage \
+    && chmod +x /var/www/html/docker-entrypoint.sh
+
+ENV MIGRATIONS_DIR=/var/www/database
+ENV RUN_MIGRATIONS=1
 
 # ให้ Apache ส่ง environment variables เข้า PHP
 RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL MYSQL_SSL_CA JWT_SECRET" \
@@ -63,3 +68,5 @@ RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf 
 
 # เปิด port 80
 EXPOSE 80
+
+ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]
