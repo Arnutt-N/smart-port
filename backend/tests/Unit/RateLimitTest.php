@@ -34,8 +34,15 @@ final class RateLimitTest extends TestCase
         return $data['hits'] ?? [];
     }
 
+    protected function setUp(): void
+    {
+        $GLOBALS['_rate_limit_db_ready'] = false;
+    }
+
     protected function tearDown(): void
     {
+        $GLOBALS['_rate_limit_db_ready'] = null;
+
         foreach (['GET_COUNT', 'GET_WINDOW', 'GET_CONCURRENT'] as $method) {
             $file = $this->fileFor($method);
             if (file_exists($file)) {
@@ -65,13 +72,11 @@ final class RateLimitTest extends TestCase
     #[Test]
     public function it_purges_hits_older_than_the_window(): void
     {
-        // seed ไฟล์เองด้วย timestamp เก่าเกิน window (2 ชม.ที่แล้ว) + timestamp ใหม่ 1 อัน
         $file = $this->fileFor('GET_WINDOW');
         file_put_contents($file, json_encode([
             'hits' => [time() - 7200, time() - 7100],
         ]));
 
-        // window 60 วิ — ของเก่าต้องถูกกรองทิ้งหมด เหลือแค่ hit ใหม่ที่เพิ่งเพิ่ม
         checkRateLimit(self::TEST_USER_ID, 'GET_WINDOW', 5, 60);
 
         self::assertCount(1, $this->readHits('GET_WINDOW'));
@@ -87,7 +92,6 @@ final class RateLimitTest extends TestCase
 
         checkRateLimit(self::TEST_USER_ID, 'GET_WINDOW', 5, 60);
 
-        // 2 hit เดิม (ยังอยู่ใน window) + 1 hit ใหม่ที่เพิ่งบันทึก = 3
         self::assertCount(3, $this->readHits('GET_WINDOW'));
     }
 
@@ -97,7 +101,6 @@ final class RateLimitTest extends TestCase
         checkRateLimit(self::TEST_USER_ID, 'GET_CONCURRENT', 5, 60);
         checkRateLimit(self::TEST_USER_ID, 'GET_CONCURRENT', 5, 60);
 
-        // method คนละตัว (ไม่ใช่ GET_CONCURRENT) ต้องเริ่มนับจากศูนย์ ไม่ปนกัน
         self::assertCount(2, $this->readHits('GET_CONCURRENT'));
         self::assertCount(0, $this->readHits('GET_COUNT'));
     }

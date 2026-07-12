@@ -14,9 +14,6 @@ include_once __DIR__ . '/../audit.php';
 
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
-    // DEBUG: Log routing info
-    error_log('[multiplier] method=' . $method . ', path=' . json_encode($path));
-
     // GET = read, POST = create, PUT = update, DELETE = delete
     $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
     $action = $actionMap[$method] ?? 'read';
@@ -736,9 +733,9 @@ function parseStrictDate(string $value): ?DateTime
     return $date;
 }
 
-function updateMultiplier(PDO $pdo, int $multiplierId, array $user): void
+function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) {
         http_response_code(400);
         echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
@@ -851,6 +848,19 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user): void
         $data['description'] ?? $existing['description'],
         $multiplierId,
     ]);
+
+    $afterStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
+    $afterStmt->execute([$multiplierId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'UPDATE',
+        'multiplier_experience',
+        $multiplierId,
+        $existing,
+        $after ?: null
+    );
 
     // ดึงข้อมูลที่อัปเดตแล้วพร้อม decoration
     $updatedStmt = $pdo->prepare("

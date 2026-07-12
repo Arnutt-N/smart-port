@@ -112,7 +112,7 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login({ username: form.username, password: form.password })
-    router.push('/dashboard')
+    router.push(auth.mustChangePassword ? '/change-password' : '/dashboard')
   } catch (e) {
     errorMsg.value = e.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'
   } finally {

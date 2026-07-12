@@ -108,8 +108,8 @@ function checkPermission(string $userRole, string $action, string $resource): bo
         ],
         'operator' => [
             'read' => ['*'],
-            'create' => ['multiplier', 'personnel', 'candidates', 'probation', 'equivalence'],
-            'update' => ['multiplier', 'personnel', 'candidates', 'probation', 'equivalence'],
+            'create' => ['multiplier', 'personnel', 'candidates', 'probation', 'equivalence', 'supportive', 'diverse'],
+            'update' => ['multiplier', 'personnel', 'candidates', 'probation', 'equivalence', 'supportive', 'diverse'],
             // 'equivalence_approval' ไม่อยู่ในลิสต์ — อนุมัติ/ปฏิเสธคำขอเทียบตำแหน่งเป็นสิทธิ์ admin เท่านั้น
             'delete' => [], // ห้าม delete (ยกเว้น admin)
         ],
@@ -170,7 +170,7 @@ function requirePermission(string $action, string $resource): void
 /**
  * ดึงข้อมูล authenticated user จาก JWT token
  *
- * @return array|null — ['user_id' => int, 'role' => string] หรือ null
+ * @return array|null — ['user_id' => int, 'role' => string, 'must_change_password' => int] หรือ null
  */
 function getAuthenticatedUser(): ?array
 {
@@ -197,7 +197,11 @@ function getAuthenticatedUser(): ?array
     // ดึง user จาก DB เพื่อ check role ล่าสุด (กัน cache role เก่า)
     try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT user_id, role FROM users WHERE user_id = ? AND is_active = 1");
+        $stmt = $pdo->prepare(
+            "SELECT user_id, role, must_change_password
+             FROM users
+             WHERE user_id = ? AND is_active = 1"
+        );
         $stmt->execute([$payload['user_id'] ?? 0]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 

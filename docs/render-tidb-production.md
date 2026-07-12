@@ -78,6 +78,20 @@ Operational note:
 
 - Files like `database/reimport-data.sql` are generated repair/import artifacts for a specific environment and should not be committed as normal source files.
 
+## 4.1 Automated migrations on deploy
+
+The backend Docker image copies `database/` and runs pending SQL migrations on container start via `backend/scripts/run-migrations.php` (tracked in `schema_migrations`).
+
+- Local check: `docker compose exec backend php scripts/run-migrations.php`
+- Disable at runtime: set `RUN_MIGRATIONS=0` on the backend service
+- Override migration directory: set `MIGRATIONS_DIR=/var/www/database`
+
+**Existing TiDB / already-initialized DBs:** if `schema_migrations` is empty but `personnel` or `users` already exists, the runner **baselines** migrations through `14-multiplier-area-admin.sql` (marks them applied, does not re-run non-idempotent `ALTER`s). Only newer files such as `15-api-rate-limit-hits.sql` are executed.
+
+**Fresh empty database:** no baseline — every numbered `NN-*.sql` under `database/` is applied in order.
+
+New incremental SQL files must use the `NN-description.sql` naming pattern under `database/` and should prefer idempotent DDL (`CREATE TABLE IF NOT EXISTS`, etc.) when possible.
+
 ## 5. Manual Render dashboard checklist
 
 If you are updating the existing services instead of recreating them from the Blueprint:

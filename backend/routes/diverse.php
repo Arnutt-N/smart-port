@@ -14,6 +14,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../audit.php';
 
 /**
  * จัดการ request สำหรับ diverse experience endpoints
@@ -24,6 +25,12 @@ include_once __DIR__ . '/../helpers.php';
  */
 function handleDiverse(PDO $pdo, string $method, array $path): void
 {
+    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
+    if (isset($actionMap[$method])) {
+        requirePermission($actionMap[$method], 'diverse');
+    }
+    $user = getAuthenticatedUser();
+
     switch ($method) {
         case 'GET':
             $id = $path[1] ?? null;
@@ -38,7 +45,7 @@ function handleDiverse(PDO $pdo, string $method, array $path): void
 
         case 'POST':
             // POST /diverse — สร้างรายการใหม่
-            createDiverse($pdo);
+            createDiverse($pdo, $user);
             break;
 
         case 'PUT':
@@ -49,7 +56,7 @@ function handleDiverse(PDO $pdo, string $method, array $path): void
                 return;
             }
             // PUT /diverse/{id} — อัปเดตข้อมูล
-            updateDiverse($pdo, intval($id));
+            updateDiverse($pdo, intval($id), $user);
             break;
 
         case 'DELETE':
@@ -60,7 +67,7 @@ function handleDiverse(PDO $pdo, string $method, array $path): void
                 return;
             }
             // DELETE /diverse/{id} — ลบรายการ
-            deleteDiverse($pdo, intval($id));
+            deleteDiverse($pdo, intval($id), $user);
             break;
 
         default:
@@ -176,9 +183,9 @@ function getDiverseDetail(PDO $pdo, int $id): void
  * diff_count เป็น GENERATED column จึงไม่รวมใน INSERT
  * qualified_date คำนวณจาก 4 boolean flags (>= 3 = ผ่านเกณฑ์)
  */
-function createDiverse(PDO $pdo): void
+function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ตรวจสอบข้อมูลที่จำเป็น
     $required = ['personnel_id'];
@@ -250,10 +257,23 @@ function createDiverse(PDO $pdo): void
         $qualifiedDate
     ]);
 
-    $experienceId = $pdo->lastInsertId();
+    $experienceId = (int) $pdo->lastInsertId();
+    $afterStmt = $pdo->prepare('SELECT * FROM diverse_experience WHERE experience_id = ?');
+    $afterStmt->execute([$experienceId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'CREATE',
+        'diverse_experience',
+        $experienceId,
+        null,
+        $after ?: null
+    );
 
     http_response_code(201);
-    echo json_encode(['success' => true, 'experience_id' => intval($experienceId)]);
+    echo json_encode(['success' => true, 'experience_id' => $experienceId]);
 }
 
 /**
@@ -261,7 +281,7 @@ function createDiverse(PDO $pdo): void
  * diff_count ไม่อยู่ใน allowed fields (GENERATED column)
  * หลังอัปเดต recompute from_total_days, to_total_days, qualified_date
  */
-function updateDiverse(PDO $pdo, int $id): void
+function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     // ตรวจสอบว่า record มีอยู่จริง
     $checkStmt = $pdo->prepare("SELECT * FROM diverse_experience WHERE experience_id = ?");
@@ -274,7 +294,7 @@ function updateDiverse(PDO $pdo, int $id): void
         return;
     }
 
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // Allowed fields — ไม่รวม diff_count (GENERATED column)
     $allowed = [
@@ -343,22 +363,48 @@ function updateDiverse(PDO $pdo, int $id): void
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
+    $afterStmt = $pdo->prepare('SELECT * FROM diverse_experience WHERE experience_id = ?');
+    $afterStmt->execute([$id]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'UPDATE',
+        'diverse_experience',
+        $id,
+        $existing,
+        $after ?: null
+    );
+
     echo json_encode(['success' => true]);
 }
 
 /**
  * DELETE /diverse/{id} — ลบรายการนับแตกต่าง
  */
-function deleteDiverse(PDO $pdo, int $id): void
+function deleteDiverse(PDO $pdo, int $id, array $user): void
 {
-    $stmt = $pdo->prepare("DELETE FROM diverse_experience WHERE experience_id = ?");
-    $stmt->execute([$id]);
-
-    if ($stmt->rowCount() === 0) {
+    $beforeStmt = $pdo->prepare('SELECT * FROM diverse_experience WHERE experience_id = ?');
+    $beforeStmt->execute([$id]);
+    $before = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$before) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบรายการนับแตกต่าง']);
         return;
     }
+
+    $stmt = $pdo->prepare("DELETE FROM diverse_experience WHERE experience_id = ?");
+    $stmt->execute([$id]);
+
+    logAudit(
+        $pdo,
+        (int) $user['user_id'],
+        'DELETE',
+        'diverse_experience',
+        $id,
+        $before,
+        null
+    );
 
     echo json_encode(['success' => true]);
 }

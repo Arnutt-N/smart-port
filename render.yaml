@@ -27,7 +27,7 @@ services:
     branch: main
     rootDir: backend
     dockerfilePath: Dockerfile
-    dockerContext: .
+    dockerContext: ..
     healthCheckPath: /
     buildFilter:
       paths:
