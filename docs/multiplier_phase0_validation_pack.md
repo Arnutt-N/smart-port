@@ -2,7 +2,7 @@
 
 เอกสารนี้ใช้สำหรับยืนยัน master data ก่อนเริ่มพัฒนา/ทำ migration ฟีเจอร์ "การนับเวลาราชการเป็นทวีคูณ" ใน Smart Port
 
-สถานะ: `draft`
+สถานะ: `test-seed` — validator 2026-07-13: **12/12 PASS** ด้วย `TEST_SEED` (ยังไม่ใช่ HR sign-off จริง; ห้ามถือว่า production-ready จนกว่า HR ยืนยัน)
 
 ## เป้าหมาย Phase 0
 

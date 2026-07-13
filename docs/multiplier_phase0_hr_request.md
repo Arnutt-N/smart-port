@@ -27,10 +27,35 @@
    - ต้องมีตัวอย่างที่วันปฏิบัติงานคร่อมวันสิ้นสุดประกาศ
    - ระบุผลลัพธ์จาก Excel เดิม: วันเข้าข่าย, วันทวีคูณ, วัน bonus, และ breakdown ปี/เดือน/วัน
 
-## ไฟล์ที่ให้ HR กรอก
+## ไฟล์ที่ให้ HR กรอก (ส่งไฟล์นี้เป็นหลัก)
+
+**ไฟล์หลัก:** `docs/multiplier_phase0_hr_workbook.xlsx`
+
+| Sheet | กรอกอะไร |
+|-------|----------|
+| `คำชี้แจง` | อ่านอย่างเดียว — วิธีกรอกวันที่ (ค.ศ. `YYYY-MM-DD`) |
+| `1-พื้นที่ทวีคูณ` | master data ทุกแถว + เอกสารอ้างอิง + ผู้ยืนยัน |
+| `2-ตัวอย่างจริง UAT` | อย่างน้อย 10 เคสจาก Excel เดิม (มีคร่อมวันเริ่ม/สิ้นสุด) |
+| `เครื่องช่วยตรวจคำนวณ` | ใช้ช่วยเทียบตัวเลขกับ Excel เดิม (ไม่บังคับ) |
+
+ไฟล์สำรอง (CSV เทียบเท่า — ใช้เมื่อ HR ไม่สะดวกกับ xlsx):
 
 - `docs/multiplier_phase0_master_data_template.csv`
 - `docs/multiplier_phase0_uat_cases_template.csv`
+
+## ช่องว่างที่ต้องปิดก่อน production (สถานะ gate)
+
+- **Dev/test gate:** `node scripts/validate-multiplier-phase0.mjs` ผ่าน **12/12** แล้วด้วย `TEST_SEED` (ไม่ใช่ HR sign-off)
+- **Production gate:** ยังต้องให้ HR กรอก workbook จริงแล้วแทนที่ `TEST_SEED` ทุกแถว
+
+| # | สิ่งที่ HR ต้องยืนยันแทน TEST_SEED |
+|---|-------------------------------------|
+| 1 | สตูล 4 อำเภอที่มีสิทธิจริง (ตอนนี้ provisional: ควนโดน/ควนกาหลง/ท่าแพ/มะนัง) |
+| 2 | `legal_reference` จากมติ/ประกาศ/หนังสือเวียนจริง |
+| 3 | `source_reference` (ไฟล์/หน้า/ลิงก์หลักฐาน) |
+| 4 | ช่วง พ.ร.ก.ฉุกเฉินหลังปี 2548 (ตอนนี้ provisional start `2005-07-20`) |
+| 5 | UAT ≥ 10 เคสจาก Excel เดิม (ตอนนี้เป็น synthetic) |
+| 6 | `verified_by` / `verified_date` ของ HR จริง |
 
 ## จุดที่ต้องยืนยันเป็นพิเศษ
 
@@ -51,12 +76,16 @@ Phase 0 ผ่านเมื่อ:
 - ไม่มี row สตูลแบบทั้งจังหวัด
 - ไม่มีช่วงเวลาซ้อนที่ทำให้ lookup ไม่ deterministic
 - มี UAT cases อย่างน้อย 10 รายการ และ HR ยืนยัน expected output
+- `node scripts/validate-multiplier-phase0.mjs` ได้ 12/12 exit 0
 - HR owner, product owner, technical owner sign off ใน `docs/multiplier_phase0_validation_pack.md`
 
 ## หลัง HR ส่งข้อมูลกลับ
 
 ทีมพัฒนาจะทำต่อ:
 
-1. อัปเดต `docs/multiplier_phase0_validation_pack.md`
-2. แปลงข้อมูลที่ยืนยันแล้วเป็น migration `database/13-multiplier-time-counting.sql`
-3. สร้าง backend/frontend ตาม GitHub issues #19-#23
+1. วางไฟล์ xlsx ที่กรอกแล้วทับ `docs/multiplier_phase0_hr_workbook.xlsx` (หรือระบุ path อื่น)
+2. `python scripts/sync-multiplier-phase0-from-xlsx.py` → อัปเดต CSV
+3. `node scripts/validate-multiplier-phase0.mjs` → ต้อง 12/12
+4. อัปเดต `docs/multiplier_phase0_validation_pack.md` + sign-off
+5. อัปเดต seed `database/13-multiplier-time-counting.sql`
+6. ปิด GitHub issues #18 / #19 แล้วเดิน UAT #23
