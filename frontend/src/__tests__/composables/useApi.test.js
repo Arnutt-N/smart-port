@@ -61,4 +61,19 @@ describe('useApi uploads', () => {
     expect(mockAuth.setMustChangePassword).toHaveBeenCalledWith(true)
     expect(mockPush).toHaveBeenCalledWith('/change-password')
   })
+
+  it('surfaces Thai login error on 401 without logout redirect', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await expect(useApi().post('/auth/login', { username: 'x', password: 'y' }))
+      .rejects.toThrow('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+
+    expect(mockAuth.logout).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+  })
 })

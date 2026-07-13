@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../routes/multiplier.php';
 
 /**
  * Unit tests สำหรับ decorateAreaRow() — pure function, ไม่ใช้ DB
- * โฟกัส source_pending: "รอเอกสาร" ต้องครอบคลุมทั้ง marker SOURCE_PENDING
+ * โฟกัส source_pending: "รอเอกสาร" ต้องครอบคลุม SOURCE_PENDING / TEST_SEED
  * และกรณีไม่มี legal_reference เลย (NULL/ว่าง) ตามที่ฟอร์มสัญญาไว้ว่า
  * "เว้นว่างจะติดสถานะรอเอกสาร"
  */
@@ -35,25 +35,31 @@ final class MultiplierAreaDecorateTest extends TestCase
     }
 
     /**
-     * @return array<string, array{mixed, bool}>  [legal_reference, source_pending ที่คาดหวัง]
+     * @return array<string, array{mixed, mixed, bool}>  [legal_reference, source_reference, expected]
      */
-    public static function legalReferenceProvider(): array
+    public static function pendingReferenceProvider(): array
     {
         return [
-            'NULL = ไม่มีเอกสาร → รอเอกสาร'            => [null, true],
-            'สตริงว่าง → รอเอกสาร'                     => ['', true],
-            'ช่องว่างล้วน → รอเอกสาร'                  => ['   ', true],
-            'marker SOURCE_PENDING → รอเอกสาร'         => ['SOURCE_PENDING: user-approved development seed', true],
-            'มีเอกสารจริง → ยืนยันแล้ว'                => ['ประกาศ กห. ลง 26 ม.ค. 2547', false],
+            'NULL = ไม่มีเอกสาร → รอเอกสาร' => [null, null, true],
+            'สตริงว่าง → รอเอกสาร' => ['', null, true],
+            'ช่องว่างล้วน → รอเอกสาร' => ['   ', null, true],
+            'marker SOURCE_PENDING → รอเอกสาร' => ['SOURCE_PENDING: user-approved development seed', null, true],
+            'marker TEST_SEED ใน legal → รอเอกสาร' => ['TEST_SEED: development placeholder', null, true],
+            'marker TEST_SEED ใน source → รอเอกสาร' => ['ประกาศ กห. ลง 26 ม.ค. 2547', 'TEST_SEED: provisional', true],
+            'มีเอกสารจริง → ยืนยันแล้ว' => ['ประกาศ กห. ลง 26 ม.ค. 2547', 'แฟ้ม HR หน้า 12', false],
         ];
     }
 
     #[Test]
-    #[DataProvider('legalReferenceProvider')]
-    public function it_flags_source_pending_from_legal_reference(mixed $legalReference, bool $expectedPending): void
-    {
+    #[DataProvider('pendingReferenceProvider')]
+    public function it_flags_source_pending_from_references(
+        mixed $legalReference,
+        mixed $sourceReference,
+        bool $expectedPending
+    ): void {
         $row = self::baseRow();
         $row['legal_reference'] = $legalReference;
+        $row['source_reference'] = $sourceReference;
 
         decorateAreaRow($row);
 

@@ -88,7 +88,9 @@ The backend Docker image copies `database/` and runs pending SQL migrations on c
 
 **Existing TiDB / already-initialized DBs:** if `schema_migrations` is empty but `personnel` or `users` already exists, the runner **baselines** migrations through `14-multiplier-area-admin.sql` (marks them applied, does not re-run non-idempotent `ALTER`s). Only newer files such as `15-api-rate-limit-hits.sql` are executed.
 
-**Fresh empty database:** no baseline — every numbered `NN-*.sql` under `database/` is applied in order.
+**TEST_SEED migrations:** files whose name contains `test-seed` (e.g. `16-multiplier-test-seed-expand.sql`) are **skipped by default** so provisional data does not land on production. To apply them on a dedicated UAT/dev database, set `APPLY_TEST_SEED_MIGRATIONS=1` on the backend service. Local Docker can set the same env when you intentionally want TEST_SEED rows.
+
+**Fresh empty database:** no baseline — every numbered `NN-*.sql` under `database/` is applied in order (except skipped `test-seed` files unless the env above is set).
 
 New incremental SQL files must use the `NN-description.sql` naming pattern under `database/` and should prefer idempotent DDL (`CREATE TABLE IF NOT EXISTS`, etc.) when possible.
 

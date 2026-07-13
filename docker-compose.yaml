@@ -17,6 +17,8 @@ services:
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
+      # Local/dev only — production Render ต้องไม่ตั้งค่านี้จนกว่าจะตั้งใจใช้ TEST_SEED
+      - APPLY_TEST_SEED_MIGRATIONS=1
     depends_on:
       db:
         condition: service_healthy

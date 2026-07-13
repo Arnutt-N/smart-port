@@ -261,13 +261,30 @@ try {
         }
 
         ksort($pending, SORT_NATURAL);
+        $skippedTestSeed = [];
+        $allowTestSeed = migrationEnv('APPLY_TEST_SEED_MIGRATIONS', '0') === '1';
         foreach ($pending as $name => $file) {
+            // กัน TEST_SEED ขึ้น production โดยไม่ตั้งใจ — เปิดด้วย APPLY_TEST_SEED_MIGRATIONS=1 เท่านั้น
+            if (!$allowTestSeed && str_contains($name, 'test-seed')) {
+                $skippedTestSeed[] = $name;
+                fwrite(
+                    STDOUT,
+                    "Skipping {$name} (TEST_SEED). Set APPLY_TEST_SEED_MIGRATIONS=1 to apply.\n"
+                );
+                continue;
+            }
             fwrite(STDOUT, "Applying {$name}...\n");
             applyMigration($pdo, $file);
             fwrite(STDOUT, "Applied {$name}\n");
         }
 
-        fwrite(STDOUT, count($pending) . " migration(s) applied.\n");
+        $appliedCount = count($pending) - count($skippedTestSeed);
+        if ($appliedCount === 0 && $skippedTestSeed !== []) {
+            fwrite(STDOUT, "No migrations applied ({$skippedTestSeed[0]} skipped as TEST_SEED).\n");
+            exit(0);
+        }
+
+        fwrite(STDOUT, $appliedCount . " migration(s) applied.\n");
         exit(0);
     } finally {
         releaseMigrationLock($pdo);
