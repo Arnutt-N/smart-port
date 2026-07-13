@@ -66,7 +66,7 @@
                 <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
               </button>
             </div>
-            <div class="mt-2 flex items-center justify-between gap-3">
+            <div class="mt-4 flex items-center justify-between gap-3">
               <label class="flex cursor-pointer items-center">
                 <input type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                 <span class="ml-2 text-sm text-gray-600">จดจำฉัน</span>
