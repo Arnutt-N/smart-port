@@ -495,8 +495,9 @@ class QualificationEngine
     }
 
     /**
-     * สรุปภาพรวมบัญชีรายชื่อทุกระดับ (ทั่วไป + วิชาการ) จาก full dataset
-     * แทนการให้ frontend ยิงรายระดับแล้วรวมเลขเอง (ผิดเมื่อข้อมูลเกิน limit ต่อหน้า)
+     * สรุปภาพรวมบัญชีรายชื่อทุกระดับ จาก full dataset
+     * ใช้ UNION ALL ทุกระดับ + aggregate/window (~3 queries รวม criteria cache)
+     * แทนการยิง summary+top5 ทีละระดับ (~18 queries)
      *
      * @return array summary รวมทุกระดับ, by_level รายระดับ, top5 ใกล้ครบเกณฑ์ที่สุดข้ามระดับ
      */
@@ -516,90 +517,166 @@ class QualificationEngine
             'check_data_total' => 0,
         ];
         $byLevel = [];
-        $top5Pool = [];
+        $levelCategory = [];
 
         foreach (self::OVERVIEW_LEVELS as $category => $levels) {
             foreach ($levels as $level) {
-                $base = $this->buildQuery($level);
-
-                // ระดับที่ไม่มีเกณฑ์ active — ใส่ค่าศูนย์ทั้งแถว ห้าม error
-                if ($base === null) {
-                    $byLevel[$level] = ['total' => 0, 'qualified' => 0, 'not_yet' => 0, 'check_data' => 0, 'near_qualified' => 0];
-                    continue;
-                }
-
-                // Summary ต่อระดับจาก full dataset (BETWEEN 1 AND 90 — NULL ไม่ถูกนับโดยธรรมชาติ)
-                $summarySql = "
-                    SELECT
-                        COUNT(*) AS total,
-                        SUM(CASE WHEN sub.status = 'qualified' THEN 1 ELSE 0 END) AS qualified,
-                        SUM(CASE WHEN sub.status = 'not_yet' THEN 1 ELSE 0 END) AS not_yet,
-                        SUM(CASE WHEN sub.status = 'check_data' THEN 1 ELSE 0 END) AS check_data,
-                        SUM(CASE WHEN sub.remaining_days BETWEEN 1 AND " . self::NEAR_THRESHOLD_DAYS . " THEN 1 ELSE 0 END) AS near_qualified
-                    FROM ({$base['sql']}) AS sub
-                ";
-                $stmt = $this->pdo->prepare($summarySql);
-                $stmt->execute($base['params']);
-                $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                $levelSummary = [
-                    'total' => (int) ($row['total'] ?? 0),
-                    'qualified' => (int) ($row['qualified'] ?? 0),
-                    'not_yet' => (int) ($row['not_yet'] ?? 0),
-                    'check_data' => (int) ($row['check_data'] ?? 0),
-                    'near_qualified' => (int) ($row['near_qualified'] ?? 0),
+                $levelCategory[$level] = $category;
+                $byLevel[$level] = [
+                    'total' => 0,
+                    'qualified' => 0,
+                    'not_yet' => 0,
+                    'check_data' => 0,
+                    'near_qualified' => 0,
                 ];
-                $byLevel[$level] = $levelSummary;
-
-                $summary[$category . '_total'] += $levelSummary['total'];
-                $summary['qualified_total'] += $levelSummary['qualified'];
-                $summary['near_qualified_total'] += $levelSummary['near_qualified'];
-                $summary['not_yet_total'] += $levelSummary['not_yet'];
-                $summary['check_data_total'] += $levelSummary['check_data'];
-
-                // Top 5 ของระดับนี้ — NULL remaining_days ไปท้ายสุด (ตรง logic ฝั่ง frontend เดิม)
-                $dataSql = "{$base['sql']} ORDER BY (remaining_days IS NULL), remaining_days ASC LIMIT 5";
-                $dataStmt = $this->pdo->prepare($dataSql);
-                $dataStmt->execute($base['params']);
-                $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($rows as &$r) {
-                    $r['target_level'] = $level;
-                    $r['qualification_date_thai'] = formatThaiDate($r['qualification_date']);
-                    $r['level_start_date_thai'] = formatThaiDate($r['current_level_start_date']);
-                    $r['current_level_name'] = getLevelName($r['current_level_code'] ?? '');
-                    $r['remaining_days'] = $r['remaining_days'] !== null ? (int) $r['remaining_days'] : null;
-                    $r['min_years'] = $r['min_years'] !== null ? (float) $r['min_years'] : null;
-                    $r['supportive_days'] = (int) $r['supportive_days'];
-                    $r['equivalence_days'] = (int) $r['equivalence_days'];
-                    $r['diverse_diff_count'] = (int) $r['diverse_diff_count'];
-                    $r['multiplier_days'] = (int) ($r['multiplier_days'] ?? 0);
-                }
-                unset($r);
-
-                $top5Pool = array_merge($top5Pool, $rows);
             }
         }
 
-        // รวมทุกระดับ → เรียง remaining_days น้อยสุดก่อน (NULL ท้ายสุด) → ตัด 5 อันดับแรก
-        usort($top5Pool, function (array $a, array $b): int {
-            if ($a['remaining_days'] === null && $b['remaining_days'] === null) {
-                return 0;
+        $union = $this->buildOverviewUnionSql();
+        if ($union === null) {
+            return [
+                'success' => true,
+                'summary' => $summary,
+                'by_level' => $byLevel,
+                'top5' => [],
+            ];
+        }
+
+        $near = self::NEAR_THRESHOLD_DAYS;
+        $summarySql = "
+            SELECT
+                target_level,
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'qualified' THEN 1 ELSE 0 END) AS qualified,
+                SUM(CASE WHEN status = 'not_yet' THEN 1 ELSE 0 END) AS not_yet,
+                SUM(CASE WHEN status = 'check_data' THEN 1 ELSE 0 END) AS check_data,
+                SUM(CASE WHEN remaining_days BETWEEN 1 AND {$near} THEN 1 ELSE 0 END) AS near_qualified
+            FROM ({$union['sql']}) AS all_levels
+            GROUP BY target_level
+        ";
+        $summaryStmt = $this->pdo->prepare($summarySql);
+        $summaryStmt->execute($union['params']);
+        foreach ($summaryStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $level = (string) $row['target_level'];
+            $levelSummary = [
+                'total' => (int) ($row['total'] ?? 0),
+                'qualified' => (int) ($row['qualified'] ?? 0),
+                'not_yet' => (int) ($row['not_yet'] ?? 0),
+                'check_data' => (int) ($row['check_data'] ?? 0),
+                'near_qualified' => (int) ($row['near_qualified'] ?? 0),
+            ];
+            $byLevel[$level] = $levelSummary;
+
+            $category = $levelCategory[$level] ?? null;
+            if ($category !== null) {
+                $summary[$category . '_total'] += $levelSummary['total'];
             }
-            if ($a['remaining_days'] === null) {
-                return 1;
-            }
-            if ($b['remaining_days'] === null) {
-                return -1;
-            }
-            return $a['remaining_days'] <=> $b['remaining_days'];
-        });
+            $summary['qualified_total'] += $levelSummary['qualified'];
+            $summary['near_qualified_total'] += $levelSummary['near_qualified'];
+            $summary['not_yet_total'] += $levelSummary['not_yet'];
+            $summary['check_data_total'] += $levelSummary['check_data'];
+        }
+
+        // Top 5 ข้ามระดับ — NULL remaining_days ท้ายสุด (ตรง logic เดิม)
+        $top5Sql = "
+            SELECT *
+            FROM (
+                SELECT
+                    all_levels.*,
+                    ROW_NUMBER() OVER (
+                        ORDER BY (remaining_days IS NULL), remaining_days ASC
+                    ) AS overview_rank
+                FROM ({$union['sql']}) AS all_levels
+            ) AS ranked
+            WHERE overview_rank <= 5
+            ORDER BY overview_rank
+        ";
+        $top5Stmt = $this->pdo->prepare($top5Sql);
+        $top5Stmt->execute($union['params']);
+        $top5 = $top5Stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($top5 as &$r) {
+            unset($r['overview_rank']);
+            $r['qualification_date_thai'] = formatThaiDate($r['qualification_date']);
+            $r['level_start_date_thai'] = formatThaiDate($r['current_level_start_date']);
+            $r['current_level_name'] = getLevelName($r['current_level_code'] ?? '');
+            $r['remaining_days'] = $r['remaining_days'] !== null ? (int) $r['remaining_days'] : null;
+            $r['min_years'] = $r['min_years'] !== null ? (float) $r['min_years'] : null;
+            $r['supportive_days'] = (int) $r['supportive_days'];
+            $r['equivalence_days'] = (int) $r['equivalence_days'];
+            $r['diverse_diff_count'] = (int) $r['diverse_diff_count'];
+            $r['multiplier_days'] = (int) ($r['multiplier_days'] ?? 0);
+        }
+        unset($r);
 
         return [
             'success' => true,
             'summary' => $summary,
             'by_level' => $byLevel,
-            'top5' => array_slice($top5Pool, 0, 5),
+            'top5' => $top5,
+        ];
+    }
+
+    /**
+     * รวม base query ทุกระดับใน OVERVIEW_LEVELS เป็น UNION ALL
+     * โปรเจกต์คอลัมน์ร่วม — M/S ยังไม่มี multiplier_days ใน buildExecutiveQuery → ใส่ 0
+     *
+     * @return array{sql:string,params:array}|null
+     */
+    private function buildOverviewUnionSql(): ?array
+    {
+        $branches = [];
+        $params = [];
+        $aliasIndex = 0;
+
+        foreach (self::OVERVIEW_LEVELS as $levels) {
+            foreach ($levels as $level) {
+                $base = $this->buildQuery($level);
+                if ($base === null) {
+                    continue;
+                }
+
+                $alias = 'ov' . $aliasIndex++;
+                $isExecutive = in_array($level, self::EXECUTIVE_LEVELS, true);
+                $multiplierExpr = $isExecutive
+                    ? '0 AS multiplier_days'
+                    : "{$alias}.multiplier_days AS multiplier_days";
+
+                // คอลัมน์ร่วม + target_level (bind เป็น param กัน hardcode ซ้ำ)
+                $branches[] = "
+                    SELECT
+                        {$alias}.personnel_id AS personnel_id,
+                        {$alias}.full_name AS full_name,
+                        {$alias}.current_position AS current_position,
+                        {$alias}.current_level_code AS current_level_code,
+                        {$alias}.current_level_start_date AS current_level_start_date,
+                        {$alias}.education_level AS education_level,
+                        {$alias}.min_years AS min_years,
+                        {$alias}.department AS department,
+                        {$alias}.supportive_days AS supportive_days,
+                        {$alias}.equivalence_days AS equivalence_days,
+                        {$alias}.diverse_diff_count AS diverse_diff_count,
+                        {$multiplierExpr},
+                        {$alias}.qualification_date AS qualification_date,
+                        {$alias}.remaining_days AS remaining_days,
+                        {$alias}.status AS status,
+                        ? AS target_level
+                    FROM ({$base['sql']}) AS {$alias}
+                ";
+                foreach ($base['params'] as $param) {
+                    $params[] = $param;
+                }
+                $params[] = $level;
+            }
+        }
+
+        if ($branches === []) {
+            return null;
+        }
+
+        return [
+            'sql' => implode("\nUNION ALL\n", $branches),
+            'params' => $params,
         ];
     }
 

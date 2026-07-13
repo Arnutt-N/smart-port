@@ -29,6 +29,15 @@ async function authenticatedFetch(url, options = {}) {
   })
 
   if (response.status === 401) {
+    // Login 401 ต้องโชว์ข้อความจาก API (ไทย) — ห้ามกลายเป็น "Unauthorized" แล้วเด้ง logout
+    const isPublicAuth =
+      typeof url === 'string' &&
+      (url.includes('/auth/login') || url === '/login' || url.endsWith('/login'))
+    if (isPublicAuth) {
+      const body = await response.clone().json().catch(() => null)
+      throw new Error(body?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+    }
+
     auth.logout()
     const router = (await import('@/router')).default
     router.push('/login')

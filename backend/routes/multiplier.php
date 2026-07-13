@@ -467,7 +467,13 @@ function decorateAreaRow(array &$row): void
         ? "{$row['province']} / {$row['district']}"
         : "{$row['province']} / ทั้งจังหวัด";
     $legalReference = trim((string) $row['legal_reference']);
-    $row['source_pending'] = $legalReference === '' || str_contains($legalReference, 'SOURCE_PENDING');
+    $sourceReference = trim((string) ($row['source_reference'] ?? ''));
+    // SOURCE_PENDING / TEST_SEED = ยังไม่ใช่เอกสาร HR จริง → ติดสถานะรอเอกสาร
+    $row['source_pending'] = $legalReference === ''
+        || str_contains($legalReference, 'SOURCE_PENDING')
+        || str_contains($legalReference, 'TEST_SEED')
+        || str_contains($sourceReference, 'SOURCE_PENDING')
+        || str_contains($sourceReference, 'TEST_SEED');
 }
 
 /**

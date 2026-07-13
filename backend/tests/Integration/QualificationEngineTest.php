@@ -251,4 +251,65 @@ final class QualificationEngineTest extends TestCase
                 ->execute([$personnelId, $areaId]);
         }
     }
+
+    /**
+     * computeOverview — shape + สอดคล้องระหว่าง summary / by_level / top5
+     * (หลัง refactor UNION ALL + window ต้องไม่พัง response contract)
+     */
+    #[Test]
+    public function it_computes_overview_shape_and_totals(): void
+    {
+        $result = $this->engine->computeOverview();
+
+        self::assertTrue($result['success']);
+        self::assertArrayHasKey('summary', $result);
+        self::assertArrayHasKey('by_level', $result);
+        self::assertArrayHasKey('top5', $result);
+
+        $expectedLevels = ['O2', 'O3', 'K2', 'K3', 'K4', 'M1', 'M2', 'S1', 'S2'];
+        foreach ($expectedLevels as $level) {
+            self::assertArrayHasKey($level, $result['by_level'], "by_level ต้องมี {$level}");
+            $row = $result['by_level'][$level];
+            self::assertSame(
+                $row['total'],
+                $row['qualified'] + $row['not_yet'] + $row['check_data'],
+                "{$level}: total ต้องเท่ากับผลรวมสถานะ"
+            );
+        }
+
+        $sumQualified = 0;
+        $sumNear = 0;
+        $sumNotYet = 0;
+        $sumCheck = 0;
+        foreach ($result['by_level'] as $row) {
+            $sumQualified += $row['qualified'];
+            $sumNear += $row['near_qualified'];
+            $sumNotYet += $row['not_yet'];
+            $sumCheck += $row['check_data'];
+        }
+        self::assertSame($sumQualified, $result['summary']['qualified_total']);
+        self::assertSame($sumNear, $result['summary']['near_qualified_total']);
+        self::assertSame($sumNotYet, $result['summary']['not_yet_total']);
+        self::assertSame($sumCheck, $result['summary']['check_data_total']);
+
+        self::assertLessThanOrEqual(5, count($result['top5']));
+        $prev = null;
+        foreach ($result['top5'] as $row) {
+            self::assertArrayHasKey('target_level', $row);
+            self::assertArrayHasKey('remaining_days', $row);
+            self::assertArrayHasKey('multiplier_days', $row);
+            if ($prev !== null) {
+                if ($prev['remaining_days'] === null) {
+                    self::assertNull($row['remaining_days'], 'หลัง NULL ใน top5 ต้องเป็น NULL ต่อ');
+                } elseif ($row['remaining_days'] !== null) {
+                    self::assertLessThanOrEqual(
+                        $row['remaining_days'],
+                        $prev['remaining_days'],
+                        'top5 ต้องเรียง remaining_days น้อย→มาก'
+                    );
+                }
+            }
+            $prev = $row;
+        }
+    }
 }
