@@ -67,6 +67,12 @@ backend/storage/rate_limits/*
 coverage/
 .nyc_output/
 
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
+frontend/playwright/.cache/
+
 # Project specific
 project-bolt
 admin-dashboard-integration-test.html
