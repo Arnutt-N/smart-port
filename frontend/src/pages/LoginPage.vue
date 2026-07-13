@@ -31,14 +31,13 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้</label>
             <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User class="h-5 w-5 text-gray-400" />
+              <div class="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3">
+                <User class="h-5 w-5 text-gray-400" aria-hidden="true" />
               </div>
-              <!-- #1: Input focus animation -->
               <input
                 v-model="form.username"
                 type="text"
-                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:shadow-lg focus:shadow-blue-500/10 focus:-translate-y-px"
+                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-3 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 placeholder="กรุณาใส่ชื่อผู้ใช้ของคุณ"
                 autocomplete="username"
               />
@@ -48,44 +47,71 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">รหัสผ่าน</label>
             <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock class="h-5 w-5 text-gray-400" />
+              <div class="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3">
+                <Lock class="h-5 w-5 text-gray-400" aria-hidden="true" />
               </div>
-              <!-- #1: Input focus animation -->
               <input
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
-                class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:shadow-lg focus:shadow-blue-500/10 focus:-translate-y-px"
+                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-10 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 placeholder="กรุณาใส่รหัสผ่านของคุณ"
                 autocomplete="current-password"
               />
               <button
                 type="button"
                 @click="showPassword = !showPassword"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                class="absolute right-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-gray-600"
                 aria-label="แสดง/ซ่อนรหัสผ่าน"
               >
-                <component :is="showPassword ? EyeOff : Eye" class="w-5 h-5" />
+                <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
+              </button>
+            </div>
+            <div class="mt-1.5 flex justify-end">
+              <button
+                type="button"
+                class="cursor-pointer text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                @click="showAccountHelp('forgot')"
+              >
+                ลืมรหัสผ่าน?
               </button>
             </div>
           </div>
 
-          <!-- Remember Me — #6: removed "ลืมรหัสผ่าน" link -->
           <label class="flex items-center cursor-pointer">
-            <input type="checkbox" v-model="rememberMe" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+            <input type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
             <span class="ml-2 text-sm text-gray-600">จดจำฉัน</span>
           </label>
 
-          <!-- #2: Submit button with hover effect -->
+          <!-- #5: Info (forgot / create account) -->
+          <div
+            v-if="infoMsg"
+            class="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800"
+            role="status"
+          >
+            <AlertCircle class="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{{ infoMsg }}</span>
+          </div>
+
           <button
             type="submit"
             :disabled="loading"
-            class="w-full py-3 text-white font-medium rounded-xl transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 cursor-pointer"
+            class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 disabled:opacity-50"
             style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);"
           >
-            <Loader2 v-if="loading" class="w-5 h-5 animate-spin" />
+            <Loader2 v-if="loading" class="h-5 w-5 animate-spin" />
             {{ loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ' }}
           </button>
+
+          <p class="text-center text-sm text-gray-600">
+            ยังไม่มีบัญชี?
+            <button
+              type="button"
+              class="cursor-pointer font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              @click="showAccountHelp('register')"
+            >
+              สร้างบัญชีใหม่
+            </button>
+          </p>
         </form>
       </div>
     </div>
@@ -105,10 +131,21 @@ const form = reactive({ username: '', password: '' })
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMsg = ref('')
+const infoMsg = ref('')
 const rememberMe = ref(false)
+
+function showAccountHelp(kind) {
+  errorMsg.value = ''
+  if (kind === 'forgot') {
+    infoMsg.value = 'หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน'
+    return
+  }
+  infoMsg.value = 'การสร้างบัญชีใหม่ทำโดยผู้ดูแลระบบเท่านั้น กรุณาติดต่อผู้ดูแลเพื่อขอสิทธิ์เข้าใช้งาน'
+}
 
 async function handleLogin() {
   errorMsg.value = ''
+  infoMsg.value = ''
   loading.value = true
   try {
     await auth.login({ username: form.username, password: form.password })
