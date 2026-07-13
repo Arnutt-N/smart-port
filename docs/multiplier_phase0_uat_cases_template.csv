@@ -1,11 +1,11 @@
 case_id,personnel_ref,province,district,service_start_date,service_end_date,expected_eligible_start_date,expected_eligible_end_date,expected_service_days,expected_eligible_days,expected_effective_days,expected_bonus_days,expected_net_years,expected_net_months,expected_net_days,excel_source_ref,verified_by,verified_date,notes
-TC-001,Example clamp start,ยะลา,,2004-01-01,2004-02-10,2004-01-26,2004-02-10,41,16,32,16,0,1,2,TODO,TODO,TODO,Starts before effective period
-TC-002,Example clamp end,ยะลา,,2004-08-01,2004-10-15,2004-08-01,2004-09-30,76,61,122,61,0,4,2,TODO,TODO,TODO,Ends after effective period
-TC-003,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-004,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-005,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-006,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-007,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-008,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-009,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
-TC-010,TODO real case,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,TODO,HR Excel case
+TC-001,Example clamp start,ยะลา,,2004-01-01,2004-02-10,2004-01-26,2004-02-10,41,16,32,16,0,1,2,TEST_SEED: synthetic clamp start,TEST_SEED,2026-07-13,Starts before effective period
+TC-002,Example clamp end,ยะลา,,2004-08-01,2004-10-15,2004-08-01,2004-09-30,76,61,122,61,0,4,2,TEST_SEED: synthetic clamp end,TEST_SEED,2026-07-13,Ends after effective period
+TC-003,TEST full month Yala,ยะลา,,2004-02-01,2004-02-29,2004-02-01,2004-02-29,29,29,58,29,0,1,28,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Inside martial period
+TC-004,TEST Thepha,สงขลา,เทพา,2004-03-01,2004-03-31,2004-03-01,2004-03-31,31,31,62,31,0,2,2,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Songkhla district
+TC-005,TEST Khuan Don,สตูล,ควนโดน,2004-04-01,2004-04-10,2004-04-01,2004-04-10,10,10,20,10,0,0,20,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Satun district
+TC-006,TEST clamp start Chana,สงขลา,จะนะ,2004-01-01,2004-01-31,2004-01-26,2004-01-31,31,6,12,6,0,0,12,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Clamp start district
+TC-007,TEST clamp end Pattani,ปัตตานี,,2004-09-15,2004-10-10,2004-09-15,2004-09-30,26,16,32,16,0,1,2,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Clamp end province
+TC-008,TEST emergency Yala,ยะลา,,2005-08-01,2005-08-31,2005-08-01,2005-08-31,31,31,62,31,0,2,2,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Emergency decree period only
+TC-009,TEST Narathiwat,นราธิวาส,,2004-05-01,2004-05-30,2004-05-01,2004-05-30,30,30,60,30,0,2,0,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Inside martial period
+TC-010,TEST Saba Yoi,สงขลา,สะบ้าย้อย,2004-06-01,2004-06-15,2004-06-01,2004-06-15,15,15,30,15,0,1,0,TEST_SEED: synthetic,TEST_SEED,2026-07-13,Songkhla district
