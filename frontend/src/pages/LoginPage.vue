@@ -68,11 +68,11 @@
             </div>
           </div>
 
-          <!-- spacing like decoration-core: sibling of password under form space-y-5 (20px) -->
-          <div class="flex items-center justify-between gap-3">
-            <label class="flex cursor-pointer items-center">
+          <!-- spacing like jsk-app: space-y-5 (20px) + submit mt-4 (16px) => 36px to button -->
+          <div class="flex items-center justify-between gap-3 px-1">
+            <label class="flex cursor-pointer items-center gap-2.5">
               <input type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-              <span class="ml-2 text-sm text-gray-600">จดจำฉัน</span>
+              <span class="text-sm text-gray-600">จดจำฉัน</span>
             </label>
             <button
               type="button"
@@ -96,7 +96,7 @@
           <button
             type="submit"
             :disabled="loading"
-            class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 disabled:opacity-50"
+            class="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 disabled:opacity-50"
             style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);"
           >
             <Loader2 v-if="loading" class="h-5 w-5 animate-spin" />
