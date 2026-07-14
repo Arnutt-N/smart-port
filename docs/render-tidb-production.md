@@ -18,8 +18,9 @@ The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port
 - `smartport-backend`
   - Type: Web Service
   - Runtime: Docker
-  - Root Directory: `backend`
-  - Dockerfile: `backend/Dockerfile`
+  - Root Directory: *(repo root — leave empty)* — Dockerfile must see both `backend/` and `database/`
+  - Dockerfile Path: `./backend/Dockerfile`
+  - Docker Context: `.` (repository root; matches `docker-compose.yaml`)
   - Health Check Path: `/`
 
 ## 2. Required backend environment variables
@@ -99,15 +100,20 @@ New incremental SQL files must use the `NN-description.sql` naming pattern under
 If you are updating the existing services instead of recreating them from the Blueprint:
 
 1. Open Render Dashboard.
-2. Edit `smartport-backend` environment variables.
-3. Add or correct all TiDB values listed above.
-4. Redeploy `smartport-backend`.
-5. Edit `smart-port` environment variables.
-6. Set `VITE_API_URL=/api`.
-7. Add static site rewrite rules:
+2. Edit `smartport-backend` **Build & Deploy** settings:
+   - Root Directory: clear / leave empty (repo root)
+   - Dockerfile Path: `./backend/Dockerfile`
+   - Docker Context: `.`
+   - If Root Directory stays `backend`, the build context is empty and deploy fails with `"/backend/composer.json": not found`.
+3. Edit `smartport-backend` environment variables.
+4. Add or correct all TiDB values listed above.
+5. Redeploy `smartport-backend`.
+6. Edit `smart-port` environment variables.
+7. Set `VITE_API_URL=/api`.
+8. Add static site rewrite rules:
    - Rewrite `/api/*` -> `https://smartport-backend.onrender.com/*`
    - Rewrite `/*` -> `/index.html`
-8. Redeploy `smart-port`.
+9. Redeploy `smart-port`.
 
 Important:
 

@@ -25,9 +25,11 @@ services:
     name: smartport-backend
     runtime: docker
     branch: main
-    rootDir: backend
-    dockerfilePath: Dockerfile
-    dockerContext: ..
+    # No rootDir: Dockerfile needs both backend/ and database/ (same as docker-compose.yaml).
+    # With rootDir: backend, Render hides sibling dirs → empty context ("transferring context: 2B")
+    # and COPY backend/... / database/... fail with "not found".
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
     healthCheckPath: /
     buildFilter:
       paths:
