@@ -44,7 +44,7 @@ function handleAuth(PDO $pdo, string $method, array $path): void
     }
 
     http_response_code(404);
-    echo json_encode(['error' => 'Not found']);
+    echo json_encode(['error' => 'ไม่พบ endpoint การยืนยันตัวตน']);
 }
 
 /**
