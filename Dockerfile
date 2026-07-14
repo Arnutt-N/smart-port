@@ -1,7 +1,5 @@
-# Smart Port backend — build context = backend/ directory.
-# Used by Render when Root Directory is "backend" and Docker Context is "." (not "..").
-# Migrations are not copied here (database/ is outside this context); TiDB schema is
-# expected to exist already. Set RUN_MIGRATIONS=0. For full migration bundle use repo-root Dockerfile.
+# Smart Port backend — build from repository root (docker-compose, Render with empty Root Directory).
+# Context must include backend/ and database/ (see docker-compose.yaml).
 # =========================================================================
 # STAGE 1: Composer Dependencies Stage
 # =========================================================================
@@ -9,7 +7,7 @@ FROM composer:2.7 AS vendor
 
 WORKDIR /app
 
-COPY composer.json composer.lock* ./
+COPY backend/composer.json backend/composer.lock* ./
 
 RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optimize-autoloader --ignore-platform-req=ext-gd
 
@@ -34,15 +32,16 @@ opcache.revalidate_freq=0" > /usr/local/etc/php/conf.d/opcache.ini
 
 WORKDIR /var/www/html
 
-COPY . .
+COPY backend/ .
+COPY database/ /var/www/database/
 COPY --from=vendor /app/vendor/ ./vendor/
 
-RUN mkdir -p /var/www/html/uploads /var/www/html/storage/rate_limits /var/www/database \
+RUN mkdir -p /var/www/html/uploads /var/www/html/storage/rate_limits \
     && chown -R www-data:www-data /var/www/html/uploads /var/www/html/storage \
     && chmod +x /var/www/html/docker-entrypoint.sh
 
 ENV MIGRATIONS_DIR=/var/www/database
-ENV RUN_MIGRATIONS=0
+ENV RUN_MIGRATIONS=1
 
 RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL MYSQL_SSL_CA JWT_SECRET" \
     >> /etc/apache2/conf-enabled/passenv.conf

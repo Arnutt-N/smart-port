@@ -18,10 +18,14 @@ The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port
 - `smartport-backend`
   - Type: Web Service
   - Runtime: Docker
-  - Root Directory: *(repo root — leave empty)* — Dockerfile must see both `backend/` and `database/`
-  - Dockerfile Path: `./backend/Dockerfile`
-  - Docker Context: `.` (repository root; matches `docker-compose.yaml`)
+  - Root Directory: `backend`
+  - Dockerfile Path: `./backend/Dockerfile` (relative to **repository root**, not Root Directory)
+  - Docker Context: `.` (meaning the `backend/` folder — **never** `..`)
   - Health Check Path: `/`
+
+  If Docker Context is `..`, Render sends an empty build context (`transferring context: 2B`) and the build fails with `"/backend/composer.json": not found`. The `backend/Dockerfile` uses paths relative to the `backend/` folder (`COPY composer.json`, `COPY . .`).
+
+  Local `docker compose` uses the repo-root [`Dockerfile`](../../Dockerfile) so both `backend/` and `database/` migrations are included.
 
 ## 2. Required backend environment variables
 
@@ -101,10 +105,10 @@ If you are updating the existing services instead of recreating them from the Bl
 
 1. Open Render Dashboard.
 2. Edit `smartport-backend` **Build & Deploy** settings:
-   - Root Directory: clear / leave empty (repo root)
+   - Root Directory: `backend`
    - Dockerfile Path: `./backend/Dockerfile`
-   - Docker Context: `.`
-   - If Root Directory stays `backend`, the build context is empty and deploy fails with `"/backend/composer.json": not found`.
+   - Docker Context: `.` (**must not** be `..`)
+   - If the log shows `transferring context: 2B` or `"/backend/composer.json": not found`, Docker Context is wrong.
 3. Edit `smartport-backend` environment variables.
 4. Add or correct all TiDB values listed above.
 5. Redeploy `smartport-backend`.
