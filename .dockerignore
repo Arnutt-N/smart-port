@@ -47,12 +47,13 @@ tests/
 coverage/
 phpunit.xml
 
-# Ignore SQL dumps and backups (init ใน docker-compose)
+# Ignore SQL dumps and backups — keep repo migrations for backend Docker image
 *.sql
+!database/
+!database/**
 *.sql.gz
 backups/
 
 # Ignore Docker-related files (ไม่ copy เข้า image)
-Dockerfile
 docker-compose.yml
 .dockerignore
