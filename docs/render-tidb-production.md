@@ -137,7 +137,18 @@ curl -i \
 
 Expected result: JSON token payload, not a database connection error.
 
-3. Open the frontend:
+3. Confirm change-password route is deployed (no token needed):
+
+```bash
+curl -i -X POST https://smartport-backend.onrender.com/auth/change-password \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Expected result: **`401`** with `{"error":"Unauthorized"}`.  
+If you get **`404`**, the live backend image is behind `main` — redeploy `smartport-backend` (Deploy Latest) before testing `/change-password` in the UI.
+
+4. Open the frontend:
 
 ```text
 https://smart-port.onrender.com/
@@ -148,6 +159,7 @@ Expected result:
 - no white blank screen during first route load
 - login page renders
 - login succeeds if TiDB env is correct
+- after forced password change, `POST /auth/change-password` succeeds (not 404)
 
 ## 7. Current production failure mode
 
