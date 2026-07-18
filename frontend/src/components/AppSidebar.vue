@@ -148,8 +148,8 @@ const menuItems = computed(() => [
       ]
     : []),
   { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
-  { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/analytics' },
-  { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/analytics' },
+  { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/work-results' },
+  { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/awards' },
 ])
 
 function toggleSubmenu(id) {
