@@ -42,10 +42,28 @@ const routes = [
         component: () => import('@/pages/ProbationEndPage.vue'),
       },
       {
+        path: 'profile',
+        name: 'my-profile',
+        component: () => import('@/pages/PlaceholderPage.vue'),
+        props: { title: 'โปรไฟล์ของฉัน', description: 'โปรไฟล์ของฉัน - กำลังพัฒนา' },
+      },
+      {
         path: 'profile/:id',
         name: 'profile',
         component: () => import('@/pages/PlaceholderPage.vue'),
         props: (route) => ({ title: 'โปรไฟล์', description: `กำลังโหลดโปรไฟล์ ID: ${route.params.id}` }),
+      },
+      {
+        path: 'work-results',
+        name: 'work-results',
+        component: () => import('@/pages/PlaceholderPage.vue'),
+        props: { title: 'ผลงานและข้อเสนอ', description: 'ผลงานและข้อเสนอ - กำลังพัฒนา' },
+      },
+      {
+        path: 'awards',
+        name: 'awards',
+        component: () => import('@/pages/PlaceholderPage.vue'),
+        props: { title: 'รางวัล/ความดีความชอบ', description: 'รางวัล/ความดีความชอบ - กำลังพัฒนา' },
       },
       {
         path: 'analytics',

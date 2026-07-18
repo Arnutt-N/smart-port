@@ -44,7 +44,7 @@
           <!-- Menu items -->
           <div class="py-1">
             <button
-              @click="navigateTo('/profile/1')"
+              @click="navigateTo('/profile')"
               class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <User class="w-4 h-4 text-gray-400" />
@@ -101,6 +101,9 @@ const pageTitles = {
   '/position-compare': 'การเทียบตำแหน่ง',
   '/royal-decorations': 'เครื่องราชอิสริยาภรณ์',
   '/retirement-report': 'รายงานผู้เกษียณ',
+  '/work-results': 'ผลงานและข้อเสนอ',
+  '/awards': 'รางวัล/ความดีความชอบ',
+  '/profile': 'โปรไฟล์ของฉัน',
 }
 
 const pageTitle = computed(() => {
