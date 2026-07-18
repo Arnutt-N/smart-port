@@ -6,7 +6,7 @@ name: CI
 on:
   workflow_dispatch:
   # push:
-  #   branches: [main, feat/backend-apis, feat/frontend-vue3]
+  #   branches: [main]
   #   paths-ignore: ['**.md', 'docs/**', 'project-log-md/**', '.claude/**']
   # pull_request:
   #   branches: [main]
@@ -49,6 +49,63 @@ jobs:
           name: frontend-dist
           path: frontend/dist
           retention-days: 7
+
+  backend-tests:
+    name: Backend PHPUnit (Unit + Integration)
+    runs-on: ubuntu-latest
+    # หมายเหตุ: ใช้ docker run แทน services: เพราะ GH Actions สตาร์ท service containers
+    # ก่อน checkout — mount init SQL จาก repo ไม่ได้; job นี้เพิ่ม ~3-4 นาที/run ตอนเปิด auto-trigger
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MySQL with schema init (mirror docker-compose.yaml)
+        run: |
+          docker run -d --name ci-mysql -p 3306:3306 \
+            -e MYSQL_ROOT_PASSWORD=rootpassword \
+            -e MYSQL_DATABASE=civil_service_mgmt \
+            -v "$PWD/mysql_database_design.sql:/docker-entrypoint-initdb.d/01-schema.sql" \
+            -v "$PWD/photo_management_system.sql:/docker-entrypoint-initdb.d/02-data.sql" \
+            -v "$PWD/database/03-personnel-stubs.sql:/docker-entrypoint-initdb.d/03-personnel-stubs.sql" \
+            -v "$PWD/database/04-career-path.sql:/docker-entrypoint-initdb.d/04-career-path.sql" \
+            -v "$PWD/database/05-probation.sql:/docker-entrypoint-initdb.d/05-probation.sql" \
+            -v "$PWD/database/06-seed-data.sql:/docker-entrypoint-initdb.d/06-seed-data.sql" \
+            -v "$PWD/database/07-add-education-level.sql:/docker-entrypoint-initdb.d/07-add-education-level.sql" \
+            -v "$PWD/database/08-career-path-v11.sql:/docker-entrypoint-initdb.d/08-career-path-v11.sql" \
+            -v "$PWD/database/09-auth-users.sql:/docker-entrypoint-initdb.d/09-auth-users.sql" \
+            -v "$PWD/database/10-import-log.sql:/docker-entrypoint-initdb.d/10-import-log.sql" \
+            -v "$PWD/database/11-import-constraints.sql:/docker-entrypoint-initdb.d/11-import-constraints.sql" \
+            -v "$PWD/database/12-import-log-fk.sql:/docker-entrypoint-initdb.d/12-import-log-fk.sql" \
+            -v "$PWD/database/13-multiplier-time-counting.sql:/docker-entrypoint-initdb.d/13-multiplier-time-counting.sql" \
+            -v "$PWD/database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql" \
+            -v "$PWD/database/15-api-rate-limit-hits.sql:/docker-entrypoint-initdb.d/15-api-rate-limit-hits.sql" \
+            -v "$PWD/backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/16-audit-log.sql" \
+            mysql:8.0
+
+      - name: Wait for schema init to finish
+        run: |
+          for i in $(seq 1 60); do
+            if docker exec ci-mysql mysql -uroot -prootpassword --silent \
+              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+              echo "schema ready"; exit 0
+            fi
+            sleep 5
+          done
+          echo "schema init timed out"; docker logs ci-mysql; exit 1
+
+      - name: Build PHPUnit test image
+        run: docker build -t smartport-phpunit:ci -f backend/tests/Dockerfile.test backend/tests
+
+      - name: Run PHPUnit (unit + integration)
+        run: |
+          docker run --rm --network host \
+            -e MYSQL_HOST=127.0.0.1 \
+            -e MYSQL_DATABASE=civil_service_mgmt \
+            -e MYSQL_USER=root \
+            -e MYSQL_PASSWORD=rootpassword \
+            -v "$PWD/backend:/app" -w /app smartport-phpunit:ci \
+            sh -c 'composer install --no-interaction --no-progress --ignore-platform-req=ext-gd 2>/dev/null \
+              || composer update --no-interaction --no-progress --ignore-platform-req=ext-gd; \
+              php vendor/bin/phpunit'
 
   docker-build:
     name: Docker Build Check
