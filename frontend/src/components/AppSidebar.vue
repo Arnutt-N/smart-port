@@ -18,52 +18,63 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="mt-8 px-4 space-y-2 flex-1">
-      <template v-for="item in menuItems" :key="item.id">
-        <!-- Item with submenu -->
-        <div v-if="item.children">
-          <button
-            @click="toggleSubmenu(item.id)"
-            class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer"
-            :class="isParentActive(item)
-              ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
-              : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
-          >
-            <component :is="item.icon" class="w-5 h-5 mr-3" />
-            <span class="text-sm font-medium flex-1">{{ item.label }}</span>
-            <ChevronRight
-              class="w-4 h-4 transition-transform duration-200"
-              :class="{ 'rotate-90': openSubmenus.has(item.id) }"
-            />
-          </button>
-          <div v-show="openSubmenus.has(item.id)" class="ml-8 mt-2 space-y-1">
-            <RouterLink
-              v-for="child in item.children"
-              :key="child.id"
-              :to="child.to"
-              class="w-full flex items-center px-3 py-2 text-left rounded-lg transition-all duration-200"
-              :class="route.path === child.to
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'"
-            >
-              <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
-              <span class="text-xs font-medium">{{ child.label }}</span>
-            </RouterLink>
-          </div>
+    <nav class="px-4 flex-1">
+      <template v-for="(section, sIdx) in menuSections" :key="section.id">
+        <div
+          class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2"
+          :class="sIdx === 0 ? 'mt-2' : 'mt-6'"
+        >
+          {{ section.label }}
         </div>
 
-        <!-- Simple item -->
-        <RouterLink
-          v-else
-          :to="item.to"
-          class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer"
-          :class="route.path === item.to
-            ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
-            : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
-        >
-          <component :is="item.icon" class="w-5 h-5 mr-3" />
-          <span class="text-sm font-medium">{{ item.label }}</span>
-        </RouterLink>
+        <div class="space-y-2 mb-2">
+          <template v-for="item in section.items" :key="item.id">
+            <!-- Item with submenu -->
+            <div v-if="item.children">
+              <button
+                @click="toggleSubmenu(item.id)"
+                class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer"
+                :class="isParentActive(item)
+                  ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+                  : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
+              >
+                <component :is="item.icon" class="w-5 h-5 mr-3" />
+                <span class="text-sm font-medium flex-1">{{ item.label }}</span>
+                <ChevronRight
+                  class="w-4 h-4 transition-transform duration-200"
+                  :class="{ 'rotate-90': openSubmenus.has(item.id) }"
+                />
+              </button>
+              <div v-show="openSubmenus.has(item.id)" class="ml-8 mt-2 space-y-1">
+                <RouterLink
+                  v-for="child in item.children"
+                  :key="child.id"
+                  :to="child.to"
+                  class="w-full flex items-center px-3 py-2 text-left rounded-lg transition-all duration-200"
+                  :class="route.path === child.to
+                    ? 'bg-blue-500/10 text-blue-400 font-medium'
+                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'"
+                >
+                  <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
+                  <span class="text-xs font-medium">{{ child.label }}</span>
+                </RouterLink>
+              </div>
+            </div>
+
+            <!-- Simple item -->
+            <RouterLink
+              v-else
+              :to="item.to"
+              class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer"
+              :class="route.path === item.to
+                ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+                : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
+            >
+              <component :is="item.icon" class="w-5 h-5 mr-3" />
+              <span class="text-sm font-medium">{{ item.label }}</span>
+            </RouterLink>
+          </template>
+        </div>
       </template>
     </nav>
 
@@ -109,47 +120,57 @@ const route = useRoute()
 const auth = useAuthStore()
 const openSubmenus = reactive(new Set())
 
-const menuItems = computed(() => [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
-  { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, to: '/probation-end' },
+const menuSections = computed(() => [
   {
-    id: 'candidates', label: 'Candidate Lists', icon: Users,
-    children: [
-      { id: 'overview', label: 'ภาพรวม', to: '/candidates/overview' },
-      { id: 'general', label: 'ทั่วไป', to: '/candidates/general' },
-      { id: 'academic', label: 'วิชาการ', to: '/candidates/academic' },
-      { id: 'support', label: 'อำนวยการ', to: '/candidates/support' },
-      { id: 'management', label: 'บริหาร', to: '/candidates/management' },
+    id: 'overview',
+    label: 'ภาพรวม',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
     ],
   },
   {
-    id: 'time-extra', label: 'การนับเวลาเพิ่มเติม', icon: Clock,
-    children: [
-      { id: 'time-counting', label: 'การนับเกื้อกูล', to: '/time-counting' },
-      { id: 'time-multiplier', label: 'การนับทวีคูณ', to: '/time-multiplier' },
-      { id: 'time-difference', label: 'การนับแตกต่าง', to: '/time-difference' },
-      { id: 'position-compare', label: 'การเทียบตำแหน่ง', to: '/position-compare' },
+    id: 'main',
+    label: 'MAIN',
+    items: [
+      { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, to: '/probation-end' },
+      {
+        id: 'candidates', label: 'Candidate Lists', icon: Users,
+        children: [
+          { id: 'overview', label: 'ภาพรวม', to: '/candidates/overview' },
+          { id: 'general', label: 'ทั่วไป', to: '/candidates/general' },
+          { id: 'academic', label: 'วิชาการ', to: '/candidates/academic' },
+          { id: 'support', label: 'อำนวยการ', to: '/candidates/support' },
+          { id: 'management', label: 'บริหาร', to: '/candidates/management' },
+        ],
+      },
+      {
+        id: 'time-extra', label: 'การนับเวลาเพิ่มเติม', icon: Clock,
+        children: [
+          { id: 'time-counting', label: 'การนับเกื้อกูล', to: '/time-counting' },
+          { id: 'time-multiplier', label: 'การนับทวีคูณ', to: '/time-multiplier' },
+          { id: 'time-difference', label: 'การนับแตกต่าง', to: '/time-difference' },
+          { id: 'position-compare', label: 'การเทียบตำแหน่ง', to: '/position-compare' },
+        ],
+      },
+      { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },
+      { id: 'retirement-report', label: 'รายงานผู้เกษียณ', icon: UserMinus, to: '/retirement-report' },
+      { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
+      { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/work-results' },
+      { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/awards' },
     ],
   },
-  { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },
-  { id: 'retirement-report', label: 'รายงานผู้เกษียณ', icon: UserMinus, to: '/retirement-report' },
-  // เมนู admin เท่านั้น — นำเข้าข้อมูล + จัดการผู้ใช้ + ประวัติการเปลี่ยนแปลง + กลุ่มแอดมิน
   ...(auth.user?.role === 'admin'
-    ? [
-        { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
-        { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
-        { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
-        {
-          id: 'admin-settings', label: 'แอดมิน', icon: Shield,
-          children: [
-            { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', to: '/settings/special-areas' },
-          ],
-        },
-      ]
+    ? [{
+        id: 'admin',
+        label: 'ADMIN',
+        items: [
+          { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
+          { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
+          { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
+          { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', icon: Shield, to: '/settings/special-areas' },
+        ],
+      }]
     : []),
-  { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
-  { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/work-results' },
-  { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/awards' },
 ])
 
 function toggleSubmenu(id) {

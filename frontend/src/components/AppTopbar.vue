@@ -48,14 +48,22 @@
               class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <User class="w-4 h-4 text-gray-400" />
-              โปรไฟล์ของฉัน
+              โปรไฟล์
             </button>
             <button
-              @click="navigateTo('/admin')"
+              @click="navigateTo('/change-password')"
               class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <Settings class="w-4 h-4 text-gray-400" />
               ตั้งค่า
+            </button>
+            <button
+              v-if="auth.isAdmin"
+              @click="navigateTo('/users')"
+              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <Shield class="w-4 h-4 text-gray-400" />
+              ผู้ดูแล
             </button>
           </div>
 
@@ -79,7 +87,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
-import { Menu, Home, ChevronDown, User, Settings, LogOut } from 'lucide-vue-next'
+import { Menu, Home, ChevronDown, User, Settings, Shield, LogOut } from 'lucide-vue-next'
 
 defineEmits(['toggle-sidebar'])
 
