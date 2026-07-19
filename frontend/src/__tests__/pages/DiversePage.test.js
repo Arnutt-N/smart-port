@@ -94,7 +94,7 @@ describe('DiversePage', () => {
     await wrapper.vm.handleDelete()
 
     expect(mockRemove).toHaveBeenCalledWith(5)
-    expect(wrapper.vm.showDeleteDialog).toBe(false)
+    expect(wrapper.vm.showDeleteConfirm).toBe(false)
     expect(mockFetchList).toHaveBeenCalled()
   })
 })
