@@ -338,8 +338,8 @@
     </div>
 
     <!-- Delete Confirmation Dialog -->
-    <div v-if="showDeleteDialog" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="fixed inset-0 bg-black bg-opacity-50" @click="showDeleteDialog = false"></div>
+    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="fixed inset-0 bg-black bg-opacity-50" @click="showDeleteConfirm = false"></div>
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
         <div class="text-center">
           <AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
@@ -349,7 +349,7 @@
           </p>
           <div class="flex justify-center gap-3">
             <button
-              @click="showDeleteDialog = false"
+              @click="showDeleteConfirm = false"
               class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               ยกเลิก
@@ -491,7 +491,7 @@ function selectPersonnel(person) {
 }
 
 // Delete state
-const showDeleteDialog = ref(false)
+const showDeleteConfirm = ref(false)
 const deletingRow = ref(null)
 
 // Fetch data
@@ -602,7 +602,7 @@ async function handleSubmit() {
 // Delete actions
 function confirmDelete(row) {
   deletingRow.value = row
-  showDeleteDialog.value = true
+  showDeleteConfirm.value = true
 }
 
 async function handleDelete() {
@@ -611,7 +611,7 @@ async function handleDelete() {
   try {
     await remove(deletingRow.value.experienceId)
     ui.showToast('ลบรายการสำเร็จ', 'success')
-    showDeleteDialog.value = false
+    showDeleteConfirm.value = false
     deletingRow.value = null
     await fetchData()
   } catch (err) {
