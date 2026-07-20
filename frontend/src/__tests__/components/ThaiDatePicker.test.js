@@ -72,4 +72,28 @@ describe('ThaiDatePicker', () => {
     await wrapper.find('[aria-label="เลือกปี"]').trigger('click')
     expect(wrapper.find('[aria-label="พ.ศ. 2569"]').exists()).toBe(true)
   })
+
+  it('closes calendar when Escape is pressed', async () => {
+    const wrapper = mount(ThaiDatePicker, {
+      props: { modelValue: '2026-06-16' },
+      attachTo: document.body,
+    })
+    await wrapper.find(sel.openCal).trigger('click')
+    expect(wrapper.find('[aria-label="20 มิถุนายน 2569"]').exists()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[aria-label="20 มิถุนายน 2569"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('navigates months with previous/next controls', async () => {
+    const wrapper = mount(ThaiDatePicker, { props: { modelValue: '2026-06-16' } })
+    await wrapper.find(sel.openCal).trigger('click')
+
+    await wrapper.find('[aria-label="เดือนก่อนหน้า"]').trigger('click')
+    await wrapper.find('[aria-label="เดือนถัดไป"]').trigger('click')
+    expect(wrapper.find(sel.openCal).exists()).toBe(true)
+  })
 })

@@ -269,4 +269,39 @@ describe('DiversePage', () => {
     expect(wrapper.vm.showPersonnelDropdown).toBe(true)
     vi.useRealTimers()
   })
+
+  it('personnel search clears results when query is too short', async () => {
+    vi.useFakeTimers()
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.personnelResults = [{ personnel_id: 1 }]
+    wrapper.vm.showPersonnelDropdown = true
+    wrapper.vm.personnelSearch = 'ส'
+    wrapper.vm.onPersonnelSearch()
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(wrapper.vm.personnelResults).toEqual([])
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('personnel search swallows API errors', async () => {
+    vi.useFakeTimers()
+    mockApiGet.mockRejectedValue(new Error('down'))
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.personnelSearch = 'สมชาย'
+    wrapper.vm.onPersonnelSearch()
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(wrapper.vm.personnelResults).toEqual([])
+    vi.useRealTimers()
+  })
+
+  it('handleDelete no-ops when deletingRow is null', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.deletingRow = null
+    await wrapper.vm.handleDelete()
+    expect(mockRemove).not.toHaveBeenCalled()
+  })
 })

@@ -155,4 +155,36 @@ describe('useCandidates', () => {
       department: 'กองบริหาร',
     })
   })
+
+  it('maps special backend statuses and remaining-day thresholds', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: [
+        { personnel_id: 1, full_name: 'A', status: 'promoting', remaining_days: 5 },
+        { personnel_id: 2, full_name: 'B', status: 'check_data', remaining_days: 5 },
+        { personnel_id: 3, full_name: 'C', status: 'not_yet', remaining_days: null },
+        { personnel_id: 4, full_name: 'D', status: 'not_yet', remaining_days: 0 },
+        { personnel_id: 5, full_name: 'E', status: 'not_yet', remaining_days: -2 },
+      ],
+      pagination: {},
+    })
+
+    const { fetchByLevel } = useCandidates()
+    const result = await fetchByLevel('O2')
+
+    expect(result.data.map((r) => r.status)).toEqual([
+      'PROMOTING',
+      'check_data',
+      'NOT_MET',
+      'MET',
+      'EXCEEDED',
+    ])
+  })
+
+  it('returns empty data when API omits data field', async () => {
+    mockGet.mockResolvedValue({ success: true, pagination: {} })
+    const { fetchByLevel } = useCandidates()
+    const result = await fetchByLevel('O2')
+    expect(result.data).toEqual([])
+  })
 })

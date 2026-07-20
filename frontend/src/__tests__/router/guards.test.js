@@ -68,6 +68,24 @@ describe('router auth guards', () => {
     await router.push('/import')
     expect(router.currentRoute.value.path).toBe('/import')
   })
+
+  it('redirects away from change-password when password change is not required', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'operator' }
+
+    await router.push('/change-password')
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
+
+  it('redirects authenticated users away from login', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'operator' }
+
+    await router.push('/login')
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
 })
 
 describe('router candidate paths', () => {
@@ -85,6 +103,17 @@ describe('router candidate paths', () => {
 
   it('does not expose legacy /supportive quick-action path', async () => {
     await router.push('/supportive')
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
+
+  it('redirects legacy time-multiplier/areas to settings for admin', async () => {
+    mockAuth.user = { role: 'admin' }
+    await router.push('/time-multiplier/areas')
+    expect(router.currentRoute.value.path).toBe('/settings/special-areas')
+  })
+
+  it('catch-all unknown paths redirect to dashboard', async () => {
+    await router.push('/this-path-does-not-exist')
     expect(router.currentRoute.value.path).toBe('/dashboard')
   })
 })
