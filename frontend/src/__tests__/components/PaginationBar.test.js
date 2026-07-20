@@ -51,4 +51,37 @@ describe('PaginationBar', () => {
     })
     expect(wrapper.text()).toContain('0 รายการ')
   })
+
+  it('emits update:offset when previous is clicked', async () => {
+    const wrapper = mount(PaginationBar, {
+      props: { total: 50, limit: 10, offset: 20 },
+    })
+    const prevBtn = wrapper.findAll('button')[0]
+    await prevBtn.trigger('click')
+    expect(wrapper.emitted('update:offset')[0]).toEqual([10])
+  })
+
+  it('emits update:offset when a page number is clicked', async () => {
+    const wrapper = mount(PaginationBar, { props: defaultProps })
+    const page3 = wrapper.findAll('button').find((b) => b.text() === '3')
+    await page3.trigger('click')
+    expect(wrapper.emitted('update:offset')[0]).toEqual([20])
+  })
+
+  it('shows ellipsis for many pages when not near edges', () => {
+    const wrapper = mount(PaginationBar, {
+      props: { total: 200, limit: 10, offset: 100 },
+    })
+    expect(wrapper.text()).toContain('...')
+    expect(wrapper.text()).toContain('1')
+    expect(wrapper.text()).toContain('20')
+  })
+
+  it('highlights the current page button', () => {
+    const wrapper = mount(PaginationBar, {
+      props: { total: 50, limit: 10, offset: 20 },
+    })
+    const page3 = wrapper.findAll('button').find((b) => b.text() === '3')
+    expect(page3.classes()).toContain('bg-blue-500')
+  })
 })

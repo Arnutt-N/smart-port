@@ -49,11 +49,22 @@ const sampleRow = {
 async function mountPage({ role = 'admin' } = {}) {
   setActivePinia(createPinia())
   const auth = useAuthStore()
-  auth.user = { user_id: 1, role }
+  auth.user = { id: 1, role }
   const wrapper = mount(EquivalencePage)
   await vi.waitFor(() => expect(mockFetchList).toHaveBeenCalled())
   await wrapper.vm.$nextTick()
   return wrapper
+}
+
+function fillValidForm(wrapper) {
+  wrapper.vm.formData = {
+    personnel_id: 3,
+    actual_position: 'นักทรัพยากรบุคคลชำนาญการ',
+    equivalent_type: 'ACADEMIC',
+    request_start_date: '2020-01-01',
+    request_end_date: '2021-12-31',
+    approval_order_ref: '',
+  }
 }
 
 describe('EquivalencePage', () => {
@@ -73,6 +84,29 @@ describe('EquivalencePage', () => {
     expect(wrapper.text()).toContain('นักทรัพยากรบุคคลชำนาญการ')
   })
 
+  it('shows error state when fetch fails', async () => {
+    mockFetchList.mockRejectedValueOnce(new Error('network'))
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('network')
+  })
+
+  it('computes status counts from rows when summary is null', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.vm.statusCounts).toEqual({ pending: 1, approved: 0, rejected: 0 })
+  })
+
+  it('uses summary status counts when present', async () => {
+    mockFetchList.mockResolvedValue({
+      success: true,
+      data: [sampleRow],
+      summary: { total: 5, pending_count: 2, approved_count: 2, rejected_count: 1 },
+      pagination: { total: 5, limit: 20, offset: 0 },
+    })
+    const wrapper = await mountPage()
+    expect(wrapper.vm.statusCounts).toEqual({ pending: 2, approved: 2, rejected: 1 })
+    expect(wrapper.vm.totalCount).toBe(5)
+  })
+
   it('blocks save when required form fields are missing', async () => {
     const wrapper = await mountPage()
     wrapper.vm.openCreate()
@@ -82,6 +116,36 @@ describe('EquivalencePage', () => {
 
     expect(mockCreate).not.toHaveBeenCalled()
     expect(wrapper.vm.showModal).toBe(true)
+  })
+
+  it('create success closes modal and refreshes list', async () => {
+    const wrapper = await mountPage()
+    mockCreate.mockResolvedValue({ success: true })
+    mockFetchList.mockClear()
+
+    wrapper.vm.openCreate()
+    fillValidForm(wrapper)
+    await wrapper.vm.handleSave()
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      personnel_id: 3,
+      equivalent_type: 'ACADEMIC',
+    }))
+    expect(wrapper.vm.showModal).toBe(false)
+    expect(mockFetchList).toHaveBeenCalled()
+  })
+
+  it('edit success calls update with equivalence id', async () => {
+    const wrapper = await mountPage()
+    mockUpdate.mockResolvedValue({ success: true })
+
+    wrapper.vm.openEdit(sampleRow)
+    expect(wrapper.vm.formData.actual_position).toBe('นักทรัพยากรบุคคลชำนาญการ')
+    await wrapper.vm.handleSave()
+
+    expect(mockUpdate).toHaveBeenCalledWith(9, expect.objectContaining({
+      personnel_id: 3,
+    }))
   })
 
   it('approve flow sends approved dates for the record', async () => {
@@ -100,6 +164,17 @@ describe('EquivalencePage', () => {
     expect(mockFetchList).toHaveBeenCalled()
   })
 
+  it('approve without dates does not call API', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openApprove(sampleRow)
+    wrapper.vm.approveForm.approved_start_date = ''
+    wrapper.vm.approveForm.approved_end_date = ''
+
+    await wrapper.vm.handleApprove()
+
+    expect(mockApprove).not.toHaveBeenCalled()
+  })
+
   it('reject flow calls reject with the record id', async () => {
     const wrapper = await mountPage()
     mockReject.mockResolvedValue({ success: true })
@@ -109,5 +184,35 @@ describe('EquivalencePage', () => {
 
     expect(mockReject).toHaveBeenCalledWith(9)
     expect(wrapper.vm.showRejectConfirm).toBe(false)
+  })
+
+  it('openView sets viewing record and shows modal', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openView(sampleRow)
+    expect(wrapper.vm.viewingRecord).toEqual(sampleRow)
+    expect(wrapper.vm.showViewModal).toBe(true)
+  })
+
+  it('debounces search and refetches after 300ms', async () => {
+    vi.useFakeTimers()
+    const wrapper = await mountPage()
+    mockFetchList.mockClear()
+
+    wrapper.vm.searchQuery = 'สม'
+    wrapper.vm.onSearchInput()
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(mockFetchList).toHaveBeenCalledWith(expect.objectContaining({ search: 'สม', offset: 0 }))
+    vi.useRealTimers()
+  })
+
+  it('selectPersonnel fills form and closes dropdown', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreate()
+    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
+
+    expect(wrapper.vm.formData.personnel_id).toBe(9)
+    expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
   })
 })

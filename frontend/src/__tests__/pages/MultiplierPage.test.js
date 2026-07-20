@@ -80,7 +80,7 @@ function resolvedData() {
 async function mountPage({ role = 'admin' } = {}) {
   setActivePinia(createPinia())
   const auth = useAuthStore()
-  auth.user = { user_id: 1, role }
+  auth.user = { id: 1, role }
   const wrapper = mount(MultiplierPage, {
     global: { stubs: { RouterLink: RouterLinkStub } },
   })
@@ -89,6 +89,17 @@ async function mountPage({ role = 'admin' } = {}) {
   })
   await wrapper.vm.$nextTick()
   return wrapper
+}
+
+function fillValidForm(wrapper) {
+  wrapper.vm.formData = {
+    personnel_id: 3,
+    area_multiplier_id: 2,
+    start_date: '2020-01-01',
+    end_date: '2020-12-31',
+    proof_reference: 'คส.123/2563',
+    description: '',
+  }
 }
 
 describe('MultiplierPage', () => {
@@ -133,6 +144,68 @@ describe('MultiplierPage', () => {
     expect(wrapper.vm.showModal).toBe(true)
   })
 
+  it('create success closes modal and refreshes list', async () => {
+    const wrapper = await mountPage()
+    mockCreate.mockResolvedValue({ success: true })
+    mockFetchList.mockClear()
+
+    wrapper.vm.openCreateModal()
+    fillValidForm(wrapper)
+    await wrapper.vm.handleSubmit()
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      personnel_id: 3,
+      area_multiplier_id: 2,
+    }))
+    expect(wrapper.vm.showModal).toBe(false)
+    expect(mockFetchList).toHaveBeenCalled()
+  })
+
+  it('edit success calls update with multiplier id', async () => {
+    const wrapper = await mountPage()
+    mockUpdate.mockResolvedValue({ success: true, data: sampleRow })
+
+    wrapper.vm.openEditModal(sampleRow)
+    expect(wrapper.vm.isEditMode).toBe(true)
+    expect(wrapper.vm.editingId).toBe(7)
+    await wrapper.vm.handleSubmit()
+
+    expect(mockUpdate).toHaveBeenCalledWith(7, expect.objectContaining({
+      personnel_id: 3,
+      area_multiplier_id: 2,
+    }))
+  })
+
+  it('rejects end_date before start_date in validation', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.formData = {
+      personnel_id: 3,
+      area_multiplier_id: 2,
+      start_date: '2020-12-31',
+      end_date: '2020-01-01',
+      proof_reference: '',
+      description: '',
+    }
+
+    await wrapper.vm.handleSubmit()
+
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(wrapper.vm.formErrors.end_date).toBe(true)
+  })
+
+  it('shows submitError when create fails', async () => {
+    const wrapper = await mountPage()
+    mockCreate.mockRejectedValue(new Error('บันทึกไม่ได้'))
+    wrapper.vm.openCreateModal()
+    fillValidForm(wrapper)
+
+    await wrapper.vm.handleSubmit()
+
+    expect(wrapper.vm.submitError).toBe('บันทึกไม่ได้')
+    expect(wrapper.vm.showModal).toBe(true)
+  })
+
   it('delete flow calls remove and refreshes the list', async () => {
     const wrapper = await mountPage()
     mockRemove.mockResolvedValue({ success: true })
@@ -144,5 +217,50 @@ describe('MultiplierPage', () => {
     expect(mockRemove).toHaveBeenCalledWith(7)
     expect(mockFetchList).toHaveBeenCalled()
     expect(wrapper.vm.showDeleteConfirm).toBe(false)
+  })
+
+  it('closeDeleteConfirm clears deleting row', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openDeleteConfirm(sampleRow)
+    wrapper.vm.closeDeleteConfirm()
+    expect(wrapper.vm.showDeleteConfirm).toBe(false)
+    expect(wrapper.vm.deletingRow).toBeNull()
+  })
+
+  it('onPageChange updates offset and refetches', async () => {
+    const wrapper = await mountPage()
+    mockFetchList.mockClear()
+    wrapper.vm.onPageChange(20)
+    expect(wrapper.vm.pagination.offset).toBe(20)
+    expect(mockFetchList).toHaveBeenCalled()
+  })
+
+  it('basisTypeLabel and formatNumber helpers work', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.vm.basisTypeLabel('MARTIAL_LAW')).toBe('กฎอัยการศึก')
+    expect(wrapper.vm.basisTypeLabel('EMERGENCY_DECREE')).toBe('พ.ร.ก.ฉุกเฉิน')
+    expect(wrapper.vm.basisTypeLabel('UNKNOWN')).toBe('UNKNOWN')
+    expect(wrapper.vm.formatNumber(1234)).toMatch(/1[,.]?234/)
+  })
+
+  it('Escape key closes modal when open', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    expect(wrapper.vm.showModal).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.showModal).toBe(false)
+  })
+
+  it('selectPersonnel fills form and closes dropdown', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
+
+    expect(wrapper.vm.formData.personnel_id).toBe(9)
+    expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
   })
 })
