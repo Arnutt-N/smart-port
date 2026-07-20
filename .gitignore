@@ -76,6 +76,7 @@ frontend/playwright/.cache/
 # Project specific
 project-bolt
 admin-dashboard-integration-test.html
+smartport/
 
 # Backup files
 *.backup
@@ -101,6 +102,7 @@ secrets/
 
 # Local agent/tool dirs (config/session — อาจมีข้อมูล local ที่ไม่ควร public)
 .claude/
+.kilo/
 .playwright-cli/
 .playwright-mcp/
 
