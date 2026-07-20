@@ -1,8 +1,12 @@
 name: CI
 
 # ⚠️ Auto-trigger ปิดชั่วคราว (GitHub Actions quota ฟรีหมด) — 2026-06-19
-# Verify แทนด้วย local: bash backend/tests/run.sh (backend, Docker) + cd frontend && npm ci && npm test && npm run build
+# Verify แทนด้วย local (ไม่กิน Actions minutes):
+#   1) .\scripts\ci-local.ps1          / bash scripts/ci-local.sh
+#   2) .\scripts\ci-act.ps1            / bash scripts/ci-act.sh   (nektos/act + Docker; ใช้ .actrc)
+#   3) pre-push light gate: .\scripts\install-git-hooks.ps1  แล้ว git push จะรัน frontend vitest
 # เปิดกลับ: คืน push/pull_request block ด้านล่าง (ดู git log ของไฟล์นี้) แล้วลบ workflow_dispatch
+
 on:
   workflow_dispatch:
   # push:

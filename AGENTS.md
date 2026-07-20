@@ -10,6 +10,10 @@
 - `cd frontend && npm test`: run the Vitest suite in `jsdom`.
 - `cd frontend && npm run build`: create the production bundle in `frontend/dist`.
 - `docker build -t smartport-frontend ./frontend` and `docker build -t smartport-backend ./backend`: match CI image checks.
+- **Local CI (no GitHub Actions):** `.\scripts\ci-local.ps1` (Windows) or `bash scripts/ci-local.sh` — frontend test+build, backend PHPUnit via `backend/tests/run.sh`, Docker image builds. Use `-SkipInstall` / `--skip-install` when `node_modules` is already current; `-SkipDocker` / `--skip-docker` for a faster gate.
+- **act (run `ci.yml` locally):** install `nektos/act` (`winget install nektos.act`), Docker running, then `.\scripts\ci-act.ps1` or `-Job frontend-build` (prefer single job first). Config: `.actrc`.
+- **Pre-push hook:** `.\scripts\install-git-hooks.ps1` sets local `core.hooksPath=.githooks` (frontend vitest on push). Skip: `SKIP_PRE_PUSH=1 git push` or `git push --no-verify`.
+- **Deploy without Actions:** enable **Auto-Deploy** on Render for `main`, or `.\scripts\deploy-render.ps1` with `RENDER_DEPLOY_HOOK_URL` in env/`.env` (URL never printed).
 
 ## Coding Style & Naming Conventions
 Preserve nearby style and avoid whole-file reformatting. Vue and JavaScript use ES modules, 2-space indentation, camelCase variables, `PascalCase.vue` components, `SomethingPage.vue` route screens, and `useX.js` composables. PHP uses 4-space indentation, guard clauses, and domain route files such as `backend/routes/probation.php`. SQL migrations stay numerically ordered, for example `database/05-probation.sql`, with descriptive snake_case identifiers.

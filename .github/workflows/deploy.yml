@@ -1,9 +1,12 @@
 name: Deploy to Render
 
 # ⚠️ Auto-deploy ปิดชั่วคราว (GitHub Actions quota ฟรีหมด) — 2026-06-19
-# Deploy แทนด้วย: Render dashboard (Manual Deploy) หรือ curl RENDER_DEPLOY_HOOK_URL เอง
-# หรือเปิด Auto-Deploy ฝั่ง Render (ให้ Render watch branch main) แทน GH Actions
-# เปิดกลับ: คืน push block ด้านล่าง แล้วลบ workflow_dispatch
+# Deploy แทน (ไม่กิน Actions minutes):
+#   A) แนะนำ: Render Dashboard → service → Settings → Build & Deploy → Auto-Deploy = Yes (branch main)
+#   B) Manual:  .\scripts\deploy-render.ps1   หรือ  bash scripts/deploy-render.sh
+#      (ตั้ง RENDER_DEPLOY_HOOK_URL ใน env หรือ .env — script ไม่พิมพ์ URL)
+#   C) Dashboard → Manual Deploy
+# เปิดกลับ GH workflow: คืน push block ด้านล่าง แล้วลบ workflow_dispatch
 on:
   workflow_dispatch:
   # push:
