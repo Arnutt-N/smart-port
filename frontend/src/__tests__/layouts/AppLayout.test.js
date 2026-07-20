@@ -1,7 +1,7 @@
 import { mount, RouterLinkStub } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { nextTick } from 'vue'
+import { markRaw, nextTick } from 'vue'
 
 vi.mock('@/components/AppSidebar.vue', () => ({
   default: {
@@ -32,11 +32,30 @@ describe('AppLayout', () => {
     vi.unstubAllGlobals()
   })
 
-  function mountLayout() {
+  function mountLayout(options = {}) {
+    const { invokeRouterSlot = false } = options
     return mount(AppLayout, {
       global: {
+        mocks: {
+          $route: { path: '/dashboard' },
+        },
         stubs: {
-          RouterView: { template: '<div data-testid="router-view" />' },
+          // Default stub skips the v-slot; opt-in stub exercises Transition + page component
+          RouterView: invokeRouterSlot
+            ? {
+                name: 'RouterView',
+                template:
+                  '<div data-testid="router-view"><slot :Component="pageComp" /></div>',
+                setup() {
+                  return {
+                    pageComp: markRaw({
+                      name: 'StubPage',
+                      template: '<div data-testid="slotted-page">หน้าทดสอบ</div>',
+                    }),
+                  }
+                },
+              }
+            : { template: '<div data-testid="router-view" />' },
           RouterLink: RouterLinkStub,
         },
       },
@@ -98,5 +117,12 @@ describe('AppLayout', () => {
     wrapper.unmount()
     expect(removeSpy).toHaveBeenCalledWith('resize', expect.any(Function))
     removeSpy.mockRestore()
+  })
+
+  it('renders RouterView slot content through the page Transition', () => {
+    const wrapper = mountLayout({ invokeRouterSlot: true })
+    // VTU stubs <Transition> as transition-stub; slotted page still mounts
+    expect(wrapper.find('transition-stub').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="slotted-page"]').text()).toBe('หน้าทดสอบ')
   })
 })

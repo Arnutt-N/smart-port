@@ -187,12 +187,24 @@ router.afterEach(() => {
 
 // chunk เก่าหายหลัง deploy ใหม่ → dynamic import พังและ navigation ถูกยกเลิกเงียบๆ
 // (อาการ: กดเมนูแล้วคอนเทนต์ค้าง/ไม่เปลี่ยน) — hard reload เพื่อดึง asset ชุดใหม่
-router.onError((error, to) => {
+// export เพื่อทดสอบโดย inject assign (jsdom ห้าม spy window.location.assign)
+export function onRouterError(
+  error,
+  to,
+  {
+    assign = (url) => window.location.assign(url),
+    getPathname = () => window.location.pathname,
+    now = Date.now(),
+    storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null,
+  } = {},
+) {
   isNavigating.value = false
-  const target = to?.fullPath ?? window.location.pathname
-  if (isChunkLoadError(error) && shouldReloadForChunkError(target, window.sessionStorage, Date.now())) {
-    window.location.assign(target)
+  const target = to?.fullPath ?? getPathname()
+  if (isChunkLoadError(error) && shouldReloadForChunkError(target, storage, now)) {
+    assign(target)
   }
-})
+}
+
+router.onError((error, to) => onRouterError(error, to))
 
 export default router
