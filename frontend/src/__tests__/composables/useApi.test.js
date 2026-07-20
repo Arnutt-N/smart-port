@@ -76,4 +76,59 @@ describe('useApi uploads', () => {
     expect(mockAuth.logout).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
   })
+
+  it('logs out and redirects on 401 for authenticated API calls', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: 'Unauthorized',
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await expect(useApi().get('/dashboard')).rejects.toThrow('Unauthorized')
+    expect(mockAuth.logout).toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledWith('/login')
+  })
+
+  it('put and del send the correct methods and parse JSON', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+
+    await expect(useApi().put('/users/1', { role: 'admin' })).resolves.toEqual({ success: true })
+    expect(fetchMock.mock.calls[0][1].method).toBe('PUT')
+
+    await expect(useApi().del('/users/1')).resolves.toEqual({ success: true })
+    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
+  })
+
+  it('upload posts FormData without forcing JSON content-type', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    const form = new FormData()
+    form.append('file', new File(['x'], 'a.xlsx'))
+
+    await expect(useApi().upload('/import/executive', form)).resolves.toEqual({ success: true })
+    expect(fetchMock.mock.calls[0][1].body).toBe(form)
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Content-Type')
+  })
+
+  it('throws statusText when error body is not JSON', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('oops', {
+      status: 500,
+      statusText: 'Internal Server Error',
+    }))
+
+    await expect(useApi().get('/boom')).rejects.toThrow('Internal Server Error')
+  })
 })

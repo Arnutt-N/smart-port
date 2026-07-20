@@ -89,4 +89,46 @@ describe('useProbation', () => {
       completedTasks: 2,
     })
   })
+
+  it('passes through terminal backend statuses', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: [
+        { enrollment_id: 1, personnel_id: 1, full_name: 'A', status: 'COMPLETED', remaining_days: 0 },
+        { enrollment_id: 2, personnel_id: 2, full_name: 'B', status: 'FAILED', remaining_days: -1 },
+        { enrollment_id: 3, personnel_id: 3, full_name: 'C', status: 'EXTENDED', remaining_days: 10 },
+      ],
+      pagination: {},
+    })
+
+    const { fetchList } = useProbation()
+    const result = await fetchList()
+
+    expect(result.data.map((r) => r.status)).toEqual(['COMPLETED', 'FAILED', 'EXTENDED'])
+  })
+
+  it('computes IN_PROGRESS display status from remaining days', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: [
+        { enrollment_id: 1, personnel_id: 1, full_name: 'A', status: 'IN_PROGRESS', remaining_days: null },
+        { enrollment_id: 2, personnel_id: 2, full_name: 'B', status: 'IN_PROGRESS', remaining_days: 15 },
+        { enrollment_id: 3, personnel_id: 3, full_name: 'C', status: 'IN_PROGRESS', remaining_days: 0 },
+        { enrollment_id: 4, personnel_id: 4, full_name: 'D', status: 'IN_PROGRESS', remaining_days: -3 },
+      ],
+      pagination: {},
+    })
+
+    const { fetchList } = useProbation()
+    const result = await fetchList()
+
+    expect(result.data.map((r) => r.status)).toEqual(['NOT_DUE', 'NEAR_DEADLINE', 'READY', 'OVERDUE'])
+  })
+
+  it('returns empty data array when API omits data field', async () => {
+    mockGet.mockResolvedValue({ success: true, pagination: {} })
+    const { fetchList } = useProbation()
+    const result = await fetchList()
+    expect(result.data).toEqual([])
+  })
 })
