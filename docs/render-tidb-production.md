@@ -27,6 +27,14 @@ The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port
 
   Local `docker compose` uses the repo-root [`Dockerfile`](../../Dockerfile) so both `backend/` and `database/` migrations are included.
 
+## 1b. Deploy without GitHub Actions
+
+GitHub `deploy.yml` is `workflow_dispatch`-only while Actions quota is conserved. Use one of:
+
+1. **Auto-Deploy (recommended):** Render Dashboard → each service → **Settings** → **Build & Deploy** → **Auto-Deploy = Yes**, branch `main`. Merges to `main` deploy without GH Actions.
+2. **Deploy hook:** set `RENDER_DEPLOY_HOOK_URL` in env or repo-root `.env`, then `.\scripts\deploy-render.ps1` (URL is never printed).
+3. **Manual Deploy** in the Render dashboard.
+
 ## 2. Required backend environment variables
 
 Set these on the `smartport-backend` Render service:

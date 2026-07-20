@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-push — light local gate (frontend vitest only; no Docker / no Actions)
+#
+# Skip once:  SKIP_PRE_PUSH=1 git push
+# Or:         git push --no-verify
+#
+# Install:    .\scripts\install-git-hooks.ps1
+#             bash scripts/install-git-hooks.sh
+set -euo pipefail
+
+if [[ "${SKIP_PRE_PUSH:-}" == "1" ]]; then
+  echo "[pre-push] skipped (SKIP_PRE_PUSH=1)"
+  exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "${ROOT}" ]]; then
+  echo "[pre-push] not a git repo — skip"
+  exit 0
+fi
+
+FRONTEND="${ROOT}/frontend"
+if [[ ! -d "${FRONTEND}/node_modules" ]]; then
+  echo "[pre-push] FAIL  frontend/node_modules missing — run: cd frontend && npm ci"
+  exit 1
+fi
+
+echo "[pre-push] frontend vitest (forks, maxWorkers=2) ..."
+cd "${FRONTEND}"
+npx vitest run --pool=forks --maxWorkers=2 --reporter=dot
+echo "[pre-push] OK"

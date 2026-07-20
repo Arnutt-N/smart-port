@@ -55,4 +55,12 @@ resolver ใช้ **SELECT-then-insert + in-batch cache** → กัน dup ร
 - ตรวจ `current_org_id`/`current_position_id` ของ personnel ที่ import ≠ 1
 
 ## 7. CI/Deploy workflows (ถ้าจะ merge เข้า main)
-CI + Deploy ถูก `gh workflow disable` (quota หมด) → merge จะไม่ trigger auto-deploy. Deploy ผ่าน Render dashboard Manual Deploy หรือ curl deploy hook. เปิด CI กลับเมื่อ quota reset: `gh workflow enable 249676166 250058541` + uncomment `on:` ใน workflow files
+CI + Deploy workflows ใช้ `workflow_dispatch` เท่านั้น (quota) → merge จะไม่ auto-run บน GitHub Actions.
+
+**Verify / deploy แทน:**
+- Local CI: `.\scripts\ci-local.ps1` หรือ `bash scripts/ci-local.sh`
+- Run `ci.yml` locally: `.\scripts\ci-act.ps1` (nektos/act)
+- Pre-push vitest: `.\scripts\install-git-hooks.ps1`
+- Deploy: เปิด **Auto-Deploy** บน Render (branch `main`) หรือ `.\scripts\deploy-render.ps1` (ตั้ง `RENDER_DEPLOY_HOOK_URL`)
+
+เปิด CI กลับเมื่อ quota reset: `gh workflow enable` + uncomment `on:` ใน workflow files
