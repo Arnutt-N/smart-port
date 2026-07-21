@@ -274,4 +274,119 @@ describe('CandidateListsPage', () => {
     expect(wrapper.vm.pagination.offset).toBe(0)
     expect(mockFetchByLevel).toHaveBeenCalledWith('M1', expect.objectContaining({ offset: 0, search: '' }))
   })
+
+  it('loads management section with S1/S2 tabs', async () => {
+    mockFetchByLevel.mockResolvedValue(byLevelPayload)
+    const wrapper = mount(CandidateListsPage, { props: { section: 'management' } })
+    await flushPromises()
+    await nextTick()
+
+    const tabLabels = wrapper.findAll('button').map((b) => b.text())
+    expect(tabLabels).toContain('บริหารต้น')
+    expect(tabLabels).toContain('บริหารสูง')
+    expect(mockFetchByLevel).toHaveBeenCalledWith('S1', expect.objectContaining({ offset: 0, search: '' }))
+    expect(wrapper.text()).toContain('สายงานบริหาร')
+  })
+
+  it('shows empty by-level table when data is empty', async () => {
+    mockFetchByLevel.mockResolvedValue({
+      ...byLevelPayload,
+      data: [],
+      summary: { total: 0 },
+      pagination: { total: 0, limit: 20, offset: 0, has_more: false },
+    })
+    const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('ไม่พบข้อมูล')
+    expect(wrapper.text()).toContain('ไม่พบรายชื่อผู้มีคุณสมบัติในระดับนี้')
+  })
+
+  it('renders supportive/equivalence days and diverse status in table and modal', async () => {
+    mockFetchByLevel.mockResolvedValue({
+      ...byLevelPayload,
+      data: [
+        {
+          ...byLevelPayload.data[0],
+          supportiveDays: 15,
+          equivalenceDays: 30,
+          diverseStatus: 'qualified',
+          department: 'กองบริหาร',
+        },
+      ],
+    })
+    const wrapper = mount(CandidateListsPage, {
+      props: { section: 'general' },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('15 วัน')
+    expect(wrapper.text()).toContain('30 วัน')
+    expect(wrapper.text()).toContain('ถึงเกณฑ์')
+
+    const eyeBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'ดูรายละเอียด')
+    await eyeBtn.trigger('click')
+    await nextTick()
+
+    expect(document.body.textContent).toContain('กองบริหาร')
+    expect(document.body.textContent).toContain('15 วัน')
+    expect(document.body.textContent).toContain('30 วัน')
+
+    const closeBtn = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent.trim() === 'ปิด')
+    expect(closeBtn).toBeTruthy()
+    closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(wrapper.vm.showViewModal).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('defaults overview totals to 0 when summary fields are missing', async () => {
+    mockFetchOverview.mockResolvedValue({
+      success: true,
+      summary: {},
+      by_level: {},
+      top5: [],
+    })
+    const wrapper = mount(CandidateListsPage, { props: { section: 'overview' } })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.vm.overviewData).toMatchObject({
+      generalTotal: 0,
+      academicTotal: 0,
+      supportiveTotal: 0,
+      managementTotal: 0,
+      qualifiedTotal: 0,
+      nearQualifiedTotal: 0,
+      notYetTotal: 0,
+      checkDataTotal: 0,
+    })
+  })
+
+  it('uses generic overview error when reject has no message', async () => {
+    mockFetchOverview.mockRejectedValueOnce({})
+    const wrapper = mount(CandidateListsPage, { props: { section: 'overview' } })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('ไม่สามารถโหลดข้อมูลภาพรวมได้')
+  })
+
+  it('reloads overview when section changes back from a sub-tab', async () => {
+    mockFetchByLevel.mockResolvedValue(byLevelPayload)
+    mockFetchOverview.mockResolvedValue(overviewPayload)
+    const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
+    await flushPromises()
+
+    mockFetchOverview.mockClear()
+    await wrapper.setProps({ section: 'overview' })
+    await flushPromises()
+
+    expect(mockFetchOverview).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('สมชาย ใจดี')
+  })
 })
