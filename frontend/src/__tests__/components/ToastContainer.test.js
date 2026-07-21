@@ -51,4 +51,28 @@ describe('ToastContainer', () => {
     await wrapper.get('[aria-label="ปิดการแจ้งเตือน"]').trigger('click')
     expect(ui.toasts).toHaveLength(0)
   })
+
+  it('removes toast from the DOM after auto-dismiss duration', async () => {
+    const ui = useUiStore()
+    ui.showToast('หายเอง', 'info', 2000)
+
+    const wrapper = mount(ToastContainer)
+    expect(wrapper.text()).toContain('หายเอง')
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(ui.toasts).toHaveLength(0)
+    expect(wrapper.findAll('[aria-label="ปิดการแจ้งเตือน"]')).toHaveLength(0)
+  })
+
+  it('renders without type styles when toast type is unknown', () => {
+    const ui = useUiStore()
+    ui.toasts.push({ id: 99, message: 'ประเภทแปลก', type: 'mystery' })
+
+    const wrapper = mount(ToastContainer)
+    expect(wrapper.text()).toContain('ประเภทแปลก')
+    expect(wrapper.html()).not.toContain('bg-green-600')
+    expect(wrapper.html()).not.toContain('bg-red-600')
+    expect(wrapper.html()).not.toContain('bg-yellow-500')
+    expect(wrapper.html()).not.toContain('bg-blue-600')
+  })
 })
