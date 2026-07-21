@@ -83,6 +83,7 @@ jobs:
             -v "$PWD/database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql" \
             -v "$PWD/database/15-api-rate-limit-hits.sql:/docker-entrypoint-initdb.d/15-api-rate-limit-hits.sql" \
             -v "$PWD/backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/16-audit-log.sql" \
+            -v "$PWD/database/17-probation-dashboard-view.sql:/docker-entrypoint-initdb.d/17-probation-dashboard-view.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish

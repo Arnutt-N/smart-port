@@ -69,6 +69,7 @@ services:
       - ./database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql
       - ./database/15-api-rate-limit-hits.sql:/docker-entrypoint-initdb.d/15-api-rate-limit-hits.sql
       - ./backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/16-audit-log.sql
+      - ./database/17-probation-dashboard-view.sql:/docker-entrypoint-initdb.d/17-probation-dashboard-view.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s
