@@ -60,8 +60,32 @@ async function request(url, options = {}) {
   const response = await authenticatedFetch(url, options)
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(error.error || response.statusText)
+    // Try to parse JSON error; if the body is HTML (PHP error leaked), produce a clean Thai message
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || response.statusText)
+    }
+    // Non-JSON response (HTML error page, 503 from cold start, etc.)
+    const text = await response.text().catch(() => '')
+    if (response.status === 503) {
+      throw new Error('Database connection failed. Please try again.')
+    }
+    if (text.includes('<br') || text.includes('<b>') || text.startsWith('<')) {
+      // PHP error/warning leaked as HTML
+      throw new Error('Server error. Please try again.')
+    }
+    throw new Error(response.statusText || 'Connection error')
+  }
+
+  // Response is OK (2xx) but might still be HTML if PHP errored after headers sent
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    const text = await response.text().catch(() => '')
+    if (text.includes('<br') || text.includes('<b>') || text.trim().startsWith('<')) {
+      throw new Error('Server error. Please try again.')
+    }
+    throw new Error('Invalid response format. Please try again.')
   }
 
   return response.json()

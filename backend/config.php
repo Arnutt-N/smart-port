@@ -73,11 +73,25 @@ function getDB(): PDO {
         $options[PDO::ATTR_PERSISTENT] = true;
     }
 
-    try {
-        $pdo = new PDO($dsn, $username, $password, $options);
-    } catch (PDOException $e) {
+    // Retry on transient connection failure (TiDB Cloud Serverless cold start)
+    $maxRetries = 3;
+    $lastException = null;
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        try {
+            $pdo = new PDO($dsn, $username, $password, $options);
+            $lastException = null;
+            break;
+        } catch (PDOException $e) {
+            $lastException = $e;
+            if ($attempt < $maxRetries) {
+                usleep(200000);
+            }
+        }
+    }
+
+    if ($lastException !== null) {
         $msg = ($host === 'db' || $host === 'localhost')
-            ? 'Connection failed: ' . $e->getMessage()
+            ? 'Connection failed: ' . $lastException->getMessage()
             : 'Database connection failed';
         http_response_code(503);
         echo json_encode(['error' => $msg]);
