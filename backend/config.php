@@ -90,8 +90,10 @@ function getDB(): PDO {
     }
 
     if ($lastException !== null) {
-        $msg = ($host === 'db' || $host === 'localhost')
-            ? 'Connection failed: ' . $lastException->getMessage()
+        error_log('[db] Connection failed after ' . $maxRetries . ' attempts: ' . $lastException->getMessage());
+        $isLocal = in_array($host, ['db', 'localhost', '127.0.0.1'], true);
+        $msg = $isLocal
+            ? 'Database connection failed (check docker compose db service)'
             : 'Database connection failed';
         http_response_code(503);
         echo json_encode(['error' => $msg]);

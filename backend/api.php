@@ -40,7 +40,7 @@ set_error_handler(static function (int $errno, string $errstr, string $errfile =
     }
     error_log("[api] PHP $errno: $errstr at $errfile:$errline");
     throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
-}, E_WARNING | E_NOTICE | E_DEPRECATED | E_USER_WARNING | E_USER_NOTICE | E_USER_DEPRECATED);
+}, E_WARNING | E_NOTICE | E_DEPRECATED | E_USER_WARNING | E_USER_NOTICE | E_USER_DEPRECATED | E_RECOVERABLE_ERROR);
 
 // Output buffer to prevent HTML leaking before JSON
 ob_start();
