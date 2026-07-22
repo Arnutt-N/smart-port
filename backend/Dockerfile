@@ -57,6 +57,16 @@ RUN printf '%s\n' \
 RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf \
     && printf "default_charset = \"UTF-8\"\n" > /usr/local/etc/php/conf.d/charset.ini
 
+# Production-safe PHP error settings: log errors but never display HTML to clients
+RUN printf '%s\n' \
+    'display_errors = Off' \
+    'log_errors = On' \
+    'html_errors = Off' \
+    'error_log = /dev/stderr' \
+    'error_reporting = E_ALL' \
+    'expose_php = Off' \
+    > /usr/local/etc/php/conf.d/zz-production-errors.ini
+
 EXPOSE 80
 
 ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]

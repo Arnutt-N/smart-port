@@ -73,11 +73,27 @@ function getDB(): PDO {
         $options[PDO::ATTR_PERSISTENT] = true;
     }
 
-    try {
-        $pdo = new PDO($dsn, $username, $password, $options);
-    } catch (PDOException $e) {
-        $msg = ($host === 'db' || $host === 'localhost')
-            ? 'Connection failed: ' . $e->getMessage()
+    // Retry on transient connection failure (TiDB Cloud Serverless cold start)
+    $maxRetries = 3;
+    $lastException = null;
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        try {
+            $pdo = new PDO($dsn, $username, $password, $options);
+            $lastException = null;
+            break;
+        } catch (PDOException $e) {
+            $lastException = $e;
+            if ($attempt < $maxRetries) {
+                usleep(200000);
+            }
+        }
+    }
+
+    if ($lastException !== null) {
+        error_log('[db] Connection failed after ' . $maxRetries . ' attempts: ' . $lastException->getMessage());
+        $isLocal = in_array($host, ['db', 'localhost', '127.0.0.1'], true);
+        $msg = $isLocal
+            ? 'Database connection failed (check docker compose db service)'
             : 'Database connection failed';
         http_response_code(503);
         echo json_encode(['error' => $msg]);

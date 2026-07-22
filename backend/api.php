@@ -1,5 +1,49 @@
 <?php
 // Smart Port Management System - Enhanced API Gateway
+// Production-safe error handling: prevent PHP warnings/notices from leaking
+// as HTML into JSON responses (the "Unexpected token '<'" bug)
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+ini_set('html_errors', '0');
+
+// Convert uncaught exceptions to JSON instead of HTML
+set_exception_handler(static function (\Throwable $e): void {
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=UTF-8');
+    }
+    error_log('[api] Uncaught ' . get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+    echo json_encode(['error' => 'Internal server error', 'code' => 'INTERNAL_ERROR']);
+});
+
+// Convert fatal errors to JSON
+register_shutdown_function(static function (): void {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=UTF-8');
+        }
+        error_log('[api] Fatal: ' . $err['message'] . ' at ' . $err['file'] . ':' . $err['line']);
+        echo json_encode(['error' => 'Internal server error', 'code' => 'INTERNAL_ERROR']);
+    }
+});
+
+// Catch warnings/notices before they leak as HTML
+set_error_handler(static function (int $errno, string $errstr, string $errfile = '', int $errline = 0): bool {
+    if (!(error_reporting() & $errno)) {
+        return false;
+    }
+    error_log("[api] PHP $errno: $errstr at $errfile:$errline");
+    throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+}, E_WARNING | E_NOTICE | E_DEPRECATED | E_USER_WARNING | E_USER_NOTICE | E_USER_DEPRECATED | E_RECOVERABLE_ERROR);
+
+// Output buffer to prevent HTML leaking before JSON
+ob_start();
 header('Content-Type: application/json; charset=UTF-8');
 
 // CORS Configuration - อ่านจาก environment variable
