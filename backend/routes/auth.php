@@ -32,6 +32,16 @@ function handleAuth(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    if (($path[1] ?? '') === 'refresh' && $method === 'POST') {
+        refreshSession($pdo);
+        return;
+    }
+
+    if (($path[1] ?? '') === 'logout' && $method === 'POST') {
+        logoutSession($pdo);
+        return;
+    }
+
     if (($path[1] ?? '') === 'change-password' && $method === 'POST') {
         $user = getAuthenticatedUser();
         if (!$user) {
@@ -187,10 +197,23 @@ function loginUser(PDO $pdo): void
         ->execute([$user['user_id']]);
 
     $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
+    $refreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
 
-    echo json_encode([
+    echo json_encode(buildAuthResponse($jwtResult, $refreshToken, $user));
+}
+
+/**
+ * ประกอบ response มาตรฐานหลัง login / refresh — ใช้ร่วมกันเพื่อให้ frontend รับ shape เดียวกัน
+ *
+ * @param array{token:string,csrf_token:string} $jwtResult
+ * @param array<string,mixed> $user แถวจากตาราง users
+ */
+function buildAuthResponse(array $jwtResult, string $refreshToken, array $user): array
+{
+    return [
         'token' => $jwtResult['token'],
         'csrf_token' => $jwtResult['csrf_token'],
+        'refresh_token' => $refreshToken,
         'user' => [
             'id' => (int) $user['user_id'],
             'username' => $user['username'],
@@ -198,5 +221,133 @@ function loginUser(PDO $pdo): void
             'role' => $user['role'],
             'must_change_password' => (bool) $user['must_change_password'],
         ],
-    ]);
+    ];
+}
+
+/**
+ * ออก refresh token ใหม่ 1 ใบ เก็บเฉพาะ hash ลง DB แล้วคืน plaintext ให้ client
+ */
+function issueRefreshToken(PDO $pdo, int $userId): string
+{
+    $rawToken = generateRefreshToken();
+    $expiresAt = date('Y-m-d H:i:s', time() + REFRESH_TOKEN_TTL_SECONDS);
+
+    $pdo->prepare(
+        'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
+    )->execute([$userId, hashRefreshToken($rawToken), $expiresAt]);
+
+    return $rawToken;
+}
+
+/**
+ * POST /auth/refresh — แลก refresh token เป็น access JWT ใหม่ (มี rotation)
+ *
+ * ขั้นตอน:
+ *   1. hash token ที่รับมา แล้วค้นแถวที่ตรง
+ *   2. ถ้าไม่พบ / user ถูกปิดใช้งาน -> 401 (ข้อความ generic)
+ *   3. ถ้าพบแต่ถูก revoke ไปแล้ว = reuse ต้องสงสัยถูกขโมย -> revoke ทุกใบของ user แล้ว 401
+ *   4. ถ้าหมดอายุ -> revoke ใบนั้นแล้ว 401
+ *   5. สำเร็จ: revoke ใบเดิม (rotation) + ออก JWT ใหม่ + refresh token ใหม่
+ *
+ * @param array<string,mixed>|null $input ใช้ inject ใน integration tests
+ */
+function refreshSession(PDO $pdo, ?array $input = null): void
+{
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
+    $rawToken = is_array($data) ? (string) ($data['refresh_token'] ?? '') : '';
+
+    if ($rawToken === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'กรุณาระบุ refresh token']);
+        return;
+    }
+
+    $tokenHash = hashRefreshToken($rawToken);
+    $stmt = $pdo->prepare(
+        'SELECT token_id, user_id, expires_at, revoked_at
+         FROM refresh_tokens WHERE token_hash = ?'
+    );
+    $stmt->execute([$tokenHash]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        http_response_code(401);
+        echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+        return;
+    }
+
+    // Reuse detection: ใบที่ถูก revoke แล้วถูกนำมาใช้ซ้ำ
+    if ($row['revoked_at'] !== null) {
+        $revokedTs = strtotime((string) $row['revoked_at']);
+        $graceSeconds = 10;
+        // เพิ่ง revoke ไม่กี่วินาที = race ระหว่าง tab (ไม่ใช่ขโมย) -> 401 เฉยๆ ไม่ kill-all
+        if ($revokedTs !== false && (time() - $revokedTs) <= $graceSeconds) {
+            http_response_code(401);
+            echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+            return;
+        }
+        // revoke มานานแล้วถูกใช้ซ้ำ = สงสัยถูกขโมย -> เพิกถอนทุกใบ
+        $pdo->prepare(
+            'UPDATE refresh_tokens SET revoked_at = NOW()
+             WHERE user_id = ? AND revoked_at IS NULL'
+        )->execute([(int) $row['user_id']]);
+        http_response_code(401);
+        echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+        return;
+    }
+
+    if (strtotime((string) $row['expires_at']) < time()) {
+        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
+            ->execute([(int) $row['token_id']]);
+        http_response_code(401);
+        echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+        return;
+    }
+
+    $userStmt = $pdo->prepare(
+        'SELECT user_id, username, full_name, role, is_active, must_change_password
+         FROM users WHERE user_id = ? AND is_active = 1'
+    );
+    $userStmt->execute([(int) $row['user_id']]);
+    $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
+            ->execute([(int) $row['token_id']]);
+        http_response_code(401);
+        echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+        return;
+    }
+
+    // Rotation: เพิกถอนใบเดิม ออกใบใหม่
+    $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
+        ->execute([(int) $row['token_id']]);
+
+    $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
+    $newRefreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
+
+    echo json_encode(buildAuthResponse($jwtResult, $newRefreshToken, $user));
+}
+
+/**
+ * POST /auth/logout — เพิกถอน refresh token ที่ client ถืออยู่ (best-effort)
+ *
+ * ไม่ต้องมี access token ที่ valid เพราะใช้ refresh token เป็น credential
+ * คืน success เสมอเพื่อไม่เปิดเผยว่า token มีอยู่จริงหรือไม่
+ *
+ * @param array<string,mixed>|null $input ใช้ inject ใน integration tests
+ */
+function logoutSession(PDO $pdo, ?array $input = null): void
+{
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
+    $rawToken = is_array($data) ? (string) ($data['refresh_token'] ?? '') : '';
+
+    if ($rawToken !== '') {
+        $pdo->prepare(
+            'UPDATE refresh_tokens SET revoked_at = NOW()
+             WHERE token_hash = ? AND revoked_at IS NULL'
+        )->execute([hashRefreshToken($rawToken)]);
+    }
+
+    echo json_encode(['success' => true]);
 }

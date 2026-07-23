@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
-async function authenticatedFetch(url, options = {}) {
+async function authenticatedFetch(url, options = {}, retried = false) {
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
 
@@ -36,6 +36,16 @@ async function authenticatedFetch(url, options = {}) {
     if (isPublicAuth) {
       const body = await response.clone().json().catch(() => null)
       throw new Error(body?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+    }
+
+    // Access token หมดอายุ — ลองต่ออายุด้วย refresh token 1 ครั้ง แล้วยิงซ้ำ
+    if (!retried && auth.refreshToken) {
+      try {
+        await auth.refresh()
+        return authenticatedFetch(url, options, true)
+      } catch {
+        // refresh ล้มเหลว — ตกไป logout ด้านล่าง
+      }
     }
 
     auth.logout()

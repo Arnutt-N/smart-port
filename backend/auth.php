@@ -35,6 +35,19 @@ function generateJWT($user_id, $role = 'operator') {
     ];
 }
 
+// อายุ refresh token = 30 วัน (access JWT อายุ 1 ชม. ใน generateJWT)
+const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+// สร้าง refresh token แบบ opaque (ไม่ใช่ JWT) 32 bytes -> 64 hex
+function generateRefreshToken(): string {
+    return bin2hex(random_bytes(32));
+}
+
+// เก็บเฉพาะ hash ของ refresh token ใน DB — plaintext อยู่ที่ client เท่านั้น
+function hashRefreshToken(string $rawToken): string {
+    return hash('sha256', $rawToken);
+}
+
 function validateJWT($token) {
     if (!$token) {
         return false;
