@@ -93,10 +93,16 @@ if ($path[0] === 'api') {
 
 $token = getAuthHeader();
 $isPublicLogin = $path[0] === 'auth' && ($path[1] ?? '') === 'login' && $method === 'POST';
+$isPublicRefresh = $path[0] === 'auth' && ($path[1] ?? '') === 'refresh' && $method === 'POST';
+$isPublicLogout = $path[0] === 'auth' && ($path[1] ?? '') === 'logout' && $method === 'POST';
 $isPasswordChange = $path[0] === 'auth' && ($path[1] ?? '') === 'change-password' && $method === 'POST';
 
-// เฉพาะ login เท่านั้นที่เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicLogin && $method !== 'OPTIONS') {
+// refresh/logout ใช้ refresh token เป็น credential — เข้าถึงได้แบบ public เหมือน login
+// (access JWT อาจหมดอายุแล้ว จึงบังคับ JWT/CSRF ไม่ได้)
+$isPublicAuth = $isPublicLogin || $isPublicRefresh || $isPublicLogout;
+
+// login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
+if (!$isPublicAuth && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -110,12 +116,12 @@ if (!$isPublicLogin && $method !== 'OPTIONS') {
 // CSRF Protection for state-changing requests
 $statefulMethods = ['POST', 'PUT', 'DELETE'];
 
-if (in_array($method, $statefulMethods, true) && !$isPublicLogin) {
+if (in_array($method, $statefulMethods, true) && !$isPublicAuth) {
     requireCSRFToken();
 }
 
 // ผู้ใช้ที่ถูกบังคับเปลี่ยนรหัสผ่านเข้าถึงได้เฉพาะ endpoint เปลี่ยนรหัสผ่าน
-if (!$isPublicLogin && !$isPasswordChange && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPasswordChange && $method !== 'OPTIONS') {
     $authenticatedUser = getAuthenticatedUser();
     if ((int) ($authenticatedUser['must_change_password'] ?? 0) === 1) {
         http_response_code(403);
@@ -142,12 +148,50 @@ switch ($path[0]) {
 
     case 'profile':
         $id = $path[1] ?? null;
-        if ($method == 'GET' && $id) {
-            $pdo = getDB();
-            $stmt = $pdo->prepare("SELECT * FROM v_civil_servants_current WHERE servant_id = ?");
+        if ($method !== 'GET') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            break;
+        }
+        $pdo = getDB();
+        if ($id) {
+            // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล (ราย civil_servants)
+            $stmt = $pdo->prepare(
+                "SELECT cs.servant_id, cs.employee_id, cs.first_name, cs.last_name,
+                        cs.birth_date, cs.appointment_date, cs.retirement_date,
+                        cs.servant_status,
+                        CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS full_name,
+                        csp.file_path AS photo_path
+                 FROM civil_servants cs
+                 LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                 LEFT JOIN civil_servant_photos csp
+                     ON cs.servant_id = csp.servant_id AND csp.is_primary = 1
+                 WHERE cs.servant_id = ?"
+            );
             $stmt->execute([$id]);
             $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-            echo json_encode($profile ?: ['error' => 'Not found']);
+            if (!$profile) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
+                break;
+            }
+            echo json_encode(['success' => true, 'data' => $profile]);
+        } else {
+            // GET /profile — บัญชีผู้ใช้ของตัวเอง (ไม่มี user↔civil_servant link จึงคืนข้อมูล account)
+            $authUser = getAuthenticatedUser();
+            $stmt = $pdo->prepare(
+                "SELECT user_id, username, full_name, email, role, is_active,
+                        must_change_password, last_login_at, created_at
+                 FROM users WHERE user_id = ?"
+            );
+            $stmt->execute([(int) ($authUser['user_id'] ?? 0)]);
+            $account = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$account) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
+                break;
+            }
+            echo json_encode(['success' => true, 'data' => $account]);
         }
         break;
 
@@ -534,7 +578,43 @@ switch ($path[0]) {
         handleImport($pdo, $method, $path);
         break;
 
+    case 'awards':
+        $pdo = getDB();
+        include __DIR__ . '/routes/awards.php';
+        handleAwards($pdo, $method, $path);
+        break;
+
+    case 'royal-decorations':
+        $pdo = getDB();
+        include __DIR__ . '/routes/decorations.php';
+        handleDecorations($pdo, $method, $path);
+        break;
+
+    case 'work-results':
+        $pdo = getDB();
+        include __DIR__ . '/routes/work_results.php';
+        handleWorkResults($pdo, $method, $path);
+        break;
+
+    case 'analytics':
+        $pdo = getDB();
+        include __DIR__ . '/routes/analytics.php';
+        handleAnalytics($pdo, $method, $path);
+        break;
+
+    case 'retirement':
+        $pdo = getDB();
+        include __DIR__ . '/routes/retirement.php';
+        handleRetirement($pdo, $method, $path);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
+}
+
+// Explicitly flush the buffer opened by ob_start() above. On fatal errors the
+// shutdown handler discards the buffer first, so this only runs on success.
+if (ob_get_level() > 0) {
+    ob_end_flush();
 }

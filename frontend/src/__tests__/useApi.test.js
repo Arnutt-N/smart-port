@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/stores/auth.js', () => ({
-  useAuthStore: () => ({
+// mutable auth mock (hoisted) — ปรับ refreshToken/refresh ต่อ test เพื่อทดสอบ 401 -> refresh -> retry
+const authMock = vi.hoisted(() => ({
+  state: {
     token: 'fake-jwt-token',
     csrfToken: 'fake-csrf',
-    logout: vi.fn(),
-    setMustChangePassword: vi.fn(),
-  }),
+    refreshToken: '',
+    logout: () => {},
+    setMustChangePassword: () => {},
+    refresh: () => Promise.resolve({}),
+  },
+}))
+
+vi.mock('@/stores/auth.js', () => ({
+  useAuthStore: () => authMock.state,
 }))
 
 vi.mock('@/router', () => ({
@@ -47,6 +54,13 @@ describe('useApi', () => {
   beforeEach(() => {
     api = useApi()
     vi.restoreAllMocks()
+    // reset auth mock to defaults ต่อ test
+    authMock.state.token = 'fake-jwt-token'
+    authMock.state.csrfToken = 'fake-csrf'
+    authMock.state.refreshToken = ''
+    authMock.state.logout = vi.fn()
+    authMock.state.setMustChangePassword = vi.fn()
+    authMock.state.refresh = vi.fn().mockResolvedValue({})
   })
 
   describe('HTML-detection branches', () => {
@@ -104,6 +118,52 @@ describe('useApi', () => {
       global.fetch = mockFetch(jsonResponse(data))
       const result = await api.get('/test')
       expect(result).toEqual(data)
+    })
+  })
+
+  describe('401 refresh-on-expiry', () => {
+    it('refreshes then retries the original request once on 401', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      const payload = { ok: true, value: 42 }
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ error: 'Unauthorized' }, 401))
+        .mockResolvedValueOnce(jsonResponse(payload))
+
+      const result = await api.get('/protected')
+
+      expect(authMock.state.refresh).toHaveBeenCalledTimes(1)
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result).toEqual(payload)
+      expect(authMock.state.logout).not.toHaveBeenCalled()
+    })
+
+    it('logs out when refresh fails', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.refresh = vi.fn().mockRejectedValue(new Error('Refresh failed'))
+      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
+      expect(authMock.state.refresh).toHaveBeenCalledTimes(1)
+      expect(authMock.state.logout).toHaveBeenCalledTimes(1)
+    })
+
+    it('logs out immediately when there is no refresh token', async () => {
+      authMock.state.refreshToken = ''
+      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
+      expect(authMock.state.refresh).not.toHaveBeenCalled()
+      expect(authMock.state.logout).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refresh on /auth/login 401 (shows API error instead)', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      global.fetch = mockFetch(jsonResponse({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }, 401))
+
+      await expect(api.post('/auth/login', {})).rejects.toThrow('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+      expect(authMock.state.refresh).not.toHaveBeenCalled()
+      expect(authMock.state.logout).not.toHaveBeenCalled()
     })
   })
 })

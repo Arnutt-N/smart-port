@@ -50,6 +50,18 @@ const statusMap = {
   // Diff count badges (Diverse Experience)
   DIFF_PASS: { label: 'ผ่านเกณฑ์', class: 'bg-green-50 text-green-700' },
   DIFF_NOT_YET: { label: 'ยังไม่ครบ', class: 'bg-amber-50 text-amber-700' },
+  // Award types
+  general: { label: 'ทั่วไป', class: 'bg-gray-100 text-gray-600' },
+  performance: { label: 'ผลการปฏิบัติงาน', class: 'bg-blue-50 text-blue-700' },
+  service: { label: 'การบริการ', class: 'bg-teal-50 text-teal-700' },
+  honor: { label: 'เกียรติยศ', class: 'bg-purple-50 text-purple-700' },
+  innovation: { label: 'นวัตกรรม', class: 'bg-indigo-50 text-indigo-700' },
+  // Work-result / proposal statuses
+  draft: { label: 'ร่าง', class: 'bg-gray-100 text-gray-600' },
+  submitted: { label: 'ส่งแล้ว', class: 'bg-blue-50 text-blue-700' },
+  under_review: { label: 'กำลังพิจารณา', class: 'bg-amber-50 text-amber-700' },
+  approved: { label: 'อนุมัติ', class: 'bg-green-50 text-green-700' },
+  rejected: { label: 'ไม่อนุมัติ', class: 'bg-red-50 text-red-700' },
 }
 
 const badgeClass = computed(() => statusMap[props.status]?.class || 'bg-gray-100 text-gray-600')

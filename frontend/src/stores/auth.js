@@ -51,7 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = data.token
     csrfToken.value = data.csrf_token || ''
     user.value = data.user
-    refreshToken.value = data.refreshToken || ''
+    refreshToken.value = data.refresh_token || ''
     localStorage.setItem('auth_token', data.token)
     localStorage.setItem('user', JSON.stringify(data.user))
     if (data.csrf_token) {
@@ -59,8 +59,8 @@ export const useAuthStore = defineStore('auth', () => {
     } else {
       localStorage.removeItem('csrf_token')
     }
-    if (data.refreshToken) {
-      localStorage.setItem('refresh_token', data.refreshToken)
+    if (data.refresh_token) {
+      localStorage.setItem('refresh_token', data.refresh_token)
     } else {
       localStorage.removeItem('refresh_token')
     }
@@ -72,6 +72,40 @@ export const useAuthStore = defineStore('auth', () => {
     const data = await api.post('/auth/login', credentials)
     setAuth(data)
     return data
+  }
+
+  let refreshPromise = null
+
+  // ต่ออายุ access token ด้วย refresh token — single-flight กัน 401 หลายตัวยิงพร้อมกัน
+  // ใช้ raw fetch (ไม่ผ่าน useApi) เพื่อเลี่ยง recursion กับ 401 interceptor
+  async function refresh() {
+    if (!refreshToken.value) {
+      throw new Error('No refresh token')
+    }
+    if (refreshPromise) {
+      return refreshPromise
+    }
+
+    const API_BASE = import.meta.env.VITE_API_URL || '/api'
+    refreshPromise = (async () => {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken.value }),
+      })
+      if (!response.ok) {
+        throw new Error('Refresh failed')
+      }
+      const data = await response.json()
+      setAuth(data)
+      return data
+    })()
+
+    try {
+      return await refreshPromise
+    } finally {
+      refreshPromise = null
+    }
   }
 
   function setMustChangePassword(required) {
@@ -92,6 +126,17 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    // เพิกถอน refresh token ฝั่ง server แบบ best-effort (ไม่รอผล / ไม่โยน error)
+    if (refreshToken.value) {
+      const API_BASE = import.meta.env.VITE_API_URL || '/api'
+      fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken.value }),
+        keepalive: true,
+      }).catch(() => {})
+    }
+
     token.value = ''
     refreshToken.value = ''
     csrfToken.value = ''
@@ -106,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token,
+    refreshToken,
     csrfToken,
     user,
     isAuthenticated,
@@ -115,6 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     setAuth,
     setMustChangePassword,
     login,
+    refresh,
     changePassword,
     logout,
   }
