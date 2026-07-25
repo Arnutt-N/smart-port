@@ -91,6 +91,12 @@ const routes = [
         meta: { requiresAdmin: true },
       },
       {
+        path: 'ocr',
+        name: 'ocr',
+        component: () => import('@/pages/OcrPage.vue'),
+        meta: { requiresAdmin: true },
+      },
+      {
         path: 'time-counting',
         name: 'time-counting',
         component: () => import('@/pages/SupportivePage.vue'),

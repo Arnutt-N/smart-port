@@ -110,7 +110,7 @@ import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import {
   X, BookOpen, LayoutDashboard, UserCheck, Users, Clock, Award, UserMinus,
-  Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp, FileSearch, Shield,
+  Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp, FileSearch, Shield, ScanText,
 } from 'lucide-vue-next'
 
 defineProps({ open: Boolean })
@@ -165,6 +165,7 @@ const menuSections = computed(() => [
         label: 'ADMIN',
         items: [
           { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
+          { id: 'ocr', label: 'แปลงเอกสาร PDF', icon: ScanText, to: '/ocr' },
           { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
           { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
           { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', icon: Shield, to: '/settings/special-areas' },
