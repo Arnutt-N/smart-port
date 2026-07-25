@@ -50,6 +50,16 @@ def ocr_with_rapidocr(pdf_path: Path, *, min_confidence: float = 0.3, scale: flo
     import numpy as np
     from rapidocr import RapidOCR
 
+    try:
+        from extract_textlayer import fix_thai_encoding
+    except ImportError:
+        import importlib.util
+        here = Path(__file__).parent / "extract_textlayer.py"
+        spec = importlib.util.spec_from_file_location("extract_textlayer", here)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fix_thai_encoding = mod.fix_thai_encoding
+
     engine = RapidOCR()
     pages_text: list[str] = []
     for page_num, pil in render_pages(pdf_path, scale=scale):
@@ -61,7 +71,7 @@ def ocr_with_rapidocr(pdf_path: Path, *, min_confidence: float = 0.3, scale: flo
                 if isinstance(text, str) and text.strip():
                     if isinstance(score, (int, float)) and score < min_confidence:
                         continue
-                    lines.append(text.strip())
+                    lines.append(fix_thai_encoding(text.strip()))
         if lines:
             pages_text.append(f"## หน้า {page_num}\n\n" + "\n".join(lines))
         else:

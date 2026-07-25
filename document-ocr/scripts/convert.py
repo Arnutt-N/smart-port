@@ -177,6 +177,10 @@ def main() -> int:
         "--artifacts-path", type=Path, default=None,
         help="Pre-baked Docling model artifacts dir (env DOCLING_ARTIFACTS_PATH)",
     )
+    p.add_argument(
+        "--force", action="store_true",
+        help="Re-convert even if output is already newer than source PDF",
+    )
     args = p.parse_args()
 
     pdf: Path = args.pdf
@@ -184,6 +188,24 @@ def main() -> int:
         print(f"[error] PDF not found: {pdf}", file=sys.stderr)
         return 2
     args.output.mkdir(parents=True, exist_ok=True)
+
+    stem = pdf.stem or "document"
+    existing_md = args.output / stem / f"{stem}.md"
+    if not args.force and existing_md.is_file():
+        if existing_md.stat().st_mtime >= pdf.stat().st_mtime:
+            print(f"[skip] {existing_md} is already newer than {pdf.name} "
+                  f"(use --force to re-convert)")
+            meta_path = args.output / stem / "_meta.json"
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError):
+                meta = {"source": pdf.name}
+            meta.setdefault("skip_log", []).append(
+                f"{now_iso()} skipped (output newer than source)")
+            meta_path.write_text(
+                json.dumps(meta, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+            return 0
 
     started_iso = now_iso()
     t0 = time.perf_counter()

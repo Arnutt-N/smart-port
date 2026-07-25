@@ -14,8 +14,6 @@ import re
 import sys
 from pathlib import Path
 
-import pypdfium2 as pdfium
-
 _SARA_AM_FIX = re.compile("([\u0E01-\u0E2E])([\u0E48-\u0E4B]?) \u0E32")
 _MAIYAMOK_FIX = re.compile(r"([^\s\u0E46])\u0E46")
 _SOURCE_FIXES = [
@@ -144,6 +142,8 @@ def _parse_row(num: str, rest: str) -> str:
 
 def convert_pdf(pdf_path: Path) -> tuple[str, int]:
     """Extract all pages and format as Markdown. Returns (markdown, page_count)."""
+    import pypdfium2 as pdfium
+
     pdf = pdfium.PdfDocument(str(pdf_path))
     pages_md: list[str] = []
 
