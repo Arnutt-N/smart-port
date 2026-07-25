@@ -1,0 +1,26 @@
+# Document OCR & Conversion Hub — .gitignore
+# ป้องกันการ commit เอกสารต้นฉบับและผลลัพธ์ (อาจมีข้อมูล HR ส่วนบุคคล)
+
+# เอกสารต้นฉบับ — ห้าม commit (วางไว้ใช้งานภายในเท่านั้น)
+input/*
+!input/README.md
+
+# ผลลัพธ์ที่แปลงแล้ว — ห้าม commit (regenerate ได้)
+output/*
+!output/README.md
+
+# ไฟล์ชั่วคราว / cache ของ OCR engine
+*.tmp
+*.cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# รูปที่สกัดจากเอกสาร
+output/**/images/
+
+# โมเดล weights / cache (ถ้ามี)
+*.bin
+*.onnx
+*.safetensors
+models/

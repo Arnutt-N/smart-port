@@ -115,3 +115,8 @@ docs/documents/
 docs/images/
 docs/scrennshorts/
 docs/project-documents/*.docx
+
+
+# document-ocr: block sensitive data only (HR documents), allow code
+document-ocr/input/
+document-ocr/output/
