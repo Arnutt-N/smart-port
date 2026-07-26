@@ -9,10 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-WORK = Path(r"D:\00 hrProject\smart-port\document-ocr")
-PY = r"D:\hr-hackathon\hrrag-myjobs\backend\.venv\Scripts\python.exe"
+WORK = Path(__file__).resolve().parent.parent
+# OCR engine venv — set OCR_VENV_PYTHON (real path: internal note under research/docs-ocr/)
+PY = os.environ.get("OCR_VENV_PYTHON", sys.executable)
 SCRIPT = str(WORK / "scripts" / "fallback_rapidocr.py")
-PDF = str(WORK / "input" / "Data Dictionary.pdf")
+PDF = os.environ.get("OCR_INPUT_PDF", str(WORK / "input" / "sample.pdf"))
 OUT = str(WORK / "output")
 LOG = WORK / "output" / "_rapidocr.log"
 ERR = WORK / "output" / "_rapidocr.err"

@@ -1,11 +1,11 @@
 """Convert one PDF to Markdown using Docling (default, fail-closed).
 
-Engine lives in hrrag-myjobs venv (NOT smart-port). Run with that Python:
+Engine lives in an external venv (NOT smart-port). Run with that Python
+(real path: see the internal note under research/docs-ocr/ — not in git):
 
-    D:\\hr-hackathon\\hrrag-myjobs\\backend\\.venv\\Scripts\\python.exe \
-        scripts/convert.py "input/Data Dictionary.pdf" --output output/
+    <OCR_VENV_PYTHON> scripts/convert.py "input/sample.pdf" --output output/
 
-Strategy (matches hrrag-myjobs `app/ingestion/docling_worker.py` + `quality.py`):
+Strategy (matches the sibling ingestion pipeline's docling worker + quality gate):
   - Docling with `do_ocr=False` → only the PDF's embedded text layer is used
   - Empty / corrupted text layer raises NeedsOCRError → route to human review
     (NO automatic OCR — fail-closed contract for HR data)
@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -221,7 +222,7 @@ def main() -> int:
         )
     except (NeedsOCRError, ConversionError) as e:
         # Docling failed (text layer unusable OR engine crash/timeout/OOM).
-        # smart-port allows AUTO fallback (unlike hrrag-myjobs fail-closed).
+        # smart-port allows AUTO fallback (unlike the sibling pipeline's fail-closed).
         warnings.append(f"docling_{type(e).__name__}: {str(e)[:200]}")
         if args.no_fallback:
             status = "needs_review"
@@ -241,8 +242,13 @@ def main() -> int:
                 extract_textlayer = mod.convert_pdf
             try:
                 markdown, _pages = extract_textlayer(pdf)
-                markdown = require_usable_text(
-                    markdown, source_label="PDF (text-layer)")
+                # Judge quality on real content only — page headings and
+                # "no text" markers must not let an image-only PDF pass.
+                content_only = re.sub(
+                    r"^(## หน้า \d+|_\(ไม่พบข้อความ\)_)$", "",
+                    markdown, flags=re.M).strip()
+                require_usable_text(
+                    content_only, source_label="PDF (text-layer)")
                 engine_used = "pypdfium2_textlayer"
                 status = "used_textlayer_fallback"
             except Exception as tl_err:

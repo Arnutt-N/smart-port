@@ -12,7 +12,37 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from convert import ConversionError, NeedsOCRError, require_usable_text, write_outputs
-from fallback_rapidocr import ocr_with_rapidocr, require_usable_text as ocr_require
+from fallback_rapidocr import (
+    DEFAULT_LANG,
+    build_engine,
+    ocr_with_rapidocr,
+    require_usable_text as ocr_require,
+)
+
+THAI_RANGE = ("\u0e00", "\u0e7f")
+
+
+def count_thai(text: str) -> int:
+    return sum(1 for c in text if THAI_RANGE[0] <= c <= THAI_RANGE[1])
+
+
+@pytest.fixture()
+def thai_image_pdf(tmp_path: Path) -> Path:
+    """Create a 1-page image-only PDF containing Thai text."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    font_path = Path(r"C:\Windows\Fonts\LeelawUI.ttf")
+    if not font_path.is_file():
+        pytest.skip("Thai font not available on this machine")
+
+    img = Image.new("RGB", (1240, 500), "white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype(str(font_path), 48)
+    for i, line in enumerate(["ระบบบริหารงานบุคคล", "ประวัติการรับเงินเดือน"]):
+        draw.text((80, 80 + i * 110), line, fill="black", font=font)
+    pdf_path = tmp_path / "thai_scan.pdf"
+    img.save(str(pdf_path), "PDF", resolution=150.0)
+    return pdf_path
 
 
 @pytest.fixture()
@@ -61,6 +91,32 @@ class TestRapidOCRFallback:
     def test_ocr_quality_gate(self, image_pdf: Path):
         result = ocr_with_rapidocr(image_pdf)
         assert ocr_require(result) == result
+
+
+class TestThaiRecognitionModel:
+    """Guards the tier-3 defect where the stock rec model had no Thai charset
+    and silently transliterated Thai into Latin lookalikes."""
+
+    def test_rec_model_charset_contains_thai(self):
+        engine = build_engine(DEFAULT_LANG)
+        charset = "".join(engine.text_rec.session.get_character_list())
+        assert count_thai(charset) > 50, (
+            f"rec model charset has {count_thai(charset)} Thai chars — "
+            "it cannot transcribe Thai"
+        )
+
+    def test_unsupported_language_raises(self):
+        with pytest.raises(ValueError, match="unsupported rec language"):
+            build_engine("klingon")
+
+    def test_ocr_of_thai_scan_produces_thai(self, thai_image_pdf: Path):
+        import re
+
+        result = ocr_with_rapidocr(thai_image_pdf)
+        # Strip page headings and no-text markers — they contain Thai
+        # themselves and previously let this test pass vacuously.
+        content = re.sub(r"^(## หน้า \d+|_\(ไม่พบข้อความ\)_)$", "", result, flags=re.M)
+        assert count_thai(content) > 0, f"no Thai characters in OCR output: {result!r}"
 
 
 class TestConvertChainFallback:

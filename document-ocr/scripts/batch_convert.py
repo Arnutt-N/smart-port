@@ -1,9 +1,8 @@
 """Batch-convert all PDFs in input/ → output/ using the Docling → RapidOCR chain.
 
-Run with the hrrag-myjobs venv:
+Run with the external OCR venv (real path: internal note under research/docs-ocr/):
 
-    D:\\hr-hackathon\\hrrag-myjobs\\backend\\.venv\\Scripts\\python.exe \
-        scripts/batch_convert.py [--input input/] [--output output/]
+    <OCR_VENV_PYTHON> scripts/batch_convert.py [--input input/] [--output output/]
 """
 from __future__ import annotations
 

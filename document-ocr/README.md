@@ -22,10 +22,9 @@ document-ocr/
 
 ## กลยุทธ์การแปลง (Conversion Strategy)
 
-> ⚠️ **อัปเดต 2026-07-24:** เปลี่ยนจาก Marker → **Docling** เป็น default
-> (ดูเหตุผลใน `research/ENGINE-DECISION-2026-07-24.md` — benchmark จริงพิสูจน์ว่า Marker ช้ากว่า Docling มากบน CPU)
-
-ใช้ **Docling เป็น default** โดยตั้ง `do_ocr=False` (ปรัชญา **fail-closed** — OCR ต้องผ่านคนตรวจ เพราะเป็นข้อมูล HR sensitive):
+> ⚠️ **อัปเดต 2026-07-26:** smart-port ใช้ **fallback chain 3 ชั้นอัตโนมัติ**
+> (ต่างจาก pipeline โปรเจกต์พี่น้องที่ fail-closed) — ใส่ `--no-fallback` ถ้าต้องการ
+> fail-closed เป็นรายไฟล์ ทุกชั้นมี quality gate; ถ้าไม่ผ่านทุกชั้น → `needs_review`
 
 ```
                 ┌──────────────────────────────────┐
@@ -33,35 +32,46 @@ document-ocr/
                 └───────────────┬──────────────────┘
                                 ▼
                 ┌──────────────────────────────────┐
-                │  Docling (do_ocr=False)           │
-                │  ดึง text layer เท่านั้น (เร็ว)        │
+                │ Tier 1 · Docling (do_ocr=False)   │  โครงสร้างดีสุด แต่ช้า/timeout ได้
                 └───────────────┬──────────────────┘
-                                │
-        text layer ใช้การ ───────┤────── text layer เสีย/ว่าง
-                                │              (NeedsOCRError)
-                  ผล Markdown    ▼
-                   ออก → output/ ┌───────────────────────────┐
-                                 │  Route → Human Review      │
-                                 │  ❌ ห้าม auto-OCR           │
-                                 │  ✅ fallback เดียว =         │
-                                 │     reviewed .md (opt-in)   │
-                                 └───────────────────────────┘
+                                │ ล้มเหลว / text layer เสีย
+                                ▼
+                ┌──────────────────────────────────┐
+                │ Tier 2 · pypdfium2 text layer     │  เร็ว, ไทยสมบูรณ์, parse ตาราง
+                │ (extract_textlayer.py)            │  นิยามคอลัมน์ ← ใช้ชั้นนี้จริง
+                └───────────────┬──────────────────┘
+                                │ ไม่มี text layer (สแกนล้วน)
+                                ▼
+                ┌──────────────────────────────────┐
+                │ Tier 3 · RapidOCR (โมเดลไทย)       │  th_PP-OCRv5_rec_mobile
+                └───────────────┬──────────────────┘
+                                │ ทุกชั้นล้มเหลว
+                                ▼
+                ┌──────────────────────────────────┐
+                │ needs_review → Human Review        │
+                │ (แนบ reviewed .md ผ่าน               │
+                │  --fallback-markdown ได้)           │
+                └──────────────────────────────────┘
 ```
 
 **Format routing:**
-- **PDF** → Docling (default)
+- **PDF** → chain ข้างบน
 - **DOCX/PPTX/XLSX/CSV** → Unstructured (scope ต่างจาก Docling — ยังไม่ทดสอบ)
 
 ---
 
 ## สถานะการติดตั้ง Engine
 
-| Engine | ตำแหน่ง venv | สถานะ (2026-07-24) | บทบาท |
+Engine ทุกตัวอยู่ใน venv ภายนอกโปรเจกต์ (`<OCR_VENV>` — path จริงดูโน้ตภายในที่ `research/docs-ocr/` ซึ่งไม่เข้า git)
+
+| Engine | ตำแหน่ง venv | สถานะ (2026-07-26) | บทบาท |
 |---|---|---|---|
-| **Docling** (`docling`) | `D:\hr-hackathon\hrrag-myjobs\backend\.venv` | ✅ **ติดตั้งแล้ว** (2.114.0) | **PDF default** |
-| Unstructured | `D:\hr-hackathon\hrrag-myjobs\backend\.venv` | ⏳ ยังไม่ทดสอบ | DOCX/PPTX/XLSX/CSV |
+| **Docling** (`docling`) | `<OCR_VENV>` | ✅ ติดตั้งแล้ว (2.114.0) | Tier 1 (ช้า — เอกสารจริงขนาดร้อยหน้า timeout) |
+| **pypdfium2** | `<OCR_VENV>` | ✅ ใช้งานจริง | **Tier 2 — engine หลักที่ใช้งานจริง** |
+| **RapidOCR** (`rapidocr`) | `<OCR_VENV>` | ✅ pin โมเดลไทย `th_PP-OCRv5_rec_mobile` | Tier 3 (สแกนล้วน; ดาวน์โหลดโมเดลรอบแรกจาก modelscope.cn) |
+| Unstructured | `<OCR_VENV>` | ⏳ ยังไม่ทดสอบ | DOCX/PPTX/XLSX/CSV |
 | ~~Marker~~ | — | ❌ **ปิดประเด็น** (ช้ากว่า Docling มากบน CPU) | — |
-| ~~PaddleOCR~~ | — | ❌ **ปิดประเด็น** (auto-OCR ขัดปรัชญา) | — |
+| ~~PaddleOCR~~ | — | ❌ **ปิดประเด็น** (ใช้ RapidOCR ONNX แทน) | — |
 | ~~MinerU~~ | — | ❌ ไม่คุ้มประเมิน | — |
 
 > 📖 เหตุผลเต็ม: `research/ENGINE-DECISION-2026-07-24.md`
@@ -83,15 +93,16 @@ document-ocr/
 
 ---
 
-## วิธีใช้งาน (เมื่อ engine พร้อม)
+## วิธีใช้งาน
 
 1. วางเอกสารต้นฉบับใน `input/`
-2. รันสคริปต์ใน `scripts/` (ตัวอย่างจะเพิ่มหลัง engine ติดตั้งเสร็จ)
-3. ผลลัพธ์จะออกที่ `output/` เป็น Markdown/JSON
+2. รันสคริปต์ใน `scripts/` (ดู `scripts/README.md`)
+3. ผลลัพธ์จะออกที่ `output/<stem>/<stem>.md` + `_meta.json`
 
 ```bash
-# ตัวอย่าง (เมื่อพร้อม)
-python scripts/convert.py "input/Data Dictionary.pdf" --output output/
+VENV="<OCR_VENV_PYTHON>"   # path จริง: ดูโน้ตภายใน research/docs-ocr/ (ไม่เข้า git)
+$VENV scripts/convert.py "input/sample.pdf" --output output/
+# ข้ามการแปลงซ้ำอัตโนมัติถ้า output ใหม่กว่าต้นฉบับ — ใช้ --force เพื่อแปลงใหม่
 ```
 
 ---

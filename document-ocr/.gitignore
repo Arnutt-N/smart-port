@@ -10,6 +10,7 @@ output/*
 !output/README.md
 
 # ไฟล์ชั่วคราว / cache ของ OCR engine
+tmp/
 *.tmp
 *.cache
 __pycache__/
@@ -24,3 +25,8 @@ output/**/images/
 *.onnx
 *.safetensors
 models/
+
+# บันทึกการวิเคราะห์/research — อาจพาดพิงเอกสารต้นทางหรือ database ภายใน
+# (นโยบายจัดชั้นความลับ 2026-07-26: สิ่งที่เชื่อมโยงถึง database ได้ = ข้อมูลลับ)
+# หมายเหตุ: ไฟล์ที่ tracked อยู่ก่อนแล้ว (เช่น ENGINE-DECISION-2026-07-24.md) ไม่ได้รับผลจากกฎนี้
+research/

@@ -1,12 +1,20 @@
 """Extract PDF text layer via pypdfium2 and format as structured Markdown.
 
-Handles Data Dictionary style tables:
+Handles column-definition style tables:
   Table Name : N. TABLE_NAME
   Description : ...
   No. Column Name Data Type Null? Description Index Reference
-  1 col_name Type Y/N desc PK/U1/FK1
+  1 col_name Type Y/N desc PK/U1/FK1 ref_table.ref_col
 
-Falls back to plain text for non-table pages.
+Parsing is DOCUMENT-WIDE, not per-page: a table that spans a page break
+continues through the repeated page header ("การส่งมอบงานครั้งที่ ...") and
+column-header line. Continuation lines (enum legends such as "0 : ยกเลิกการใช้",
+wrapped descriptions, "(ใหม่)" suffixes) are appended to the owning row's
+Description with <br>. Index tokens (PK / Un / FKn) and FK targets
+(table.column) are split into the Index / Reference columns — including when
+the FK arrives alone on a continuation line.
+
+Falls back to plain text for non-table pages (TOC, cover pages).
 """
 from __future__ import annotations
 
@@ -14,11 +22,19 @@ import re
 import sys
 from pathlib import Path
 
-_SARA_AM_FIX = re.compile("([\u0E01-\u0E2E])([\u0E48-\u0E4B]?) \u0E32")
-_MAIYAMOK_FIX = re.compile(r"([^\s\u0E46])\u0E46")
+_SARA_AM_FIX = re.compile("([ก-ฮ])([่-๋]?) า")
+_MAIYAMOK_FIX = re.compile(r"([^\sๆ])ๆ")
 _SOURCE_FIXES = [
+    # คำสะกดผิดที่พบในต้นฉบับ PDF (ตรวจยืนยัน 2026-07-26 — ทุกคำ unambiguous)
     (re.compile("สมรถนะ"), "สมรรถนะ"),
     (re.compile("กฏหมาย"), "กฎหมาย"),
+    (re.compile("ประด็น"), "ประเด็น"),      # ขาดสระ เ (ประด็นการประเมิน)
+    (re.compile("บุลากร"), "บุคลากร"),      # ขาด ค
+    (re.compile("ตวจเลือก"), "ตรวจเลือก"),  # ขาด ร (การตรวจเลือกทหาร)
+    (re.compile("เป้หมาย"), "เป้าหมาย"),    # ขาดสระ า
+    (re.compile("สังเกตุ"), "สังเกต"),      # สังเกต ไม่มีสระอุ
+    (re.compile("อีเมล์"), "อีเมล"),        # ตามราชบัณฑิตยสภา
+    (re.compile("ลายเซ็นต์"), "ลายเซ็น"),   # เซ็น ไม่มี ต์
 ]
 
 
@@ -26,8 +42,8 @@ def fix_thai_encoding(text: str) -> str:
     """Repair legacy PDF Thai encoding: consonant [+tone] + space + Sara AA → consonant [+tone] + Sara Am.
     Tone mark must precede Sara Am so it renders on top (ต่ำ not ตำ่).
     Also corrects known source PDF misspellings and ๆ spacing."""
-    text = _SARA_AM_FIX.sub(lambda m: m.group(1) + m.group(2) + "\u0E33", text)
-    text = _MAIYAMOK_FIX.sub(lambda m: m.group(1) + " \u0E46", text)
+    text = _SARA_AM_FIX.sub(lambda m: m.group(1) + m.group(2) + "ำ", text)
+    text = _MAIYAMOK_FIX.sub(lambda m: m.group(1) + " ๆ", text)
     for pat, repl in _SOURCE_FIXES:
         text = pat.sub(repl, text)
     return text
@@ -38,106 +54,196 @@ def extract_page_text(page) -> str:
     return fix_thai_encoding(textpage.get_text_range())
 
 
-def parse_data_dictionary_page(text: str) -> str:
-    """Parse a page that contains Data Dictionary table definitions."""
-    lines = text.split("\n")
-    output: list[str] = []
-    i = 0
+# --- document grammar -------------------------------------------------------
 
-    while i < len(lines):
-        line = lines[i].strip()
+NO_TEXT_MARKER = "_(ไม่พบข้อความ)_"
 
-        # Detect table header: "Table Name : N. TABLE_NAME"
-        m = re.match(r"Table Name\s*:\s*(\d+)\.\s*(\S+)", line)
+_TABLE_START_RE = re.compile(r"Table Name\s*:\s*(\d+)\.\s*(\S+)")
+_TABLE_DESC_RE = re.compile(r"^Description\s*:?\s*(.*)$")
+_PAGE_HEADER_RE = re.compile(r"^การส่งมอบงานครั้งที่")
+_COLUMN_HEADER_RE = re.compile(r"No\.?\s*Column Name\s+Data Type", re.IGNORECASE)
+
+# Data types: Char(N), Varchar2(N), Number(N), Number(p,s), Date, CLOB, BLOB.
+# The text layer sometimes splits "Varchar2" into "Varchar 2".
+_TYPE_PATTERN = (
+    r"(?:Varchar\s*2|Char|Number|Integer|Float|CLOB|BLOB|Long|Timestamp)"
+    r"\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\)"
+    r"|(?:Date|CLOB|BLOB|Integer|Float|Long|Number)\b"
+)
+_ROW_RE = re.compile(rf"^(\d+)\s+(\S+)\s+({_TYPE_PATTERN})\s+([YN])\s*(.*)$")
+
+# Index markers: PK, U1-U9, FKn, IDX* — possibly comma-joined ("PK,FK1"),
+# optionally followed by an FK target "ref_table.ref_col".
+_INDEX_TOKEN = r"(?:PK|U\d+|FK\d+|IDX\w*)"
+_INDEX_TAIL_RE = re.compile(
+    rf"(?:^|\s)({_INDEX_TOKEN}(?:\s*,\s*{_INDEX_TOKEN})*)(?:\s+(\w+\.\w+))?\s*$"
+)
+# A continuation line consisting only of index/reference info, e.g.
+# "FK5 tb_org.org_id" stranded below its row by a page break.
+_INDEX_ONLY_RE = re.compile(
+    rf"^({_INDEX_TOKEN}(?:\s*,\s*{_INDEX_TOKEN})*)(?:\s+(\w+\.\w+))?$"
+)
+
+
+def _escape_cell(text: str) -> str:
+    """Make text safe inside a Markdown table cell.
+
+    Uses &#124; (not \\|) so downstream consumers that split rows on the
+    literal '|' character (secrets/generate_schema.py) stay aligned.
+    """
+    return text.replace("|", "&#124;")
+
+
+class _Row:
+    __slots__ = ("no", "name", "type", "nullable", "desc_parts", "index", "reference")
+
+    def __init__(self, no: str, name: str, type_: str, nullable: str, remainder: str):
+        self.no = no
+        self.name = name
+        # Normalise the split "Varchar 2(13)" form back to Varchar2(13)
+        self.type = re.sub(r"Varchar\s+2", "Varchar2", type_)
+        self.nullable = nullable
+        self.desc_parts: list[str] = []
+        self.index = ""
+        self.reference = ""
+        self._absorb(remainder)
+
+    def _absorb(self, text: str) -> None:
+        """Split trailing index/reference markers off a description fragment."""
+        text = text.strip()
+        if not text:
+            return
+        m = _INDEX_TAIL_RE.search(text)
         if m:
-            table_num = m.group(1)
-            table_name = m.group(2)
-            i += 1
+            self._merge_index(m.group(1), m.group(2) or "")
+            text = text[: m.start()].strip()
+        if text:
+            self.desc_parts.append(text)
 
-            # Next line should be "Description : ..."
-            desc = ""
-            if i < len(lines) and lines[i].strip().startswith("Description"):
-                desc = lines[i].strip().replace("Description", "").lstrip(": ").strip()
-                i += 1
+    def _merge_index(self, index: str, reference: str) -> None:
+        self.index = f"{self.index},{index}" if self.index else index
+        if reference:
+            self.reference = (
+                f"{self.reference}, {reference}" if self.reference else reference
+            )
 
-            output.append(f"### {table_num}. {table_name}")
-            if desc:
-                output.append(f"> {desc}")
-            output.append("")
-
-            # Skip column header line
-            if i < len(lines) and "Column Name" in lines[i] and "Data Type" in lines[i]:
-                i += 1
-
-            # Parse rows until next Table Name or end
-            output.append("| No. | Column Name | Data Type | Null? | Description | Index | Reference |")
-            output.append("|-----|-------------|-----------|-------|-------------|-------|-----------|")
-
-            while i < len(lines):
-                row_line = lines[i].strip()
-                if not row_line:
-                    i += 1
-                    continue
-                if re.match(r"Table Name\s*:", row_line):
-                    break
-                # Row starts with a number
-                row_match = re.match(r"^(\d+)\s+(.+)", row_line)
-                if row_match:
-                    parts = _parse_row(row_match.group(1), row_match.group(2))
-                    output.append(parts)
-                    i += 1
-                    # Check for continuation lines (multi-line descriptions like "0 : ...\n1 : ...")
-                    while i < len(lines):
-                        cont = lines[i].strip()
-                        if not cont:
-                            i += 1
-                            break
-                        if re.match(r"^\d+\s+\w", cont) or re.match(r"Table Name\s*:", cont):
-                            break
-                        # continuation of description
-                        i += 1
-                else:
-                    i += 1
-                    break
-
-            output.append("")
+    def continuation(self, line: str) -> None:
+        """Attach a continuation line (enum legend, wrapped text, lone FK)."""
+        m = _INDEX_ONLY_RE.match(line)
+        if m:
+            self._merge_index(m.group(1), m.group(2) or "")
         else:
-            # Non-table content: pass through
-            if line:
-                output.append(line)
-            i += 1
+            self._absorb(line)
 
-    return "\n".join(output)
+    def to_markdown(self) -> str:
+        desc = "<br>".join(self.desc_parts)
+        if not desc and (self.index or self.reference):
+            desc = "-"  # keep cell non-empty so pipe-splitting stays aligned
+        cells = [self.no, self.name, self.type, self.nullable,
+                 desc, self.index, self.reference]
+        return "| " + " | ".join(_escape_cell(c) for c in cells) + " |"
 
 
-def _parse_row(num: str, rest: str) -> str:
-    """Parse a table row into Markdown table cell format."""
-    # Pattern: col_name Data_Type Null? Description [Index] [Reference]
-    # Data types: Char(N), Varchar2(N), Number(N), Date, CLOB, BLOB
-    type_pattern = r"((?:Varchar2|Char|Number|Date|CLOB|BLOB|Integer|Float)\s*\(\d+\)|(?:Date|CLOB|BLOB|Integer|Float))"
-    m = re.match(r"(\S+)\s+" + type_pattern + r"\s+([YN])\s+(.*)", rest)
-    if m:
-        col_name = m.group(1)
-        data_type = m.group(2)
-        nullable = m.group(3)
-        remainder = m.group(4).strip()
+class _Table:
+    def __init__(self, num: str, name: str):
+        self.num = num
+        self.name = name
+        self.desc = ""
+        self.rows: list[_Row] = []
 
-        # Try to split remainder into description + index + reference
-        # Index patterns: PK, U1-U9, FKn, IDX
-        idx_match = re.search(r"\s+(PK|U\d+|FK\d*|IDX\w*)\s*$", remainder)
-        index = ""
-        reference = ""
-        desc = remainder
-        if idx_match:
-            index = idx_match.group(1)
-            desc = remainder[: idx_match.start()].strip()
-            # Check for reference after index
-            ref_match = re.search(r"\s+(\S+)$", desc)
+    def to_markdown(self) -> str:
+        out = [f"### {self.num}. {self.name}"]
+        if self.desc:
+            out.append(f"> {_escape_cell(self.desc)}")
+        out.append("")
+        out.append("| No. | Column Name | Data Type | Null? | Description | Index | Reference |")
+        out.append("|-----|-------------|-----------|-------|-------------|-------|-----------|")
+        out.extend(r.to_markdown() for r in self.rows)
+        out.append("")
+        return "\n".join(out)
 
-        return f"| {num} | {col_name} | {data_type} | {nullable} | {desc} | {index} | {reference} |"
 
-    # Fallback: just put everything in description
-    return f"| {num} | {rest} | | | | | |"
+def parse_document(page_texts: list[str]) -> str:
+    """Parse the whole document (list of per-page texts) into Markdown.
+
+    Tables continue across page breaks; text outside any table is passed
+    through under its "## หน้า N" heading.
+    """
+    # Flatten to (page_no, line) preserving page attribution for plain text
+    tagged: list[tuple[int, str]] = []
+    for page_no, text in enumerate(page_texts, start=1):
+        page_lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+        if not page_lines:
+            page_lines = [NO_TEXT_MARKER]
+        for line in page_lines:
+            tagged.append((page_no, line))
+        tagged.append((page_no, ""))  # page boundary spacer
+
+    output: list[str] = []
+    plain: list[str] = []      # buffered plain text for the current page
+    plain_page = 0             # page the buffer belongs to
+    table: _Table | None = None
+    row: _Row | None = None
+    expect_desc = False        # just saw "Table Name :" — Description next
+
+    def flush_plain() -> None:
+        nonlocal plain
+        if plain:
+            output.append(f"## หน้า {plain_page}\n\n" + "\n".join(plain) + "\n")
+            plain = []
+
+    def flush_table() -> None:
+        nonlocal table, row
+        if table is not None:
+            output.append(table.to_markdown())
+            table = None
+            row = None
+
+    for page_no, line in tagged:
+        if not line:
+            continue
+
+        m = _TABLE_START_RE.search(line)
+        if m:
+            flush_plain()
+            flush_table()
+            table = _Table(m.group(1), m.group(2))
+            expect_desc = True
+            continue
+
+        if table is not None:
+            if expect_desc:
+                dm = _TABLE_DESC_RE.match(line)
+                if dm:
+                    table.desc = dm.group(1).strip()
+                    expect_desc = False
+                    continue
+                expect_desc = False  # no Description line for this table
+
+            if (_PAGE_HEADER_RE.match(line) or _COLUMN_HEADER_RE.search(line)
+                    or line == NO_TEXT_MARKER):
+                continue  # page furniture inside a spanning table
+
+            rm = _ROW_RE.match(line)
+            if rm:
+                row = _Row(*rm.groups())
+                table.rows.append(row)
+                continue
+
+            if row is not None:
+                row.continuation(line)
+            # else: stray line between header and first row — drop
+            continue
+
+        # Outside any table: plain-text passthrough grouped by page
+        if plain and plain_page != page_no:
+            flush_plain()
+        plain_page = page_no
+        plain.append(line)
+
+    flush_plain()
+    flush_table()
+    return "\n".join(output).strip() + "\n"
 
 
 def convert_pdf(pdf_path: Path) -> tuple[str, int]:
@@ -145,27 +251,12 @@ def convert_pdf(pdf_path: Path) -> tuple[str, int]:
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(str(pdf_path))
-    pages_md: list[str] = []
-
     try:
-        n_pages = len(pdf)
-        for i in range(n_pages):
-            page = pdf[i]
-            text = extract_page_text(page)
-            if not text or not text.strip():
-                pages_md.append(f"## หน้า {i + 1}\n\n_(ไม่พบข้อความ)_")
-                continue
-
-            if "Table Name" in text and "Column Name" in text:
-                formatted = parse_data_dictionary_page(text)
-            else:
-                formatted = text.strip()
-
-            pages_md.append(f"## หน้า {i + 1}\n\n{formatted}")
+        page_texts = [extract_page_text(pdf[i]) for i in range(len(pdf))]
     finally:
         pdf.close()
 
-    return "\n\n".join(pages_md), n_pages
+    return parse_document(page_texts), len(page_texts)
 
 
 def main() -> int:

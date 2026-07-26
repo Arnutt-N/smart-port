@@ -4,8 +4,8 @@
 |---|---|
 | **Decision** | ใช้ **Docling** เป็น default PDF engine (แทน Marker) |
 | **Date** | 2026-07-24 (ปรับจากแผนเดิม Marker → Docling) |
-| **Status** | ✅ อนุมัติ — สอดคล้องกับมติทีม `hrrag-myjobs` |
-| **Source evidence** | `D:\hr-hackathon\hrrag-myjobs\project-log-md\claude-code\2026-07-24_1900_pdf-ocr-conversion-comparison_claude-code_sonnet-5.md` |
+| **Status** | ✅ อนุมัติ — สอดคล้องกับมติทีมโปรเจกต์พี่น้อง |
+| **Source evidence** | บันทึกเปรียบเทียบ PDF/OCR engines 2026-07-24 (เอกสารภายในโปรเจกต์พี่น้อง — ไม่เข้า git) |
 
 ---
 
@@ -39,7 +39,7 @@
 
 | Engine | สถานะ | บทบาท | หมายเหตุ |
 |---|---|---|---|
-| **Docling** ✅ 2.114.0 | **ติดตั้งแล้ว** | **PDF default** | deploy จริงใน hrrag-myjobs prod (PR #91), hardened |
+| **Docling** ✅ 2.114.0 | **ติดตั้งแล้ว** | **PDF default** | deploy จริงใน prod ของโปรเจกต์พี่น้อง, hardened |
 | **Unstructured** | ยังไม่ทดสอบ | DOCX/PPTX/XLSX/CSV | scope ต่างจาก Docling (ไม่ทับซ้อน) |
 | ~~Marker~~ ❌ | **ปิดประเด็นถาวร** | — | ช้ากว่า Docling มากบน CPU |
 | ~~PaddleOCR~~ ❌ | **ปิดประเด็นถาวร** | — | auto-OCR ขัดปรัชญา fail-closed |
