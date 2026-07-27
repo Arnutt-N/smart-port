@@ -83,11 +83,12 @@ function databaseAlreadyProvisioned(PDO $pdo): bool
  */
 function seedBaselineIfNeeded(PDO $pdo, array $files): array
 {
-    $count = (int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn();
-    if ($count > 0 || !databaseAlreadyProvisioned($pdo)) {
+    if (!databaseAlreadyProvisioned($pdo)) {
         return [];
     }
 
+    // INSERT IGNORE: เติม baseline rows ที่ขาด — production อาจมี schema_migrations
+    // บาง row อยู่แล้ว (เช่น 18, 21 ที่ apply มือ) แต่ขาด 03–14 ที่มากับ tidb-init
     $insert = $pdo->prepare(
         'INSERT IGNORE INTO schema_migrations (migration_name) VALUES (?)'
     );
@@ -98,7 +99,9 @@ function seedBaselineIfNeeded(PDO $pdo, array $files): array
             continue;
         }
         $insert->execute([$name]);
-        $seeded[] = $name;
+        if ($insert->rowCount() > 0) {
+            $seeded[] = $name;
+        }
     }
 
     return $seeded;
