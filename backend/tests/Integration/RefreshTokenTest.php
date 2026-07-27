@@ -130,27 +130,57 @@ final class RefreshTokenTest extends TestCase
         self::assertArrayHasKey('error', $response);
     }
 
+    private function countActiveTokens(): int
+    {
+        $stmt = self::$pdo->prepare(
+            'SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL'
+        );
+        $stmt->execute([$this->userId]);
+        return (int) $stmt->fetchColumn();
+    }
+
     #[Test]
-    public function reusing_a_revoked_token_revokes_all_user_tokens(): void
+    public function reusing_a_just_revoked_token_is_rejected_without_killing_the_session(): void
+    {
+        // ภายใน grace window (10 วิ) ถือว่าเป็น race ระหว่าง browser tab ไม่ใช่การขโมย
+        // จึงตอบ 401 ใบนั้นเฉย ๆ แต่ต้องไม่เตะผู้ใช้ออกจากระบบ (routes/auth.php)
+        $raw = issueRefreshToken(self::$pdo, $this->userId);
+
+        $this->callRefresh($raw);
+        self::assertSame(200, http_response_code());
+
+        http_response_code(200);
+        $response = $this->callRefresh($raw);
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $response);
+        self::assertSame(1, $this->countActiveTokens(), 'ใบที่เพิ่ง rotate มาต้องยังใช้ได้');
+    }
+
+    #[Test]
+    public function reusing_a_long_revoked_token_revokes_all_user_tokens(): void
     {
         $raw = issueRefreshToken(self::$pdo, $this->userId);
 
         // ครั้งแรก: rotation สำเร็จ -> raw ถูก revoke, มี token ใหม่ที่ active
         $this->callRefresh($raw);
         self::assertSame(200, http_response_code());
+        self::assertSame(1, $this->countActiveTokens());
 
-        // นำ raw (ที่ถูก revoke แล้ว) มาใช้ซ้ำ = สงสัยถูกขโมย
+        // ดัน revoked_at ให้พ้น grace window แทนการ sleep จริง — เทสจึงเร็วและ deterministic
+        self::$pdo->prepare(
+            'UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 60 SECOND)
+             WHERE token_hash = ? AND user_id = ?'
+        )->execute([hashRefreshToken($raw), $this->userId]);
+
+        // นำ raw ที่ถูก revoke มานานแล้วมาใช้ซ้ำ = สงสัยถูกขโมย
         http_response_code(200);
         $response = $this->callRefresh($raw);
         self::assertSame(401, http_response_code());
         self::assertArrayHasKey('error', $response);
 
         // token ทุกใบของ user ต้องถูกเพิกถอน (รวมใบใหม่ที่เพิ่งออก)
-        $stmt = self::$pdo->prepare(
-            'SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL'
-        );
-        $stmt->execute([$this->userId]);
-        self::assertSame(0, (int) $stmt->fetchColumn());
+        self::assertSame(0, $this->countActiveTokens());
     }
 
     #[Test]

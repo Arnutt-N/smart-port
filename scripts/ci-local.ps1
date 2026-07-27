@@ -84,6 +84,11 @@ function Resolve-GitBash {
   return $null
 }
 
+# ---- 0) Schema parity (เร็ว รันก่อนเสมอ — fail เร็วดีกว่ารอ docker build) -----
+Write-Step 'Schema Parity Gate'
+& node (Join-Path $Root 'scripts\validate-schema-parity.mjs')
+if ($LASTEXITCODE -eq 0) { Write-Ok 'schema parity' } else { Write-Fail 'schema parity' }
+
 # ---- 1) Frontend Build & Test ----------------------------------------------
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'

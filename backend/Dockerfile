@@ -1,7 +1,15 @@
-# Smart Port backend — build context = backend/ directory.
-# Used by Render when Root Directory is "backend" and Docker Context is "." (not "..").
-# Migrations are not copied here (database/ is outside this context); TiDB schema is
-# expected to exist already. Set RUN_MIGRATIONS=0. For full migration bundle use repo-root Dockerfile.
+# Smart Port backend — FALLBACK image (build context = backend/ directory)
+#
+# ⚠️ ไม่ใช่ตัวที่ควรใช้ deploy: database/ อยู่นอก build context นี้ จึงไม่มีไฟล์ migration
+#    ติดมาในภาพเลย (RUN_MIGRATIONS=0) schema ต้อง apply มือทุกครั้ง — เคยทำให้ production
+#    ค้างที่ schema รุ่นเก่าโดยไม่มีสัญญาณเตือน ดู docs/adr/0002-schema-parity-gate.md
+#
+# ตัวที่ควรใช้คือ Dockerfile ที่ repo root (render.yaml ชี้ไปที่นั่นแล้ว) ซึ่งมี production
+# hardening เหมือนกันทุกข้อ + copy database/ + ตั้ง RUN_MIGRATIONS=1
+#
+# ไฟล์นี้คงไว้เป็น fallback เผื่อ Render dashboard ยังตั้ง Root Directory = backend อยู่
+# (ค่าใน dashboard ทับ blueprint ได้) วิธีรู้ว่า deploy ใช้ตัวไหน: `GET /` จะคืน
+# migrations_available = 0 พร้อม migrations_note ถ้าเป็นภาพจากไฟล์นี้
 # =========================================================================
 # STAGE 1: Composer Dependencies Stage
 # =========================================================================

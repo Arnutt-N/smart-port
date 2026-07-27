@@ -78,13 +78,14 @@ function handleDiverse(PDO $pdo, string $method, array $path): void
 
 /**
  * GET /diverse — รายการนับแตกต่างทั้งหมด พร้อม pagination
- * สามารถกรองตาม personnel_id ได้
+ * สามารถกรองตาม personnel_id และค้นหาด้วย search (ชื่อ-สกุล หรือ สายงาน/กอง ต้นทาง-ปลายทาง)
  */
 function getDiverseList(PDO $pdo): void
 {
     $personnelId = $_GET['personnel_id'] ?? null;
-    $limit = intval($_GET['limit'] ?? 20);
-    $offset = intval($_GET['offset'] ?? 0);
+    $search = trim($_GET['search'] ?? '');
+    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
+    $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $baseQuery = "SELECT de.*, CONCAT(p.first_name, ' ', p.last_name) AS full_name
                   FROM diverse_experience de
@@ -94,13 +95,24 @@ function getDiverseList(PDO $pdo): void
                    FROM diverse_experience de
                    LEFT JOIN personnel p ON de.personnel_id = p.personnel_id";
 
-    $where = '';
+    $conditions = [];
     $params = [];
 
     if ($personnelId !== null && $personnelId !== '') {
-        $where = " WHERE de.personnel_id = ?";
-        $params = [intval($personnelId)];
+        $conditions[] = 'de.personnel_id = ?';
+        $params[] = intval($personnelId);
     }
+
+    if ($search !== '') {
+        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
+                          OR CONCAT(p.first_name, ' ', p.last_name) LIKE ?
+                          OR de.from_job_series LIKE ? OR de.to_job_series LIKE ?
+                          OR de.from_division LIKE ? OR de.to_division LIKE ?)";
+        $term = "%{$search}%";
+        array_push($params, $term, $term, $term, $term, $term, $term, $term);
+    }
+
+    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
 
     // Data query with ordering and pagination
     $sql = $baseQuery . $where . " ORDER BY de.created_at DESC LIMIT {$limit} OFFSET {$offset}";

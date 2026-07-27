@@ -16,7 +16,27 @@ vi.mock('@/router', () => ({
   default: { push: mockPush },
 }))
 
-const { useApi } = await import('@/composables/useApi.js')
+const { useApi, apiAssetUrl } = await import('@/composables/useApi.js')
+
+describe('apiAssetUrl', () => {
+  it('prefixes a relative backend path with the API base', () => {
+    expect(apiAssetUrl('uploads/photo_abc.jpg')).toBe('/api/uploads/photo_abc.jpg')
+  })
+
+  it('does not double the slash when the path already starts with one', () => {
+    expect(apiAssetUrl('/uploads/photo_abc.jpg')).toBe('/api/uploads/photo_abc.jpg')
+  })
+
+  it('leaves absolute URLs untouched', () => {
+    expect(apiAssetUrl('https://cdn.example.com/a.jpg')).toBe('https://cdn.example.com/a.jpg')
+  })
+
+  it('returns null for empty input so callers can hide the image', () => {
+    expect(apiAssetUrl(null)).toBeNull()
+    expect(apiAssetUrl('')).toBeNull()
+    expect(apiAssetUrl(undefined)).toBeNull()
+  })
+})
 
 describe('useApi uploads', () => {
   beforeEach(() => {

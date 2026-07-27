@@ -300,19 +300,26 @@ CREATE TABLE network_connections (
 -- ############################################################################
 
 -- องค์กร/หน่วยงาน
+-- org_name_hash + unique key มาจาก 11-import-constraints.sql — ประกาศ inline เพราะ
+-- TiDB เพิ่ม generated column ผ่าน ALTER ไม่ได้ทุกกรณี; ImportService ใช้ unique key นี้ upsert
 CREATE TABLE organization (
     org_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     org_name VARCHAR(300) NOT NULL,
     org_code VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    org_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(org_name, 256)) VIRTUAL,
+    UNIQUE KEY uq_org_name_hash (org_name_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ตำแหน่ง
+-- position_name_hash + unique key มาจาก 11-import-constraints.sql (ดูหมายเหตุที่ organization)
 CREATE TABLE `position` (
     position_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     position_name VARCHAR(300) NOT NULL,
     position_code VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    position_name_hash CHAR(64) GENERATED ALWAYS AS (SHA2(position_name, 256)) VIRTUAL,
+    UNIQUE KEY uq_position_name_hash (position_name_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ผู้ใช้งานระบบ (schema เต็มจาก 09-auth-users.sql — ไม่ต้อง ALTER ทีหลัง)
@@ -1266,5 +1273,192 @@ ON DUPLICATE KEY UPDATE
     role = VALUES(role),
     is_active = VALUES(is_active),
     must_change_password = VALUES(must_change_password);
+
+-- ============================================
+-- FILE: 10-import-log.sql + 12-import-log-fk.sql
+-- ============================================
+-- ประวัติการนำเข้า Excel — ห้ามเก็บ citizen_id (เป็น log table ไม่ใช่ data table)
+CREATE TABLE import_log (
+    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NULL,
+    filename VARCHAR(300) NULL,
+    personnel_count INT NOT NULL DEFAULT 0,
+    is_success TINYINT(1) NOT NULL DEFAULT 0,
+    error_summary VARCHAR(500) NULL,
+    imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_import_log_user_time (user_id, imported_at),
+    KEY idx_import_log_time (imported_at),
+    CONSTRAINT fk_import_log_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: 11-import-constraints.sql (ส่วน index — generated column ประกาศ inline ที่ตารางแล้ว)
+-- ============================================
+CREATE INDEX idx_personnel_org ON personnel(current_org_id);
+CREATE INDEX idx_personnel_position ON personnel(current_position_id);
+CREATE INDEX idx_pph_org ON personnel_position_history(org_id);
+CREATE INDEX idx_pph_position ON personnel_position_history(position_id);
+
+-- ============================================
+-- FILE: 13-multiplier-time-counting.sql + 14-multiplier-area-admin.sql
+-- ============================================
+-- created_by มาจาก 14 — รวมไว้ใน CREATE TABLE เลย ไม่ต้อง ALTER ทีหลัง
+-- หมายเหตุ: seed พื้นที่พิเศษใน 13 เป็น SOURCE_PENDING (development seed) จึง **ไม่** ใส่ที่นี่
+-- master data จริงต้องผ่าน scripts/validate-multiplier-phase0.mjs ก่อน seed (GitHub #18/#19/#23)
+CREATE TABLE special_area_multiplier (
+    area_multiplier_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    province VARCHAR(100) NOT NULL,
+    district VARCHAR(100),
+    district_key VARCHAR(100) GENERATED ALWAYS AS (COALESCE(district, '__ALL__')) VIRTUAL,
+    basis_type VARCHAR(50) NOT NULL,
+    multiplier_ratio DECIMAL(5,2) NOT NULL,
+    effective_start_date DATE NOT NULL,
+    effective_end_date DATE,
+    legal_reference VARCHAR(300),
+    source_reference VARCHAR(500),
+    is_active TINYINT(1) DEFAULT 1,
+    created_by BIGINT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CHECK (multiplier_ratio >= 100.00),
+    CHECK (effective_end_date IS NULL OR effective_end_date >= effective_start_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_area_multiplier_lookup
+    ON special_area_multiplier(province, district, is_active, effective_start_date, effective_end_date);
+CREATE UNIQUE INDEX uq_area_multiplier_exact_period
+    ON special_area_multiplier(province, district_key, basis_type, effective_start_date);
+
+CREATE TABLE multiplier_experience (
+    multiplier_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    personnel_id BIGINT NOT NULL,
+    area_multiplier_id BIGINT NOT NULL,
+    province VARCHAR(100) NOT NULL,
+    district VARCHAR(100),
+    basis_type VARCHAR(50) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    eligible_start_date DATE NOT NULL,
+    eligible_end_date DATE NOT NULL,
+    service_days INT,
+    eligible_days INT,
+    multiplier_ratio DECIMAL(5,2) DEFAULT 200.00,
+    effective_days DECIMAL(10,2),
+    bonus_days DECIMAL(10,2),
+    net_end_date DATE,
+    net_years INT,
+    net_months INT,
+    net_day_remainder INT,
+    proof_reference VARCHAR(500),
+    description TEXT,
+    created_by BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
+    FOREIGN KEY (area_multiplier_id) REFERENCES special_area_multiplier(area_multiplier_id),
+    CHECK (end_date >= start_date),
+    CHECK (eligible_end_date >= eligible_start_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_multiplier_exp_pid ON multiplier_experience(personnel_id);
+CREATE INDEX idx_multiplier_exp_area ON multiplier_experience(area_multiplier_id);
+
+-- ============================================
+-- FILE: 15-api-rate-limit-hits.sql
+-- ============================================
+-- นับ hit ของ API rate limit ใน DB (Render free tier ไม่มี Redis / filesystem ไม่ persist)
+CREATE TABLE api_rate_limit_hits (
+    hit_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    rate_key VARCHAR(128) NOT NULL,
+    hit_at INT UNSIGNED NOT NULL,
+    INDEX idx_rate_key_hit_at (rate_key, hit_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: backend/migrations/03-audit-log.sql
+-- ============================================
+CREATE TABLE audit_log (
+    audit_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NULL,
+    action VARCHAR(50) NOT NULL COMMENT 'CREATE, UPDATE, DELETE',
+    table_name VARCHAR(100) NOT NULL COMMENT 'ชื่อตารางที่ถูกแก้ไข',
+    record_id BIGINT NULL COMMENT 'PK ของ record ที่ถูกแก้ไข',
+    before_value JSON NULL COMMENT 'ค่าก่อนแก้ไข (สำหรับ UPDATE/DELETE)',
+    after_value JSON NULL COMMENT 'ค่าหลังแก้ไข (สำหรับ CREATE/UPDATE)',
+    ip_address VARCHAR(45) NULL COMMENT 'IP ของผู้ทำรายการ',
+    user_agent TEXT NULL COMMENT 'Browser/Client ที่ใช้',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_action (user_id, action),
+    INDEX idx_table_record (table_name, record_id),
+    INDEX idx_created_at (created_at DESC),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='บันทึกการเปลี่ยนแปลงข้อมูลสำคัญ (audit trail)';
+
+CREATE OR REPLACE VIEW vw_audit_log AS
+SELECT
+    al.audit_id,
+    al.user_id,
+    u.username,
+    u.full_name,
+    al.action,
+    al.table_name,
+    al.record_id,
+    al.before_value,
+    al.after_value,
+    al.ip_address,
+    al.user_agent,
+    al.created_at
+FROM audit_log al
+LEFT JOIN users u ON al.user_id = u.user_id
+ORDER BY al.created_at DESC;
+
+-- ============================================
+-- FILE: 18-refresh-tokens.sql
+-- ============================================
+-- เก็บเฉพาะ SHA-256 hash ของ refresh token (opaque random 32 bytes) ไม่เก็บ plaintext
+CREATE TABLE refresh_tokens (
+    token_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_refresh_token_hash (token_hash),
+    KEY idx_refresh_user (user_id),
+    KEY idx_refresh_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: 19-awards.sql
+-- ============================================
+CREATE TABLE awards (
+    award_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    servant_id INT NOT NULL,
+    award_name VARCHAR(255) NOT NULL,
+    award_type VARCHAR(50) NOT NULL DEFAULT 'general',
+    award_level VARCHAR(50) NULL DEFAULT NULL,
+    awarded_date DATE NULL DEFAULT NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_awards_servant (servant_id),
+    KEY idx_awards_date (awarded_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: 20-royal-decorations.sql
+-- ============================================
+-- received_year เก็บเป็นปี พ.ศ. (SMALLINT) — validate ช่วง 2400-2700 ฝั่ง PHP
+CREATE TABLE royal_decorations (
+    decoration_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    servant_id INT NOT NULL,
+    decoration_name VARCHAR(255) NOT NULL,
+    decoration_class VARCHAR(100) NULL DEFAULT NULL,
+    received_year SMALLINT NULL DEFAULT NULL,
+    gazette_ref VARCHAR(255) NULL DEFAULT NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_decorations_servant (servant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

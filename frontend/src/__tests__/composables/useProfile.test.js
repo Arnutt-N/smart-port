@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockGet = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockGet }),
+  // จำลองพฤติกรรมจริง: ประกอบ path สัมพัทธ์เข้ากับ API base
+  apiAssetUrl: (p) => (p ? `/api/${String(p).replace(/^\/+/, '')}` : null),
 }))
 
 const { useProfile } = await import('@/composables/useProfile.js')
@@ -43,7 +45,8 @@ describe('useProfile', () => {
       data: {
         servant_id: 5, employee_id: 'EMP005', first_name: 'สม', last_name: 'ชาย',
         full_name: 'นายสมชาย', birth_date: '1980-01-01', appointment_date: '2000-01-01',
-        retirement_date: '2040-09-30', servant_status: 'active', photo_path: '/x.jpg',
+        retirement_date: '2040-09-30', servant_status: 'active',
+        photo_path: 'uploads/photo_abc.jpg',
       },
     })
     const { fetchById } = useProfile()
@@ -51,7 +54,18 @@ describe('useProfile', () => {
     expect(mockGet).toHaveBeenCalledWith('/profile/5')
     expect(result.data.servantId).toBe(5)
     expect(result.data.fullName).toBe('นายสมชาย')
-    expect(result.data.photoPath).toBe('/x.jpg')
+    // ต้องเป็น URL ที่ยิงผ่าน API base ไม่ใช่ path ดิบจาก DB
+    expect(result.data.photoPath).toBe('/api/uploads/photo_abc.jpg')
+  })
+
+  it('maps a missing photo to null instead of a broken image URL', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: { servant_id: 6, full_name: 'นางสาวสมหญิง', photo_path: null },
+    })
+    const { fetchById } = useProfile()
+    const result = await fetchById(6)
+    expect(result.data.photoPath).toBeNull()
   })
 
   it('returns null data when API returns none', async () => {

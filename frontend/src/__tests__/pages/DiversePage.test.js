@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth.js'
 
 const mockFetchList = vi.fn()
 const mockCreate = vi.fn()
@@ -51,8 +52,10 @@ const sampleRow = {
   description: '',
 }
 
-async function mountPage() {
+async function mountPage(role = 'admin') {
   setActivePinia(createPinia())
+  const auth = useAuthStore()
+  auth.user = { id: 1, role }
   const wrapper = mount(DiversePage)
   await vi.waitFor(() => expect(mockFetchList).toHaveBeenCalled())
   await wrapper.vm.$nextTick()
@@ -303,5 +306,19 @@ describe('DiversePage', () => {
     wrapper.vm.deletingRow = null
     await wrapper.vm.handleDelete()
     expect(mockRemove).not.toHaveBeenCalled()
+  })
+
+  // backend ปฏิเสธ DELETE ของ operator ด้วย 403 (audit.php: checkPermission delete => [])
+  it('hides the delete button for operator but keeps edit available', async () => {
+    const wrapper = await mountPage('operator')
+    expect(wrapper.vm.isAdmin).toBe(false)
+    expect(wrapper.findAll('button[title="ลบ"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[title="แก้ไข"]').length).toBeGreaterThan(0)
+  })
+
+  it('shows the delete button for admin', async () => {
+    const wrapper = await mountPage('admin')
+    expect(wrapper.vm.isAdmin).toBe(true)
+    expect(wrapper.findAll('button[title="ลบ"]').length).toBeGreaterThan(0)
   })
 })

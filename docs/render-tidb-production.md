@@ -6,7 +6,7 @@ This project currently deploys cleanly on Render when:
 - backend is a Docker-based Render Web Service
 - backend reads TiDB Cloud credentials from Render environment variables
 
-The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port/render.yaml).
+The source of truth for new deployments is [render.yaml](../render.yaml).
 
 ## 1. Recommended Render layout
 
@@ -23,9 +23,17 @@ The source of truth for new deployments is [render.yaml](D:/hrProject/smart-port
   - Docker Context: `.` (meaning the `backend/` folder — **never** `..`)
   - Health Check Path: `/`
 
-  If Docker Context is `..`, Render sends an empty build context (`transferring context: 2B`) and the build fails with `"/backend/composer.json": not found`. The `backend/Dockerfile` uses paths relative to the `backend/` folder (`COPY composer.json`, `COPY . .`).
+  **Root Directory must be empty (2026-07-27).** The blueprint now builds the backend from the repo root
+  ([`Dockerfile`](../Dockerfile)) so `database/` — the migration files — ships inside the image and
+  `docker-entrypoint.sh` can apply pending migrations on start. Leaving **Root Directory = `backend`** in the
+  dashboard overrides the blueprint and falls back to [`backend/Dockerfile`](../backend/Dockerfile), which
+  cannot see `database/` and therefore ships **no migrations at all** (schema must then be applied by hand —
+  this is what let production drift). Historical note: with Root Directory = `backend`, Docker Context had to
+  be `.`; setting it to `..` produced an empty build context (`transferring context: 2B`).
 
-  Local `docker compose` uses the repo-root [`Dockerfile`](../../Dockerfile) so both `backend/` and `database/` migrations are included.
+  **How to tell which image is live:** `GET /` on the backend returns `migrations_available`. A healthy
+  deploy reports the number of bundled migration files; `0` plus `migrations_note` means the fallback image
+  is running and the schema is not being maintained automatically.
 
 ## 1b. Deploy without GitHub Actions
 
@@ -51,8 +59,8 @@ Set these on the `smartport-backend` Render service:
 
 Notes:
 
-- The backend falls back to `MYSQL_HOST=db` when `MYSQL_HOST` is missing in [backend/config.php](D:/hrProject/smart-port/backend/config.php#L12), which is why Render currently returns a database connection error.
-- The backend connects to the database before routing requests in [backend/api.php](D:/hrProject/smart-port/backend/api.php#L20), so even `/api/auth/login` fails if TiDB env values are missing.
+- The backend falls back to `MYSQL_HOST=db` when `MYSQL_HOST` is missing in [backend/config.php](../backend/config.php#L12), which is why Render currently returns a database connection error.
+- The backend connects to the database before routing requests in [backend/api.php](../backend/api.php#L20), so even `/api/auth/login` fails if TiDB env values are missing.
 
 ## 3. Frontend environment variables
 
@@ -62,14 +70,14 @@ Set this on the `smart-port` static site:
 | --- | --- |
 | `VITE_API_URL` | `/api` |
 
-This works together with the rewrite rules in [render.yaml](D:/hrProject/smart-port/render.yaml), so the browser calls the frontend origin and Render forwards `/api/*` to `https://smartport-backend.onrender.com/*`.
+This works together with the rewrite rules in [render.yaml](../render.yaml), so the browser calls the frontend origin and Render forwards `/api/*` to `https://smartport-backend.onrender.com/*`.
 
 ## 4. TiDB bootstrap
 
 Before testing production data pages, import the schema into TiDB Cloud:
 
 1. Create the `civil_service_mgmt` database in TiDB Cloud if it does not exist yet.
-2. Run [database/tidb-init.sql](D:/hrProject/smart-port/database/tidb-init.sql) against that database.
+2. Run [database/tidb-init.sql](../database/tidb-init.sql) against that database.
 3. If you have production seed data, import it after the schema load.
 
 Important for Thai text and other UTF-8 data:
@@ -93,11 +101,18 @@ Operational note:
 
 ## 4.1 Automated migrations on deploy
 
-The backend Docker image copies `database/` and runs pending SQL migrations on container start via `backend/scripts/run-migrations.php` (tracked in `schema_migrations`).
+The backend Docker image copies `database/` and runs pending SQL migrations on container start via `backend/scripts/run-migrations.php` (tracked in `schema_migrations`). This only holds when the image is built from the repo root — see the Root Directory note in section 1.
 
 - Local check: `docker compose exec backend php scripts/run-migrations.php`
+- Check from outside: `GET /` returns `migrations_available` (0 = image has no migrations bundled)
 - Disable at runtime: set `RUN_MIGRATIONS=0` on the backend service
 - Override migration directory: set `MIGRATIONS_DIR=/var/www/database`
+
+**The runner refuses to run against an empty directory (2026-07-27).** It previously accepted any existing
+directory, so the fallback image's empty `/var/www/database` produced a cheerful `No pending migrations.`
+while the schema stayed frozen. Now a resolved directory must actually contain `NN-*.sql` files, and an
+explicitly-set `MIGRATIONS_DIR` that is missing or empty aborts the start instead of silently falling back
+to another directory.
 
 **Existing TiDB / already-initialized DBs:** if `schema_migrations` is empty but `personnel` or `users` already exists, the runner **baselines** migrations through `14-multiplier-area-admin.sql` (marks them applied, does not re-run non-idempotent `ALTER`s). Only newer files such as `15-api-rate-limit-hits.sql` are executed.
 
@@ -196,7 +211,7 @@ then `MYSQL_HOST` was not loaded from Render and the backend is still using the 
 Verified after PR #32 (user management RBAC + audit logging) was squash-merged to `main` and deployed:
 
 - Render frontend and backend health checks passing.
-- Applied `backend/migrations/03-audit-log.sql` to production TiDB (`smartport`): created `audit_log`, `vw_audit_log`, required indexes, and the `user_id -> users(user_id)` FK with `ON DELETE SET NULL`.
+- Applied the audit-log migration to production TiDB (`smartport`): created `audit_log`, `vw_audit_log`, required indexes, and the `user_id -> users(user_id)` FK with `ON DELETE SET NULL`. (That file lived at `backend/migrations/03-audit-log.sql` at the time; it moved to `database/21-audit-log.sql` on 2026-07-27 so the migration runner covers it — re-applying is a no-op because it is idempotent.)
 - Authenticated smoke test: production login returned `200`, `/audit` page accessible, `/api/audit?limit=50&offset=0` and `/api/audit?limit=20&offset=0` returned `200` with no failed network requests or console errors.
 - Login redirect re-checked: submit redirects to `/dashboard`, and `/login` redirects to `/dashboard` when already authenticated. The earlier apparent stuck-on-`/login` state was a timing/diagnostic artifact, not a production bug.
 - Inserted one non-sensitive synthetic `audit_log` row (audit ID `1`, run ID `prod-audit-smoke-2026-07-09T22-26-35-628Z`) and confirmed it renders in the Audit page and its detail modal.

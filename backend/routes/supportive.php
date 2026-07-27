@@ -78,13 +78,14 @@ function handleSupportive(PDO $pdo, string $method, array $path): void
 
 /**
  * GET /supportive — รายการนับเกื้อกูลทั้งหมด (พร้อม pagination)
- * รองรับ filter ด้วย personnel_id
+ * รองรับ filter ด้วย personnel_id และค้นหาด้วย search (ชื่อ-สกุล หรือ ชื่อสายงาน)
  */
 function getSupportiveList(PDO $pdo): void
 {
     $personnelId = $_GET['personnel_id'] ?? null;
-    $limit = intval($_GET['limit'] ?? 20);
-    $offset = intval($_GET['offset'] ?? 0);
+    $search = trim($_GET['search'] ?? '');
+    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
+    $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $baseQuery = "SELECT se.*, CONCAT(p.first_name, ' ', p.last_name) AS full_name
                   FROM supportive_experience se
@@ -94,13 +95,23 @@ function getSupportiveList(PDO $pdo): void
                    FROM supportive_experience se
                    LEFT JOIN personnel p ON se.personnel_id = p.personnel_id";
 
-    $where = '';
+    $conditions = [];
     $params = [];
 
     if ($personnelId !== null && $personnelId !== '') {
-        $where = " WHERE se.personnel_id = ?";
-        $params = [intval($personnelId)];
+        $conditions[] = 'se.personnel_id = ?';
+        $params[] = intval($personnelId);
     }
+
+    if ($search !== '') {
+        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
+                          OR CONCAT(p.first_name, ' ', p.last_name) LIKE ?
+                          OR se.job_series_name LIKE ?)";
+        $term = "%{$search}%";
+        array_push($params, $term, $term, $term, $term);
+    }
+
+    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
 
     // Data query with ordering and pagination
     $sql = $baseQuery . $where . " ORDER BY se.start_date DESC LIMIT {$limit} OFFSET {$offset}";

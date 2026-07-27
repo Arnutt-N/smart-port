@@ -68,8 +68,14 @@ services:
       - ./database/13-multiplier-time-counting.sql:/docker-entrypoint-initdb.d/13-multiplier-time-counting.sql
       - ./database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql
       - ./database/15-api-rate-limit-hits.sql:/docker-entrypoint-initdb.d/15-api-rate-limit-hits.sql
-      - ./backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/16-audit-log.sql
+      - ./database/21-audit-log.sql:/docker-entrypoint-initdb.d/21-audit-log.sql
       - ./database/17-probation-dashboard-view.sql:/docker-entrypoint-initdb.d/17-probation-dashboard-view.sql
+      # 18-20 ต้อง mount ด้วย: นักพัฒนาที่รันแค่ `docker compose up -d db` (ตามคู่มือ backend/tests/run.sh)
+      # จะไม่มี backend container มารัน run-migrations.php ให้ → integration test ของ 3 ฟีเจอร์นี้จะพัง
+      # (16-multiplier-test-seed-expand.sql ไม่ mount โดยตั้งใจ — ควบคุมด้วย APPLY_TEST_SEED_MIGRATIONS)
+      - ./database/18-refresh-tokens.sql:/docker-entrypoint-initdb.d/18-refresh-tokens.sql
+      - ./database/19-awards.sql:/docker-entrypoint-initdb.d/19-awards.sql
+      - ./database/20-royal-decorations.sql:/docker-entrypoint-initdb.d/20-royal-decorations.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s

@@ -50,6 +50,14 @@ fail() { printf 'FAIL  %s\n' "$1"; FAILED+=("$1"); }
 echo "smart-port local CI  (root: ${ROOT})"
 echo "flags: skip-install=${SKIP_INSTALL} skip-frontend=${SKIP_FRONTEND} skip-backend=${SKIP_BACKEND} skip-docker=${SKIP_DOCKER}"
 
+# ---- 0) Schema parity (เร็ว รันก่อนเสมอ — fail เร็วดีกว่ารอ docker build) -----
+step 'Schema Parity Gate'
+if node "${ROOT}/scripts/validate-schema-parity.mjs"; then
+  ok 'schema parity'
+else
+  fail 'schema parity'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'

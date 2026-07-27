@@ -34,7 +34,10 @@ yarn-error.log
 
 # For backend (PHP/Composer)
 vendor/
-composer.lock  # ถ้า install ใน Dockerfile, ignore เพื่อ cache
+# ห้าม ignore composer.lock — Dockerfile ทั้ง repo-root และ backend/ ทำ
+# `COPY composer.json composer.lock* ./` แล้วรัน `composer install`
+# ถ้า ignore ไฟล์นี้ install จะ resolve เวอร์ชันใหม่เอง = build ไม่ deterministic
+# (บรรทัดเดิมเขียน inline comment ซึ่ง Docker ไม่รองรับ จึงกลายเป็น pattern ที่ไม่ match อะไร)
 .phpunit.result.cache
 
 # Ignore uploads and runtime data (จัดการด้วย volumes ใน production)

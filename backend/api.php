@@ -175,6 +175,8 @@ switch ($path[0]) {
                 echo json_encode(['error' => 'Not found']);
                 break;
             }
+            // normalize เผื่อแถวรุ่นเก่าที่เก็บ path ของ filesystem ไว้
+            $profile['photo_path'] = photoWebPath($profile['photo_path'] ?? null);
             echo json_encode(['success' => true, 'data' => $profile]);
         } else {
             // GET /profile — บัญชีผู้ใช้ของตัวเอง (ไม่มี user↔civil_servant link จึงคืนข้อมูล account)
@@ -257,6 +259,9 @@ switch ($path[0]) {
             }
 
             $file_path = UPLOAD_DIR . $safeFileName;
+            // เก็บลง DB เป็น path สัมพัทธ์ (uploads/xxx.jpg) ไม่ใช่ path ของ filesystem
+            // เพื่อให้ frontend ประกอบ URL ผ่าน API base ได้ตรง ๆ
+            $web_path = photoWebPath($safeFileName);
             if (!move_uploaded_file($file['tmp_name'], $file_path)) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
@@ -270,7 +275,7 @@ switch ($path[0]) {
                 $stmt = $pdo->prepare(
                     "INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)"
                 );
-                $stmt->execute([$servant_id, $safeFileName, $file_path]);
+                $stmt->execute([$servant_id, $safeFileName, $web_path]);
 
                 $photo_id = (int) $pdo->lastInsertId();
                 $versions = createPhotoVersions($pdo, $photo_id, $safeFileName);
@@ -280,7 +285,7 @@ switch ($path[0]) {
                 echo json_encode([
                     'success' => true,
                     'photo_id' => $photo_id,
-                    'path' => $file_path,
+                    'path' => $web_path,
                     'versions' => $versions,
                 ]);
             } catch (Throwable $e) {
@@ -295,16 +300,24 @@ switch ($path[0]) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
             }
+        } else {
+            respondMethodNotAllowed();
         }
         break;
 
     case 'forecast':
+        // อ่านอย่างเดียวจาก advance_notifications ซึ่งยังไม่มีตัวเติมข้อมูล — ปกติจึงคืน []
+        // เดิมเรียก stored procedure sp_calculate_promotion_eligibility ก่อน query แต่ procedure
+        // นั้นไม่เคยถูกสร้างในไฟล์ migration ใดเลย (ตกค้างจาก design เดิม) จึงเป็น no-op ที่เสีย
+        // query ไป information_schema ทุก request — ถอดออก
+        // การคำนวณคุณสมบัติจริงอยู่ที่ QualificationEngine (/candidates) แล้ว
         if ($method == 'GET') {
             $pdo = getDB();
-            callProcedureIfExists($pdo, 'sp_calculate_promotion_eligibility');
             $stmt = $pdo->query("SELECT * FROM advance_notifications");
             $forecasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode($forecasts);
+        } else {
+            respondMethodNotAllowed();
         }
         break;
 
@@ -367,6 +380,8 @@ switch ($path[0]) {
                     'has_more' => ($offset + $limit) < $total
                 ]
             ]);
+        } else {
+            respondMethodNotAllowed();
         }
         break;
 
@@ -494,6 +509,8 @@ switch ($path[0]) {
                     'by_level' => $candidateTotals,
                 ],
             ]);
+        } else {
+            respondMethodNotAllowed();
         }
         break;
 
@@ -527,6 +544,8 @@ switch ($path[0]) {
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode(['success' => true, 'data' => $rows]);
+        } else {
+            respondMethodNotAllowed();
         }
         break;
 
