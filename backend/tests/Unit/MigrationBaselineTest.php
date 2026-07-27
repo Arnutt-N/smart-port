@@ -7,6 +7,8 @@ namespace Tests\Unit;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/../../scripts/migration-lib.php';
+
 /**
  * Guards the production baseline cut-off used by scripts/run-migrations.php.
  * Existing TiDB DBs already have migrations through 14; only 15+ should execute.
@@ -18,12 +20,7 @@ final class MigrationBaselineTest extends TestCase
     #[Test]
     public function baseline_cut_off_matches_runner_constant(): void
     {
-        $script = file_get_contents(dirname(__DIR__, 2) . '/scripts/run-migrations.php');
-        self::assertNotFalse($script);
-        self::assertStringContainsString(
-            "const MIGRATION_BASELINE_THROUGH = '" . self::BASELINE_THROUGH . "'",
-            $script
-        );
+        self::assertSame(self::BASELINE_THROUGH, MIGRATION_BASELINE_THROUGH);
     }
 
     #[Test]

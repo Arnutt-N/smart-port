@@ -25,10 +25,17 @@ services:
     name: smartport-backend
     runtime: docker
     branch: main
-    # Render dashboard often keeps Root Directory = backend. Use backend/ as context (NOT "..").
-    # dockerContext ".." hides files outside rootDir → empty context ("transferring context: 2B").
-    rootDir: backend
-    dockerfilePath: ./backend/Dockerfile
+    # Build จาก repo root เพื่อให้ database/ (ไฟล์ migration) ติดไปกับ image และ
+    # docker-entrypoint.sh รัน run-migrations.php ได้เอง — ตัว Dockerfile ที่ root มี
+    # production hardening ครบเท่ากับ backend/Dockerfile ทุกข้อ ต่างแค่ COPY database/
+    # และตั้ง RUN_MIGRATIONS=1
+    #
+    # ⚠️ ต้องเคลียร์ "Root Directory" ในหน้า Render dashboard ของ service นี้ให้ว่าง
+    #    ถ้า dashboard ยังตั้งเป็น backend อยู่ ค่าจะทับ blueprint แล้ว build จะกลับไปใช้
+    #    backend/Dockerfile (ยังทำงานได้ แต่ไม่มี migration = schema ต้อง apply มือ)
+    #    วิธีเช็คว่าใช้ตัวไหน: GET / ของ backend จะคืน migrations_available
+    rootDir: .
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /
     buildFilter:

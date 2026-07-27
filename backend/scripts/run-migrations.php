@@ -17,18 +17,8 @@
 
 declare(strict_types=1);
 
-/** Last migration assumed already applied on existing production DBs */
-const MIGRATION_BASELINE_THROUGH = '14-multiplier-area-admin.sql';
-
-function migrationEnv(string $key, string $default = ''): string
-{
-    $value = getenv($key);
-    if ($value !== false && $value !== '') {
-        return $value;
-    }
-
-    return $_ENV[$key] ?? $_SERVER[$key] ?? $default;
-}
+// ฟังก์ชันบริสุทธิ์ (env, จัดลำดับไฟล์, หาโฟลเดอร์, แยก statement) อยู่ใน lib เพื่อให้ unit test เรียกได้
+require_once __DIR__ . '/migration-lib.php';
 
 function migrationPdo(): PDO
 {
@@ -58,25 +48,6 @@ function migrationPdo(): PDO
     return new PDO($dsn, $username, $password, $options);
 }
 
-function migrationDirectory(): string
-{
-    $configured = migrationEnv('MIGRATIONS_DIR', '');
-    $candidates = array_filter([
-        $configured !== '' ? $configured : null,
-        '/var/www/database',
-        dirname(__DIR__, 2) . '/database',
-        dirname(__DIR__) . '/migrations',
-    ]);
-
-    foreach ($candidates as $dir) {
-        if (is_dir($dir)) {
-            return $dir;
-        }
-    }
-
-    throw new RuntimeException('No migrations directory found');
-}
-
 function ensureMigrationTable(PDO $pdo): void
 {
     $pdo->exec(
@@ -85,23 +56,6 @@ function ensureMigrationTable(PDO $pdo): void
             applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
-}
-
-/**
- * @return list<string> absolute paths
- */
-function listMigrationFiles(string $directory): array
-{
-    $files = glob(rtrim($directory, '/\\') . '/*.sql') ?: [];
-    $files = array_values(array_filter($files, static function (string $path): bool {
-        $name = basename($path);
-        return $name !== 'tidb-init.sql'
-            && preg_match('/^\d{2}-/', $name) === 1;
-    }));
-
-    usort($files, static fn (string $a, string $b): int => strnatcasecmp(basename($a), basename($b)));
-
-    return $files;
 }
 
 function tableExists(PDO $pdo, string $table): bool
@@ -148,44 +102,6 @@ function seedBaselineIfNeeded(PDO $pdo, array $files): array
     }
 
     return $seeded;
-}
-
-function splitSqlStatements(string $sql): array
-{
-    $statements = [];
-    $buffer = '';
-    $inSingleQuote = false;
-    $inDoubleQuote = false;
-    $length = strlen($sql);
-
-    for ($i = 0; $i < $length; $i++) {
-        $char = $sql[$i];
-        $prev = $i > 0 ? $sql[$i - 1] : '';
-
-        if ($char === "'" && !$inDoubleQuote && $prev !== '\\') {
-            $inSingleQuote = !$inSingleQuote;
-        } elseif ($char === '"' && !$inSingleQuote && $prev !== '\\') {
-            $inDoubleQuote = !$inDoubleQuote;
-        }
-
-        if ($char === ';' && !$inSingleQuote && !$inDoubleQuote) {
-            $statement = trim($buffer);
-            if ($statement !== '') {
-                $statements[] = $statement;
-            }
-            $buffer = '';
-            continue;
-        }
-
-        $buffer .= $char;
-    }
-
-    $tail = trim($buffer);
-    if ($tail !== '') {
-        $statements[] = $tail;
-    }
-
-    return $statements;
 }
 
 function applyMigration(PDO $pdo, string $file): void
