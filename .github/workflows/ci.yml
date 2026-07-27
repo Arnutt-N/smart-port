@@ -54,6 +54,19 @@ jobs:
           path: frontend/dist
           retention-days: 7
 
+  schema-parity:
+    name: Schema Parity Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # กัน database/tidb-init.sql (bootstrap ของ production) drift จาก migration
+      # และกัน migration ใหม่ที่ลืม mount ใน docker-compose / ไฟล์นี้
+      - name: Validate schema parity
+        run: node scripts/validate-schema-parity.mjs
+
   backend-tests:
     name: Backend PHPUnit (Unit + Integration)
     runs-on: ubuntu-latest
@@ -82,8 +95,11 @@ jobs:
             -v "$PWD/database/13-multiplier-time-counting.sql:/docker-entrypoint-initdb.d/13-multiplier-time-counting.sql" \
             -v "$PWD/database/14-multiplier-area-admin.sql:/docker-entrypoint-initdb.d/14-multiplier-area-admin.sql" \
             -v "$PWD/database/15-api-rate-limit-hits.sql:/docker-entrypoint-initdb.d/15-api-rate-limit-hits.sql" \
-            -v "$PWD/backend/migrations/03-audit-log.sql:/docker-entrypoint-initdb.d/16-audit-log.sql" \
+            -v "$PWD/database/21-audit-log.sql:/docker-entrypoint-initdb.d/21-audit-log.sql" \
             -v "$PWD/database/17-probation-dashboard-view.sql:/docker-entrypoint-initdb.d/17-probation-dashboard-view.sql" \
+            -v "$PWD/database/18-refresh-tokens.sql:/docker-entrypoint-initdb.d/18-refresh-tokens.sql" \
+            -v "$PWD/database/19-awards.sql:/docker-entrypoint-initdb.d/19-awards.sql" \
+            -v "$PWD/database/20-royal-decorations.sql:/docker-entrypoint-initdb.d/20-royal-decorations.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish

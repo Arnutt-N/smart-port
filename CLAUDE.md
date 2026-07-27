@@ -60,8 +60,14 @@ No build step. PHP files are served directly by Apache. In Docker, the backend i
 MySQL 8.0 runs in Docker on port 3306. Schema is initialized from:
 - `mysql_database_design.sql` → mounted as `01-schema.sql`
 - `photo_management_system.sql` → mounted as `02-data.sql`
+- `database/NN-*.sql` → mounted in order as further init scripts
 
 Database name: `civil_service_mgmt`. Connection config is in `backend/config.php` (reads from env vars).
+
+**เพิ่ม migration ใหม่ต้องแตะ 3 ที่:** ไฟล์ `database/NN-*.sql` · เติม DDL เดียวกันลง `database/tidb-init.sql`
+(bootstrap ตัวจริงของ production — prod ตั้ง `RUN_MIGRATIONS=0` จึงไม่มีอะไรมาเติมให้ทีหลัง) · เพิ่ม mount
+ใน `docker-compose.yaml` และ `.github/workflows/ci.yml` — ตรวจด้วย `node scripts/validate-schema-parity.mjs`
+(exit 0 = ผ่าน) เหตุผลเต็มอยู่ใน `docs/adr/0002-schema-parity-gate.md`
 
 ## Architecture
 
@@ -96,7 +102,7 @@ Pure PHP REST API with no framework.
 ## Key Conventions
 
 - **Language**: UI text, code comments, and database content are in Thai. Maintain Thai language when modifying user-facing strings
-- **Tailwind theme**: Custom color palette defined in `frontend/tailwind.config.js` — primary colors use sky-blue, with government-slate secondary tones
+- **Tailwind theme**: Tailwind 4 uses CSS-first config — the palette lives in the `@theme` block of `frontend/src/style.css` (no `tailwind.config.js`); primary colors use sky-blue, with government-slate secondary tones
 - **Font**: Noto Sans Thai is the primary typeface
 - **Auth flow**: JWT stored in `localStorage` under keys `authToken` / `auth_token`. The `useApi()` composable auto-attaches the token via request interceptor
 - **CORS**: Currently hardcoded to `https://smart-port.onrender.com` in `backend/api.php`
@@ -159,7 +165,7 @@ Pure PHP REST API with no framework.
 ## Configuration Files
 - `frontend/vite.config.js` - Vite configuration with Vue plugin, Tailwind, and API proxy
 - `frontend/tsconfig.json` - TypeScript compiler options (target ES2020, strict mode enabled)
-- `frontend/tailwind.config.js` - Tailwind CSS configuration (minimal, extends default theme)
+- `frontend/src/style.css` - Tailwind 4 CSS-first config (`@import "tailwindcss"` + `@theme` design tokens)
 - `backend/config.php` - PDO database connection setup with env var reading
 - `docker-compose.yaml` - Orchestration of backend, frontend, and MySQL services
 - `frontend/Dockerfile` - Multi-stage build (Node → Nginx)
@@ -406,8 +412,8 @@ Pure PHP REST API with no framework.
 - Endpoints: `/auth/login`, `/login`, `/profile/{id}`, `/photos`, `/forecast`, `/civil-servants`, `/dashboard`, `/candidates`
 - Purpose: Persistent storage of civil servant data
 - Key tables (inferred from queries): `civil_servants`, `civil_servant_photos`, `advance_notifications`
-- Views: `v_civil_servants_current` (denormalized view for current data)
-- Procedures: `sp_generate_photo_versions()`, `sp_calculate_promotion_eligibility()`
+- Views: `v_civil_servants_current`, `vw_probation_dashboard`, `vw_audit_log`, `vw_executive_tenure`, `vw_job_series_tenure`
+- Procedures: none. The schema declares no stored routines — photo versions are generated in `backend/helpers.php`, and promotion eligibility is computed in `backend/QualificationEngine.php`
 ## Entry Points
 - Location: `frontend/index.html`
 - Triggers: Browser requests to `/`

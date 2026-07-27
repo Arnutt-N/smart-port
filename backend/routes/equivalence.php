@@ -68,11 +68,13 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
 }
 
 /**
- * GET /equivalence — รายการเทียบตำแหน่ง พร้อม pagination และ filter ตาม personnel_id
+ * GET /equivalence — รายการเทียบตำแหน่ง พร้อม pagination
+ * filter ตาม personnel_id และค้นหาด้วย search (ชื่อ-สกุล, ตำแหน่งจริง, ประเภทที่เทียบ, เลขที่คำสั่ง)
  */
 function getEquivalenceList(PDO $pdo): void
 {
     $personnelId = $_GET['personnel_id'] ?? null;
+    $search = trim($_GET['search'] ?? '');
     // clamp กัน limit มหาศาล / offset ติดลบ
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
     $offset = max(0, intval($_GET['offset'] ?? 0));
@@ -84,16 +86,29 @@ function getEquivalenceList(PDO $pdo): void
                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
                   LEFT JOIN users u ON pe.approved_by = u.user_id";
 
+    // count ต้อง join personnel ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่ง personnel
     $countQuery = "SELECT COUNT(*) AS total
-                   FROM position_equivalence pe";
+                   FROM position_equivalence pe
+                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id";
 
-    $where = '';
+    $conditions = [];
     $params = [];
 
     if ($personnelId !== null && $personnelId !== '') {
-        $where = " WHERE pe.personnel_id = ?";
-        $params = [intval($personnelId)];
+        $conditions[] = 'pe.personnel_id = ?';
+        $params[] = intval($personnelId);
     }
+
+    if ($search !== '') {
+        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
+                          OR CONCAT(p.first_name, ' ', p.last_name) LIKE ?
+                          OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
+                          OR pe.approval_order_ref LIKE ?)";
+        $term = "%{$search}%";
+        array_push($params, $term, $term, $term, $term, $term, $term);
+    }
+
+    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
 
     // Data query with ordering and pagination
     $sql = $baseQuery . $where . " ORDER BY pe.created_at DESC LIMIT {$limit} OFFSET {$offset}";

@@ -1,4 +1,4 @@
-import { useApi } from '@/composables/useApi.js'
+import { apiAssetUrl, useApi } from '@/composables/useApi.js'
 
 export function useProfile() {
   const api = useApi()
@@ -38,7 +38,8 @@ export function useProfile() {
       appointmentDate: row.appointment_date,
       retirementDate: row.retirement_date,
       servantStatus: row.servant_status,
-      photoPath: row.photo_path,
+      // backend คืน path สัมพัทธ์ (uploads/xxx.jpg) — ต้องประกอบผ่าน API base ก่อนใช้กับ <img>
+      photoPath: apiAssetUrl(row.photo_path),
     }
   }
 

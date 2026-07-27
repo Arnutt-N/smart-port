@@ -10,10 +10,59 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Unit tests สำหรับ helpers.php — pure functions ไม่ต้องใช้ database
- * ครอบ formatThaiDate (พ.ศ. conversion + edge cases) และ getLevelName (mapping + fallback)
+ * ครอบ formatThaiDate (พ.ศ. conversion + edge cases), getLevelName (mapping + fallback)
+ * และ photoWebPath (แปลง path ที่เก็บใน DB เป็น path สำหรับเสิร์ฟผ่านเว็บ)
  */
 final class HelpersTest extends TestCase
 {
+    // ------------------------------------------------------------------
+    // photoWebPath
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function it_returns_relative_web_path_for_a_stored_file_name(): void
+    {
+        self::assertSame('uploads/photo_abc.jpg', photoWebPath('photo_abc.jpg'));
+    }
+
+    #[Test]
+    public function it_keeps_an_already_relative_path_unchanged(): void
+    {
+        self::assertSame('uploads/photo_abc.jpg', photoWebPath('uploads/photo_abc.jpg'));
+    }
+
+    #[Test]
+    public function it_rewrites_legacy_absolute_filesystem_paths(): void
+    {
+        // แถวเก่าเคยเก็บ path ของ container ทั้งเส้น ทำให้ <img src> ยิงออกนอกโดเมน API
+        self::assertSame(
+            'uploads/photo_abc.jpg',
+            photoWebPath('/var/www/html/uploads/photo_abc.jpg')
+        );
+    }
+
+    #[Test]
+    public function it_rewrites_legacy_windows_style_paths(): void
+    {
+        self::assertSame(
+            'uploads/photo_abc.jpg',
+            photoWebPath('C:\\xampp\\htdocs\\uploads\\photo_abc.jpg')
+        );
+    }
+
+    #[Test]
+    public function it_returns_null_for_missing_photo(): void
+    {
+        self::assertNull(photoWebPath(null));
+        self::assertNull(photoWebPath(''));
+    }
+
+    #[Test]
+    public function it_strips_traversal_segments(): void
+    {
+        self::assertSame('uploads/photo_abc.jpg', photoWebPath('../../etc/photo_abc.jpg'));
+    }
+
     // ------------------------------------------------------------------
     // formatThaiDate
     // ------------------------------------------------------------------

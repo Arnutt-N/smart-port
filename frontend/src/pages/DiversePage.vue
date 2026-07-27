@@ -122,7 +122,9 @@
                   >
                     <Pencil class="w-4 h-4" />
                   </button>
+                  <!-- ลบได้เฉพาะ admin (backend: checkPermission delete => [] สำหรับ operator) -->
                   <button
+                    v-if="isAdmin"
                     @click="confirmDelete(row)"
                     class="p-1 text-gray-400 hover:text-red-600 transition-colors"
                     title="ลบ"
@@ -372,6 +374,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDiverse } from '@/composables/useDiverse.js'
 import { useApi } from '@/composables/useApi.js'
+import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
@@ -386,7 +389,11 @@ import {
 
 const { fetchList, create, update, remove } = useDiverse()
 const api = useApi()
+const auth = useAuthStore()
 const ui = useUiStore()
+
+// operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
+const isAdmin = computed(() => auth.isAdmin)
 
 // List state
 const loading = ref(false)

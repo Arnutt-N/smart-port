@@ -101,6 +101,20 @@ async function request(url, options = {}) {
   return response.json()
 }
 
+/**
+ * ประกอบ URL ของไฟล์ static ที่ backend เสิร์ฟ (เช่น รูปใน uploads/)
+ * ผ่าน API base เดียวกับ endpoint อื่น — dev proxy, nginx และ Render rewrite
+ * ตัด prefix /api ออกให้เหมือนกันหมด จึงชี้ไป document root ของ backend ได้ถูก
+ *
+ * @param {string|null|undefined} relativePath path สัมพัทธ์จาก API เช่น "uploads/photo_abc.jpg"
+ * @returns {string|null} URL ที่ใช้กับ <img src> ได้ หรือ null ถ้าไม่มีไฟล์
+ */
+export function apiAssetUrl(relativePath) {
+  if (!relativePath) return null
+  if (/^https?:\/\//i.test(relativePath)) return relativePath
+  return `${API_BASE}/${String(relativePath).replace(/^\/+/, '')}`
+}
+
 export function useApi() {
   return {
     get: (url) => request(url),
