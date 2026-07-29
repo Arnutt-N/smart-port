@@ -305,22 +305,6 @@ switch ($path[0]) {
         }
         break;
 
-    case 'forecast':
-        // อ่านอย่างเดียวจาก advance_notifications ซึ่งยังไม่มีตัวเติมข้อมูล — ปกติจึงคืน []
-        // เดิมเรียก stored procedure sp_calculate_promotion_eligibility ก่อน query แต่ procedure
-        // นั้นไม่เคยถูกสร้างในไฟล์ migration ใดเลย (ตกค้างจาก design เดิม) จึงเป็น no-op ที่เสีย
-        // query ไป information_schema ทุก request — ถอดออก
-        // การคำนวณคุณสมบัติจริงอยู่ที่ QualificationEngine (/candidates) แล้ว
-        if ($method == 'GET') {
-            $pdo = getDB();
-            $stmt = $pdo->query("SELECT * FROM advance_notifications");
-            $forecasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode($forecasts);
-        } else {
-            respondMethodNotAllowed();
-        }
-        break;
-
     case 'civil-servants':
         if ($method == 'GET') {
             $pdo = getDB();
@@ -631,6 +615,12 @@ switch ($path[0]) {
         $pdo = getDB();
         include __DIR__ . '/routes/ocr.php';
         handleOcr($pdo, $method, $path);
+        break;
+
+    case 'sync':
+        $pdo = getDB();
+        include __DIR__ . '/routes/sync.php';
+        handleSync($pdo, $method, $path);
         break;
 
     default:
