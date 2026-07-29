@@ -30,5 +30,7 @@ Keep secrets in local `.env` files only. Review authentication and CORS changes 
 ## Agent-Specific Instructions
 Before editing, check the current worktree and do not revert unrelated user changes. Prefer focused patches, preserve repository conventions, and verify changed behavior with the narrowest relevant command.
 
+For any UI/frontend work, consult `DESIGN.md` (root) — it is the authoritative design system document with color tokens, typography, spacing, component patterns, and voice guidelines. Reference design analysis lives in `docs/design-references/`.
+
 ## Skill Collections Reference
 See `.claude/skill-collections-comparison.md` for a detailed comparison of five agent skill collections (superpowers · ecc · mattpocock · addyosmani · karpathy), including a capability matrix, a five-layer model (karpathy → superpowers → mattpocock/addyosmani → ecc), and a recommended stack. Use it to pick the right skill for a task. For this repo (PHP/Vue/MySQL) prefer `ecc:*` skills for security, code review, and DB work; use `superpowers`/`grilling` for process. Avoid enabling overlapping collections at once (addyosmani ≈ ecc) to prevent routing noise.
