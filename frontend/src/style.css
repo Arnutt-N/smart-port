@@ -186,6 +186,15 @@ body {
 .sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #4b5563; }
 .sidebar-scroll:hover::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Print */
 @media print {
   .no-print { display: none !important; }
