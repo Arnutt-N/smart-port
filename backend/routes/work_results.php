@@ -33,13 +33,13 @@ const WORK_RESULT_SELECT = "pp.proposal_id, pp.servant_id, pp.proposal_type, pp.
                             pp.description, pp.impact_description, pp.quantitative_result,
                             pp.result_unit, pp.submission_date, pp.evaluation_score,
                             pp.status, pp.approval_level, pp.created_at,
-                            CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS servant_name";
+                            CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function workResultBaseQuery(): string
 {
     return "FROM performance_proposals pp
-            LEFT JOIN civil_servants cs ON pp.servant_id = cs.servant_id
-            LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id";
+            LEFT JOIN personnel p ON pp.servant_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
 function getWorkResultList(PDO $pdo): void
@@ -52,7 +52,7 @@ function getWorkResultList(PDO $pdo): void
     $conditions = ['pp.is_active = 1'];
     $params = [];
     if ($search !== '') {
-        $conditions[] = "(pp.title LIKE ? OR cs.first_name LIKE ? OR cs.last_name LIKE ?)";
+        $conditions[] = "(pp.title LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
         $term = "%{$search}%";
         array_push($params, $term, $term, $term);
     }

@@ -65,13 +65,13 @@ function handleAwards(PDO $pdo, string $method, array $path): void
 
 const AWARD_SELECT = "a.award_id, a.servant_id, a.award_name, a.award_type,
                       a.award_level, a.awarded_date, a.description, a.created_at,
-                      CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS servant_name";
+                      CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function awardBaseQuery(): string
 {
     return "FROM awards a
-            LEFT JOIN civil_servants cs ON a.servant_id = cs.servant_id
-            LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id";
+            LEFT JOIN personnel p ON a.servant_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
 function getAwardList(PDO $pdo): void
@@ -83,7 +83,7 @@ function getAwardList(PDO $pdo): void
     $where = '';
     $params = [];
     if ($search !== '') {
-        $where = " WHERE (a.award_name LIKE ? OR cs.first_name LIKE ? OR cs.last_name LIKE ?)";
+        $where = " WHERE (a.award_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
         $term = "%{$search}%";
         $params = [$term, $term, $term];
     }

@@ -155,18 +155,18 @@ switch ($path[0]) {
         }
         $pdo = getDB();
         if ($id) {
-            // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล (ราย civil_servants)
+            // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล
             $stmt = $pdo->prepare(
-                "SELECT cs.servant_id, cs.employee_id, cs.first_name, cs.last_name,
-                        cs.birth_date, cs.appointment_date, cs.retirement_date,
-                        cs.servant_status,
-                        CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS full_name,
+                "SELECT p.personnel_id AS servant_id, p.employee_id, p.first_name, p.last_name,
+                        p.birth_date, p.appointment_date, p.retirement_date,
+                        p.servant_status,
+                        CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS full_name,
                         csp.file_path AS photo_path
-                 FROM civil_servants cs
-                 LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                 FROM personnel p
+                 LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                  LEFT JOIN civil_servant_photos csp
-                     ON cs.servant_id = csp.servant_id AND csp.is_primary = 1
-                 WHERE cs.servant_id = ?"
+                     ON p.personnel_id = csp.servant_id AND csp.is_primary = 1
+                 WHERE p.personnel_id = ?"
             );
             $stmt->execute([$id]);
             $profile = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -333,7 +333,7 @@ switch ($path[0]) {
             $params = [];
 
             if (!empty($search)) {
-                $searchQuery = " WHERE (cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)";
+                $searchQuery = " WHERE (p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ?)";
                 $searchTerm = "%{$search}%";
                 $params = [$searchTerm, $searchTerm, $searchTerm];
             } else {
@@ -342,21 +342,21 @@ switch ($path[0]) {
 
             $sql = "
                 SELECT
-                    cs.servant_id,
-                    cs.employee_id,
-                    cs.citizen_id,
-                    CONCAT(p.prefix_name_th, cs.first_name, ' ', cs.last_name) as full_name,
-                    cs.first_name,
-                    cs.last_name,
-                    cs.birth_date,
-                    cs.appointment_date,
-                    cs.retirement_date,
-                    cs.servant_status
-                FROM civil_servants cs
-                LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
+                    p.personnel_id AS servant_id,
+                    p.employee_id,
+                    p.citizen_id,
+                    CONCAT(px.prefix_name_th, p.first_name, ' ', p.last_name) as full_name,
+                    p.first_name,
+                    p.last_name,
+                    p.birth_date,
+                    p.appointment_date,
+                    p.retirement_date,
+                    p.servant_status
+                FROM personnel p
+                LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                 {$searchQuery}
-                AND cs.is_active = 1
-                ORDER BY cs.first_name, cs.last_name
+                AND p.is_active = 1
+                ORDER BY p.first_name, p.last_name
                 LIMIT ? OFFSET ?
             ";
 
@@ -365,7 +365,7 @@ switch ($path[0]) {
             $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Get total count for pagination
-            $countSql = "SELECT COUNT(*) as total FROM civil_servants cs {$searchQuery}";
+            $countSql = "SELECT COUNT(*) as total FROM personnel p {$searchQuery}";
             $countStmt = $pdo->prepare($countSql);
             $countStmt->execute($params);
             $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];

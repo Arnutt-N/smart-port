@@ -2,7 +2,7 @@
 // ============================================================================
 // routes/retirement.php
 // Retirement Report Route Handler — รายงานเกษียณ (read-only)
-// ดึงจาก civil_servants.retirement_date + คำนวณจำนวนวันคงเหลือ
+// ดึงจาก personnel.retirement_date + คำนวณจำนวนวันคงเหลือ
 //
 // Endpoints:
 //   GET /retirement   — รายชื่อผู้ที่มีกำหนดเกษียณ (filter within N เดือน + pagination)
@@ -31,26 +31,26 @@ function getRetirementList(PDO $pdo): void
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
-    $conditions = ['cs.is_active = 1', 'cs.retirement_date IS NOT NULL'];
+    $conditions = ['p.is_active = 1', 'p.retirement_date IS NOT NULL'];
     $params = [];
     if ($search !== '') {
-        $conditions[] = "(cs.first_name LIKE ? OR cs.last_name LIKE ? OR cs.employee_id LIKE ?)";
+        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ?)";
         $term = "%{$search}%";
         array_push($params, $term, $term, $term);
     }
     if ($within > 0) {
-        $conditions[] = "cs.retirement_date >= CURDATE()
-                         AND cs.retirement_date <= DATE_ADD(CURDATE(), INTERVAL {$within} MONTH)";
+        $conditions[] = "p.retirement_date >= CURDATE()
+                         AND p.retirement_date <= DATE_ADD(CURDATE(), INTERVAL {$within} MONTH)";
     }
     $where = ' WHERE ' . implode(' AND ', $conditions);
 
-    $select = "cs.servant_id, cs.employee_id, cs.retirement_date, cs.servant_status,
-               DATEDIFF(cs.retirement_date, CURDATE()) AS remaining_days,
-               CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS full_name";
-    $base = "FROM civil_servants cs LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id";
+    $select = "p.personnel_id AS servant_id, p.employee_id, p.retirement_date, p.servant_status,
+               DATEDIFF(p.retirement_date, CURDATE()) AS remaining_days,
+               CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS full_name";
+    $base = "FROM personnel p LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
     $sql = "SELECT {$select} {$base}{$where}
-            ORDER BY cs.retirement_date ASC LIMIT {$limit} OFFSET {$offset}";
+            ORDER BY p.retirement_date ASC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

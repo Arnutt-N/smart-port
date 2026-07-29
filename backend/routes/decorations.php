@@ -62,13 +62,13 @@ function handleDecorations(PDO $pdo, string $method, array $path): void
 
 const DECORATION_SELECT = "d.decoration_id, d.servant_id, d.decoration_name, d.decoration_class,
                            d.received_year, d.gazette_ref, d.description, d.created_at,
-                           CONCAT(COALESCE(p.prefix_name_th, ''), cs.first_name, ' ', cs.last_name) AS servant_name";
+                           CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function decorationBaseQuery(): string
 {
     return "FROM royal_decorations d
-            LEFT JOIN civil_servants cs ON d.servant_id = cs.servant_id
-            LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id";
+            LEFT JOIN personnel p ON d.servant_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
 function getDecorationList(PDO $pdo): void
@@ -80,7 +80,7 @@ function getDecorationList(PDO $pdo): void
     $where = '';
     $params = [];
     if ($search !== '') {
-        $where = " WHERE (d.decoration_name LIKE ? OR cs.first_name LIKE ? OR cs.last_name LIKE ?)";
+        $where = " WHERE (d.decoration_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
         $term = "%{$search}%";
         $params = [$term, $term, $term];
     }

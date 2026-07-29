@@ -54,13 +54,13 @@ function getAnalyticsSummary(PDO $pdo): void
 {
     $totals = [
         'personnel' => analyticsScalar($pdo, "SELECT COUNT(*) FROM personnel WHERE is_active = 1"),
-        'civil_servants' => analyticsScalar($pdo, "SELECT COUNT(*) FROM civil_servants WHERE is_active = 1"),
+        'civil_servants' => analyticsScalar($pdo, "SELECT COUNT(*) FROM personnel WHERE is_active = 1 AND servant_status IS NOT NULL"),
         'awards' => analyticsScalar($pdo, "SELECT COUNT(*) FROM awards"),
         'decorations' => analyticsScalar($pdo, "SELECT COUNT(*) FROM royal_decorations"),
         'work_results' => analyticsScalar($pdo, "SELECT COUNT(*) FROM performance_proposals WHERE is_active = 1"),
         'retirement_upcoming' => analyticsScalar(
             $pdo,
-            "SELECT COUNT(*) FROM civil_servants
+            "SELECT COUNT(*) FROM personnel
              WHERE is_active = 1 AND retirement_date IS NOT NULL
                AND retirement_date >= CURDATE()
                AND retirement_date <= DATE_ADD(CURDATE(), INTERVAL 12 MONTH)"

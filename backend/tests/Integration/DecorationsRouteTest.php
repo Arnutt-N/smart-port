@@ -22,7 +22,7 @@ final class DecorationsRouteTest extends TestCase
 {
     private static ?PDO $pdo = null;
     private static int $seedUserId = 0;
-    private int $servantId = 0;
+    private int $personnelId = 0;
     private array $decorationIds = [];
 
     public static function setUpBeforeClass(): void
@@ -35,7 +35,7 @@ final class DecorationsRouteTest extends TestCase
         if (self::$pdo === null) {
             self::markTestSkipped('ต่อ MySQL ไม่ได้ — รัน: docker compose up -d db แล้วใช้ tests/run.sh');
         }
-        foreach (['royal_decorations', 'civil_servants', 'users'] as $table) {
+        foreach (['royal_decorations', 'personnel', 'users'] as $table) {
             if (!self::$pdo->query("SHOW TABLES LIKE '{$table}'")->fetchColumn()) {
                 self::markTestSkipped("ไม่พบตาราง {$table} — รัน migration 20-royal-decorations.sql");
             }
@@ -48,10 +48,10 @@ final class DecorationsRouteTest extends TestCase
 
         $suffix = bin2hex(random_bytes(4));
         self::$pdo->prepare(
-            'INSERT INTO civil_servants (employee_id, citizen_id, first_name, last_name, birth_date, appointment_date)
+            'INSERT INTO personnel (employee_id, citizen_id, first_name, last_name, birth_date, appointment_date)
              VALUES (?, ?, ?, ?, ?, ?)'
         )->execute(["EMP-{$suffix}", substr('9' . $suffix . '0000000000', 0, 13), 'ทดสอบ', 'ราชอิสริยาภรณ์', '1980-01-01', '2005-01-01']);
-        $this->servantId = (int) self::$pdo->lastInsertId();
+        $this->personnelId = (int) self::$pdo->lastInsertId();
         http_response_code(200);
     }
 
@@ -63,8 +63,8 @@ final class DecorationsRouteTest extends TestCase
         foreach ($this->decorationIds as $id) {
             self::$pdo->prepare('DELETE FROM royal_decorations WHERE decoration_id = ?')->execute([$id]);
         }
-        if ($this->servantId) {
-            self::$pdo->prepare('DELETE FROM civil_servants WHERE servant_id = ?')->execute([$this->servantId]);
+        if ($this->personnelId) {
+            self::$pdo->prepare('DELETE FROM personnel WHERE personnel_id = ?')->execute([$this->personnelId]);
         }
     }
 
@@ -72,7 +72,7 @@ final class DecorationsRouteTest extends TestCase
     {
         self::$pdo->prepare(
             'INSERT INTO royal_decorations (servant_id, decoration_name, received_year) VALUES (?, ?, ?)'
-        )->execute([$this->servantId, $name, $year]);
+        )->execute([$this->personnelId, $name, $year]);
         $id = (int) self::$pdo->lastInsertId();
         $this->decorationIds[] = $id;
         return $id;
