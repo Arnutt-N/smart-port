@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isChunkLoadError, shouldReloadForChunkError } from '@/utils/chunkGuard.js'
+import { isChunkLoadError, resolveChunkRecoveryTarget } from '@/utils/chunkGuard.js'
 import { useNavProgress } from '@/composables/useNavProgress.js'
 
 const routes = [
@@ -200,23 +200,12 @@ export function onRouterError(
 ) {
   isNavigating.value = false
   const target = to?.fullPath ?? getPathname()
-  if (!isChunkLoadError(error)) {
-    return
-  }
 
-  // หลัง deploy: hard reload หน้าเป้าหมายเพื่อดึง index/asset ชุดใหม่
-  if (shouldReloadForChunkError(target, storage, now)) {
-    assign(target)
-    return
-  }
-
-  // reload หน้าเดิมถูกบล็อก (กันวนลูป) — ถอยไป dashboard ครั้งเดียว
-  // กันจอขาวติดตายหลัง lazy page (เช่น /time-difference) โหลด chunk ไม่ได้ซ้ำ
-  if (
-    target !== fallbackPath
-    && shouldReloadForChunkError(`fallback:${fallbackPath}`, storage, now)
-  ) {
-    assign(fallbackPath)
+  if (isChunkLoadError(error)) {
+    const recovery = resolveChunkRecoveryTarget(target, storage, now, fallbackPath)
+    if (recovery.url) {
+      assign(recovery.url)
+    }
   }
 }
 

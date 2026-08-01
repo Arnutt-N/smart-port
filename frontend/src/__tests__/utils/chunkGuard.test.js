@@ -1,5 +1,10 @@
 import { describe, test, expect, beforeEach } from 'vitest'
-import { isChunkLoadError, shouldReloadForChunkError, RELOAD_WINDOW_MS } from '@/utils/chunkGuard.js'
+import {
+  isChunkLoadError,
+  shouldReloadForChunkError,
+  resolveChunkRecoveryTarget,
+  RELOAD_WINDOW_MS,
+} from '@/utils/chunkGuard.js'
 
 function fakeStorage() {
   const map = new Map()
@@ -67,5 +72,45 @@ describe('shouldReloadForChunkError', () => {
       setItem: () => { throw new Error('denied') },
     }
     expect(shouldReloadForChunkError('/dashboard', broken, 1_000_000)).toBe(true)
+  })
+})
+
+describe('resolveChunkRecoveryTarget', () => {
+  let storage
+
+  beforeEach(() => {
+    storage = fakeStorage()
+  })
+
+  test('ครั้งแรก reload หน้าเป้าหมาย', () => {
+    expect(resolveChunkRecoveryTarget('/time-difference', storage, 1_000_000)).toEqual({
+      action: 'reload-target',
+      url: '/time-difference',
+    })
+  })
+
+  test('ครั้งสองถอย dashboard', () => {
+    resolveChunkRecoveryTarget('/time-difference', storage, 1_000_000)
+    expect(resolveChunkRecoveryTarget('/time-difference', storage, 1_000_001)).toEqual({
+      action: 'reload-fallback',
+      url: '/dashboard',
+    })
+  })
+
+  test('ถ้า dashboard พังซ้ำ ถอย root', () => {
+    resolveChunkRecoveryTarget('/dashboard', storage, 1_000_000)
+    expect(resolveChunkRecoveryTarget('/dashboard', storage, 1_000_001)).toEqual({
+      action: 'reload-root',
+      url: '/',
+    })
+  })
+
+  test('บล็อกเมื่อใช้ recovery ครบทุกชั้นแล้ว', () => {
+    resolveChunkRecoveryTarget('/dashboard', storage, 1_000_000)
+    resolveChunkRecoveryTarget('/dashboard', storage, 1_000_001)
+    expect(resolveChunkRecoveryTarget('/dashboard', storage, 1_000_002)).toEqual({
+      action: 'blocked',
+      url: null,
+    })
   })
 })

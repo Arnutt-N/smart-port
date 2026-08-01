@@ -26,7 +26,7 @@ export function shouldReloadForChunkError(path, storage, now) {
 
   let last
   try {
-    last = Number(storage.getItem(key))
+    last = Number(storage?.getItem?.(key))
   } catch {
     last = memoryFallback.get(key) ?? 0
   }
@@ -36,10 +36,32 @@ export function shouldReloadForChunkError(path, storage, now) {
   }
 
   try {
-    storage.setItem(key, String(now))
+    storage?.setItem?.(key, String(now))
   } catch {
     // storage เขียนไม่ได้ (เช่น private mode) — จดใน memory แทน
     memoryFallback.set(key, now)
   }
   return true
+}
+
+/**
+ * ลำดับกู้คืนหลัง chunk พัง:
+ * 1) reload หน้าเป้าหมาย (ดึง index ใหม่ถ้าเพิ่ง deploy)
+ * 2) ถอย /dashboard
+ * 3) ถอย / (กันกรณี dashboard chunk พังด้วย)
+ */
+export function resolveChunkRecoveryTarget(target, storage, now, fallbackPath = '/dashboard') {
+  if (shouldReloadForChunkError(target, storage, now)) {
+    return { action: 'reload-target', url: target }
+  }
+  if (
+    target !== fallbackPath
+    && shouldReloadForChunkError(`fallback:${fallbackPath}`, storage, now)
+  ) {
+    return { action: 'reload-fallback', url: fallbackPath }
+  }
+  if (shouldReloadForChunkError('fallback:/', storage, now)) {
+    return { action: 'reload-root', url: '/' }
+  }
+  return { action: 'blocked', url: null }
 }
