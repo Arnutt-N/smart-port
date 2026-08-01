@@ -3,10 +3,10 @@
 /**
  * Apply ordered SQL migrations from database/ and record them in schema_migrations.
  *
- * Safety for existing TiDB/prod:
+ * Safety for existing TiDB/prod / fresh docker-compose volumes:
  * - If schema_migrations is empty but core tables already exist, seed a baseline
- *   for migrations through 14-* (already applied manually / via init scripts)
- *   and only execute newer files (e.g. 15-api-rate-limit-hits.sql).
+ *   for migrations through 25-* (already applied via init mounts / tidb-init)
+ *   and only execute newer files. test-seed files are never baselined.
  * - DDL is not wrapped in a multi-statement transaction (TiDB/MySQL auto-commit DDL).
  * - Uses GET_LOCK when available to reduce multi-instance races.
  *
@@ -95,6 +95,10 @@ function seedBaselineIfNeeded(PDO $pdo, array $files): array
     $seeded = [];
     foreach ($files as $file) {
         $name = basename($file);
+        // test-seed ต้องรอ APPLY_TEST_SEED_MIGRATIONS — อย่า baseline ข้าม
+        if (str_contains($name, 'test-seed')) {
+            continue;
+        }
         if (strnatcasecmp($name, MIGRATION_BASELINE_THROUGH) > 0) {
             continue;
         }

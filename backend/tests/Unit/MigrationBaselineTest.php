@@ -10,12 +10,12 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../../scripts/migration-lib.php';
 
 /**
- * Guards the production baseline cut-off used by scripts/run-migrations.php.
- * Existing TiDB DBs already have migrations through 14; only 15+ should execute.
+ * Guards the baseline cut-off used by scripts/run-migrations.php.
+ * docker-compose init + tidb-init already apply through 25; only newer files execute.
  */
 final class MigrationBaselineTest extends TestCase
 {
-    private const BASELINE_THROUGH = '14-multiplier-area-admin.sql';
+    private const BASELINE_THROUGH = '25-ensure-multiplier-tables.sql';
 
     #[Test]
     public function baseline_cut_off_matches_runner_constant(): void
@@ -24,22 +24,24 @@ final class MigrationBaselineTest extends TestCase
     }
 
     #[Test]
-    public function net_new_rate_limit_migration_is_after_baseline(): void
+    public function next_migration_after_baseline_would_execute(): void
     {
         self::assertGreaterThan(
             0,
-            strnatcasecmp('15-api-rate-limit-hits.sql', self::BASELINE_THROUGH)
+            strnatcasecmp('26-placeholder-next.sql', self::BASELINE_THROUGH)
         );
     }
 
     #[Test]
-    public function historical_migrations_are_at_or_before_baseline(): void
+    public function init_mounted_migrations_are_at_or_before_baseline(): void
     {
         $historical = [
             '03-personnel-stubs.sql',
             '09-auth-users.sql',
-            '13-multiplier-time-counting.sql',
             '14-multiplier-area-admin.sql',
+            '15-api-rate-limit-hits.sql',
+            '22-unify-person-identity.sql',
+            '25-ensure-multiplier-tables.sql',
         ];
 
         foreach ($historical as $name) {
@@ -49,5 +51,11 @@ final class MigrationBaselineTest extends TestCase
                 "{$name} should be covered by baseline"
             );
         }
+    }
+
+    #[Test]
+    public function test_seed_filename_is_detectable_for_baseline_skip(): void
+    {
+        self::assertStringContainsString('test-seed', '16-multiplier-test-seed-expand.sql');
     }
 }
