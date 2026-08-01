@@ -9,7 +9,7 @@
 
   <div class="lg:ml-64 transition-all duration-300">
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
-    <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
+    <main ref="mainElement" class="min-h-[calc(100vh-4rem)] bg-gray-50">
       <!-- แสดง loading แทนพื้นที่ว่างเมื่อ RouterView ยังไม่มี component; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
         <component :is="Component" v-if="Component" :key="$route.path" />
@@ -25,10 +25,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppTopbar from '@/components/AppTopbar.vue'
 
+const route = useRoute()
+const mainElement = ref(null)
 const sidebarOpen = ref(window.innerWidth >= 1024)
 
 function handleResize() {
@@ -37,4 +40,18 @@ function handleResize() {
 
 onMounted(() => window.addEventListener('resize', handleResize))
 onUnmounted(() => window.removeEventListener('resize', handleResize))
+
+watch(
+  () => route.path,
+  async (path) => {
+    await nextTick()
+    const main = mainElement.value
+    const style = main ? getComputedStyle(main) : null
+    const centerElement = document.elementFromPoint?.(window.innerWidth / 2, window.innerHeight / 2)
+    // #region agent log
+    fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:'L,M',location:'AppLayout.vue:routeWatch',message:'main content after route update',data:{path,mainExists:!!main,textLength:(main?.textContent??'').trim().length,childCount:main?.childElementCount??-1,display:style?.display??null,visibility:style?.visibility??null,opacity:style?.opacity??null,width:main?.getBoundingClientRect().width??-1,height:main?.getBoundingClientRect().height??-1,centerTag:centerElement?.tagName??null,centerClass:String(centerElement?.className??'').slice(0,200)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  },
+  { immediate: true, flush: 'post' },
+)
 </script>

@@ -155,6 +155,10 @@ const { isNavigating } = useNavProgress()
 router.beforeEach(async (to) => {
   isNavigating.value = true
 
+  // #region agent log
+  fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:'K',location:'router/index.js:beforeEach',message:'navigation guard entered',data:{toPath:to.path,matchedNames:to.matched.map((record)=>String(record.name??record.path)),requiresAuth:to.meta.requiresAuth!==false,requiresAdmin:!!to.meta.requiresAdmin},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
 
@@ -180,8 +184,12 @@ router.beforeEach(async (to) => {
   }
 })
 
-router.afterEach(() => {
+router.afterEach((to, from, failure) => {
   isNavigating.value = false
+
+  // #region agent log
+  fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:'K',location:'router/index.js:afterEach',message:'navigation completed',data:{toPath:to.path,fromPath:from.path,failureType:failure?.type??null,failureMessage:failure?String(failure.message).slice(0,300):null,matchedNames:to.matched.map((record)=>String(record.name??record.path))},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 })
 
 // chunk เก่าหายหลัง deploy ใหม่ → dynamic import พังและ navigation ถูกยกเลิกเงียบๆ
@@ -200,6 +208,10 @@ export function onRouterError(
 ) {
   isNavigating.value = false
   const target = to?.fullPath ?? getPathname()
+
+  // #region agent log
+  fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:isChunkLoadError(error)?'K':'J',location:'router/index.js:onRouterError',message:'router error',data:{target,chunk:isChunkLoadError(error),errorName:error?.name??null,errorMessage:String(error?.message??error).slice(0,500)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   if (isChunkLoadError(error)) {
     const recovery = resolveChunkRecoveryTarget(target, storage, now, fallbackPath)
