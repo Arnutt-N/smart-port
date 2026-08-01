@@ -1,9 +1,33 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth.js'
 
+const expectedMenuPaths = [
+  '/dashboard',
+  '/probation-end',
+  '/candidates/overview',
+  '/candidates/general',
+  '/candidates/academic',
+  '/candidates/support',
+  '/candidates/management',
+  '/time-counting',
+  '/time-multiplier',
+  '/time-difference',
+  '/position-compare',
+  '/royal-decorations',
+  '/retirement-report',
+  '/admin',
+  '/work-results',
+  '/awards',
+  '/import',
+  '/ocr',
+  '/users',
+  '/audit',
+  '/settings/special-areas',
+]
+
 test('all sidebar menu destinations keep the content area rendered', async ({ page }) => {
   const pageErrors = []
-  page.on('pageerror', (error) => pageErrors.push(String(error)))
+  page.on('pageerror', (error) => pageErrors.push(`${page.url()}: ${String(error)}`))
 
   await loginAsAdmin(page)
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -19,14 +43,21 @@ test('all sidebar menu destinations keep the content area rendered', async ({ pa
     }))
   ))
 
-  expect(destinations.length).toBeGreaterThan(15)
+  expect(destinations).toHaveLength(21)
+  expect(destinations.map(({ href }) => href).sort()).toEqual([...expectedMenuPaths].sort())
 
   for (const { href, label } of destinations) {
     await test.step(`${label} (${href})`, async () => {
       await page.locator(`nav a[href="${href}"]`).click()
-      await expect(page).toHaveURL(new RegExp(`${href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`))
+      await expect.poll(() => new URL(page.url()).pathname).toBe(href)
+      const main = page.locator('main')
+      await expect(main).toBeVisible()
+      await expect(
+        main,
+        `${href} must not remain on the route loading fallback`,
+      ).not.toContainText('กำลังโหลดหน้า...')
       await expect.poll(
-        async () => (await page.locator('main').innerText()).trim().length,
+        async () => (await main.innerText()).trim().length,
         { message: `${href} content area must not be blank` },
       ).toBeGreaterThan(5)
     })
