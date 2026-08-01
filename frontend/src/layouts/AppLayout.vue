@@ -25,14 +25,14 @@
 </template>
 
 <script setup>
-import { nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { getCurrentInstance, nextTick, ref, onMounted, onUnmounted, watch } from 'vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppTopbar from '@/components/AppTopbar.vue'
 
-const route = useRoute()
+const instance = getCurrentInstance()
 const mainElement = ref(null)
 const sidebarOpen = ref(window.innerWidth >= 1024)
+const blankDebugEnabled = sessionStorage.getItem('blankDebugSession') === '4975e3'
 
 function handleResize() {
   sidebarOpen.value = window.innerWidth >= 1024
@@ -42,14 +42,14 @@ onMounted(() => window.addEventListener('resize', handleResize))
 onUnmounted(() => window.removeEventListener('resize', handleResize))
 
 watch(
-  () => route.path,
+  () => instance?.proxy?.$route?.path ?? window.location.pathname,
   async (path) => {
     await nextTick()
     const main = mainElement.value
     const style = main ? getComputedStyle(main) : null
     const centerElement = document.elementFromPoint?.(window.innerWidth / 2, window.innerHeight / 2)
     // #region agent log
-    fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:'L,M',location:'AppLayout.vue:routeWatch',message:'main content after route update',data:{path,mainExists:!!main,textLength:(main?.textContent??'').trim().length,childCount:main?.childElementCount??-1,display:style?.display??null,visibility:style?.visibility??null,opacity:style?.opacity??null,width:main?.getBoundingClientRect().width??-1,height:main?.getBoundingClientRect().height??-1,centerTag:centerElement?.tagName??null,centerClass:String(centerElement?.className??'').slice(0,200)},timestamp:Date.now()})}).catch(()=>{});
+    if (blankDebugEnabled) fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4975e3'},body:JSON.stringify({sessionId:'4975e3',runId:'blank-v3',hypothesisId:'L,M',location:'AppLayout.vue:routeWatch',message:'main content after route update',data:{path,mainExists:!!main,textLength:(main?.textContent??'').trim().length,childCount:main?.childElementCount??-1,display:style?.display??null,visibility:style?.visibility??null,opacity:style?.opacity??null,width:main?.getBoundingClientRect().width??-1,height:main?.getBoundingClientRect().height??-1,centerTag:centerElement?.tagName??null,centerClass:String(centerElement?.className??'').slice(0,200)},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
   },
   { immediate: true, flush: 'post' },
