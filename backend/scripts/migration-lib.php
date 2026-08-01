@@ -100,7 +100,11 @@ function migrationDirectory(): string
 }
 
 /**
- * แยก SQL หลายคำสั่งด้วย ";" โดยไม่ตัดในเครื่องหมายคำพูด
+ * แยก SQL หลายคำสั่งด้วย ";" โดยไม่ตัดใน string / คอมเมนต์
+ *
+ * สำคัญ: คอมเมนต์บรรทัด `-- ...` หรือ `# ...` อาจมี ";" อยู่ข้างใน (เช่น อธิบาย FK)
+ * ถ้าตัดที่ ";" ในคอมเมนต์ จะได้เศษข้อความไทยไป execute → SQL syntax error
+ * (เคยพัง migration 24-drop-dead-tables.sql แล้วทำให้ container รีสตาร์ทวน)
  *
  * @return list<string>
  */
@@ -110,11 +114,50 @@ function splitSqlStatements(string $sql): array
     $buffer = '';
     $inSingleQuote = false;
     $inDoubleQuote = false;
+    $inLineComment = false;
+    $inBlockComment = false;
     $length = strlen($sql);
 
     for ($i = 0; $i < $length; $i++) {
         $char = $sql[$i];
+        $next = $i + 1 < $length ? $sql[$i + 1] : '';
         $prev = $i > 0 ? $sql[$i - 1] : '';
+
+        if ($inLineComment) {
+            $buffer .= $char;
+            if ($char === "\n") {
+                $inLineComment = false;
+            }
+            continue;
+        }
+
+        if ($inBlockComment) {
+            $buffer .= $char;
+            if ($char === '*' && $next === '/') {
+                $buffer .= $next;
+                $i++;
+                $inBlockComment = false;
+            }
+            continue;
+        }
+
+        if (!$inSingleQuote && !$inDoubleQuote) {
+            if ($char === '-' && $next === '-') {
+                $inLineComment = true;
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === '#') {
+                $inLineComment = true;
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === '/' && $next === '*') {
+                $inBlockComment = true;
+                $buffer .= $char;
+                continue;
+            }
+        }
 
         if ($char === "'" && !$inDoubleQuote && $prev !== '\\') {
             $inSingleQuote = !$inSingleQuote;
@@ -124,7 +167,8 @@ function splitSqlStatements(string $sql): array
 
         if ($char === ';' && !$inSingleQuote && !$inDoubleQuote) {
             $statement = trim($buffer);
-            if ($statement !== '') {
+            // ข้ามชิ้นที่เป็นแค่คอมเมนต์/ว่าง — ไม่ต้องส่งให้ PDO
+            if ($statement !== '' && !sqlStatementIsCommentOnly($statement)) {
                 $statements[] = $statement;
             }
             $buffer = '';
@@ -135,9 +179,24 @@ function splitSqlStatements(string $sql): array
     }
 
     $tail = trim($buffer);
-    if ($tail !== '') {
+    if ($tail !== '' && !sqlStatementIsCommentOnly($tail)) {
         $statements[] = $tail;
     }
 
     return $statements;
+}
+
+/** true ถ้าข้อความเหลือแต่คอมเมนต์ SQL (ไม่มีคำสั่งจริง) */
+function sqlStatementIsCommentOnly(string $sql): bool
+{
+    $withoutBlock = preg_replace('/\/\*[\s\S]*?\*\//', '', $sql) ?? $sql;
+    $lines = preg_split('/\R/', $withoutBlock) ?: [];
+    foreach ($lines as $line) {
+        $trim = trim($line);
+        if ($trim === '' || str_starts_with($trim, '--') || str_starts_with($trim, '#')) {
+            continue;
+        }
+        return false;
+    }
+    return true;
 }

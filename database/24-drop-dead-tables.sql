@@ -7,8 +7,8 @@
 --   - 1 table advance_notifications (เดิมใช้โดย /forecast ซึ่งถูกถอดออก)
 --   - civil_servants (deprecated ตั้งแต่ ADR-0002, migration 22 ย้ายข้อมูลแล้ว)
 --
--- ลำดับสำคัญ: drop ตารางลูกที่มี FK ชี้ civil_servants ก่อน → แล้วค่อย drop civil_servants
--- (local MySQL มี FK enforcement; TiDB ไม่มี — ลำดับไม่กระทบแต่คงไว้เพื่อ MySQL)
+-- ลำดับสำคัญ: drop ตารางลูกที่มี FK ชี้ civil_servants ก่อน แล้วค่อย drop civil_servants
+-- (local MySQL มี FK enforcement ส่วน TiDB ไม่มี ลำดับไม่กระทบแต่คงไว้เพื่อ MySQL)
 -- ============================================================================
 
 -- Career path (04-career-path.sql) — never queried

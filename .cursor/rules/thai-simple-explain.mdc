@@ -23,6 +23,14 @@ alwaysApply: true
 
 คำสั่งเช็คว่ายังโอเค: `node scripts/validate-schema-parity.mjs` → ต้องได้ `OK ไม่พบ schema drift`
 
+# บั๊กหน้า candidates / multiplier (2026-08-01) — แก้แล้วบน TiDB
+
+- **อาการ:** `/candidates/*` = Internal server error, `/time-multiplier` = เข้าถึงฐานข้อมูลไม่ได้, หลายหน้าว่าง
+- **สาเหตุจริง:** ตาราง `special_area_multiplier` / `multiplier_experience` **ไม่มีบน TiDB** ทั้งที่ migration 13/14 ถูก mark ว่า applied แล้ว (เพราะ baseline ผ่าน 14 โดยไม่รัน SQL) — `QualificationEngine` ต้องใช้ตารางนี้
+- **สาเหตุซ้อน:** migration 24 มี `;` ในคอมเมนต์ ทำให้ `splitSqlStatements` ตัดผิด → backend รีสตาร์ทวนตอน deploy ที่มีไฟล์ 24
+- **แก้:** migration `25-ensure-multiplier-tables.sql` (IF NOT EXISTS) + แก้ตัวแยก SQL ไม่ตัดในคอมเมนต์ — apply 25 บน TiDB แล้ว / API prod กลับ 200
+- **อย่าสับสน:** หน้า awards/retirement ฯลฯ ที่ขึ้น “ไม่พบข้อมูล” = ตารางว่าง ไม่ใช่หน้า “อยู่ระหว่างพัฒนา”
+
 # คำศัพท์ง่ายในโปรเจกต์นี้
 
 - **migration** = สคริปต์อัปเดตโครงสร้างฐานข้อมูลทีละไฟล์ (`database/NN-*.sql`)
