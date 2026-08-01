@@ -10,16 +10,15 @@
   <div class="lg:ml-64 transition-all duration-300">
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
     <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
-      <!-- Suspense fallback กันพื้นที่ว่างตอน lazy page กำลังโหลด; ไม่ใช้ out-in -->
+      <!-- แสดง loading แทนพื้นที่ว่างเมื่อ RouterView ยังไม่มี component; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
-        <Suspense timeout="0">
-          <component :is="Component" v-if="Component" :key="$route.path" />
-          <template #fallback>
-            <div class="flex min-h-[40vh] items-center justify-center px-6 text-sm text-gray-500">
-              กำลังโหลดหน้า...
-            </div>
-          </template>
-        </Suspense>
+        <component :is="Component" v-if="Component" :key="$route.path" />
+        <div
+          v-else
+          class="flex min-h-[40vh] items-center justify-center px-6 text-sm text-gray-500"
+        >
+          กำลังโหลดหน้า...
+        </div>
       </RouterView>
     </main>
   </div>

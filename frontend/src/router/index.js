@@ -192,7 +192,6 @@ export function onRouterError(
   to,
   {
     assign = (url) => window.location.assign(url),
-    replace = null,
     getPathname = () => window.location.pathname,
     now = Date.now(),
     storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null,
@@ -207,19 +206,9 @@ export function onRouterError(
     if (recovery.url) {
       assign(recovery.url)
     }
-    return
-  }
-
-  // non-chunk nav failure — soft recover กันจอว่างติด (ไม่ hard reload วน)
-  if (replace && target !== fallbackPath) {
-    replace(fallbackPath)
   }
 }
 
-router.onError((error, to) => onRouterError(error, to, {
-  replace: (path) => {
-    router.replace(path).catch(() => {})
-  },
-}))
+router.onError((error, to) => onRouterError(error, to))
 
 export default router

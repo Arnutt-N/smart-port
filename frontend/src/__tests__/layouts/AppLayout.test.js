@@ -33,7 +33,7 @@ describe('AppLayout', () => {
   })
 
   function mountLayout(options = {}) {
-    const { invokeRouterSlot = false } = options
+    const { invokeRouterSlot = false, componentAvailable = true } = options
     return mount(AppLayout, {
       global: {
         mocks: {
@@ -48,10 +48,12 @@ describe('AppLayout', () => {
                   '<div data-testid="router-view"><slot :Component="pageComp" /></div>',
                 setup() {
                   return {
-                    pageComp: markRaw({
-                      name: 'StubPage',
-                      template: '<div data-testid="slotted-page">หน้าทดสอบ</div>',
-                    }),
+                    pageComp: componentAvailable
+                      ? markRaw({
+                          name: 'StubPage',
+                          template: '<div data-testid="slotted-page">หน้าทดสอบ</div>',
+                        })
+                      : null,
                   }
                 },
               }
@@ -119,8 +121,13 @@ describe('AppLayout', () => {
     removeSpy.mockRestore()
   })
 
-  it('renders RouterView slot content through Suspense', () => {
+  it('renders RouterView slot content when component is available', () => {
     const wrapper = mountLayout({ invokeRouterSlot: true })
     expect(wrapper.text()).toContain('หน้าทดสอบ')
+  })
+
+  it('renders loading state while RouterView has no component', () => {
+    const wrapper = mountLayout({ invokeRouterSlot: true, componentAvailable: false })
+    expect(wrapper.text()).toContain('กำลังโหลดหน้า...')
   })
 })

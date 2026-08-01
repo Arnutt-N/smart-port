@@ -26,33 +26,30 @@ const { onRouterError } = await import('@/router/index.js')
 
 describe('onRouterError chunk reload', () => {
   let assign
-  let replace
 
   beforeEach(() => {
     isNavigating.value = true
     mockIsChunkLoadError.mockReset()
     mockResolveRecovery.mockReset()
     assign = vi.fn()
-    replace = vi.fn()
   })
 
   it('clears nav progress and assigns recovery url for chunk errors', () => {
     mockIsChunkLoadError.mockReturnValue(true)
     mockResolveRecovery.mockReturnValue({ action: 'reload-target', url: '/dashboard' })
 
-    onRouterError(new TypeError('Failed to fetch dynamically imported module'), { fullPath: '/dashboard' }, { assign, replace })
+    onRouterError(new TypeError('Failed to fetch dynamically imported module'), { fullPath: '/dashboard' }, { assign })
 
     expect(isNavigating.value).toBe(false)
     expect(mockResolveRecovery).toHaveBeenCalledWith('/dashboard', expect.anything(), expect.any(Number), '/dashboard')
     expect(assign).toHaveBeenCalledWith('/dashboard')
-    expect(replace).not.toHaveBeenCalled()
   })
 
   it('falls back via resolveChunkRecoveryTarget when provided', () => {
     mockIsChunkLoadError.mockReturnValue(true)
     mockResolveRecovery.mockReturnValue({ action: 'reload-fallback', url: '/dashboard' })
 
-    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/x' }, { assign, replace })
+    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/x' }, { assign })
 
     expect(assign).toHaveBeenCalledWith('/dashboard')
   })
@@ -61,35 +58,26 @@ describe('onRouterError chunk reload', () => {
     mockIsChunkLoadError.mockReturnValue(true)
     mockResolveRecovery.mockReturnValue({ action: 'reload-root', url: '/' })
 
-    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/dashboard' }, { assign, replace })
+    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/dashboard' }, { assign })
 
     expect(assign).toHaveBeenCalledWith('/')
   })
 
-  it('soft-replaces to dashboard for non-chunk errors', () => {
+  it('clears nav progress but ignores non-chunk errors', () => {
     mockIsChunkLoadError.mockReturnValue(false)
 
-    onRouterError(new Error('boom'), { fullPath: '/x' }, { assign, replace })
+    onRouterError(new Error('boom'), { fullPath: '/x' }, { assign })
 
     expect(isNavigating.value).toBe(false)
     expect(assign).not.toHaveBeenCalled()
     expect(mockResolveRecovery).not.toHaveBeenCalled()
-    expect(replace).toHaveBeenCalledWith('/dashboard')
-  })
-
-  it('does not soft-replace when already on dashboard for non-chunk errors', () => {
-    mockIsChunkLoadError.mockReturnValue(false)
-
-    onRouterError(new Error('boom'), { fullPath: '/dashboard' }, { assign, replace })
-
-    expect(replace).not.toHaveBeenCalled()
   })
 
   it('does not assign when recovery is blocked', () => {
     mockIsChunkLoadError.mockReturnValue(true)
     mockResolveRecovery.mockReturnValue({ action: 'blocked', url: null })
 
-    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/x' }, { assign, replace })
+    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/x' }, { assign })
 
     expect(assign).not.toHaveBeenCalled()
   })
