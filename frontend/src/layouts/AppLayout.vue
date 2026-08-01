@@ -11,9 +11,9 @@
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
     <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
       <!-- ไม่ใช้ mode="out-in": ถ้า child lazy import พังหลัง leave จะเหลือจอว่างติดตาย -->
-      <RouterView v-slot="{ Component, route }">
+      <RouterView v-slot="{ Component }">
         <Transition name="page">
-          <component :is="Component" v-if="Component" :key="route.path" />
+          <component :is="Component" v-if="Component" :key="$route.path" />
         </Transition>
       </RouterView>
     </main>
