@@ -195,12 +195,28 @@ export function onRouterError(
     getPathname = () => window.location.pathname,
     now = Date.now(),
     storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null,
+    fallbackPath = '/dashboard',
   } = {},
 ) {
   isNavigating.value = false
   const target = to?.fullPath ?? getPathname()
-  if (isChunkLoadError(error) && shouldReloadForChunkError(target, storage, now)) {
+  if (!isChunkLoadError(error)) {
+    return
+  }
+
+  // หลัง deploy: hard reload หน้าเป้าหมายเพื่อดึง index/asset ชุดใหม่
+  if (shouldReloadForChunkError(target, storage, now)) {
     assign(target)
+    return
+  }
+
+  // reload หน้าเดิมถูกบล็อก (กันวนลูป) — ถอยไป dashboard ครั้งเดียว
+  // กันจอขาวติดตายหลัง lazy page (เช่น /time-difference) โหลด chunk ไม่ได้ซ้ำ
+  if (
+    target !== fallbackPath
+    && shouldReloadForChunkError(`fallback:${fallbackPath}`, storage, now)
+  ) {
+    assign(fallbackPath)
   }
 }
 

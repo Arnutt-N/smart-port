@@ -67,7 +67,26 @@ describe('onRouterError chunk reload', () => {
     expect(mockShouldReload).not.toHaveBeenCalled()
   })
 
-  it('does not assign when reload window blocks a chunk error', () => {
+  it('falls back to dashboard when reload window blocks the target path', () => {
+    mockIsChunkLoadError.mockReturnValue(true)
+    mockShouldReload
+      .mockReturnValueOnce(false) // target /x blocked
+      .mockReturnValueOnce(true) // fallback:/dashboard allowed
+
+    onRouterError(new Error('Failed to fetch dynamically imported module'), { fullPath: '/x' }, { assign })
+
+    expect(isNavigating.value).toBe(false)
+    expect(mockShouldReload).toHaveBeenNthCalledWith(1, '/x', expect.anything(), expect.any(Number))
+    expect(mockShouldReload).toHaveBeenNthCalledWith(
+      2,
+      'fallback:/dashboard',
+      expect.anything(),
+      expect.any(Number),
+    )
+    expect(assign).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('does not assign when both target and fallback reload windows are blocked', () => {
     mockIsChunkLoadError.mockReturnValue(true)
     mockShouldReload.mockReturnValue(false)
 
@@ -75,5 +94,19 @@ describe('onRouterError chunk reload', () => {
 
     expect(isNavigating.value).toBe(false)
     expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('does not fallback-loop when the failed target is already dashboard', () => {
+    mockIsChunkLoadError.mockReturnValue(true)
+    mockShouldReload.mockReturnValue(false)
+
+    onRouterError(
+      new Error('Failed to fetch dynamically imported module'),
+      { fullPath: '/dashboard' },
+      { assign },
+    )
+
+    expect(assign).not.toHaveBeenCalled()
+    expect(mockShouldReload).toHaveBeenCalledTimes(1)
   })
 })
