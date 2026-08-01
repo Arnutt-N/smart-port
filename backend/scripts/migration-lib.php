@@ -9,8 +9,12 @@
 
 declare(strict_types=1);
 
-/** Last migration assumed already applied on existing production DBs */
-const MIGRATION_BASELINE_THROUGH = '14-multiplier-area-admin.sql';
+/**
+ * Last migration assumed already applied when the DB was provisioned by
+ * docker-compose init mounts or tidb-init (both include through 25).
+ * Fresh volumes must not re-run non-idempotent files such as 22.
+ */
+const MIGRATION_BASELINE_THROUGH = '25-ensure-multiplier-tables.sql';
 
 function migrationEnv(string $key, string $default = ''): string
 {
