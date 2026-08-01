@@ -9,7 +9,7 @@
 
   <div class="lg:ml-64 transition-all duration-300">
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
-    <main class="min-h-[calc(100vh-4rem)] bg-gray-50" data-debug-main>
+    <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
       <!-- Suspense fallback กันพื้นที่ว่างตอน lazy page กำลังโหลด; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
         <Suspense timeout="0">

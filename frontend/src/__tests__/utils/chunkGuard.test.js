@@ -104,4 +104,13 @@ describe('resolveChunkRecoveryTarget', () => {
       url: '/',
     })
   })
+
+  test('บล็อกเมื่อใช้ recovery ครบทุกชั้นแล้ว', () => {
+    resolveChunkRecoveryTarget('/dashboard', storage, 1_000_000)
+    resolveChunkRecoveryTarget('/dashboard', storage, 1_000_001)
+    expect(resolveChunkRecoveryTarget('/dashboard', storage, 1_000_002)).toEqual({
+      action: 'blocked',
+      url: null,
+    })
+  })
 })

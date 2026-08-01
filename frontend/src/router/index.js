@@ -202,43 +202,8 @@ export function onRouterError(
   isNavigating.value = false
   const target = to?.fullPath ?? getPathname()
 
-  // #region agent log
-  fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4975e3' },
-    body: JSON.stringify({
-      sessionId: '4975e3',
-      runId: 'blank-v2',
-      hypothesisId: isChunkLoadError(error) ? 'G' : 'H',
-      location: 'router/index.js:onRouterError',
-      message: 'router onError',
-      data: {
-        target,
-        chunk: isChunkLoadError(error),
-        errorMessage: String(error?.message || error).slice(0, 300),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-
   if (isChunkLoadError(error)) {
     const recovery = resolveChunkRecoveryTarget(target, storage, now, fallbackPath)
-    // #region agent log
-    fetch('http://127.0.0.1:7593/ingest/2c3dac7b-bfe2-4e17-bf18-ee2af8b3d131', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4975e3' },
-      body: JSON.stringify({
-        sessionId: '4975e3',
-        runId: 'blank-v2',
-        hypothesisId: 'G',
-        location: 'router/index.js:onRouterError',
-        message: 'chunk recovery',
-        data: recovery,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     if (recovery.url) {
       assign(recovery.url)
     }
