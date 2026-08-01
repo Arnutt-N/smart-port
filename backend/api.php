@@ -329,7 +329,7 @@ switch ($path[0]) {
                     p.personnel_id AS servant_id,
                     p.employee_id,
                     p.citizen_id,
-                    CONCAT(px.prefix_name_th, p.first_name, ' ', p.last_name) as full_name,
+                    CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) as full_name,
                     p.first_name,
                     p.last_name,
                     p.birth_date,
@@ -348,8 +348,8 @@ switch ($path[0]) {
             $stmt->execute(array_merge($params, [$limit, $offset]));
             $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Get total count for pagination
-            $countSql = "SELECT COUNT(*) as total FROM personnel p {$searchQuery}";
+            // Get total count for pagination (must match is_active filter on the list query)
+            $countSql = "SELECT COUNT(*) as total FROM personnel p {$searchQuery} AND p.is_active = 1";
             $countStmt = $pdo->prepare($countSql);
             $countStmt->execute($params);
             $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];

@@ -157,12 +157,19 @@ function createAward(PDO $pdo, ?array $auth): void
         return;
     }
 
+    $servantId = intval($valid['servant_id']);
+    if (!personnelExists($pdo, $servantId)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+        return;
+    }
+
     $stmt = $pdo->prepare(
         "INSERT INTO awards (servant_id, award_name, award_type, award_level, awarded_date, description)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
-        intval($valid['servant_id']),
+        $servantId,
         trim($valid['award_name']),
         $valid['award_type'] ?? 'general',
         ($valid['award_level'] ?? '') !== '' ? $valid['award_level'] : null,
@@ -213,6 +220,11 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
             }
             if ($col === 'servant_id') {
                 $value = intval($value);
+                if (!personnelExists($pdo, $value)) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+                    return;
+                }
             }
             $params[] = $value;
         }

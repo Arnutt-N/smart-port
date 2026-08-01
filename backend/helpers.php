@@ -172,3 +172,16 @@ function sanitizeHtml(?string $input): ?string
     $allowedTags = '<p><br><strong><em><ul><ol><li>';
     return strip_tags($input, $allowedTags);
 }
+
+/**
+ * ตรวจว่า personnel_id มีอยู่จริง (soft-link enforcement แทน FK)
+ */
+function personnelExists(PDO $pdo, int $personnelId): bool
+{
+    if ($personnelId <= 0) {
+        return false;
+    }
+    $stmt = $pdo->prepare('SELECT 1 FROM personnel WHERE personnel_id = ? LIMIT 1');
+    $stmt->execute([$personnelId]);
+    return (bool) $stmt->fetchColumn();
+}

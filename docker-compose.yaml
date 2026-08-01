@@ -76,6 +76,10 @@ services:
       - ./database/18-refresh-tokens.sql:/docker-entrypoint-initdb.d/18-refresh-tokens.sql
       - ./database/19-awards.sql:/docker-entrypoint-initdb.d/19-awards.sql
       - ./database/20-royal-decorations.sql:/docker-entrypoint-initdb.d/20-royal-decorations.sql
+      # 22–24: person identity merge + sync crosswalk + drop dead tables
+      - ./database/22-unify-person-identity.sql:/docker-entrypoint-initdb.d/22-unify-person-identity.sql
+      - ./database/23-external-ref.sql:/docker-entrypoint-initdb.d/23-external-ref.sql
+      - ./database/24-drop-dead-tables.sql:/docker-entrypoint-initdb.d/24-drop-dead-tables.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s
