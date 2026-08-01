@@ -17,19 +17,90 @@ SET NAMES utf8mb4;
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. เพิ่มคอลัมน์ใน personnel
+-- 1. เพิ่มคอลัมน์ใน personnel (idempotent — รองรับ tidb-init ที่ bake คอลัมน์ไว้แล้ว)
 -- ----------------------------------------------------------------------------
-ALTER TABLE personnel
-  ADD COLUMN prefix_id INT NULL AFTER last_name,
-  ADD COLUMN employee_id VARCHAR(20) NULL AFTER prefix_id,
-  ADD COLUMN birth_date DATE NULL AFTER employee_id,
-  ADD COLUMN appointment_date DATE NULL AFTER birth_date,
-  ADD COLUMN retirement_date DATE NULL AFTER appointment_date,
-  ADD COLUMN servant_status VARCHAR(20) DEFAULT 'active' AFTER retirement_date;
+SET @db := DATABASE();
 
-ALTER TABLE personnel ADD UNIQUE KEY uq_personnel_employee_id (employee_id);
-ALTER TABLE personnel ADD KEY idx_personnel_prefix (prefix_id);
-ALTER TABLE personnel ADD KEY idx_personnel_retirement (retirement_date);
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN prefix_id INT NULL AFTER last_name',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'prefix_id'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN employee_id VARCHAR(20) NULL AFTER prefix_id',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'employee_id'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN birth_date DATE NULL AFTER employee_id',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'birth_date'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN appointment_date DATE NULL AFTER birth_date',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'appointment_date'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN retirement_date DATE NULL AFTER appointment_date',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'retirement_date'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD COLUMN servant_status VARCHAR(20) DEFAULT ''active'' AFTER retirement_date',
+    'SELECT 1')
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND COLUMN_NAME = 'servant_status'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD UNIQUE KEY uq_personnel_employee_id (employee_id)',
+    'SELECT 1')
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND INDEX_NAME = 'uq_personnel_employee_id'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD KEY idx_personnel_prefix (prefix_id)',
+    'SELECT 1')
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND INDEX_NAME = 'idx_personnel_prefix'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := (
+  SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE personnel ADD KEY idx_personnel_retirement (retirement_date)',
+    'SELECT 1')
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'personnel' AND INDEX_NAME = 'idx_personnel_retirement'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- ----------------------------------------------------------------------------
 -- 2. ย้ายข้อมูลจาก civil_servants → personnel (เฉพาะที่ยังไม่มีใน personnel)

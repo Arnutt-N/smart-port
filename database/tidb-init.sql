@@ -382,6 +382,13 @@ CREATE TABLE personnel (
     citizen_id VARCHAR(13) UNIQUE,
     first_name VARCHAR(200) NOT NULL,
     last_name VARCHAR(200) NOT NULL,
+    -- Identity columns (migration 22 — merge civil_servants → personnel)
+    prefix_id INT NULL,
+    employee_id VARCHAR(20) NULL,
+    birth_date DATE NULL,
+    appointment_date DATE NULL,
+    retirement_date DATE NULL,
+    servant_status VARCHAR(20) DEFAULT 'active',
     hire_date DATE,
     current_position_id BIGINT,
     current_org_id BIGINT,
@@ -393,6 +400,9 @@ CREATE TABLE personnel (
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_personnel_employee_id (employee_id),
+    KEY idx_personnel_prefix (prefix_id),
+    KEY idx_personnel_retirement (retirement_date),
     FOREIGN KEY (current_position_id) REFERENCES `position`(position_id),
     FOREIGN KEY (current_org_id) REFERENCES organization(org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1459,6 +1469,22 @@ CREATE TABLE royal_decorations (
     description TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_decorations_servant (servant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: 23-external-ref.sql
+-- ============================================
+CREATE TABLE IF NOT EXISTS external_ref (
+    ref_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_system VARCHAR(50) NOT NULL,
+    source_table VARCHAR(100) NOT NULL,
+    source_id VARCHAR(100) NOT NULL,
+    internal_table VARCHAR(100) NOT NULL,
+    internal_id BIGINT NOT NULL,
+    synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_external_ref_source (source_system, source_table, source_id, internal_table),
+    KEY idx_external_ref_internal (internal_table, internal_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -100,6 +100,9 @@ jobs:
             -v "$PWD/database/18-refresh-tokens.sql:/docker-entrypoint-initdb.d/18-refresh-tokens.sql" \
             -v "$PWD/database/19-awards.sql:/docker-entrypoint-initdb.d/19-awards.sql" \
             -v "$PWD/database/20-royal-decorations.sql:/docker-entrypoint-initdb.d/20-royal-decorations.sql" \
+            -v "$PWD/database/22-unify-person-identity.sql:/docker-entrypoint-initdb.d/22-unify-person-identity.sql" \
+            -v "$PWD/database/23-external-ref.sql:/docker-entrypoint-initdb.d/23-external-ref.sql" \
+            -v "$PWD/database/24-drop-dead-tables.sql:/docker-entrypoint-initdb.d/24-drop-dead-tables.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish

@@ -152,12 +152,19 @@ function createDecoration(PDO $pdo, ?array $auth): void
         return;
     }
 
+    $servantId = intval($valid['servant_id']);
+    if (!personnelExists($pdo, $servantId)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+        return;
+    }
+
     $stmt = $pdo->prepare(
         "INSERT INTO royal_decorations (servant_id, decoration_name, decoration_class, received_year, gazette_ref, description)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
-        intval($valid['servant_id']),
+        $servantId,
         trim($valid['decoration_name']),
         ($valid['decoration_class'] ?? '') !== '' ? $valid['decoration_class'] : null,
         ($valid['received_year'] ?? '') !== '' ? intval($valid['received_year']) : null,
@@ -207,6 +214,11 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
             }
             if ($col === 'servant_id') {
                 $value = intval($value);
+                if (!personnelExists($pdo, $value)) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+                    return;
+                }
             }
             if ($col === 'received_year' && $value !== null) {
                 $value = intval($value);
