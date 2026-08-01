@@ -103,6 +103,7 @@ jobs:
             -v "$PWD/database/22-unify-person-identity.sql:/docker-entrypoint-initdb.d/22-unify-person-identity.sql" \
             -v "$PWD/database/23-external-ref.sql:/docker-entrypoint-initdb.d/23-external-ref.sql" \
             -v "$PWD/database/24-drop-dead-tables.sql:/docker-entrypoint-initdb.d/24-drop-dead-tables.sql" \
+            -v "$PWD/database/25-ensure-multiplier-tables.sql:/docker-entrypoint-initdb.d/25-ensure-multiplier-tables.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish
