@@ -119,10 +119,8 @@ describe('AppLayout', () => {
     removeSpy.mockRestore()
   })
 
-  it('renders RouterView slot content through the page Transition', () => {
+  it('renders RouterView slot content through Suspense', () => {
     const wrapper = mountLayout({ invokeRouterSlot: true })
-    // VTU stubs <Transition> as transition-stub; slotted page still mounts
-    expect(wrapper.find('transition-stub').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="slotted-page"]').text()).toBe('หน้าทดสอบ')
+    expect(wrapper.text()).toContain('หน้าทดสอบ')
   })
 })

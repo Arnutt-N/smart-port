@@ -9,12 +9,17 @@
 
   <div class="lg:ml-64 transition-all duration-300">
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
-    <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
-      <!-- ไม่ใช้ mode="out-in": ถ้า child lazy import พังหลัง leave จะเหลือจอว่างติดตาย -->
+    <main class="min-h-[calc(100vh-4rem)] bg-gray-50" data-debug-main>
+      <!-- Suspense fallback กันพื้นที่ว่างตอน lazy page กำลังโหลด; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
-        <Transition name="page">
+        <Suspense timeout="0">
           <component :is="Component" v-if="Component" :key="$route.path" />
-        </Transition>
+          <template #fallback>
+            <div class="flex min-h-[40vh] items-center justify-center px-6 text-sm text-gray-500">
+              กำลังโหลดหน้า...
+            </div>
+          </template>
+        </Suspense>
       </RouterView>
     </main>
   </div>
@@ -34,19 +39,3 @@ function handleResize() {
 onMounted(() => window.addEventListener('resize', handleResize))
 onUnmounted(() => window.removeEventListener('resize', handleResize))
 </script>
-
-<style scoped>
-.page-enter-active {
-  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
-}
-.page-leave-active {
-  transition: opacity 0.15s ease-in;
-}
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-.page-leave-to {
-  opacity: 0;
-}
-</style>
