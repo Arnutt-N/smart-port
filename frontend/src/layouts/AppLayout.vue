@@ -44,6 +44,7 @@ onUnmounted(() => window.removeEventListener('resize', handleResize))
 watch(
   () => instance?.proxy?.$route?.path ?? window.location.pathname,
   async (path) => {
+    if (!blankDebugEnabled) return
     await nextTick()
     const main = mainElement.value
     const style = main ? getComputedStyle(main) : null
