@@ -113,12 +113,70 @@ curl -X POST http://localhost:8000/multiplier \
 
 ---
 
-## 🔍 Known Issues
+## UAT / Director readiness (#23) — 2026-08-02
 
-1. **Mock Data Only** — ห้ามใช้ production จนกว่าจะได้ข้อมูลจริงจาก HR (Issue #18)
-2. **Satun Province Missing** — ยังไม่มีใน seed เพราะรอยืนยันอำเภอทั้ง 4
-3. **POST /multiplier/areas** — ยังไม่ได้ทดสอบ validation (legal_reference, date range)
-4. **Frontend Warning UI** — ควรตรวจสอบว่า MOCK DATA warning แสดงชัดเจนในหน้า UI
+### Commands run
+
+```bash
+node scripts/validate-multiplier-phase0.mjs
+# → 12/12 PASS (TEST_SEED fixtures)
+
+docker compose up -d db backend   # APPLY_TEST_SEED_MIGRATIONS=1
+node scripts/uat-multiplier-live-api.mjs
+# → 10/10 PASS, 0 FAIL
+```
+
+### Offline validator (12 checks)
+
+All PASS against `docs/multiplier_phase0_master_data_template.csv` + `docs/multiplier_phase0_uat_cases_template.csv`.
+
+Note: check “All rows verified by HR” passes because `verified_by=TEST_SEED` is non-TODO text — **not** a real HR signature.
+
+### Live API UAT (TC-001..TC-010)
+
+| Case | Result | Notes |
+|------|--------|-------|
+| TC-001 | PASS | clamp start, area 1 MARTIAL_LAW, eligible=16 bonus=16 |
+| TC-002 | PASS | clamp end, eligible=61 bonus=61 |
+| TC-003 | PASS | full month inside martial |
+| TC-004 | PASS | สงขลา เทพา |
+| TC-005 | PASS | สตูล ควนโดน (TEST_SEED district) |
+| TC-006 | PASS | clamp start district |
+| TC-007 | PASS | clamp end province |
+| TC-008 | PASS | EMERGENCY_DECREE area 12 |
+| TC-009 | PASS | นราธิวาส |
+| TC-010 | PASS | สงขลา สะบ้าย้อย |
+
+Mismatches: **none**. Severity/owner/resolution: N/A.
+
+### DB data-quality (local Docker)
+
+| Check | bad_count |
+|-------|-----------|
+| whole-province Satun | 0 |
+| missing legal_reference | 0 |
+| missing source_reference | 0 |
+| duplicate exact periods | 0 |
+| ambiguous active overlaps | 0 |
+
+Areas loaded: **14** (รวมสตูล 4 อำเภอ + emergency 3 แถวจาก test-seed expand)
+
+### Director readiness verdict
+
+**NOT ready for director review.**
+
+- Technical engine/API matches synthetic TEST_SEED expected values 100%
+- HR Excel / signed legal references still missing → production seed and director package remain blocked
+- Full pack: `docs/multiplier_phase0_validation_pack.md`
+
+---
+
+## Known Issues
+
+1. **TEST_SEED / Mock Data Only** — ห้ามใช้ production จนกว่าจะได้ข้อมูลจริงจาก HR (Issue #18 / #23 director gate)
+2. **Satun districts are provisional** — มีใน TEST_SEED (ควนโดน/ควนกาหลง/ท่าแพ/มะนัง) แต่ยังไม่ใช่ HR confirm
+3. **POST /multiplier/areas** — ยังไม่ได้ทดสอบ validation เชิงลึกในรายงานนี้
+4. **Frontend Warning UI** — ควรตรวจสอบว่า SOURCE_PENDING / TEST_SEED warning แสดงชัดเจนในหน้า UI
 
 ---
 
@@ -155,21 +213,22 @@ EOF
 
 ---
 
-## ✅ Next Steps
+## Next Steps
 
-1. **Visual UI Testing** — เปิด browser ทดสอบ `/time-multiplier` และ `/time-multiplier/areas`
-2. **Period Clamping Edge Cases** — ทดสอบ record ที่คร่อมขอบเขต effective period
-3. **Validation Testing** — ทดสอบ POST /multiplier/areas ด้วยข้อมูลผิด
-4. **Integration Testing** — ทดสอบ QualificationEngine integration (Issue #22)
-5. **UAT Preparation** — รอข้อมูลจาก HR (Issue #18) แล้วทำ UAT (Issue #23)
+1. **HR workbook** — กรอก `docs/multiplier_phase0_hr_workbook.xlsx` (หรือ CSV เทียบเท่า) แทนทุก `TEST_SEED`
+2. **Re-run gates on real data** — `sync-multiplier-phase0-from-xlsx.py` → `validate-multiplier-phase0.mjs` → `uat-multiplier-live-api.mjs`
+3. **Production seed** — อัปเดต seed / tidb-init หลัง HR sign-off เท่านั้น (ADR-0002)
+4. **Close #23 director gate** — เมื่อ expected จาก Excel จริงผ่าน 100% และ Sign-Off ใน validation pack เป็น approve
 
 ---
 
-## 🎯 Issue #19 Status: ✅ COMPLETE
+## Issue status snapshot
 
-**Backend API** — Fully functional with mock data  
-**Frontend UI** — Components ready, build successful  
-**Testing** — Core CRUD endpoints verified  
-**Documentation** — This report + inline comments
+| Issue | Status | Notes |
+|-------|--------|-------|
+| #19 feature shell | implemented (TEST_SEED) | page + lookup + areas |
+| #21 edit/delete | closed | safe edit/delete |
+| #22 bonus-days qualification | closed | engine uses bonus only |
+| #23 UAT / readiness | technical PASS / director NO | this section |
 
-**Ready for:** Visual UI testing + Integration with QualificationEngine (Issue #22)
+**Ready for:** HR confirmation package — **not** director review yet

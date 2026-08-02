@@ -43,19 +43,32 @@
 - `docs/multiplier_phase0_master_data_template.csv`
 - `docs/multiplier_phase0_uat_cases_template.csv`
 
+## สถานะหลัง technical UAT (2026-08-02)
+
+ทีมพัฒนาตรวจแล้วบน Docker local:
+
+| Gate | Result |
+|------|--------|
+| `node scripts/validate-multiplier-phase0.mjs` | **12/12 PASS** (TEST_SEED) |
+| `node scripts/uat-multiplier-live-api.mjs` | **10/10 PASS** (TC-001..TC-010) |
+| DB data-quality queries | **PASS** (0 bad rows) |
+| Director readiness | **NO** — รอ HR แทนที่ TEST_SEED |
+
+รายละเอียด: `docs/multiplier_phase0_validation_pack.md`, `frontend/docs/multiplier_verification_report.md`
+
 ## ช่องว่างที่ต้องปิดก่อน production (สถานะ gate)
 
-- **Dev/test gate:** `node scripts/validate-multiplier-phase0.mjs` ผ่าน **12/12** แล้วด้วย `TEST_SEED` (ไม่ใช่ HR sign-off)
-- **Production gate:** ยังต้องให้ HR กรอก workbook จริงแล้วแทนที่ `TEST_SEED` ทุกแถว
+- **Dev/test gate:** ผ่านแล้วด้วย `TEST_SEED` (ไม่ใช่ HR sign-off)
+- **Production / director gate:** ยังต้องให้ HR กรอก workbook จริงแล้วแทนที่ `TEST_SEED` ทุกแถว
 
-| # | สิ่งที่ HR ต้องยืนยันแทน TEST_SEED |
-|---|-------------------------------------|
-| 1 | สตูล 4 อำเภอที่มีสิทธิจริง (ตอนนี้ provisional: ควนโดน/ควนกาหลง/ท่าแพ/มะนัง) |
-| 2 | `legal_reference` จากมติ/ประกาศ/หนังสือเวียนจริง |
-| 3 | `source_reference` (ไฟล์/หน้า/ลิงก์หลักฐาน) |
-| 4 | ช่วง พ.ร.ก.ฉุกเฉินหลังปี 2548 (ตอนนี้ provisional start `2005-07-20`) |
-| 5 | UAT ≥ 10 เคสจาก Excel เดิม (ตอนนี้เป็น synthetic) |
-| 6 | `verified_by` / `verified_date` ของ HR จริง |
+| # | สิ่งที่ HR ต้องยืนยันแทน TEST_SEED | Checklist |
+|---|-------------------------------------|-----------|
+| 1 | สตูล 4 อำเภอที่มีสิทธิจริง (ตอนนี้ provisional: ควนโดน/ควนกาหลง/ท่าแพ/มะนัง) | [ ] |
+| 2 | `legal_reference` จากมติ/ประกาศ/หนังสือเวียนจริง | [ ] |
+| 3 | `source_reference` (ไฟล์/หน้า/ลิงก์หลักฐาน) | [ ] |
+| 4 | ช่วง พ.ร.ก.ฉุกเฉินหลังปี 2548 (ตอนนี้ provisional start `2005-07-20`) | [ ] |
+| 5 | UAT ≥ 10 เคสจาก Excel เดิม (ตอนนี้เป็น synthetic) | [ ] |
+| 6 | `verified_by` / `verified_date` ของ HR จริง | [ ] |
 
 ## จุดที่ต้องยืนยันเป็นพิเศษ
 
@@ -85,7 +98,8 @@ Phase 0 ผ่านเมื่อ:
 
 1. วางไฟล์ xlsx ที่กรอกแล้วทับ `docs/multiplier_phase0_hr_workbook.xlsx` (หรือระบุ path อื่น)
 2. `python scripts/sync-multiplier-phase0-from-xlsx.py` → อัปเดต CSV
-3. `node scripts/validate-multiplier-phase0.mjs` → ต้อง 12/12
-4. อัปเดต `docs/multiplier_phase0_validation_pack.md` + sign-off
-5. อัปเดต seed `database/13-multiplier-time-counting.sql`
-6. ปิด GitHub issues #18 / #19 แล้วเดิน UAT #23
+3. `node scripts/validate-multiplier-phase0.mjs` → ต้อง 12/12 บนข้อมูลจริง
+4. `node scripts/uat-multiplier-live-api.mjs` → ต้อง 10/10 กับ expected จาก Excel
+5. อัปเดต `docs/multiplier_phase0_validation_pack.md` + Sign-Off เป็น approve
+6. อัปเดต production seed / `tidb-init` ตาม ADR-0002 (ห้ามใช้ TEST_SEED)
+7. ปิด GitHub issue #23 เมื่อ director package พร้อม
