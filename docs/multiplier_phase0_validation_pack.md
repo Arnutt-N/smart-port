@@ -1,61 +1,61 @@
 # Phase 0 Validation Pack — การนับทวีคูณ
 
-เอกสารนี้ใช้สำหรับยืนยัน master data ก่อนเริ่มพัฒนา/ทำ migration ฟีเจอร์ "การนับเวลาราชการเป็นทวีคูณ" ใน Smart Port
+เอกสารนี้ใช้สำหรับยืนยัน master data และ UAT readiness ของฟีเจอร์ "การนับเวลาราชการเป็นทวีคูณ" ใน Smart Port
 
-สถานะ: `test-seed` — validator 2026-07-13: **12/12 PASS** ด้วย `TEST_SEED` (ยังไม่ใช่ HR sign-off จริง; ห้ามถือว่า production-ready จนกว่า HR ยืนยัน)
+สถานะ (อัปเดต 2026-08-02): `test-seed-technical-uat-pass`
+
+- Offline validator: **12/12 PASS** (`node scripts/validate-multiplier-phase0.mjs`)
+- Live API UAT: **10/10 PASS** (`node scripts/uat-multiplier-live-api.mjs`, TC-001..TC-010)
+- DB data-quality: **PASS** (ไม่มีสตูลทั้งจังหวัด / ไม่มี TODO refs / ไม่มี duplicate หรือ overlap)
+- **ยังไม่ใช่ HR sign-off จริง — ห้ามถือว่า production/director-ready**
+
+Source of truth ของ fixtures:
+
+- `docs/multiplier_phase0_master_data_template.csv` (14 แถว: M-001..M-011, E-001..E-003)
+- `docs/multiplier_phase0_uat_cases_template.csv` (10 เคส: TC-001..TC-010)
 
 ## เป้าหมาย Phase 0
 
-ก่อนเริ่มเขียน migration หรือ backend calculation ต้องยืนยันข้อมูล 4 ชุดนี้ให้ครบ:
+ก่อน seed production ต้องยืนยันข้อมูล 4 ชุดนี้ให้ครบ:
 
 1. พื้นที่ที่นับทวีคูณได้: จังหวัด/อำเภอ
 2. ช่วงวันที่มีผลบังคับใช้ของแต่ละพื้นที่
 3. ฐานประกาศ/เอกสารอ้างอิงที่ HR ใช้จริง
 4. ตัวอย่างผลคำนวณจาก Excel/วิธีเดิมสำหรับ UAT
 
-ห้ามนำข้อมูล mockup ไปใช้เป็น production seed จนกว่า checklist นี้จะผ่าน sign-off
+ห้ามนำ `TEST_SEED` ไปใช้เป็น production seed จนกว่า checklist นี้จะผ่าน sign-off จาก HR
 
 ## Blocking Decisions
 
 | # | Decision | Required answer | Status | Owner | Notes |
 |---|----------|-----------------|--------|-------|-------|
 | 1 | อัตราทวีคูณ MVP | `200% fixed` | confirmed | Product/HR | PRD ปิด open question แล้ว |
-| 2 | ช่วง martial-law initial period | `2004-01-26` ถึง `2004-09-30` | needs HR/source confirmation | HR | Reviewer ระบุให้แก้จาก draft เดิม |
-| 3 | สตูล scope | เฉพาะ 4 อำเภอ ไม่ใช่ทั้งจังหวัด | needs HR/source confirmation | HR | ต้องระบุชื่ออำเภอจริงก่อน seed |
-| 4 | ช่วงหลังปี 2548 | ต้องมี coverage ตาม พ.ร.ก.ฉุกเฉิน ถ้าใช้ใน Excel เดิม | needs HR/source confirmation | HR | ระบุ start/end และพื้นที่ให้ครบ |
+| 2 | ช่วง martial-law initial period | `2004-01-26` ถึง `2004-09-30` | TEST_SEED only | HR | ต้องยืนยันด้วยเอกสารจริง |
+| 3 | สตูล scope | เฉพาะ 4 อำเภอ ไม่ใช่ทั้งจังหวัด | TEST_SEED only | HR | provisional: ควนโดน/ควนกาหลง/ท่าแพ/มะนัง |
+| 4 | ช่วงหลังปี 2548 | พ.ร.ก.ฉุกเฉิน open-ended จาก `2005-07-20` | TEST_SEED only | HR | ต้องยืนยัน start/end และพื้นที่ |
 | 5 | Self-view | ไม่อยู่ใน MVP | confirmed | Product/Tech | รอ auth ownership ใน roadmap |
 
-## Master Data Template
+## Master Data (CSV)
 
-กรอก 1 แถวต่อ 1 พื้นที่/ช่วงเวลา/ฐานประกาศ หากพื้นที่เดียวมีหลายช่วง ให้แยกหลายแถว
+กรอก/ตรวจใน `docs/multiplier_phase0_master_data_template.csv` — สรุปสถานะปัจจุบัน:
 
-| Row ID | Province | District | Whole province? | Basis type | Ratio | Effective start | Effective end | Legal reference | Source reference | HR confirmed? | Notes |
-|--------|----------|----------|-----------------|------------|-------|-----------------|---------------|-----------------|------------------|---------------|-------|
-| M-001 | ยะลา | `NULL` | yes/no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm whole-province coverage |
-| M-002 | ปัตตานี | `NULL` | yes/no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm whole-province coverage |
-| M-003 | นราธิวาส | `NULL` | yes/no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm whole-province coverage |
-| M-004 | สงขลา | เทพา | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm district list |
-| M-005 | สงขลา | สะบ้าย้อย | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm district list |
-| M-006 | สงขลา | นาทวี | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm district list |
-| M-007 | สงขลา | จะนะ | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Confirm district list |
-| M-008 | สตูล | TODO อำเภอ 1 | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Must be one of confirmed 4 districts |
-| M-009 | สตูล | TODO อำเภอ 2 | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Must be one of confirmed 4 districts |
-| M-010 | สตูล | TODO อำเภอ 3 | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Must be one of confirmed 4 districts |
-| M-011 | สตูล | TODO อำเภอ 4 | no | `MARTIAL_LAW` | 200.00 | 2004-01-26 | 2004-09-30 | TODO | TODO | no | Must be one of confirmed 4 districts |
-| E-001 | ยะลา | `NULL` | yes/no | `EMERGENCY_DECREE` | 200.00 | TODO | TODO/NULL | TODO | TODO | no | Post-2548 coverage |
-| E-002 | ปัตตานี | `NULL` | yes/no | `EMERGENCY_DECREE` | 200.00 | TODO | TODO/NULL | TODO | TODO | no | Post-2548 coverage |
-| E-003 | นราธิวาส | `NULL` | yes/no | `EMERGENCY_DECREE` | 200.00 | TODO | TODO/NULL | TODO | TODO | no | Post-2548 coverage |
+| Row IDs | Coverage | Ratio | Period | Verified by |
+|---------|----------|-------|--------|-------------|
+| M-001..M-003 | ยะลา/ปัตตานี/นราธิวาส ทั้งจังหวัด | 200% | 2004-01-26..2004-09-30 MARTIAL_LAW | TEST_SEED |
+| M-004..M-007 | สงขลา 4 อำเภอ | 200% | same | TEST_SEED |
+| M-008..M-011 | สตูล 4 อำเภอ | 200% | same | TEST_SEED |
+| E-001..E-003 | ยะลา/ปัตตานี/นราธิวาส | 200% | 2005-07-20..NULL EMERGENCY_DECREE | TEST_SEED |
+
+ทุกแถวยังใช้ `legal_reference` / `source_reference` แบบ `TEST_SEED: ... (not HR-confirmed)`
 
 ## Source Evidence Checklist
 
-แนบหรืออ้างอิงเอกสารสำหรับทุกแถวใน master data
-
 | Evidence ID | Document name | Issuer | Date issued | Covers rows | File/path/link | Verified by | Verified date | Notes |
 |-------------|---------------|--------|-------------|-------------|----------------|-------------|---------------|-------|
-| EV-001 | TODO | TODO | TODO | M-001..M-011 | TODO | TODO | TODO | Initial period |
-| EV-002 | TODO | TODO | TODO | E-001..E-003 | TODO | TODO | TODO | Emergency decree period |
+| EV-001 | pending HR | pending | pending | M-001..M-011 | pending | — | — | Initial martial-law period |
+| EV-002 | pending HR | pending | pending | E-001..E-003 | pending | — | — | Emergency decree period |
 
-ดู source research notes และช่องทางค้นเอกสารที่ `docs/multiplier_phase0_source_research.md`
+ดู source research notes ที่ `docs/multiplier_phase0_source_research.md`
 
 ไฟล์สำหรับส่งให้ HR กรอก:
 
@@ -63,9 +63,7 @@
 - `docs/multiplier_phase0_master_data_template.csv`
 - `docs/multiplier_phase0_uat_cases_template.csv`
 
-## UAT Expected Cases
-
-ต้องมีอย่างน้อย 10 รายการจริงจาก Excel/วิธีเดิม และต้องมี case คร่อมวันเริ่ม/สิ้นสุดประกาศ
+## UAT Expected Cases (CSV)
 
 Calculation rules ที่ต้องเทียบ:
 
@@ -77,50 +75,65 @@ Calculation rules ที่ต้องเทียบ:
 - `bonus_days`: `eligible_days * (200 - 100) / 100`
 - `net_years/net_months/net_day_remainder`: 360-day breakdown จาก `effective_days`
 
-| Case ID | Personnel/example | Province | District | Service start | Service end | Expected eligible start | Expected eligible end | Expected eligible days | Expected effective days | Expected bonus days | Expected net Y/M/D | Excel/source ref | HR confirmed? | Notes |
-|---------|-------------------|----------|----------|---------------|-------------|-------------------------|-----------------------|------------------------|-------------------------|--------------------|------------------|------------------|---------------|-------|
-| TC-001 | Example clamp start | ยะลา | `NULL` | 2004-01-01 | 2004-02-10 | 2004-01-26 | 2004-02-10 | 16 | 32 | 16 | 0/1/2 | TODO | no | Starts before effective period |
-| TC-002 | Example clamp end | ยะลา | `NULL` | 2004-08-01 | 2004-10-15 | 2004-08-01 | 2004-09-30 | 61 | 122 | 61 | 0/4/2 | TODO | no | Ends after effective period |
-| TC-003 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-004 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-005 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-006 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-007 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-008 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-009 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
-| TC-010 | TODO real case | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | no | HR Excel case |
+เคสปัจจุบัน (synthetic TEST_SEED) อยู่ใน CSV:
 
-## Data Quality Checks Before Migration
+| Case ID | Focus | Live API (2026-08-02) |
+|---------|-------|------------------------|
+| TC-001 | Clamp start (ยะลา) | PASS |
+| TC-002 | Clamp end (ยะลา) | PASS |
+| TC-003 | Full month inside martial | PASS |
+| TC-004 | สงขลา เทพา | PASS |
+| TC-005 | สตูล ควนโดน | PASS |
+| TC-006 | Clamp start district | PASS |
+| TC-007 | Clamp end province | PASS |
+| TC-008 | Emergency decree period | PASS |
+| TC-009 | นราธิวาส inside martial | PASS |
+| TC-010 | สงขลา สะบ้าย้อย | PASS |
 
-ต้องผ่านทุกข้อก่อนสร้าง `database/13-multiplier-time-counting.sql`
+Mismatch log: **ไม่มี** (0 FAIL)
 
-| Check | Pass criteria | Status | Notes |
-|-------|---------------|--------|-------|
-| No whole-province Satun row | ไม่มี row `province = 'สตูล' AND district IS NULL` | pending | สตูลต้องเป็น 4 อำเภอเท่านั้น |
-| No missing legal reference | ทุก row มี `legal_reference` | pending | ห้ามเป็น TODO ใน final seed |
-| No missing source reference | ทุก row มี `source_reference` | pending | ระบุไฟล์/หน้า/ลิงก์ |
-| No ambiguous active overlap | province+district+basis_type ไม่มีช่วงซ้อนที่ทำให้ lookup ไม่ deterministic | pending | ใช้ helper query จาก `docs/multiplier_seed_data_mockup.sql` |
-| District precedence reviewed | district-level row ไม่ถูก province-level row กลบผลผิด | pending | ตรวจ case สงขลา/สตูล |
-| Emergency decree coverage reviewed | ช่วงหลังปี 2548 ครบตาม Excel เดิม | pending | ถ้าไม่มี ต้องระบุเหตุผล |
-| UAT cases complete | มีอย่างน้อย 10 cases และ HR confirm expected output | pending | รวม clamp start/end |
+## Data Quality Checks
+
+| Check | Pass criteria | Status (CSV) | Status (DB local 2026-08-02) | Notes |
+|-------|---------------|--------------|------------------------------|-------|
+| No whole-province Satun row | ไม่มี `province='สตูล' AND district IS NULL` | PASS | PASS (0) | สตูลเป็น 4 อำเภอ |
+| No missing legal reference | ทุก row มี `legal_reference` | PASS (TEST_SEED text) | PASS (0 empty/TODO) | ยังไม่ใช่เอกสาร HR |
+| No missing source reference | ทุก row มี `source_reference` | PASS (TEST_SEED text) | PASS (0 empty/TODO) | ยังไม่ใช่เอกสาร HR |
+| No duplicate exact periods | ไม่มี period ซ้ำ exact | PASS | PASS (0) | |
+| No ambiguous active overlap | ไม่มีช่วงซ้อนคลุมเครือ | PASS | PASS (0) | |
+| District precedence reviewed | สงขลา/สตูลเป็น district-level | PASS | PASS (8 district rows) | |
+| Emergency decree coverage reviewed | มี E-001..E-003 | PASS (TEST_SEED) | PASS (3 rows) | รอ HR confirm วันที่ |
+| UAT cases complete | ≥ 10 cases + clamp | PASS | Live 10/10 PASS | synthetic เท่านั้น |
+
+Local DB snapshot: 14 areas (ยะลา 2, ปัตตานี 2, นราธิวาส 2, สงขลา 4, สตูล 4)
 
 ## Sign-Off
 
 | Role | Name | Decision | Date | Notes |
 |------|------|----------|------|-------|
-| HR owner | TODO | approve/reject | TODO | Master data |
-| Product owner | TODO | approve/reject | TODO | MVP scope |
-| Technical owner | TODO | approve/reject | TODO | Migration readiness |
+| HR owner | pending | reject / pending | — | ยังไม่มี Excel/เอกสารจริง |
+| Product owner | pending | pending | — | รอ HR |
+| Technical owner | engineering | conditional approve (TEST_SEED only) | 2026-08-02 | Technical UAT ผ่าน; **NOT ready for director review** |
 
-## Output After Sign-Off
+### Director readiness verdict
 
-เมื่อ Phase 0 ผ่าน ให้สร้างงานต่อไปนี้:
+**NOT ready for director review.**
 
-1. `database/13-multiplier-time-counting.sql`
-2. Backend calculation tests จาก UAT expected cases
-3. `backend/routes/multiplier.php`
-4. `frontend/src/composables/useMultiplier.js`
-5. `frontend/src/pages/MultiplierPage.vue`
-6. Sidebar/router wiring
+เหตุผล:
 
-อ้างอิง mock seed: `docs/multiplier_seed_data_mockup.sql`
+1. Master data และ UAT expected ยังเป็น `TEST_SEED` ไม่ใช่เคสจาก Excel ของ HR
+2. `legal_reference` / `source_reference` ยังเป็น placeholder
+3. Acceptance ของ issue #23 ต้องการเทียบ HR expected 100% — รอบนี้พิสูจน์ได้แค่ engine/API ตรงกับ synthetic fixtures
+
+เมื่อ HR ส่ง workbook กลับ: sync CSV → รัน validator + live UAT ซ้ำ → อัปเดตตาราง Sign-Off เป็น approve ก่อนนำเสนอ director
+
+## Output After Sign-Off (HR)
+
+เมื่อ Phase 0 ผ่าน HR จริง:
+
+1. แทนที่ `TEST_SEED` ใน CSV / workbook
+2. อัปเดต production seed / `tidb-init` ตาม ADR-0002 (หลัง validator ผ่านบนข้อมูลจริง)
+3. ปิด gate production ใน `docs/multiplier_phase0_hr_request.md`
+4. ปิด GitHub issue #23 เมื่อ director package พร้อม
+
+อ้างอิงรายงานเทคนิค: `frontend/docs/multiplier_verification_report.md`
