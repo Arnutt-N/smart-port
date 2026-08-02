@@ -25,7 +25,8 @@ if [[ ! -d "${FRONTEND}/node_modules" ]]; then
   exit 1
 fi
 
-echo "[pre-push] frontend vitest (threads pool, from vitest.config.js) ..."
+# forks+maxWorkers: stable on Windows (threads pool can hang / worker-timeout)
+echo "[pre-push] frontend vitest (pool=forks maxWorkers=2) ..."
 cd "${FRONTEND}"
-npx vitest run --reporter=dot
+npx vitest run --pool=forks --maxWorkers=2 --reporter=dot
 echo "[pre-push] OK"
