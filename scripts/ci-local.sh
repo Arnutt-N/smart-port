@@ -16,7 +16,7 @@
 #   bash scripts/ci-local.sh --skip-backend --skip-docker
 #   bash scripts/ci-local.sh --help
 #
-# Prereqs: Node 20+, Docker, local .env; run `npx playwright install chromium`
+# Prereqs: Node 24+, Docker, local .env; run `npx playwright install chromium`
 # in frontend once. Compose services remain running after the E2E gate.
 # ============================================================================
 set -euo pipefail
@@ -76,9 +76,9 @@ if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
       echo 'skip npm ci (--skip-install)'
     fi
 
-    # forks+maxWorkers: stable on Windows Git Bash / saturated hosts
-    echo 'npm test (vitest --pool=forks --maxWorkers=2) ...'
-    npx vitest run --pool=forks --maxWorkers=2 --reporter=dot
+    # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
+    echo 'npm test (vitest) ...'
+    npx vitest run --reporter=dot
 
     echo 'npm run build ...'
     npm run build
