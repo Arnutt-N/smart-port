@@ -11,7 +11,7 @@
     4) Docker:   build frontend + backend images (no push)
 
   Prerequisites:
-    - Node 20+, npm
+    - Node 24+, npm
     - Docker Desktop (backend + docker-build jobs)
     - Git Bash on PATH as `bash` (for backend/tests/run.sh)
     - Playwright Chromium: cd frontend; npx playwright install chromium
@@ -116,9 +116,9 @@ if (-not $SkipFrontend) {
       Write-Host 'skip npm ci (-SkipInstall)'
     }
 
-    # Windows Vitest: forks+maxWorkers avoids threads pool hang (see session handoff)
-    Write-Host 'npm test (vitest --pool=forks --maxWorkers=2) ...'
-    npx vitest run --pool=forks --maxWorkers=2 --reporter=dot
+    # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
+    Write-Host 'npm test (vitest) ...'
+    npx vitest run --reporter=dot
     if ($LASTEXITCODE -ne 0) { throw "vitest exited $LASTEXITCODE" }
 
     Write-Host 'npm run build ...'

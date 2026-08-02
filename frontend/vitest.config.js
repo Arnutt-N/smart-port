@@ -14,9 +14,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // threads reuse worker threads instead of spawning a Node process per file;
-    // on Windows this roughly halves wall time vs the default forks pool.
-    pool: 'threads',
+    // forks + capped workers: stable on Windows (threads pool can hang / worker-timeout)
+    pool: 'forks',
+    maxWorkers: 2,
     globals: true,
     include: ['src/__tests__/**/*.{test,spec}.{js,ts}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
