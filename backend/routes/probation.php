@@ -12,6 +12,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../authz.php';
 
 /**
  * จัดการ request สำหรับ probation tracking endpoints
@@ -22,6 +23,19 @@ include_once __DIR__ . '/../helpers.php';
  */
 function handleProbation(PDO $pdo, string $method, array $path): void
 {
+    $actionMap = [
+        'GET' => 'read',
+        'POST' => 'create',
+        'PUT' => 'update',
+        'DELETE' => 'delete',
+    ];
+    if (!isset($actionMap[$method])) {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
+    }
+    requirePermission($actionMap[$method], 'probation');
+
     switch ($method) {
         case 'GET':
             $enrollmentId = $path[1] ?? null;
