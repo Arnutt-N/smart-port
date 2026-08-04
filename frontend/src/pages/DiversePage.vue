@@ -374,6 +374,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDiverse } from '@/composables/useDiverse.js'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
@@ -389,6 +390,7 @@ import {
 
 const { fetchList, create, update, remove } = useDiverse()
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 
@@ -474,8 +476,7 @@ function onPersonnelSearch() {
       return
     }
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
-      personnelResults.value = result.data || []
+      personnelResults.value = await searchPersonnel(personnelSearch.value, { limit: 10 })
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []

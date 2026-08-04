@@ -306,6 +306,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSupportive } from '@/composables/useSupportive.js'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import StatCard from '@/components/StatCard.vue'
@@ -318,6 +319,7 @@ import { Home, Plus, Search, FileText, Users, Clock, AlertCircle, Pencil, Trash2
 
 const { fetchList, create, update, remove } = useSupportive()
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 
@@ -513,8 +515,7 @@ function onPersonnelInput() {
   }
   personnelTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(val)}&limit=10`)
-      personnelResults.value = result.data || []
+      personnelResults.value = await searchPersonnel(val, { limit: 10 })
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []

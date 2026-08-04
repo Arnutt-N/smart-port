@@ -405,6 +405,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
 import StatCard from '@/components/StatCard.vue'
@@ -428,6 +429,7 @@ import {
 } from 'lucide-vue-next'
 
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
@@ -634,10 +636,10 @@ function queuePersonnelSearch() {
   }
   personnelSearchTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(query)}&limit=10`)
+      const rows = await searchPersonnel(query, { limit: 10 })
       // กัน race: ถ้า user พิมพ์ต่อจนคำค้นเปลี่ยนไปแล้ว ให้ทิ้งผลเก่านี้ (ไม่ทับผลใหม่)
       if (query !== personnelSearch.value.trim()) return
-      personnelResults.value = result.data || []
+      personnelResults.value = rows
       showPersonnelDropdown.value = true
     } catch {
       if (query !== personnelSearch.value.trim()) return

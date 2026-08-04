@@ -454,6 +454,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEquivalence } from '@/composables/useEquivalence.js'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import StatCard from '@/components/StatCard.vue'
@@ -469,6 +470,7 @@ import {
 
 const { fetchList, create, update, approve, reject } = useEquivalence()
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const ui = useUiStore()
 const auth = useAuthStore()
 
@@ -585,8 +587,7 @@ function onPersonnelSearch() {
   }
   personnelTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
-      personnelResults.value = result.data || []
+      personnelResults.value = await searchPersonnel(personnelSearch.value, { limit: 10 })
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []

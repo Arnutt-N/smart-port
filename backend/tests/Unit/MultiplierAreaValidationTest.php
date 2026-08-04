@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../routes/multiplier.php';
+require_once __DIR__ . '/../../MultiplierEngine.php';
 
 /**
  * Unit tests สำหรับ validateAreaInput() — pure function, ไม่ใช้ DB
