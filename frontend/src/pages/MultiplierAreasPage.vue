@@ -299,6 +299,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useMultiplier } from '@/composables/useMultiplier.js'
+import { confirmAction } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -350,7 +351,13 @@ async function toggleStatus(area) {
   const message = nextActive
     ? `เปิดใช้งาน "${area.areaLabel}" อีกครั้ง?`
     : `ปิดใช้งาน "${area.areaLabel}"?\nพื้นที่ที่ปิดจะไม่ขึ้นให้เลือกตอนบันทึกรายการใหม่ — รายการที่บันทึกไปแล้วไม่ได้รับผลกระทบ`
-  if (!window.confirm(message)) return
+  const ok = await confirmAction({
+    title: nextActive ? 'ยืนยันการเปิดใช้งาน' : 'ยืนยันการปิดใช้งาน',
+    message,
+    confirmLabel: nextActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+    variant: nextActive ? 'primary' : 'warning',
+  })
+  if (!ok) return
 
   togglingId.value = area.areaMultiplierId
   actionError.value = ''

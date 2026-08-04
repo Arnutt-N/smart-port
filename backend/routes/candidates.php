@@ -11,6 +11,7 @@
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
+include_once __DIR__ . '/../authz.php';
 include_once __DIR__ . '/../QualificationEngine.php';
 
 /**
@@ -28,6 +29,8 @@ function handleCandidates(PDO $pdo, string $method, array $path): void
         echo json_encode(['error' => 'Method not allowed']);
         return;
     }
+
+    requirePermission('read', 'candidates');
 
     // GET /candidates/overview — สรุปภาพรวมทุกระดับ (ต้องเช็คก่อน treat path[1] เป็น targetLevel)
     if (strtolower($path[1] ?? '') === 'overview') {

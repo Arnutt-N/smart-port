@@ -277,28 +277,7 @@
       </div>
     </div>
 
-    <!-- Delete Confirmation Dialog -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="fixed inset-0 bg-black/50" @click="showDeleteConfirm = false"></div>
-      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">ยืนยันการลบ</h3>
-        <p class="text-sm text-gray-600 mb-6">คุณต้องการลบรายการนี้หรือไม่?</p>
-        <div class="flex justify-end gap-3">
-          <button
-            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-            @click="showDeleteConfirm = false"
-          >
-            ยกเลิก
-          </button>
-          <button
-            class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors"
-            @click="handleDelete"
-          >
-            ลบ
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- Create/Edit Modal footer ends above; delete uses global ConfirmDialog -->
   </div>
 </template>
 
@@ -306,8 +285,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSupportive } from '@/composables/useSupportive.js'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import { ymdToDate } from '@/utils/thaiDate.js'
@@ -318,6 +299,7 @@ import { Home, Plus, Search, FileText, Users, Clock, AlertCircle, Pencil, Trash2
 
 const { fetchList, create, update, remove } = useSupportive()
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 
@@ -359,11 +341,7 @@ const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
 let personnelTimeout = null
 
-// Delete confirmation state
-const showDeleteConfirm = ref(false)
-const deletingId = ref(null)
-
-// Computed stats
+// Delete confirmation uses global ConfirmDialog (useConfirm)
 const distinctPersonnelCount = computed(() => {
   if (summary.value?.distinct_personnel != null) return summary.value.distinct_personnel
   const ids = new Set(rows.value.map(r => r.personnelId))
@@ -466,6 +444,12 @@ function validateForm() {
 // Save (create or update)
 async function handleSave() {
   if (!validateForm()) return
+  if (editingRecord.value) {
+    const ok = await confirmSave({
+      message: 'คุณต้องการบันทึกการแก้ไขรายการเกื้อกูลนี้หรือไม่?',
+    })
+    if (!ok) return
+  }
   saving.value = true
   try {
     if (editingRecord.value) {
@@ -485,16 +469,15 @@ async function handleSave() {
 }
 
 // Delete
-function confirmDelete(id) {
-  deletingId.value = id
-  showDeleteConfirm.value = true
-}
-
-async function handleDelete() {
+async function confirmDelete(id) {
+  const ok = await confirmDeleteAction({
+    message: 'คุณต้องการลบรายการเกื้อกูลนี้หรือไม่?',
+    detail: 'การลบจะไม่สามารถยกเลิกได้',
+  })
+  if (!ok) return
   try {
-    await remove(deletingId.value)
+    await remove(id)
     ui.showToast('ลบสำเร็จ', 'success')
-    showDeleteConfirm.value = false
     fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
@@ -513,8 +496,7 @@ function onPersonnelInput() {
   }
   personnelTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(val)}&limit=10`)
-      personnelResults.value = result.data || []
+      personnelResults.value = await searchPersonnel(val, { limit: 10 })
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []

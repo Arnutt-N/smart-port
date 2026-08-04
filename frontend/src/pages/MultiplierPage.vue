@@ -354,59 +354,16 @@
     </div>
   </div>
 
-  <!-- Delete Confirmation Dialog -->
-  <div
-    v-if="showDeleteConfirm"
-    class="fixed inset-0 z-50 flex items-center justify-center"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="delete-confirm-title"
-  >
-    <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeDeleteConfirm"></div>
-    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-      <div class="flex items-start gap-4">
-        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-          <AlertTriangle class="w-5 h-5 text-red-600" />
-        </div>
-        <div class="flex-1">
-          <h3 id="delete-confirm-title" class="text-lg font-semibold text-gray-900 mb-2">ยืนยันการลบ</h3>
-          <p class="text-sm text-gray-600 mb-1">คุณต้องการลบรายการทวีคูณนี้หรือไม่?</p>
-          <div v-if="deletingRow" class="mt-3 p-3 bg-gray-50 rounded text-sm">
-            <div class="font-medium text-gray-900">{{ deletingRow.fullName }}</div>
-            <div class="text-gray-600">{{ deletingRow.areaLabel }}</div>
-            <div class="text-gray-600">{{ deletingRow.startDateThai }} - {{ deletingRow.endDateThai }}</div>
-            <div class="text-gray-600 mt-1">วันทวีคูณ: {{ formatNumber(deletingRow.bonusDays) }} วัน</div>
-          </div>
-          <p class="text-sm text-red-600 mt-3">การลบจะไม่สามารถยกเลิกได้</p>
-        </div>
-      </div>
-      <div class="flex items-center justify-end gap-3 mt-6">
-        <button
-          type="button"
-          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          @click="closeDeleteConfirm"
-          :disabled="saving"
-        >
-          ยกเลิก
-        </button>
-        <button
-          type="button"
-          class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-          @click="handleDelete"
-          :disabled="saving"
-        >
-          {{ saving ? 'กำลังลบ...' : 'ลบรายการ' }}
-        </button>
-      </div>
-    </div>
-  </div>
+  <!-- Delete Confirmation Dialog → global ConfirmDialog -->
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -414,7 +371,6 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import {
   AlertCircle,
-  AlertTriangle,
   Clock,
   FileText,
   Home,
@@ -428,6 +384,7 @@ import {
 } from 'lucide-vue-next'
 
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
@@ -445,8 +402,6 @@ const areaSearchQuery = ref('')
 const showModal = ref(false)
 const isEditMode = ref(false)
 const editingId = ref(null)
-const showDeleteConfirm = ref(false)
-const deletingRow = ref(null)
 const formErrors = ref({})
 const personnelSearch = ref('')
 const personnelResults = ref([])
@@ -528,24 +483,24 @@ function openEditModal(row) {
   showModal.value = true
 }
 
-function openDeleteConfirm(row) {
-  deletingRow.value = row
-  showDeleteConfirm.value = true
-}
+async function openDeleteConfirm(row) {
+  const detail = [
+    row.fullName,
+    row.areaLabel,
+    `${row.startDateThai} - ${row.endDateThai}`,
+    `วันทวีคูณ: ${formatNumber(row.bonusDays)} วัน`,
+  ].filter(Boolean).join('\n')
 
-function closeDeleteConfirm() {
-  if (saving.value) return
-  showDeleteConfirm.value = false
-  deletingRow.value = null
-}
+  const ok = await confirmDeleteAction({
+    message: 'คุณต้องการลบรายการทวีคูณนี้หรือไม่?',
+    detail,
+    confirmLabel: 'ลบรายการ',
+  })
+  if (!ok) return
 
-async function handleDelete() {
-  if (!deletingRow.value) return
   saving.value = true
   try {
-    await remove(deletingRow.value.multiplierId)
-    showDeleteConfirm.value = false
-    deletingRow.value = null
+    await remove(row.multiplierId)
     await fetchData()
   } catch (err) {
     alert(err.message || 'ไม่สามารถลบรายการได้')
@@ -565,6 +520,13 @@ async function handleSubmit() {
   formErrors.value = validateForm()
   submitError.value = ''
   if (Object.keys(formErrors.value).length > 0) return
+
+  if (isEditMode.value && editingId.value) {
+    const ok = await confirmSave({
+      message: 'คุณต้องการบันทึกการแก้ไขรายการทวีคูณนี้หรือไม่?',
+    })
+    if (!ok) return
+  }
 
   saving.value = true
   try {
@@ -634,10 +596,10 @@ function queuePersonnelSearch() {
   }
   personnelSearchTimeout = setTimeout(async () => {
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(query)}&limit=10`)
+      const rows = await searchPersonnel(query, { limit: 10 })
       // กัน race: ถ้า user พิมพ์ต่อจนคำค้นเปลี่ยนไปแล้ว ให้ทิ้งผลเก่านี้ (ไม่ทับผลใหม่)
       if (query !== personnelSearch.value.trim()) return
-      personnelResults.value = result.data || []
+      personnelResults.value = rows
       showPersonnelDropdown.value = true
     } catch {
       if (query !== personnelSearch.value.trim()) return

@@ -153,6 +153,7 @@ switch ($path[0]) {
             echo json_encode(['error' => 'Method not allowed']);
             break;
         }
+        requirePermission('read', 'profile');
         $pdo = getDB();
         if ($id) {
             // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล
@@ -199,6 +200,7 @@ switch ($path[0]) {
 
     case 'photos':
         if ($method == 'POST') {
+            requirePermission('create', 'photos');
             $servant_id = intval($_POST['servant_id'] ?? 0);
             $file = $_FILES['photo'] ?? null;
 
@@ -307,6 +309,7 @@ switch ($path[0]) {
 
     case 'civil-servants':
         if ($method == 'GET') {
+            requirePermission('read', 'personnel');
             $pdo = getDB();
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
@@ -371,6 +374,7 @@ switch ($path[0]) {
 
     case 'dashboard':
         if ($method == 'GET') {
+            requirePermission('read', 'dashboard');
             $pdo = getDB();
 
             // จำนวนบุคลากรทั้งหมด (จาก personnel table)
@@ -421,31 +425,20 @@ switch ($path[0]) {
             $stmt = $pdo->query("SELECT COUNT(*) as c FROM position_equivalence");
             $equivalenceCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-            // Candidate totals ต่อระดับ (ลด fan-out จาก 5 requests เหลือ 1 query)
+            // Candidate totals จาก QualificationEngine overview (seam เดียวกับ /candidates/overview)
             $candidateTotals = [];
+            $candidateGrandTotal = 0;
             try {
-                $stmt = $pdo->query("
-                    SELECT current_level_code, COUNT(*) AS cnt
-                    FROM personnel
-                    WHERE is_active = 1 AND current_level_code IS NOT NULL
-                    GROUP BY current_level_code
-                ");
-                $levelCounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                // Map source levels → target levels
-                $levelMap = ['K1' => 'K2', 'K2' => 'K3', 'K3' => 'K4', 'O1' => 'O2', 'O2' => 'O3'];
-                foreach ($levelCounts as $row) {
-                    $source = $row['current_level_code'];
-                    if (isset($levelMap[$source])) {
-                        $target = $levelMap[$source];
-                        $candidateTotals[$target] = ($candidateTotals[$target] ?? 0) + (int) $row['cnt'];
-                    }
+                include_once __DIR__ . '/QualificationEngine.php';
+                $overview = (new QualificationEngine($pdo))->computeOverview();
+                $byLevel = $overview['by_level'] ?? [];
+                foreach ($byLevel as $level => $row) {
+                    $candidateTotals[$level] = (int) ($row['total'] ?? 0);
                 }
-            } catch (PDOException $e) {
-                // ถ้า query fail ส่งค่าว่าง — frontend จะ fallback ยิง candidates endpoints เอง
+                $candidateGrandTotal = array_sum($candidateTotals);
+            } catch (Throwable $e) {
+                error_log('[dashboard] QualificationEngine overview failed: ' . $e->getMessage());
             }
-
-            $candidateGrandTotal = array_sum($candidateTotals);
 
             // Multiplier summary (รวมสถิติการนับทวีคูณ)
             $multiplierStats = [
@@ -500,6 +493,7 @@ switch ($path[0]) {
 
     case 'personnel':
         if ($method == 'GET') {
+            requirePermission('read', 'personnel');
             $pdo = getDB();
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 10);

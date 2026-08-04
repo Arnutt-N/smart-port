@@ -17,10 +17,12 @@
     </Suspense>
   </RouterView>
   <ToastContainer />
+  <ConfirmDialog />
 </template>
 
 <script setup>
 import ToastContainer from '@/components/ToastContainer.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useNavProgress } from '@/composables/useNavProgress.js'
 
 const { isNavigating } = useNavProgress()

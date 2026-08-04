@@ -338,35 +338,6 @@
         </form>
       </div>
     </div>
-
-    <!-- Delete Confirmation Dialog -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="fixed inset-0 bg-black bg-opacity-50" @click="showDeleteConfirm = false"></div>
-      <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-        <div class="text-center">
-          <AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">ยืนยันการลบ</h3>
-          <p class="text-sm text-gray-600 mb-6">
-            คุณต้องการลบรายการของ <span class="font-medium">{{ deletingRow?.fullName }}</span> ใช่หรือไม่?
-          </p>
-          <div class="flex justify-center gap-3">
-            <button
-              @click="showDeleteConfirm = false"
-              class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              ยกเลิก
-            </button>
-            <button
-              @click="handleDelete"
-              :disabled="submitting"
-              class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors disabled:opacity-50"
-            >
-              {{ submitting ? 'กำลังลบ...' : 'ลบรายการ' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -374,8 +345,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDiverse } from '@/composables/useDiverse.js'
 import { useApi } from '@/composables/useApi.js'
+import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -389,6 +362,7 @@ import {
 
 const { fetchList, create, update, remove } = useDiverse()
 const api = useApi()
+const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 
@@ -474,8 +448,7 @@ function onPersonnelSearch() {
       return
     }
     try {
-      const result = await api.get(`/personnel?search=${encodeURIComponent(personnelSearch.value)}&limit=10`)
-      personnelResults.value = result.data || []
+      personnelResults.value = await searchPersonnel(personnelSearch.value, { limit: 10 })
       showPersonnelDropdown.value = true
     } catch {
       personnelResults.value = []
@@ -496,10 +469,6 @@ function selectPersonnel(person) {
   showPersonnelDropdown.value = false
   validationErrors.value.personnel_id = ''
 }
-
-// Delete state
-const showDeleteConfirm = ref(false)
-const deletingRow = ref(null)
 
 // Fetch data
 async function fetchData() {
@@ -580,6 +549,13 @@ function validateForm() {
 async function handleSubmit() {
   if (!validateForm()) return
 
+  if (editingRow.value) {
+    const ok = await confirmSave({
+      message: 'คุณต้องการบันทึกการแก้ไขรายการแตกต่างนี้หรือไม่?',
+    })
+    if (!ok) return
+  }
+
   submitting.value = true
   try {
     // Convert boolean checkboxes to integers for API
@@ -607,19 +583,17 @@ async function handleSubmit() {
 }
 
 // Delete actions
-function confirmDelete(row) {
-  deletingRow.value = row
-  showDeleteConfirm.value = true
-}
-
-async function handleDelete() {
-  if (!deletingRow.value) return
+async function confirmDelete(row) {
+  const ok = await confirmDeleteAction({
+    message: `คุณต้องการลบรายการของ ${row.fullName || 'รายการนี้'} ใช่หรือไม่?`,
+    detail: 'การลบจะไม่สามารถยกเลิกได้',
+    confirmLabel: 'ลบรายการ',
+  })
+  if (!ok) return
   submitting.value = true
   try {
-    await remove(deletingRow.value.experienceId)
+    await remove(row.experienceId)
     ui.showToast('ลบรายการสำเร็จ', 'success')
-    showDeleteConfirm.value = false
-    deletingRow.value = null
     await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'ไม่สามารถลบรายการได้', 'error')

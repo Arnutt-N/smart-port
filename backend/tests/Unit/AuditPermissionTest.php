@@ -126,11 +126,23 @@ final class AuditPermissionTest extends TestCase
         return [
             'multiplier (allowed)' => ['multiplier', true],
             'dashboard (allowed)'  => ['dashboard', true],
+            'profile (allowed)'    => ['profile', true],
+            'candidates (allowed)' => ['candidates', true],
             'supportive (denied)'  => ['supportive', false],
             'diverse (denied)'     => ['diverse', false],
+            'awards (denied)'      => ['awards', false],
+            'ocr (denied)'         => ['ocr', false],
             'audit (denied)'       => ['audit', false],
             'users (denied)'       => ['users', false],
         ];
+    }
+
+    #[Test]
+    public function operator_can_create_photos_but_not_ocr(): void
+    {
+        self::assertTrue(checkPermission('operator', 'create', 'photos'));
+        self::assertFalse(checkPermission('operator', 'create', 'ocr'));
+        self::assertTrue(checkPermission('admin', 'create', 'ocr'));
     }
 
     #[Test]

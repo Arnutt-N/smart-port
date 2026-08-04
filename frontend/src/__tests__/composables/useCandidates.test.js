@@ -151,9 +151,24 @@ describe('useCandidates', () => {
       levelStartDate: '1 ม.ค. 2567',
       qualificationDate: '1 ม.ค. 2568',
       remainingDays: 45,
-      status: 'NOT_MET',
+      status: 'NEAR_MET',
       department: 'กองบริหาร',
     })
+  })
+
+  it('maps 91 remaining days as NOT_MET and 90 as NEAR_MET', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: [
+        { personnel_id: 1, full_name: 'Far', status: 'not_yet', remaining_days: 91 },
+        { personnel_id: 2, full_name: 'Near', status: 'not_yet', remaining_days: 90 },
+      ],
+      pagination: {},
+    })
+
+    const { fetchByLevel } = useCandidates()
+    const result = await fetchByLevel('K3')
+    expect(result.data.map((r) => r.status)).toEqual(['NOT_MET', 'NEAR_MET'])
   })
 
   it('maps special backend statuses and remaining-day thresholds', async () => {

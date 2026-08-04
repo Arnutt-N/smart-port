@@ -75,6 +75,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { confirmLogout } from '@/composables/useConfirm.js'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -103,7 +104,9 @@ async function submit() {
   }
 }
 
-function logout() {
+async function logout() {
+  const ok = await confirmLogout()
+  if (!ok) return
   auth.logout()
   router.push('/login')
 }

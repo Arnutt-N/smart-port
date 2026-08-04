@@ -145,26 +145,6 @@
       </div>
     </div>
 
-    <!-- Delete Confirm -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="showDeleteConfirm = false"></div>
-      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 class="text-lg font-semibold text-gray-900">ยืนยันการลบ</h2>
-        <p class="text-sm text-gray-600">
-          คุณต้องการลบรายการ <span class="font-medium text-gray-900">{{ deletingRow?.decorationName }}</span> หรือไม่?
-        </p>
-        <div class="flex justify-end gap-2 pt-2">
-          <button @click="showDeleteConfirm = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">ยกเลิก</button>
-          <button
-            @click="submitDelete"
-            :disabled="saving"
-            class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {{ saving ? 'กำลังลบ...' : 'ลบ' }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -173,6 +153,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useDecorations } from '@/composables/useDecorations.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
@@ -197,8 +178,6 @@ const saving = ref(false)
 const defaultForm = () => ({ servantId: null, decorationName: '', decorationClass: '', receivedYear: null, gazetteRef: '', description: '' })
 const form = ref(defaultForm())
 
-const showDeleteConfirm = ref(false)
-const deletingRow = ref(null)
 
 async function fetchData() {
   loading.value = true
@@ -264,6 +243,12 @@ function validate() {
 
 async function submitForm() {
   if (!validate()) return
+  if (editing.value) {
+    const ok = await confirmSave({
+      message: 'คุณต้องการบันทึกการแก้ไขเครื่องราชอิสริยาภรณ์นี้หรือไม่?',
+    })
+    if (!ok) return
+  }
   saving.value = true
   try {
     const payload = {
@@ -290,18 +275,16 @@ async function submitForm() {
   }
 }
 
-function openDelete(row) {
-  deletingRow.value = row
-  showDeleteConfirm.value = true
-}
-
-async function submitDelete() {
+async function openDelete(row) {
+  const ok = await confirmDeleteAction({
+    message: `คุณต้องการลบ ${row.decorationName || 'รายการนี้'} หรือไม่?`,
+    detail: 'การลบจะไม่สามารถยกเลิกได้',
+  })
+  if (!ok) return
   saving.value = true
   try {
-    await remove(deletingRow.value.decorationId)
+    await remove(row.decorationId)
     ui.showToast('ลบรายการสำเร็จ', 'success')
-    showDeleteConfirm.value = false
-    deletingRow.value = null
     fetchData()
   } catch (e) {
     ui.showToast(e.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่', 'error')

@@ -34,8 +34,8 @@ class QualificationEngine
      */
     private const EXECUTIVE_LEVELS = ['M1', 'M2', 'S1', 'S2'];
 
-    /** เกณฑ์ "ใกล้ถึงเกณฑ์" — เหลือ 1-90 วัน (ตรงกับ NEAR_THRESHOLD_DAYS ฝั่ง frontend) */
-    private const NEAR_THRESHOLD_DAYS = 90;
+    /** เกณฑ์ "ใกล้ถึงเกณฑ์" — เหลือ 1-90 วัน (ตรงกับ frontend CANDIDATE_NEAR_THRESHOLD_DAYS) */
+    public const NEAR_THRESHOLD_DAYS = 90;
 
     public function __construct(PDO $pdo)
     {

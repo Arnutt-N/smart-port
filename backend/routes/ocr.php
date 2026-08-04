@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+include_once __DIR__ . '/../authz.php';
+
 /**
  * POST /ocr/convert — upload PDF, forward to document-ocr FastAPI server.
  * GET  /ocr/health  — check OCR server availability.
@@ -12,6 +14,7 @@ function handleOcr(PDO $pdo, string $method, array $path): void
     $sub = $path[1] ?? '';
 
     if ($method === 'GET' && $sub === 'health') {
+        requirePermission('read', 'ocr');
         $ch = curl_init("$ocrBase/health");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -27,6 +30,7 @@ function handleOcr(PDO $pdo, string $method, array $path): void
     }
 
     if ($method === 'POST' && $sub === 'convert') {
+        requirePermission('create', 'ocr');
         if (!isset($_FILES['file'])) {
             http_response_code(422);
             echo json_encode(['error' => 'Missing file upload (field: file)']);

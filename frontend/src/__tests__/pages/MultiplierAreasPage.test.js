@@ -13,6 +13,11 @@ vi.mock('@/composables/useMultiplier.js', () => ({
   }),
 }))
 
+const mockConfirmAction = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmAction: (...args) => mockConfirmAction(...args),
+}))
+
 const MultiplierAreasPage = (await import('@/pages/MultiplierAreasPage.vue')).default
 
 const activeArea = {
@@ -64,7 +69,7 @@ describe('MultiplierAreasPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resolvedData()
-    window.confirm = vi.fn(() => true)
+    mockConfirmAction.mockResolvedValue(true)
   })
 
   it('loads areas on mount and renders labels, ratios and statuses', async () => {
@@ -100,14 +105,14 @@ describe('MultiplierAreasPage', () => {
 
     await wrapper.vm.toggleStatus(activeArea)
 
-    expect(window.confirm).toHaveBeenCalled()
+    expect(mockConfirmAction).toHaveBeenCalled()
     expect(mockSetAreaStatus).toHaveBeenCalledWith(1, false)
     expect(mockFetchAreas).toHaveBeenCalled()
     expect(wrapper.vm.togglingId).toBeNull()
   })
 
   it('toggle status does nothing when user cancels confirm', async () => {
-    window.confirm = vi.fn(() => false)
+    mockConfirmAction.mockResolvedValueOnce(false)
     const wrapper = await mountPage()
 
     await wrapper.vm.toggleStatus(activeArea)
