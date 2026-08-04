@@ -36,13 +36,14 @@ describe('getCandidateRemainingDaysClass', () => {
     expect(getCandidateRemainingDaysClass(0)).toBe('text-green-600 font-medium')
   })
 
-  it('returns orange for days 1-30 (near criteria)', () => {
+  it('returns orange for days 1-90 (near criteria)', () => {
     expect(getCandidateRemainingDaysClass(1)).toBe('text-orange-600 font-medium')
-    expect(getCandidateRemainingDaysClass(30)).toBe('text-orange-600 font-medium')
+    expect(getCandidateRemainingDaysClass(45)).toBe('text-orange-600 font-medium')
+    expect(getCandidateRemainingDaysClass(90)).toBe('text-orange-600 font-medium')
   })
 
-  it('returns yellow for days > 30 (not met)', () => {
-    expect(getCandidateRemainingDaysClass(31)).toBe('text-yellow-600')
+  it('returns yellow for days > 90 (not met)', () => {
+    expect(getCandidateRemainingDaysClass(91)).toBe('text-yellow-600')
   })
 
   it('returns gray for null/undefined', () => {
