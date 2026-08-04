@@ -24,6 +24,17 @@ vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockApiGet }),
 }))
 
+const mockConfirmDelete = vi.fn(async () => true)
+const mockConfirmSave = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmDelete: (...args) => mockConfirmDelete(...args),
+  confirmSave: (...args) => mockConfirmSave(...args),
+}))
+
+vi.mock('@/composables/usePersonnelSearch.js', () => ({
+  usePersonnelSearch: () => ({ searchPersonnel: vi.fn(async () => []) }),
+}))
+
 const MultiplierPage = (await import('@/pages/MultiplierPage.vue')).default
 
 const sampleRow = {
@@ -210,21 +221,23 @@ describe('MultiplierPage', () => {
     const wrapper = await mountPage()
     mockRemove.mockResolvedValue({ success: true })
     mockFetchList.mockClear()
+    mockConfirmDelete.mockResolvedValueOnce(true)
 
-    wrapper.vm.openDeleteConfirm(sampleRow)
-    await wrapper.vm.handleDelete()
+    await wrapper.vm.openDeleteConfirm(sampleRow)
 
+    expect(mockConfirmDelete).toHaveBeenCalled()
     expect(mockRemove).toHaveBeenCalledWith(7)
     expect(mockFetchList).toHaveBeenCalled()
-    expect(wrapper.vm.showDeleteConfirm).toBe(false)
   })
 
-  it('closeDeleteConfirm clears deleting row', async () => {
+  it('delete cancelled does not call remove', async () => {
     const wrapper = await mountPage()
-    wrapper.vm.openDeleteConfirm(sampleRow)
-    wrapper.vm.closeDeleteConfirm()
-    expect(wrapper.vm.showDeleteConfirm).toBe(false)
-    expect(wrapper.vm.deletingRow).toBeNull()
+    mockConfirmDelete.mockResolvedValueOnce(false)
+    mockRemove.mockClear()
+
+    await wrapper.vm.openDeleteConfirm(sampleRow)
+
+    expect(mockRemove).not.toHaveBeenCalled()
   })
 
   it('onPageChange updates offset and refetches', async () => {

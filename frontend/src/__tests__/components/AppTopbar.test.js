@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 const logout = vi.fn()
 const push = vi.fn()
+const confirmLogoutMock = vi.fn(async () => true)
 
 let userVal = null
 let isAdminVal = false
@@ -13,6 +14,10 @@ vi.mock('@/stores/auth.js', () => ({
     get isAdmin() { return isAdminVal },
     logout,
   }),
+}))
+
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmLogout: (...args) => confirmLogoutMock(...args),
 }))
 
 vi.mock('vue-router', () => ({
@@ -32,6 +37,8 @@ describe('AppTopbar', () => {
   beforeEach(() => {
     logout.mockReset()
     push.mockReset()
+    confirmLogoutMock.mockReset()
+    confirmLogoutMock.mockResolvedValue(true)
     userVal = { name: 'สมชาย', email: 'somchai@example.go.th' }
     isAdminVal = false
     currentPath = '/dashboard'
@@ -128,10 +135,25 @@ describe('AppTopbar', () => {
     await wrapper.get('button[aria-label="เมนูผู้ใช้"]').trigger('click')
     const logoutBtn = wrapper.findAll('button').find((b) => b.text().includes('ออกจากระบบ'))
     await logoutBtn.trigger('click')
+    await Promise.resolve()
 
+    expect(confirmLogoutMock).toHaveBeenCalledTimes(1)
     expect(logout).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith('/login')
     expect(wrapper.vm.dropdownOpen).toBe(false)
+  })
+
+  it('does not logout when confirm is cancelled', async () => {
+    confirmLogoutMock.mockResolvedValueOnce(false)
+    const wrapper = mountTopbar()
+    await wrapper.get('button[aria-label="เมนูผู้ใช้"]').trigger('click')
+    const logoutBtn = wrapper.findAll('button').find((b) => b.text().includes('ออกจากระบบ'))
+    await logoutBtn.trigger('click')
+    await Promise.resolve()
+
+    expect(confirmLogoutMock).toHaveBeenCalledTimes(1)
+    expect(logout).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('emits toggle-sidebar when hamburger button clicked', async () => {

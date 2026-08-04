@@ -338,35 +338,6 @@
       </div>
     </Teleport>
 
-    <!-- ==================== Reject Confirmation Dialog ==================== -->
-    <Teleport to="body">
-      <div v-if="showRejectConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" @click="showRejectConfirm = false"></div>
-        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-sm mx-4">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">ยืนยันการไม่อนุมัติ</h2>
-          </div>
-          <div class="px-6 py-4">
-            <p class="text-sm text-gray-600">คุณต้องการไม่อนุมัติคำขอนี้หรือไม่?</p>
-          </div>
-          <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-            <button
-              @click="showRejectConfirm = false"
-              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              ยกเลิก
-            </button>
-            <button
-              @click="handleReject"
-              :disabled="saving"
-              class="px-4 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
-            >
-              {{ saving ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- ==================== View Modal ==================== -->
     <Teleport to="body">
@@ -457,6 +428,7 @@ import { useApi } from '@/composables/useApi.js'
 import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { confirmAction, confirmSave } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -514,8 +486,6 @@ const approvingRecord = ref(null)
 const approveForm = ref({ approved_start_date: '', approved_end_date: '' })
 
 // Reject dialog state
-const showRejectConfirm = ref(false)
-const rejectingId = ref(null)
 
 // View modal state
 const showViewModal = ref(false)
@@ -649,6 +619,12 @@ function validateForm() {
 
 async function handleSave() {
   if (!validateForm()) return
+  if (editingRecord.value) {
+    const ok = await confirmSave({
+      message: 'คุณต้องการบันทึกการแก้ไขคำขอเทียบตำแหน่งนี้หรือไม่?',
+    })
+    if (!ok) return
+  }
   saving.value = true
   try {
     if (editingRecord.value) {
@@ -683,6 +659,13 @@ async function handleApprove() {
     ui.showToast('กรุณาเลือกวันที่อนุมัติ', 'error')
     return
   }
+  const ok = await confirmAction({
+    title: 'ยืนยันการอนุมัติ',
+    message: `อนุมัติคำขอของ ${approvingRecord.value?.fullName || 'รายการนี้'} หรือไม่?`,
+    confirmLabel: 'อนุมัติ',
+    variant: 'primary',
+  })
+  if (!ok) return
   saving.value = true
   try {
     await approve(approvingRecord.value.equivalenceId, {
@@ -702,18 +685,18 @@ async function handleApprove() {
 
 // ==================== Reject ====================
 
-function confirmReject(id) {
-  rejectingId.value = id
-  showRejectConfirm.value = true
-}
-
-async function handleReject() {
+async function confirmReject(id) {
+  const ok = await confirmAction({
+    title: 'ยืนยันการไม่อนุมัติ',
+    message: 'คุณต้องการไม่อนุมัติคำขอนี้หรือไม่?',
+    confirmLabel: 'ไม่อนุมัติ',
+    variant: 'danger',
+  })
+  if (!ok) return
   saving.value = true
   try {
-    await reject(rejectingId.value)
+    await reject(id)
     ui.showToast('ดำเนินการสำเร็จ', 'success')
-    showRejectConfirm.value = false
-    rejectingId.value = null
     await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')

@@ -24,6 +24,17 @@ vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockApiGet }),
 }))
 
+const mockConfirmAction = vi.fn(async () => true)
+const mockConfirmSave = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmAction: (...args) => mockConfirmAction(...args),
+  confirmSave: (...args) => mockConfirmSave(...args),
+}))
+
+vi.mock('@/composables/usePersonnelSearch.js', () => ({
+  usePersonnelSearch: () => ({ searchPersonnel: vi.fn(async () => []) }),
+}))
+
 const EquivalencePage = (await import('@/pages/EquivalencePage.vue')).default
 
 const sampleRow = {
@@ -138,11 +149,13 @@ describe('EquivalencePage', () => {
   it('edit success calls update with equivalence id', async () => {
     const wrapper = await mountPage()
     mockUpdate.mockResolvedValue({ success: true })
+    mockConfirmSave.mockResolvedValueOnce(true)
 
     wrapper.vm.openEdit(sampleRow)
     expect(wrapper.vm.formData.actual_position).toBe('นักทรัพยากรบุคคลชำนาญการ')
     await wrapper.vm.handleSave()
 
+    expect(mockConfirmSave).toHaveBeenCalled()
     expect(mockUpdate).toHaveBeenCalledWith(9, expect.objectContaining({
       personnel_id: 3,
     }))
@@ -151,11 +164,13 @@ describe('EquivalencePage', () => {
   it('approve flow sends approved dates for the record', async () => {
     const wrapper = await mountPage()
     mockApprove.mockResolvedValue({ success: true })
+    mockConfirmAction.mockResolvedValueOnce(true)
     mockFetchList.mockClear()
 
     wrapper.vm.openApprove(sampleRow)
     await wrapper.vm.handleApprove()
 
+    expect(mockConfirmAction).toHaveBeenCalled()
     expect(mockApprove).toHaveBeenCalledWith(9, {
       approvedStartDate: '2020-01-01',
       approvedEndDate: '2021-12-31',
@@ -178,12 +193,24 @@ describe('EquivalencePage', () => {
   it('reject flow calls reject with the record id', async () => {
     const wrapper = await mountPage()
     mockReject.mockResolvedValue({ success: true })
+    mockConfirmAction.mockResolvedValueOnce(true)
+    mockFetchList.mockClear()
 
-    wrapper.vm.confirmReject(9)
-    await wrapper.vm.handleReject()
+    await wrapper.vm.confirmReject(9)
 
+    expect(mockConfirmAction).toHaveBeenCalled()
     expect(mockReject).toHaveBeenCalledWith(9)
-    expect(wrapper.vm.showRejectConfirm).toBe(false)
+    expect(mockFetchList).toHaveBeenCalled()
+  })
+
+  it('reject cancelled does not call reject', async () => {
+    const wrapper = await mountPage()
+    mockConfirmAction.mockResolvedValueOnce(false)
+    mockReject.mockClear()
+
+    await wrapper.vm.confirmReject(9)
+
+    expect(mockReject).not.toHaveBeenCalled()
   })
 
   it('openView sets viewing record and shows modal', async () => {

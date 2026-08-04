@@ -22,6 +22,18 @@ vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockApiGet }),
 }))
 
+const mockConfirmDelete = vi.fn(async () => true)
+const mockConfirmSave = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmDelete: (...args) => mockConfirmDelete(...args),
+  confirmSave: (...args) => mockConfirmSave(...args),
+}))
+
+const mockSearchPersonnel = vi.fn(async () => [])
+vi.mock('@/composables/usePersonnelSearch.js', () => ({
+  usePersonnelSearch: () => ({ searchPersonnel: (...args) => mockSearchPersonnel(...args) }),
+}))
+
 const DiversePage = (await import('@/pages/DiversePage.vue')).default
 
 const sampleRow = {
@@ -192,23 +204,23 @@ describe('DiversePage', () => {
     const wrapper = await mountPage()
     mockRemove.mockResolvedValue({ success: true })
     mockFetchList.mockClear()
+    mockConfirmDelete.mockResolvedValueOnce(true)
 
-    wrapper.vm.confirmDelete(sampleRow)
-    await wrapper.vm.handleDelete()
+    await wrapper.vm.confirmDelete(sampleRow)
 
+    expect(mockConfirmDelete).toHaveBeenCalled()
     expect(mockRemove).toHaveBeenCalledWith(5)
-    expect(wrapper.vm.showDeleteConfirm).toBe(false)
     expect(mockFetchList).toHaveBeenCalled()
   })
 
-  it('delete error keeps confirm dialog open', async () => {
+  it('delete cancelled does not call remove', async () => {
     const wrapper = await mountPage()
-    mockRemove.mockRejectedValue(new Error('ลบไม่ได้'))
+    mockConfirmDelete.mockResolvedValueOnce(false)
+    mockRemove.mockClear()
 
-    wrapper.vm.confirmDelete(sampleRow)
-    await wrapper.vm.handleDelete()
+    await wrapper.vm.confirmDelete(sampleRow)
 
-    expect(wrapper.vm.showDeleteConfirm).toBe(true)
+    expect(mockRemove).not.toHaveBeenCalled()
   })
 
   it('closeModal clears editing state', async () => {
@@ -260,14 +272,14 @@ describe('DiversePage', () => {
 
   it('personnel search fetches results after debounce when query length >= 2', async () => {
     vi.useFakeTimers()
-    mockApiGet.mockResolvedValue({ data: [{ personnel_id: 1, full_name: 'A' }] })
+    mockSearchPersonnel.mockResolvedValue([{ personnel_id: 1, full_name: 'A' }])
     const wrapper = await mountPage()
     wrapper.vm.openCreateModal()
     wrapper.vm.personnelSearch = 'สมช'
     wrapper.vm.onPersonnelSearch()
 
     await vi.advanceTimersByTimeAsync(300)
-    expect(mockApiGet).toHaveBeenCalled()
+    expect(mockSearchPersonnel).toHaveBeenCalled()
     expect(wrapper.vm.personnelResults).toHaveLength(1)
     expect(wrapper.vm.showPersonnelDropdown).toBe(true)
     vi.useRealTimers()
@@ -290,7 +302,7 @@ describe('DiversePage', () => {
 
   it('personnel search swallows API errors', async () => {
     vi.useFakeTimers()
-    mockApiGet.mockRejectedValue(new Error('down'))
+    mockSearchPersonnel.mockRejectedValue(new Error('down'))
     const wrapper = await mountPage()
     wrapper.vm.openCreateModal()
     wrapper.vm.personnelSearch = 'สมชาย'
@@ -299,13 +311,6 @@ describe('DiversePage', () => {
     await vi.advanceTimersByTimeAsync(300)
     expect(wrapper.vm.personnelResults).toEqual([])
     vi.useRealTimers()
-  })
-
-  it('handleDelete no-ops when deletingRow is null', async () => {
-    const wrapper = await mountPage()
-    wrapper.vm.deletingRow = null
-    await wrapper.vm.handleDelete()
-    expect(mockRemove).not.toHaveBeenCalled()
   })
 
   // backend ปฏิเสธ DELETE ของ operator ด้วย 403 (audit.php: checkPermission delete => [])

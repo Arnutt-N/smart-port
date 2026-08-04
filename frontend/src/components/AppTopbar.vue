@@ -87,6 +87,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { confirmLogout } from '@/composables/useConfirm.js'
 import { Menu, Home, ChevronDown, User, Settings, Shield, LogOut } from 'lucide-vue-next'
 
 defineEmits(['toggle-sidebar'])
@@ -126,8 +127,10 @@ function navigateTo(path) {
   router.push(path)
 }
 
-function handleLogout() {
+async function handleLogout() {
   dropdownOpen.value = false
+  const ok = await confirmLogout()
+  if (!ok) return
   auth.logout()
   router.push('/login')
 }

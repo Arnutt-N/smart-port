@@ -22,6 +22,18 @@ vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockApiGet }),
 }))
 
+const mockConfirmDelete = vi.fn(async () => true)
+const mockConfirmSave = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmDelete: (...args) => mockConfirmDelete(...args),
+  confirmSave: (...args) => mockConfirmSave(...args),
+}))
+
+const mockSearchPersonnel = vi.fn(async () => [])
+vi.mock('@/composables/usePersonnelSearch.js', () => ({
+  usePersonnelSearch: () => ({ searchPersonnel: (...args) => mockSearchPersonnel(...args) }),
+}))
+
 const SupportivePage = (await import('@/pages/SupportivePage.vue')).default
 
 const sampleRow = {
@@ -143,23 +155,23 @@ describe('SupportivePage', () => {
     const wrapper = await mountPage()
     mockRemove.mockResolvedValue({ success: true })
     mockFetchList.mockClear()
+    mockConfirmDelete.mockResolvedValueOnce(true)
 
-    wrapper.vm.confirmDelete(11)
-    await wrapper.vm.handleDelete()
+    await wrapper.vm.confirmDelete(11)
 
+    expect(mockConfirmDelete).toHaveBeenCalled()
     expect(mockRemove).toHaveBeenCalledWith(11)
-    expect(wrapper.vm.showDeleteConfirm).toBe(false)
     expect(mockFetchList).toHaveBeenCalled()
   })
 
-  it('delete error keeps confirm dialog open', async () => {
+  it('delete cancelled does not call remove', async () => {
     const wrapper = await mountPage()
-    mockRemove.mockRejectedValue(new Error('ลบไม่ได้'))
+    mockConfirmDelete.mockResolvedValueOnce(false)
+    mockRemove.mockClear()
 
-    wrapper.vm.confirmDelete(11)
-    await wrapper.vm.handleDelete()
+    await wrapper.vm.confirmDelete(11)
 
-    expect(wrapper.vm.showDeleteConfirm).toBe(true)
+    expect(mockRemove).not.toHaveBeenCalled()
   })
 
   it('closeModal clears form errors', async () => {
@@ -197,7 +209,7 @@ describe('SupportivePage', () => {
 
   it('personnel input clears selection and fetches after debounce', async () => {
     vi.useFakeTimers()
-    mockApiGet.mockResolvedValue({ data: [{ personnel_id: 1, full_name: 'A' }] })
+    mockSearchPersonnel.mockResolvedValue([{ personnel_id: 1, full_name: 'A' }])
     const wrapper = await mountPage()
     wrapper.vm.openCreate()
     wrapper.vm.formData.personnel_id = 3
@@ -206,7 +218,7 @@ describe('SupportivePage', () => {
 
     expect(wrapper.vm.formData.personnel_id).toBeNull()
     await vi.advanceTimersByTimeAsync(300)
-    expect(mockApiGet).toHaveBeenCalled()
+    expect(mockSearchPersonnel).toHaveBeenCalledWith('สมช', { limit: 10 })
     expect(wrapper.vm.showPersonnelDropdown).toBe(true)
     vi.useRealTimers()
   })
