@@ -8,6 +8,14 @@
 /** โฟลเดอร์ที่เสิร์ฟรูปผ่านเว็บ — สัมพัทธ์กับ document root ของ backend */
 const PHOTO_WEB_DIR = 'uploads';
 
+/** Username: 3–64 chars, letters/digits/dot/underscore/hyphen */
+const USERNAME_PATTERN = '/^[A-Za-z0-9._-]{3,64}$/';
+
+function isValidUsername(string $username): bool
+{
+    return (bool) preg_match(USERNAME_PATTERN, $username);
+}
+
 /**
  * ตอบ 405 พร้อม JSON body — ใช้กับ route ที่รองรับเฉพาะบาง method
  *

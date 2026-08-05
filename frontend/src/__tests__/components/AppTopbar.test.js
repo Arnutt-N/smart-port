@@ -99,13 +99,13 @@ describe('AppTopbar', () => {
     expect(wrapper.vm.dropdownOpen).toBe(false)
   })
 
-  it('navigates to /change-password when ตั้งค่า clicked', async () => {
+  it('navigates to /settings/account when ตั้งค่า clicked', async () => {
     const wrapper = mountTopbar()
     await wrapper.get('button[aria-label="เมนูผู้ใช้"]').trigger('click')
     const settingsBtn = wrapper.findAll('button').find((b) => b.text().includes('ตั้งค่า'))
     await settingsBtn.trigger('click')
 
-    expect(push).toHaveBeenCalledWith('/change-password')
+    expect(push).toHaveBeenCalledWith('/settings/account')
   })
 
   it('shows ผู้ดูแล menu item only for admin', async () => {

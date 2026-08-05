@@ -27,7 +27,7 @@
 - **ปีเป็น พ.ศ. เสมอในสิ่งที่ผู้ใช้เห็น** — `received_year` ของเครื่องราชฯ เก็บเป็น พ.ศ. ในฐานข้อมูลด้วย (validate ช่วง 2400–2700) ส่วนคอลัมน์ `DATE`/`TIMESTAMP` อื่นเก็บเป็น ค.ศ. แล้วแปลงตอนแสดงผลด้วย `formatThaiDate()`
 - **การนับวันใช้ฐาน 360 วัน/ปี, 30 วัน/เดือน** ตามระเบียบราชการ ไม่ใช่ปฏิทินจริง
 - **`citizen_id` คือ natural key ของบุคคล** — เป็น PII ห้ามหลุดเข้า log table (`import_log` จึงไม่มีคอลัมน์นี้)
-- **สิทธิ์ตาม role** (`backend/authz.php::checkPermission`): `admin` ทำได้ทุกอย่าง · `operator` อ่าน/สร้าง/แก้ไขได้ แต่ **ลบไม่ได้** และอนุมัติการเทียบตำแหน่งไม่ได้ · `viewer` อ่านอย่างเดียว (career overview: candidates/probation/personnel/dashboard/multiplier/profile) · OCR create และ awards write เป็น admin · UI ต้องซ่อนปุ่มให้ตรงกับ matrix นี้
+- **สิทธิ์ตาม role** (`backend/authz.php::checkPermission`): `superadmin` ทำได้ทุกอย่าง + จัดการเมทริกซ์สิทธิ์ระบบ · `admin` ทำได้ทุกอย่างตาม default (ยกเว้นหน้าตั้งค่าสิทธิ์ระบบ) · `operator` อ่าน/สร้าง/แก้ไขได้ แต่ **ลบไม่ได้** และอนุมัติการเทียบตำแหน่งไม่ได้ · `viewer` อ่านอย่างเดียว (career overview: candidates/probation/personnel/dashboard/multiplier/profile) · ค่า default อยู่ในโค้ด และถูกทับได้ด้วยตาราง `role_permission_overrides` · OCR create และ awards write เป็น admin ตาม default · UI ซ่อนปุ่มให้ตรง matrix; บัญชีตัวเองแก้ username/รหัสผ่านได้ที่ `/settings/account`
 - **วันใกล้เกณฑ์บัญชีรายชื่อ = 90 วัน** — ห้ามให้ FE ใช้ 30 วันสำหรับ candidates; ทดลองใช้ 30 วันได้เมื่อตั้งใจแยกตามศัพท์ด้านบน
 
 ## ขอบเขตที่ยังไม่ทำ (โดยตั้งใจ)

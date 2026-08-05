@@ -34,7 +34,8 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(readStoredJson('user'))
 
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
-  const isAdmin = computed(() => user.value?.role === 'admin')
+  const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
+  const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role === 'superadmin')
   const mustChangePassword = computed(() => Boolean(user.value?.must_change_password))
 
   function isTokenValid() {
@@ -125,6 +126,45 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  async function fetchMe() {
+    const { useApi } = await import('@/composables/useApi.js')
+    const api = useApi()
+    const result = await api.get('/auth/me')
+    const me = result.data || result
+    if (user.value) {
+      user.value = {
+        ...user.value,
+        id: me.id ?? user.value.id,
+        username: me.username ?? user.value.username,
+        name: me.name ?? me.full_name ?? user.value.name,
+        email: me.email ?? user.value.email,
+        role: me.role ?? user.value.role,
+        must_change_password: Boolean(me.must_change_password),
+      }
+      localStorage.setItem('user', JSON.stringify(user.value))
+    }
+    return me
+  }
+
+  async function updateMe(payload) {
+    const { useApi } = await import('@/composables/useApi.js')
+    const api = useApi()
+    const result = await api.put('/auth/me', payload)
+    const me = result.data || result
+    if (user.value) {
+      user.value = {
+        ...user.value,
+        id: me.id ?? user.value.id,
+        username: me.username ?? user.value.username,
+        name: me.name ?? me.full_name ?? user.value.name,
+        email: me.email ?? user.value.email,
+        role: me.role ?? user.value.role,
+      }
+      localStorage.setItem('user', JSON.stringify(user.value))
+    }
+    return me
+  }
+
   function logout() {
     // เพิกถอน refresh token ฝั่ง server แบบ best-effort (ไม่รอผล / ไม่โยน error)
     if (refreshToken.value) {
@@ -156,6 +196,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isAdmin,
+    isSuperAdmin,
     mustChangePassword,
     isTokenValid,
     setAuth,
@@ -163,6 +204,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     refresh,
     changePassword,
+    fetchMe,
+    updateMe,
     logout,
   }
 })

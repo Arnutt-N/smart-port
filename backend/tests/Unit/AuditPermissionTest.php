@@ -157,9 +157,17 @@ final class AuditPermissionTest extends TestCase
     }
 
     #[Test]
+    public function superadmin_can_do_anything_on_any_resource(): void
+    {
+        self::assertTrue(checkPermission('superadmin', 'read', 'multiplier'));
+        self::assertTrue(checkPermission('superadmin', 'delete', 'users'));
+        self::assertTrue(checkPermission('superadmin', 'update', 'system_permissions'));
+    }
+
+    #[Test]
     public function unknown_role_is_always_denied(): void
     {
-        self::assertFalse(checkPermission('superadmin', 'read', 'multiplier'));
+        self::assertFalse(checkPermission('no-such-role', 'read', 'multiplier'));
         self::assertFalse(checkPermission('', 'read', 'multiplier'));
     }
 

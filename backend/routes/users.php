@@ -1,7 +1,7 @@
 <?php
 // ============================================================================
 // routes/users.php
-// User Management Route Handler — จัดการบัญชีผู้ใช้ (admin เท่านั้น)
+// User Management Route Handler — admin / superadmin (matrix + assignableRolesFor)
 //
 // Endpoints:
 //   GET  /users          — รายชื่อผู้ใช้ (pagination + search)
@@ -15,10 +15,42 @@ include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
 const PASSWORD_MIN_LENGTH = 8;
-const VALID_ROLES = ['admin', 'operator'];
+/** Roles assignable in principle — further gated by assigner's role. */
+const VALID_ROLES = ['superadmin', 'admin', 'operator', 'viewer'];
 
 // คอลัมน์ที่ส่งออกได้ — ห้ามมี password_hash เด็ดขาด
 const USER_PUBLIC_COLUMNS = 'user_id, username, full_name, email, role, is_active, must_change_password, last_login_at, created_at';
+
+/**
+ * Roles the current actor may assign when creating/updating users.
+ *
+ * @return list<string>
+ */
+function assignableRolesFor(?array $auth): array
+{
+    $role = $auth['role'] ?? '';
+    if ($role === 'superadmin') {
+        return VALID_ROLES;
+    }
+    if ($role === 'admin') {
+        return ['admin', 'operator', 'viewer'];
+    }
+    return [];
+}
+
+/**
+ * @param bool $forUpdate Lock matching rows inside a transaction (MySQL/InnoDB only)
+ */
+function countActiveSuperadmins(PDO $pdo, bool $forUpdate = false): int
+{
+    $sql = "SELECT user_id FROM users WHERE role = 'superadmin' AND is_active = 1";
+    // SQLite rejects FOR UPDATE; production MySQL uses row locks against TOCTOU demotes.
+    if ($forUpdate && $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $sql .= ' FOR UPDATE';
+    }
+    $stmt = $pdo->query($sql);
+    return count($stmt->fetchAll(PDO::FETCH_COLUMN));
+}
 
 /**
  * จัดการ request สำหรับ user management endpoints
@@ -122,9 +154,23 @@ function createUser(PDO $pdo, ?array $auth): void
         return;
     }
 
+    $username = trim((string) $data['username']);
+    if (!isValidUsername($username)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ชื่อผู้ใช้ต้องเป็น a-z, 0-9, . _ - ความยาว 3–64 ตัวอักษร']);
+        return;
+    }
+
     if (!in_array($data['role'], VALID_ROLES, true)) {
         http_response_code(400);
-        echo json_encode(['error' => 'role ต้องเป็น admin หรือ operator เท่านั้น']);
+        echo json_encode(['error' => 'role ไม่ถูกต้อง']);
+        return;
+    }
+
+    $assignable = assignableRolesFor($auth);
+    if (!in_array($data['role'], $assignable, true)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'คุณไม่มีสิทธิ์กำหนดบทบาทนี้']);
         return;
     }
 
@@ -134,7 +180,7 @@ function createUser(PDO $pdo, ?array $auth): void
              VALUES (?, ?, ?, ?, ?, 1, 1)"
         );
         $stmt->execute([
-            trim($data['username']),
+            $username,
             password_hash($data['password'], PASSWORD_DEFAULT),
             $data['full_name'],
             $data['email'] ?? null,
@@ -161,7 +207,7 @@ function createUser(PDO $pdo, ?array $auth): void
         $newUserId,
         null,
         [
-            'username' => trim($data['username']),
+            'username' => $username,
             'full_name' => $data['full_name'],
             'email' => $data['email'] ?? null,
             'role' => $data['role'],
@@ -177,12 +223,20 @@ function createUser(PDO $pdo, ?array $auth): void
  *
  * - field ที่แก้ได้: full_name, email, role, is_active
  * - ส่ง password มา = reset password (บังคับเปลี่ยนครั้งถัดไป)
- * - username แก้ไม่ได้ (immutable — ผูกกับ audit trail)
- * - กัน admin ลดสิทธิ์/ปิดบัญชีตัวเอง (กัน lock-out)
+ * - username แก้ผ่าน PUT /auth/me ของเจ้าของบัญชี
+ * - กันลดสิทธิ์/ปิดบัญชีตัวเอง (กัน lock-out)
  */
-function updateUser(PDO $pdo, int $id, array $auth): void
+/**
+ * @param array<string,mixed>|null $input Optional body for tests (otherwise php://input)
+ */
+function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
 
     $stmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
     $stmt->execute([$id]);
@@ -193,9 +247,13 @@ function updateUser(PDO $pdo, int $id, array $auth): void
         return;
     }
 
-    // Self-guard: ห้ามแก้ role ตัวเองเป็น non-admin หรือปิดบัญชีตัวเอง
-    if ($id === intval($auth['user_id'] ?? 0)) {
-        $demotesSelf = isset($data['role']) && $data['role'] !== 'admin';
+    $actorRole = $auth['role'] ?? '';
+    $selfId = intval($auth['user_id'] ?? 0);
+
+    // Self-guard: ห้ามลดบทบาทตัวเองหรือปิดบัญชีตัวเอง
+    if ($id === $selfId) {
+        $newRole = $data['role'] ?? null;
+        $demotesSelf = isset($newRole) && $newRole !== $beforeRow['role'];
         $deactivatesSelf = isset($data['is_active']) && !((int) (bool) $data['is_active']);
         if ($demotesSelf || $deactivatesSelf) {
             http_response_code(400);
@@ -204,10 +262,25 @@ function updateUser(PDO $pdo, int $id, array $auth): void
         }
     }
 
-    if (isset($data['role']) && !in_array($data['role'], VALID_ROLES, true)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'role ต้องเป็น admin หรือ operator เท่านั้น']);
+    // Non-superadmin cannot modify superadmin accounts
+    if ($beforeRow['role'] === 'superadmin' && $actorRole !== 'superadmin') {
+        http_response_code(403);
+        echo json_encode(['error' => 'ไม่สามารถแก้ไขบัญชีซูเปอร์แอดมินได้']);
         return;
+    }
+
+    if (isset($data['role'])) {
+        if (!in_array($data['role'], VALID_ROLES, true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'role ไม่ถูกต้อง']);
+            return;
+        }
+        $assignable = assignableRolesFor($auth);
+        if (!in_array($data['role'], $assignable, true)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'คุณไม่มีสิทธิ์กำหนดบทบาทนี้']);
+            return;
+        }
     }
 
     $sets = [];
@@ -243,17 +316,46 @@ function updateUser(PDO $pdo, int $id, array $auth): void
         return;
     }
 
+    $guardLastSuperadmin = $beforeRow['role'] === 'superadmin'
+        && (int) $beforeRow['is_active'] === 1
+        && (
+            (isset($data['role']) && $data['role'] !== 'superadmin')
+            || (isset($data['is_active']) && !((int) (bool) $data['is_active']))
+        );
+
     $params[] = $id;
     $sql = "UPDATE users SET " . implode(', ', $sets) . " WHERE user_id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
 
-    $afterStmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
-    $afterStmt->execute([$id]);
-    $afterRow = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    try {
+        if ($guardLastSuperadmin) {
+            $pdo->beginTransaction();
+            if (countActiveSuperadmins($pdo, true) <= 1) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['error' => 'ต้องมีซูเปอร์แอดมินที่ใช้งานได้อย่างน้อย 1 คน']);
+                return;
+            }
+        }
 
-    // Audit log: บันทึกการแก้ไขผู้ใช้ (before/after ไม่มี password_hash อยู่แล้วเพราะไม่อยู่ใน USER_PUBLIC_COLUMNS)
-    logAudit($pdo, $auth['user_id'], 'UPDATE', 'users', $id, $beforeRow, $afterRow);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+
+        $afterStmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
+        $afterStmt->execute([$id]);
+        $afterRow = $afterStmt->fetch(PDO::FETCH_ASSOC);
+
+        // Audit log: บันทึกการแก้ไขผู้ใช้ (before/after ไม่มี password_hash อยู่แล้วเพราะไม่อยู่ใน USER_PUBLIC_COLUMNS)
+        logAudit($pdo, $auth['user_id'], 'UPDATE', 'users', $id, $beforeRow, $afterRow);
+
+        if ($guardLastSuperadmin && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     echo json_encode(['success' => true]);
 }

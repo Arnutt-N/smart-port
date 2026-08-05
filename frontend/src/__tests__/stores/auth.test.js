@@ -116,4 +116,14 @@ describe('auth store', () => {
     expect(localStorage.getItem('user')).toBeNull()
     expect(localStorage.getItem('auth_token')).toBeNull()
   })
+
+  it('treats superadmin as admin for menu gating', () => {
+    const auth = useAuthStore()
+    auth.setAuth({
+      ...authData(),
+      user: { user_id: 1, username: 'root', name: 'Root', role: 'superadmin', must_change_password: false },
+    })
+    expect(auth.isAdmin).toBe(true)
+    expect(auth.isSuperAdmin).toBe(true)
+  })
 })

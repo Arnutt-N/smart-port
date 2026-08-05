@@ -1276,13 +1276,28 @@ CREATE TABLE login_attempts (
 -- ต้องเปลี่ยนทันทีหลัง deploy production (must_change_password = 1)
 -- ใช้ upsert เผื่อกรณี import ทับ dump เก่าที่ seed แถว (1,'admin') ไว้แล้ว
 INSERT INTO users (username, password_hash, full_name, role, is_active, must_change_password)
-VALUES ('admin', '$2y$10$Vrl20xAh4dvfwpDt/pWnTOcMuCzjj8353VKy348pb80StKqkENMcm', 'ผู้ดูแลระบบ', 'admin', 1, 1)
+VALUES ('admin', '$2y$10$Vrl20xAh4dvfwpDt/pWnTOcMuCzjj8353VKy348pb80StKqkENMcm', 'ผู้ดูแลระบบ', 'superadmin', 1, 1)
 ON DUPLICATE KEY UPDATE
     password_hash = VALUES(password_hash),
     full_name = VALUES(full_name),
-    role = VALUES(role),
+    -- Do not reset role on reimport (matches 09-auth-users.sql)
     is_active = VALUES(is_active),
     must_change_password = VALUES(must_change_password);
+
+-- ============================================
+-- FILE: 27-superadmin-permission-overrides.sql
+-- ============================================
+CREATE TABLE role_permission_overrides (
+    override_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    role VARCHAR(20) NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    resource VARCHAR(64) NOT NULL,
+    allowed TINYINT(1) NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_role_action_resource (role, action, resource),
+    KEY idx_rpo_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
 -- FILE: 10-import-log.sql + 12-import-log-fk.sql

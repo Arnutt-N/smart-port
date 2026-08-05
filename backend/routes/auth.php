@@ -5,7 +5,9 @@
 //
 // Endpoints:
 //   POST /auth/login           — ตรวจ username/password กับ DB + rate limit
-//   POST /auth/change-password — เปลี่ยนรหัสผ่านที่ถูกบังคับหลังเข้าสู่ระบบ
+//   POST /auth/change-password — เปลี่ยนรหัสผ่าน (forced หรือ voluntary)
+//   GET  /auth/me              — โปรไฟล์บัญชีตัวเอง
+//   PUT  /auth/me              — แก้ไข username / full_name / email ของตัวเอง
 //
 // Rate limiting (ตาราง login_attempts):
 //   ผิดติดต่อกัน 5 ครั้งภายใน 15 นาที (นับต่อ username) -> 429
@@ -53,8 +55,192 @@ function handleAuth(PDO $pdo, string $method, array $path): void
         return;
     }
 
+    if (($path[1] ?? '') === 'me') {
+        $user = getAuthenticatedUser();
+        if (!$user) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Unauthorized']);
+            return;
+        }
+        if ($method === 'GET') {
+            getAuthMe($pdo, $user);
+            return;
+        }
+        if ($method === 'PUT') {
+            updateAuthMe($pdo, $user);
+            return;
+        }
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
+    }
+
     http_response_code(404);
     echo json_encode(['error' => 'ไม่พบ endpoint การยืนยันตัวตน']);
+}
+
+/**
+ * GET /auth/me
+ *
+ * @param array{user_id:int|string} $user
+ */
+function getAuthMe(PDO $pdo, array $user): void
+{
+    $stmt = $pdo->prepare(
+        'SELECT user_id, username, full_name, email, role, must_change_password, last_login_at, created_at
+         FROM users WHERE user_id = ? AND is_active = 1'
+    );
+    $stmt->execute([(int) $user['user_id']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบัญชีผู้ใช้']);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'id' => (int) $row['user_id'],
+            'username' => $row['username'],
+            'name' => $row['full_name'],
+            'full_name' => $row['full_name'],
+            'email' => $row['email'],
+            'role' => $row['role'],
+            'must_change_password' => (bool) $row['must_change_password'],
+            'last_login_at' => $row['last_login_at'],
+            'created_at' => $row['created_at'],
+        ],
+    ]);
+}
+
+/**
+ * PUT /auth/me — แก้ username (ต้องยืนยันรหัสผ่าน) / full_name / email
+ *
+ * @param array{user_id:int|string} $user
+ * @param array<string,mixed>|null $input
+ */
+function updateAuthMe(PDO $pdo, array $user, ?array $input = null): void
+{
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
+
+    $userId = (int) $user['user_id'];
+    $stmt = $pdo->prepare(
+        'SELECT user_id, username, full_name, email, password_hash, role, must_change_password
+         FROM users WHERE user_id = ? AND is_active = 1'
+    );
+    $stmt->execute([$userId]);
+    $before = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$before) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบัญชีผู้ใช้']);
+        return;
+    }
+
+    $sets = [];
+    $params = [];
+    $usernameChanging = false;
+    $newUsername = null;
+
+    if (array_key_exists('username', $data)) {
+        $newUsername = trim((string) $data['username']);
+        if ($newUsername === '' || !isValidUsername($newUsername)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ชื่อผู้ใช้ต้องเป็น a-z, 0-9, . _ - ความยาว 3–64 ตัวอักษร']);
+            return;
+        }
+        if ($newUsername !== (string) $before['username']) {
+            $usernameChanging = true;
+            $currentPassword = (string) ($data['current_password'] ?? '');
+            if ($currentPassword === '' || !password_verify($currentPassword, (string) $before['password_hash'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'กรุณายืนยันรหัสผ่านปัจจุบันเพื่อเปลี่ยนชื่อผู้ใช้']);
+                return;
+            }
+            $sets[] = 'username = ?';
+            $params[] = $newUsername;
+        }
+    }
+
+    if (array_key_exists('full_name', $data)) {
+        $fullName = trim((string) $data['full_name']);
+        if ($fullName === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'ชื่อ-นามสกุลต้องไม่ว่าง']);
+            return;
+        }
+        $sets[] = 'full_name = ?';
+        $params[] = $fullName;
+    }
+
+    if (array_key_exists('email', $data)) {
+        $email = trim((string) $data['email']);
+        $sets[] = 'email = ?';
+        $params[] = $email === '' ? null : $email;
+    }
+
+    if ($sets === []) {
+        http_response_code(400);
+        echo json_encode(['error' => 'ไม่มีข้อมูลที่สามารถอัปเดตได้']);
+        return;
+    }
+
+    $params[] = $userId;
+    try {
+        $pdo->prepare('UPDATE users SET ' . implode(', ', $sets) . ' WHERE user_id = ?')
+            ->execute($params);
+    } catch (PDOException $e) {
+        if ($e->getCode() === '23000') {
+            http_response_code(409);
+            echo json_encode(['error' => 'ชื่อผู้ใช้นี้ถูกใช้งานแล้ว']);
+            return;
+        }
+        throw $e;
+    }
+
+    $afterStmt = $pdo->prepare(
+        'SELECT user_id, username, full_name, email, role, must_change_password
+         FROM users WHERE user_id = ?'
+    );
+    $afterStmt->execute([$userId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+
+    logAudit(
+        $pdo,
+        $userId,
+        'UPDATE',
+        'users',
+        $userId,
+        [
+            'username' => $before['username'],
+            'full_name' => $before['full_name'],
+            'email' => $before['email'],
+        ],
+        [
+            'username' => $after['username'] ?? null,
+            'full_name' => $after['full_name'] ?? null,
+            'email' => $after['email'] ?? null,
+            'username_changed' => $usernameChanging,
+        ]
+    );
+
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'id' => (int) ($after['user_id'] ?? $userId),
+            'username' => $after['username'] ?? null,
+            'name' => $after['full_name'] ?? null,
+            'full_name' => $after['full_name'] ?? null,
+            'email' => $after['email'] ?? null,
+            'role' => $after['role'] ?? null,
+            'must_change_password' => (bool) ($after['must_change_password'] ?? false),
+        ],
+    ]);
 }
 
 /**
