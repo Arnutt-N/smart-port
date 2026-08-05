@@ -4,6 +4,12 @@ const mockAuth = {
   isAuthenticated: false,
   mustChangePassword: false,
   user: null,
+  get isAdmin() {
+    return this.user?.role === 'admin' || this.user?.role === 'superadmin'
+  },
+  get isSuperAdmin() {
+    return this.user?.role === 'superadmin'
+  },
 }
 
 vi.mock('@/stores/auth.js', () => ({
@@ -69,12 +75,31 @@ describe('router auth guards', () => {
     expect(router.currentRoute.value.path).toBe('/import')
   })
 
-  it('redirects away from change-password when password change is not required', async () => {
+  it('redirects voluntary change-password visits to settings account', async () => {
     mockAuth.isAuthenticated = true
     mockAuth.mustChangePassword = false
     mockAuth.user = { role: 'operator' }
 
     await router.push('/change-password')
+    expect(router.currentRoute.value.path).toBe('/settings/account')
+  })
+
+  it('allows superadmin into settings permissions', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'superadmin' }
+
+    await router.push('/settings/permissions')
+    expect(router.currentRoute.value.path).toBe('/settings/permissions')
+  })
+
+  it('blocks non-superadmin from settings permissions', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'admin' }
+
+    await router.push('/dashboard')
+    await router.push('/settings/permissions')
     expect(router.currentRoute.value.path).toBe('/dashboard')
   })
 

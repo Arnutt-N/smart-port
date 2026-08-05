@@ -140,6 +140,12 @@ switch ($path[0]) {
         handleAuth($pdo, $method, $path);
         break;
 
+    case 'settings':
+        $pdo = getDB();
+        include __DIR__ . '/routes/settings.php';
+        handleSettings($pdo, $method, $path);
+        break;
+
     case 'users':
         $pdo = getDB();
         include __DIR__ . '/routes/users.php';

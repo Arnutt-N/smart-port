@@ -44,6 +44,6 @@ VALUES ('admin', '$2y$10$Vrl20xAh4dvfwpDt/pWnTOcMuCzjj8353VKy348pb80StKqkENMcm',
 ON DUPLICATE KEY UPDATE
     password_hash = VALUES(password_hash),
     full_name = VALUES(full_name),
-    role = VALUES(role),
+    -- Do not reset role: migration 27 may promote username=admin → superadmin
     is_active = VALUES(is_active),
     must_change_password = VALUES(must_change_password);

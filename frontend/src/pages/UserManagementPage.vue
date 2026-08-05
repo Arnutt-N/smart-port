@@ -78,9 +78,14 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <span
                   class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full"
-                  :class="row.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                  :class="{
+                    'bg-purple-100 text-purple-700': row.role === 'superadmin',
+                    'bg-blue-100 text-blue-700': row.role === 'admin',
+                    'bg-amber-100 text-amber-700': row.role === 'viewer',
+                    'bg-gray-100 text-gray-600': row.role === 'operator',
+                  }"
                 >
-                  {{ row.role === 'admin' ? 'Admin' : 'Operator' }}
+                  {{ roleLabel(row.role) }}
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
@@ -195,8 +200,10 @@
               :disabled="isSelfEditing"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
             >
+              <option value="viewer">Viewer — อ่านอย่างเดียว</option>
               <option value="operator">Operator — บันทึกข้อมูล</option>
               <option value="admin">Admin — อนุมัติ + จัดการผู้ใช้</option>
+              <option v-if="auth.isSuperAdmin" value="superadmin">Superadmin — ตั้งค่าระบบ</option>
             </select>
             <p v-if="isSelfEditing" class="text-xs text-gray-400 mt-1">ไม่สามารถแก้ไขสิทธิ์ของตนเองได้</p>
           </div>
@@ -299,6 +306,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useUsers } from '@/composables/useUsers.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { roleLabel } from '@/utils/roleLabels.js'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { Plus, Search, Pencil, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
@@ -334,6 +342,7 @@ const defaultFormData = () => ({
   role: 'operator',
 })
 const formData = ref(defaultFormData())
+
 
 const isSelfEditing = computed(() => editingUser.value?.userId === auth.user?.id)
 

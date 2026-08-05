@@ -7,6 +7,12 @@ let userVal = null
 vi.mock('@/stores/auth.js', () => ({
   useAuthStore: () => ({
     get user() { return userVal },
+    get isAdmin() {
+      return userVal?.role === 'admin' || userVal?.role === 'superadmin'
+    },
+    get isSuperAdmin() {
+      return userVal?.role === 'superadmin'
+    },
   }),
 }))
 
@@ -44,6 +50,15 @@ describe('AppSidebar', () => {
     expect(text).toContain('ภาพรวม')
     expect(text).toContain('MAIN')
     expect(text).toContain('ADMIN')
+  })
+
+  it('renders ADMIN section for superadmin (isAdmin)', () => {
+    userVal = { name: 'sa', role: 'superadmin' }
+    const wrapper = mountSidebar()
+    expect(wrapper.text()).toContain('ADMIN')
+    expect(wrapper.text()).toContain('นำเข้าข้อมูล')
+    expect(wrapper.text()).toContain('จัดการผู้ใช้')
+    expect(wrapper.text()).toContain('Superadmin')
   })
 
   it('shows admin-only items only for admin', () => {

@@ -51,7 +51,7 @@
               โปรไฟล์
             </button>
             <button
-              @click="navigateTo('/change-password')"
+              @click="navigateTo('/settings/account')"
               class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <Settings class="w-4 h-4 text-gray-400" />
@@ -113,6 +113,9 @@ const pageTitles = {
   '/work-results': 'ผลงานและข้อเสนอ',
   '/awards': 'รางวัล/ความดีความชอบ',
   '/profile': 'โปรไฟล์ของฉัน',
+  '/settings/account': 'ตั้งค่า',
+  '/settings/permissions': 'สิทธิ์ระบบ',
+  '/settings/special-areas': 'พื้นที่พิเศษ',
 }
 
 const pageTitle = computed(() => {

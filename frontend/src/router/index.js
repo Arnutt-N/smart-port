@@ -107,6 +107,17 @@ const routes = [
         component: () => import('@/pages/MultiplierPage.vue'),
       },
       {
+        path: 'settings/account',
+        name: 'settings-account',
+        component: () => import('@/pages/SettingsPage.vue'),
+      },
+      {
+        path: 'settings/permissions',
+        name: 'settings-permissions',
+        component: () => import('@/pages/SettingsPage.vue'),
+        meta: { requiresSuperAdmin: true },
+      },
+      {
         // path เดิมก่อนย้ายเข้าเมนูแอดมิน — คง redirect ไว้กัน bookmark เก่าพัง
         path: 'time-multiplier/areas',
         redirect: '/settings/special-areas',
@@ -167,15 +178,19 @@ router.beforeEach(async (to) => {
   }
 
   if (to.path === '/change-password' && auth.isAuthenticated && !auth.mustChangePassword) {
-    return '/dashboard'
+    return '/settings/account'
   }
 
   if (to.path === '/login' && auth.isAuthenticated) {
     return '/dashboard'
   }
 
-  // หน้า admin only — operator เด้งกลับ dashboard
-  if (to.meta.requiresAdmin && auth.user?.role !== 'admin') {
+  // หน้า admin only — operator/viewer เด้งกลับ dashboard (superadmin ผ่านได้)
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return '/dashboard'
+  }
+
+  if (to.meta.requiresSuperAdmin && !auth.isSuperAdmin) {
     return '/dashboard'
   }
 })

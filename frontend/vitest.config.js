@@ -14,9 +14,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // forks + capped workers: stable on Windows (threads pool can hang / worker-timeout)
+    // forks + single worker: avoids intermittent pool-runner timeouts on Windows
     pool: 'forks',
-    maxWorkers: 2,
+    maxWorkers: 1,
     globals: true,
     include: ['src/__tests__/**/*.{test,spec}.{js,ts}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],

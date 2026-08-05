@@ -387,7 +387,7 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
-const isAdmin = computed(() => auth.user?.role === 'admin')
+const isAdmin = computed(() => auth.isAdmin)
 
 const loading = ref(false)
 const saving = ref(false)

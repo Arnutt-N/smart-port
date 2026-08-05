@@ -41,7 +41,7 @@
         </div>
         <div>
           <dt class="text-xs text-gray-500">สิทธิ์</dt>
-          <dd class="text-sm text-gray-900">{{ account.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ปฏิบัติงาน' }}</dd>
+          <dd class="text-sm text-gray-900">{{ roleLabel(account.role, 'th') }}</dd>
         </div>
         <div>
           <dt class="text-xs text-gray-500">สถานะ</dt>
@@ -106,6 +106,7 @@ import { useRoute } from 'vue-router'
 import { useProfile } from '@/composables/useProfile.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { roleLabel } from '@/utils/roleLabels.js'
 import { User, AlertCircle } from 'lucide-vue-next'
 
 const route = useRoute()
