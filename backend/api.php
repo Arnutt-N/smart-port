@@ -314,9 +314,11 @@ switch ($path[0]) {
         break;
 
     case 'civil-servants':
+        $pdo = getDB();
+        $servantId = isset($path[1]) ? intval($path[1]) : 0;
+
         if ($method == 'GET') {
             requirePermission('read', 'personnel');
-            $pdo = getDB();
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
             $offset = intval($_GET['offset'] ?? 0);
@@ -373,6 +375,24 @@ switch ($path[0]) {
                     'has_more' => ($offset + $limit) < $total
                 ]
             ]);
+        } elseif ($method === 'DELETE' && $servantId > 0) {
+            // Soft-delete: ปิดใช้งานบุคลากร (ออกจากรายชื่อ candidates ที่กรอง is_active=1)
+            requirePermission('delete', 'personnel');
+            $stmt = $pdo->prepare(
+                'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
+            );
+            $stmt->execute([$servantId]);
+            if ($stmt->rowCount() === 0) {
+                $check = $pdo->prepare('SELECT is_active FROM personnel WHERE personnel_id = ?');
+                $check->execute([$servantId]);
+                $active = $check->fetchColumn();
+                if ($active === false) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Not found']);
+                    break;
+                }
+            }
+            echo json_encode(['success' => true]);
         } else {
             respondMethodNotAllowed();
         }

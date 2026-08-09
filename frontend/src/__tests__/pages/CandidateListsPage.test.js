@@ -1,15 +1,34 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { setActivePinia, createPinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth.js'
 
 const mockFetchOverview = vi.fn()
 const mockFetchByLevel = vi.fn()
+const mockDeactivatePersonnel = vi.fn()
+const mockPush = vi.fn()
 
 vi.mock('@/composables/useCandidates.js', () => ({
   useCandidates: () => ({
     fetchOverview: mockFetchOverview,
     fetchByLevel: mockFetchByLevel,
+    deactivatePersonnel: mockDeactivatePersonnel,
   }),
+}))
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual('vue-router')
+  return {
+    ...actual,
+    useRouter: () => ({ push: mockPush }),
+  }
+})
+
+const mockConfirmDelete = vi.fn(async () => true)
+vi.mock('@/composables/useConfirm.js', () => ({
+  confirmDelete: (...args) => mockConfirmDelete(...args),
+  confirmSave: vi.fn(async () => true),
 }))
 
 vi.mock('@/composables/useRemainingDays.js', () => ({
@@ -83,6 +102,14 @@ describe('CandidateListsPage', () => {
   beforeEach(() => {
     mockFetchOverview.mockReset()
     mockFetchByLevel.mockReset()
+    mockDeactivatePersonnel.mockReset()
+    mockPush.mockReset()
+    mockConfirmDelete.mockReset()
+    mockConfirmDelete.mockResolvedValue(true)
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.user = { id: 1, role: 'admin', username: 'tester' }
+    auth.token = 'test-token'
   })
 
   it('renders overview stat cards and top-5 table after fetch', async () => {
@@ -225,6 +252,31 @@ describe('CandidateListsPage', () => {
     expect(wrapper.vm.showViewModal).toBe(false)
 
     wrapper.unmount()
+  })
+
+  it('provides view/edit/delete actions for admin and navigates edit to profile', async () => {
+    mockFetchByLevel.mockResolvedValue(byLevelPayload)
+    const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
+    await flushPromises()
+
+    const keys = wrapper.vm.rowActions(byLevelPayload.data[0]).map((a) => a.key)
+    expect(keys).toEqual(['view', 'edit', 'delete'])
+
+    wrapper.vm.openEdit(byLevelPayload.data[0])
+    expect(mockPush).toHaveBeenCalledWith('/profile/10')
+  })
+
+  it('deactivates personnel after delete confirmation', async () => {
+    mockFetchByLevel.mockResolvedValue(byLevelPayload)
+    mockDeactivatePersonnel.mockResolvedValue({ success: true })
+    const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
+    await flushPromises()
+    mockFetchByLevel.mockClear()
+
+    await wrapper.vm.confirmDelete(byLevelPayload.data[0])
+    expect(mockConfirmDelete).toHaveBeenCalled()
+    expect(mockDeactivatePersonnel).toHaveBeenCalledWith(10)
+    expect(mockFetchByLevel).toHaveBeenCalled()
   })
 
   it('changes page via PaginationBar and fetches with new offset', async () => {

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGet = vi.fn()
+const mockPut = vi.fn()
+const mockDel = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({ get: mockGet }),
+  useApi: () => ({ get: mockGet, put: mockPut, del: mockDel }),
 }))
 
 const { useProbation } = await import('@/composables/useProbation.js')
@@ -10,11 +12,15 @@ const { useProbation } = await import('@/composables/useProbation.js')
 describe('useProbation', () => {
   beforeEach(() => {
     mockGet.mockReset()
+    mockPut.mockReset()
+    mockDel.mockReset()
   })
 
-  it('returns fetchList function', () => {
-    const { fetchList } = useProbation()
+  it('returns fetchList, update, and remove', () => {
+    const { fetchList, update, remove } = useProbation()
     expect(typeof fetchList).toBe('function')
+    expect(typeof update).toBe('function')
+    expect(typeof remove).toBe('function')
   })
 
   it('calls API with correct URL and default params', async () => {
@@ -83,11 +89,30 @@ describe('useProbation', () => {
       department: 'กองคลัง',
       startDate: '1 เม.ย. 2567',
       endDate: '1 ต.ค. 2567',
+      startDateIso: '',
+      endDateIso: '',
       remainingDays: 120,
+      overallStatus: 'IN_PROGRESS',
       status: 'NOT_DUE',
       totalTasks: 5,
       completedTasks: 2,
+      remarks: '',
     })
+  })
+
+  it('updates and removes enrollment via API', async () => {
+    mockPut.mockResolvedValue({ success: true })
+    mockDel.mockResolvedValue({ success: true })
+    const { update, remove } = useProbation()
+
+    await update(10, { start_date: '2024-04-01', end_date: '2024-10-01' })
+    expect(mockPut).toHaveBeenCalledWith('/probation/10', {
+      start_date: '2024-04-01',
+      end_date: '2024-10-01',
+    })
+
+    await remove(10)
+    expect(mockDel).toHaveBeenCalledWith('/probation/10')
   })
 
   it('passes through terminal backend statuses', async () => {

@@ -48,5 +48,9 @@ export function useCandidates() {
     }
   }
 
-  return { fetchByLevel, fetchOverview }
+  async function deactivatePersonnel(personnelId) {
+    return api.del(`/civil-servants/${personnelId}`)
+  }
+
+  return { fetchByLevel, fetchOverview, deactivatePersonnel }
 }

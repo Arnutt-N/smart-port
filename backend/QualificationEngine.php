@@ -42,6 +42,12 @@ class QualificationEngine
         $this->pdo = $pdo;
     }
 
+    /** SQL: คำนำหน้า + ชื่อ + นามสกุล (ต้อง LEFT JOIN prefixes px) */
+    private function fullNameSql(): string
+    {
+        return sqlPersonnelFullName('p', 'px');
+    }
+
     /**
      * สร้าง base SELECT query + parameters สำหรับ target level ที่กำหนด
      * แชร์ระหว่าง computeForLevel และ computeOverview เพื่อไม่ให้ SQL ซ้ำสองก๊อปปี้
@@ -62,7 +68,7 @@ class QualificationEngine
         $baseSelect = "
             SELECT
                 p.personnel_id,
-                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                {$this->fullNameSql()} AS full_name,
                 pos.position_name AS current_position,
                 p.current_level_code,
                 p.current_level_start_date,
@@ -329,7 +335,7 @@ class QualificationEngine
         $sql = "
             SELECT
                 p.personnel_id,
-                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                {$this->fullNameSql()} AS full_name,
                 pos.position_name AS current_position,
                 p.current_level_code,
                 p.current_level_start_date,
@@ -426,11 +432,13 @@ class QualificationEngine
         $baseSelect = $base['sql'];
         $params = $base['params'];
 
-        // Step 3: Apply search filter
+        // Step 3: Apply search filter (รวมคำนำหน้าในชื่อเต็ม)
         $searchClause = '';
         if (!empty($search)) {
-            $searchClause = ' AND (p.first_name LIKE ? OR p.last_name LIKE ? OR pos.position_name LIKE ?)';
+            $fullNameExpr = $this->fullNameSql();
+            $searchClause = " AND ({$fullNameExpr} LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ? OR pos.position_name LIKE ?)";
             $searchTerm = "%{$search}%";
+            $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
@@ -700,7 +708,7 @@ class QualificationEngine
             SELECT
                 p.personnel_id,
                 p.citizen_id,
-                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                {$this->fullNameSql()} AS full_name,
                 p.first_name,
                 p.last_name,
                 p.hire_date,

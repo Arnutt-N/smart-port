@@ -142,6 +142,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบกำหนด</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันคงเหลือ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -161,9 +162,12 @@
                 <td class="px-6 py-3">
                   <StatusBadge :status="row.status" />
                 </td>
+                <td class="px-6 py-3 text-right">
+                  <TableRowActions :actions="rowActions(row)" />
+                </td>
               </tr>
               <tr v-if="overviewData.top5.length === 0">
-                <td colspan="7" class="px-6 py-8 text-center text-gray-400">ไม่พบข้อมูล</td>
+                <td colspan="8" class="px-6 py-8 text-center text-gray-400">ไม่พบข้อมูล</td>
               </tr>
             </tbody>
           </table>
@@ -268,9 +272,7 @@
                   <StatusBadge :status="row.status" />
                 </td>
                 <td class="px-6 py-3 text-right">
-                  <TableRowActions
-                    :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]"
-                  />
+                  <TableRowActions :actions="rowActions(row)" />
                 </td>
               </tr>
               <tr v-if="rows.length === 0">
@@ -370,8 +372,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCandidates } from '@/composables/useCandidates.js'
 import { getCandidateRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
+import { confirmDelete as confirmDeleteAction } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -387,7 +393,28 @@ const props = defineProps({
   section: { type: String, default: 'overview' },
 })
 
-const { fetchByLevel, fetchOverview } = useCandidates()
+const { fetchByLevel, fetchOverview, deactivatePersonnel } = useCandidates()
+const router = useRouter()
+const auth = useAuthStore()
+const ui = useUiStore()
+
+const isAdmin = computed(() => auth.isAdmin)
+
+function rowActions(row) {
+  const actions = [
+    { key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) },
+    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+  ]
+  if (isAdmin.value) {
+    actions.push({
+      key: 'delete',
+      label: 'ลบ',
+      variant: 'danger',
+      onClick: () => confirmDelete(row),
+    })
+  }
+  return actions
+}
 
 // Sub-tab state (reactive, not router per D-04)
 const activeSubTab = ref(null)
@@ -415,6 +442,30 @@ const viewingRow = ref(null)
 function openView(row) {
   viewingRow.value = row
   showViewModal.value = true
+}
+
+function openEdit(row) {
+  if (!row?.personnelId) return
+  router.push(`/profile/${row.personnelId}`)
+}
+
+async function confirmDelete(row) {
+  const ok = await confirmDeleteAction({
+    message: `คุณต้องการปิดใช้งาน ${row.name} จากระบบหรือไม่?`,
+    detail: 'จะไม่แสดงในบัญชีรายชื่อผู้มีคุณสมบัติ (สามารถเปิดใช้งานใหม่ได้ภายหลัง)',
+  })
+  if (!ok) return
+  try {
+    await deactivatePersonnel(row.personnelId)
+    ui.showToast('ปิดใช้งานสำเร็จ', 'success')
+    if (isOverview.value) {
+      fetchOverviewData()
+    } else {
+      fetchData()
+    }
+  } catch (err) {
+    ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
+  }
 }
 
 // Configuration maps

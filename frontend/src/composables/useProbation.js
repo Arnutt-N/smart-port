@@ -19,6 +19,14 @@ export function useProbation() {
     }
   }
 
+  async function update(enrollmentId, payload) {
+    return api.put(`/probation/${enrollmentId}`, payload)
+  }
+
+  async function remove(enrollmentId) {
+    return api.del(`/probation/${enrollmentId}`)
+  }
+
   function mapProbationRow(row) {
     return {
       enrollmentId: row.enrollment_id,
@@ -28,12 +36,16 @@ export function useProbation() {
       department: row.department,
       startDate: row.start_date_thai,
       endDate: row.end_date_thai,
+      startDateIso: row.start_date || '',
+      endDateIso: row.end_date || '',
       remainingDays: row.remaining_days,
+      overallStatus: row.status,
       status: probationStatusFor(row.status, row.remaining_days),
       totalTasks: row.total_tasks,
       completedTasks: row.completed_tasks,
+      remarks: row.remarks || '',
     }
   }
 
-  return { fetchList }
+  return { fetchList, update, remove }
 }

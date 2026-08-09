@@ -118,9 +118,7 @@
                 <StatusBadge :status="row.status" />
               </td>
               <td class="px-6 py-3 text-sm text-right">
-                <TableRowActions
-                  :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]"
-                />
+                <TableRowActions :actions="rowActions(row)" />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -204,22 +202,114 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- ==================== Edit Modal ==================== -->
+    <Teleport to="body">
+      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">แก้ไขการทดลองปฏิบัติราชการ</h2>
+            <p class="text-sm text-gray-500 mt-1">{{ editingRow?.name }}</p>
+          </div>
+          <form @submit.prevent="handleSave" class="px-6 py-4 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มทดลอง <span class="text-red-500">*</span></label>
+                <ThaiDatePicker
+                  v-model="formData.start_date"
+                  :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.start_date }"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">วันครบกำหนด <span class="text-red-500">*</span></label>
+                <ThaiDatePicker
+                  v-model="formData.end_date"
+                  :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.end_date }"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <select
+                v-model="formData.overall_status"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="IN_PROGRESS">กำลังดำเนินการ</option>
+                <option value="COMPLETED">ผ่านทดลอง</option>
+                <option value="FAILED">ไม่ผ่านทดลอง</option>
+                <option value="EXTENDED">ขยายเวลา</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+              <textarea
+                v-model="formData.remarks"
+                rows="3"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="ระบุหมายเหตุ (ถ้ามี)"
+              />
+            </div>
+            <div class="pt-2 flex justify-end gap-2 border-t border-gray-200">
+              <button
+                type="button"
+                @click="closeEditModal"
+                class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                :disabled="saving"
+                class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useProbation } from '@/composables/useProbation.js'
 import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
+import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
+import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Search } from 'lucide-vue-next'
 
-const { fetchList } = useProbation()
+const { fetchList, update, remove } = useProbation()
+const auth = useAuthStore()
+const ui = useUiStore()
+
+const isAdmin = computed(() => auth.isAdmin)
+
+function rowActions(row) {
+  const actions = [
+    { key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) },
+    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+  ]
+  if (isAdmin.value) {
+    actions.push({
+      key: 'delete',
+      label: 'ลบ',
+      variant: 'danger',
+      onClick: () => confirmDelete(row),
+    })
+  }
+  return actions
+}
 
 const loading = ref(false)
 const error = ref(null)
@@ -238,6 +328,78 @@ const viewingRow = ref(null)
 function openView(row) {
   viewingRow.value = row
   showViewModal.value = true
+}
+
+// Edit modal state
+const showEditModal = ref(false)
+const editingRow = ref(null)
+const saving = ref(false)
+const formErrors = ref({})
+const formData = ref({
+  start_date: '',
+  end_date: '',
+  overall_status: 'IN_PROGRESS',
+  remarks: '',
+})
+
+function openEdit(row) {
+  editingRow.value = row
+  formData.value = {
+    start_date: row.startDateIso || '',
+    end_date: row.endDateIso || '',
+    overall_status: row.overallStatus || 'IN_PROGRESS',
+    remarks: row.remarks || '',
+  }
+  formErrors.value = {}
+  showEditModal.value = true
+}
+
+function closeEditModal() {
+  showEditModal.value = false
+  editingRow.value = null
+  formErrors.value = {}
+}
+
+function validateForm() {
+  const errors = {}
+  if (!formData.value.start_date) errors.start_date = true
+  if (!formData.value.end_date) errors.end_date = true
+  formErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
+async function handleSave() {
+  if (!validateForm() || !editingRow.value) return
+  const ok = await confirmSave({
+    message: 'คุณต้องการบันทึกการแก้ไขรายการทดลองปฏิบัติราชการนี้หรือไม่?',
+  })
+  if (!ok) return
+  saving.value = true
+  try {
+    await update(editingRow.value.enrollmentId, { ...formData.value })
+    ui.showToast('อัปเดตสำเร็จ', 'success')
+    closeEditModal()
+    fetchData()
+  } catch (err) {
+    ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function confirmDelete(row) {
+  const ok = await confirmDeleteAction({
+    message: `คุณต้องการลบรายการทดลองของ ${row.name} หรือไม่?`,
+    detail: 'รายการจะถูกถอดออกจากรายการติดตาม (ไม่ลบประวัติถาวร)',
+  })
+  if (!ok) return
+  try {
+    await remove(row.enrollmentId)
+    ui.showToast('ลบสำเร็จ', 'success')
+    fetchData()
+  } catch (err) {
+    ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
+  }
 }
 
 async function fetchData() {
