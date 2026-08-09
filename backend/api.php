@@ -167,7 +167,7 @@ switch ($path[0]) {
                 "SELECT p.personnel_id AS servant_id, p.employee_id, p.first_name, p.last_name,
                         p.birth_date, p.appointment_date, p.retirement_date,
                         p.servant_status,
-                        CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS full_name,
+                        CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                         csp.file_path AS photo_path
                  FROM personnel p
                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
@@ -338,7 +338,7 @@ switch ($path[0]) {
                     p.personnel_id AS servant_id,
                     p.employee_id,
                     p.citizen_id,
-                    CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) as full_name,
+                    CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) as full_name,
                     p.first_name,
                     p.last_name,
                     p.birth_date,
@@ -512,11 +512,12 @@ switch ($path[0]) {
             $searchTerm = "%{$search}%";
             $stmt = $pdo->prepare("
                 SELECT p.personnel_id, p.citizen_id,
-                       CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                       CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                        p.first_name, p.last_name,
                        pos.position_name AS current_position,
                        o.org_name AS department
                 FROM personnel p
+                LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                 LEFT JOIN `position` pos ON p.current_position_id = pos.position_id
                 LEFT JOIN organization o ON p.current_org_id = o.org_id
                 WHERE p.is_active = 1

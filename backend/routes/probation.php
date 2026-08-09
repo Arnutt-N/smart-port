@@ -106,7 +106,7 @@ function getProbationList(PDO $pdo): void
     } catch (PDOException $e) {
         // Fallback: query จาก base tables โดยตรง (ไม่มี task_progress / stakeholder subqueries)
         $baseQuery = "SELECT pe.enrollment_id, pe.personnel_id,
-                             CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                             CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                              pos.position_name, o.org_name AS department,
                              pe.start_date, pe.end_date,
                              DATEDIFF(pe.end_date, CURDATE()) AS remaining_days,
@@ -114,15 +114,23 @@ function getProbationList(PDO $pdo): void
                              0 AS total_tasks, 0 AS completed_tasks
                       FROM probation_enrollment pe
                       JOIN personnel p ON pe.personnel_id = p.personnel_id
+                      LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                       LEFT JOIN organization o ON p.current_org_id = o.org_id
                       LEFT JOIN position pos ON p.current_position_id = pos.position_id
                       WHERE pe.overall_status = 'IN_PROGRESS'";
-        $countQuery = "SELECT COUNT(*) AS total FROM probation_enrollment WHERE overall_status = 'IN_PROGRESS'";
+        // count ต้อง JOIN ชุดเดียวกับ list — ไม่งั้น search ที่อ้าง px/pos/o จะพังแล้วตก catch นับแค่หน้าปัจจุบัน
+        $countQuery = "SELECT COUNT(*) AS total
+                       FROM probation_enrollment pe
+                       JOIN personnel p ON pe.personnel_id = p.personnel_id
+                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+                       LEFT JOIN organization o ON p.current_org_id = o.org_id
+                       LEFT JOIN position pos ON p.current_position_id = pos.position_id
+                       WHERE pe.overall_status = 'IN_PROGRESS'";
 
         $where = '';
         $params = [];
         if (!empty($search)) {
-            $where = " AND (CONCAT(p.first_name, ' ', p.last_name) LIKE ? OR pos.position_name LIKE ? OR o.org_name LIKE ?)";
+            $where = " AND (CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ? OR pos.position_name LIKE ? OR o.org_name LIKE ?)";
             $searchTerm = "%{$search}%";
             $params = [$searchTerm, $searchTerm, $searchTerm];
         }
@@ -202,7 +210,7 @@ function getProbationList(PDO $pdo): void
 function getProbationDetail(PDO $pdo, int $enrollmentId): void
 {
     $sql = "SELECT pe.enrollment_id, pe.personnel_id,
-                   CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                   CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                    pos.position_name, o.org_name AS department,
                    pe.start_date, pe.end_date,
                    DATEDIFF(pe.end_date, CURDATE()) AS remaining_days,
@@ -212,6 +220,7 @@ function getProbationDetail(PDO $pdo, int $enrollmentId): void
                    pe.order_number, pe.order_date
             FROM probation_enrollment pe
             JOIN personnel p ON pe.personnel_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN organization o ON p.current_org_id = o.org_id
             LEFT JOIN position pos ON p.current_position_id = pos.position_id
             WHERE pe.enrollment_id = ?";

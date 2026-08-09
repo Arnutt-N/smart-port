@@ -1,13 +1,12 @@
 -- ============================================================================
--- 17-probation-dashboard-view.sql
--- Rewrite vw_probation_dashboard: replace 6 correlated subqueries with JOINs
--- (task aggregates + stakeholder names) — same column contract for API/FE.
---
--- หมายเหตุ: ยังไม่ JOIN prefixes ที่นี่ — personnel.prefix_id มาใน migration 22
--- นิยามสุดท้ายที่มีคำนำหน้าอยู่ที่ 28-prefix-in-probation-view.sql / tidb-init.sql
+-- 28-prefix-in-probation-view.sql
+-- รวมคำนำหน้า (prefixes) ใน vw_probation_dashboard.full_name
+-- และชื่อ mentor / supervisor / director
 --
 -- Apply: docker compose exec backend php scripts/run-migrations.php
--- Fresh Docker also gets the same definition via updated 05-probation.sql.
+-- Fresh Docker: mount ไฟล์นี้หลัง migration 22 (มี personnel.prefix_id แล้ว)
+-- Production bootstrap: นิยามเดียวกันอยู่ใน tidb-init.sql
+-- (อย่าใส่ JOIN prefixes ใน 05/17 — รันก่อน 22 จะพังตอน docker init)
 -- ============================================================================
 
 SET NAMES utf8mb4;
@@ -18,7 +17,8 @@ SELECT
     pe.enrollment_id,
     p.personnel_id,
     p.citizen_id,
-    CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+    -- COLLATE: prefixes เป็น utf8mb4_0900_ai_ci ส่วน personnel เป็น unicode_ci — MAX/CONCAT ต้องบังคับ collation
+    CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
     p.hire_date,
     pe.start_date AS probation_start,
     pe.end_date AS probation_end,
@@ -34,6 +34,7 @@ SELECT
     pos.position_name
 FROM probation_enrollment pe
 JOIN personnel p ON pe.personnel_id = p.personnel_id
+LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
 LEFT JOIN organization o ON p.current_org_id = o.org_id
 LEFT JOIN position pos ON p.current_position_id = pos.position_id
 LEFT JOIN (
@@ -48,11 +49,12 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         ps.enrollment_id,
-        MAX(CASE WHEN ps.role_type = 'MENTOR' THEN CONCAT(p2.first_name, ' ', p2.last_name) END) AS mentor_name,
-        MAX(CASE WHEN ps.role_type = 'SUPERVISOR' THEN CONCAT(p2.first_name, ' ', p2.last_name) END) AS supervisor_name,
-        MAX(CASE WHEN ps.role_type = 'DIRECTOR' THEN CONCAT(p2.first_name, ' ', p2.last_name) END) AS director_name
+        MAX(CASE WHEN ps.role_type = 'MENTOR' THEN CONCAT(COALESCE(px2.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p2.first_name, ' ', p2.last_name) END) AS mentor_name,
+        MAX(CASE WHEN ps.role_type = 'SUPERVISOR' THEN CONCAT(COALESCE(px2.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p2.first_name, ' ', p2.last_name) END) AS supervisor_name,
+        MAX(CASE WHEN ps.role_type = 'DIRECTOR' THEN CONCAT(COALESCE(px2.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p2.first_name, ' ', p2.last_name) END) AS director_name
     FROM probation_stakeholder ps
     JOIN personnel p2 ON ps.personnel_id = p2.personnel_id
+    LEFT JOIN prefixes px2 ON p2.prefix_id = px2.prefix_id
     WHERE ps.is_active = 1
       AND ps.role_type IN ('MENTOR', 'SUPERVISOR', 'DIRECTOR')
     GROUP BY ps.enrollment_id

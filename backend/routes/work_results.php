@@ -33,7 +33,7 @@ const WORK_RESULT_SELECT = "pp.proposal_id, pp.servant_id, pp.proposal_type, pp.
                             pp.description, pp.impact_description, pp.quantitative_result,
                             pp.result_unit, pp.submission_date, pp.evaluation_score,
                             pp.status, pp.approval_level, pp.created_at,
-                            CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function workResultBaseQuery(): string
 {

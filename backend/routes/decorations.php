@@ -62,7 +62,7 @@ function handleDecorations(PDO $pdo, string $method, array $path): void
 
 const DECORATION_SELECT = "d.decoration_id, d.servant_id, d.decoration_name, d.decoration_class,
                            d.received_year, d.gazette_ref, d.description, d.created_at,
-                           CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                           CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function decorationBaseQuery(): string
 {

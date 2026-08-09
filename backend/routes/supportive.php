@@ -87,13 +87,15 @@ function getSupportiveList(PDO $pdo): void
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
-    $baseQuery = "SELECT se.*, CONCAT(p.first_name, ' ', p.last_name) AS full_name
+    $baseQuery = "SELECT se.*, CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name
                   FROM supportive_experience se
-                  LEFT JOIN personnel p ON se.personnel_id = p.personnel_id";
+                  LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
     $countQuery = "SELECT COUNT(*) AS total
                    FROM supportive_experience se
-                   LEFT JOIN personnel p ON se.personnel_id = p.personnel_id";
+                   LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
+                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
     $conditions = [];
     $params = [];
@@ -105,7 +107,7 @@ function getSupportiveList(PDO $pdo): void
 
     if ($search !== '') {
         $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR CONCAT(p.first_name, ' ', p.last_name) LIKE ?
+                          OR CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ?
                           OR se.job_series_name LIKE ?)";
         $term = "%{$search}%";
         array_push($params, $term, $term, $term, $term);
@@ -161,9 +163,10 @@ function getSupportiveList(PDO $pdo): void
  */
 function getSupportiveDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT se.*, CONCAT(p.first_name, ' ', p.last_name) AS full_name
+    $sql = "SELECT se.*, CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name
             FROM supportive_experience se
             LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             WHERE se.supportive_id = ?";
 
     $stmt = $pdo->prepare($sql);
