@@ -236,7 +236,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเทียบ ตน.</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนวันที่เหลือ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -267,14 +267,10 @@
                 <td class="px-6 py-3">
                   <StatusBadge :status="row.status" />
                 </td>
-                <td class="px-6 py-3">
-                  <button
-                    @click="openView(row)"
-                    class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
-                    title="ดูรายละเอียด"
-                  >
-                    <Eye class="w-4 h-4" />
-                  </button>
+                <td class="px-6 py-3 text-right">
+                  <TableRowActions
+                    :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]"
+                  />
                 </td>
               </tr>
               <tr v-if="rows.length === 0">
@@ -381,9 +377,10 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import {
   Users, UserCheck, AlertCircle, Clock, Timer, Loader, Home,
-  Eye, Briefcase, Building2
+  Briefcase, Building2
 } from 'lucide-vue-next'
 
 const props = defineProps({

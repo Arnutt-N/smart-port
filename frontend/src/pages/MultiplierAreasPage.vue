@@ -89,7 +89,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ช่วงมีผล</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อ้างอิง</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -121,17 +121,19 @@
                   {{ area.isActive ? 'ใช้งาน' : 'ปิดใช้งาน' }}
                 </span>
               </td>
-              <td class="px-6 py-3 text-sm">
-                <button
-                  class="px-3 py-1 rounded-md border text-xs transition-colors disabled:opacity-50"
-                  :class="area.isActive
-                    ? 'border-red-200 text-red-600 hover:bg-red-50'
-                    : 'border-green-200 text-green-600 hover:bg-green-50'"
-                  :disabled="togglingId === area.areaMultiplierId"
-                  @click="toggleStatus(area)"
-                >
-                  {{ togglingId === area.areaMultiplierId ? 'กำลังบันทึก...' : area.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน' }}
-                </button>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions
+                  :actions="[{
+                    key: 'toggle',
+                    label: togglingId === area.areaMultiplierId
+                      ? 'กำลังบันทึก...'
+                      : (area.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'),
+                    icon: area.isActive ? Ban : CheckCircle,
+                    variant: area.isActive ? 'danger' : 'success',
+                    disabled: togglingId === area.areaMultiplierId,
+                    onClick: () => toggleStatus(area),
+                  }]"
+                />
               </td>
             </tr>
             <tr v-if="areas.length === 0">
@@ -304,9 +306,12 @@ import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import {
   AlertCircle,
   AlertTriangle,
+  Ban,
+  CheckCircle,
   CheckCircle2,
   Home,
   MapPinned,

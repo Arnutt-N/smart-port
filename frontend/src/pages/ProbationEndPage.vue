@@ -94,7 +94,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบกำหนด</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันคงเหลือ</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -117,14 +117,10 @@
               <td class="px-6 py-3 text-sm">
                 <StatusBadge :status="row.status" />
               </td>
-              <td class="px-6 py-3 text-sm">
-                <button
-                  @click="openView(row)"
-                  class="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                  title="ดูรายละเอียด"
-                >
-                  <Eye class="w-4 h-4" />
-                </button>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions
+                  :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]"
+                />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -220,7 +216,8 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Eye, Search } from 'lucide-vue-next'
+import TableRowActions from '@/components/TableRowActions.vue'
+import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Search } from 'lucide-vue-next'
 
 const { fetchList } = useProbation()
 

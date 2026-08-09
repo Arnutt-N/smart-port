@@ -103,7 +103,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ขอ</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่อนุมัติ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -130,28 +130,8 @@
                 </template>
                 <template v-else>-</template>
               </td>
-              <td class="px-6 py-3 text-sm">
-                <div class="flex items-center gap-1">
-                  <!-- PENDING: edit + approve + reject buttons -->
-                  <template v-if="row.approvalStatus === 'PENDING'">
-                    <button @click="openEdit(row)" class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
-                      <Pencil class="w-4 h-4" />
-                    </button>
-                    <!-- อนุมัติ/ไม่อนุมัติ — admin เท่านั้น (backend เช็ค role ซ้ำอีกชั้น) -->
-                    <button v-if="auth.isAdmin" @click="openApprove(row)" class="p-1 text-gray-400 hover:text-green-600 transition-colors" title="อนุมัติ">
-                      <Check class="w-4 h-4" />
-                    </button>
-                    <button v-if="auth.isAdmin" @click="confirmReject(row.equivalenceId)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ไม่อนุมัติ">
-                      <X class="w-4 h-4" />
-                    </button>
-                  </template>
-                  <!-- APPROVED/REJECTED: view only -->
-                  <template v-else>
-                    <button @click="openView(row)" class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="ดูรายละเอียด">
-                      <Eye class="w-4 h-4" />
-                    </button>
-                  </template>
-                </div>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions :actions="rowActions(row)" />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -435,9 +415,10 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import {
   Home, Plus, Search, FileText, Clock, CheckCircle, XCircle,
-  AlertCircle, Eye, Pencil, Check, X
+  AlertCircle, Check, X
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, approve, reject } = useEquivalence()
@@ -445,6 +426,23 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const ui = useUiStore()
 const auth = useAuthStore()
+
+function rowActions(row) {
+  if (row.approvalStatus === 'PENDING') {
+    const actions = [
+      { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+    ]
+    // อนุมัติ/ไม่อนุมัติ — admin เท่านั้น (backend เช็ค role ซ้ำอีกชั้น)
+    if (auth.isAdmin) {
+      actions.push(
+        { key: 'approve', label: 'อนุมัติ', icon: Check, variant: 'success', onClick: () => openApprove(row) },
+        { key: 'reject', label: 'ไม่อนุมัติ', icon: X, variant: 'danger', onClick: () => confirmReject(row.equivalenceId) },
+      )
+    }
+    return actions
+  }
+  return [{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]
+}
 
 // Data state
 const loading = ref(false)

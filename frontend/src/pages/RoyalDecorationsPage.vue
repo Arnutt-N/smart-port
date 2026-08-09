@@ -71,14 +71,12 @@
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.receivedYear || '-' }}</td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.gazetteRef || '-' }}</td>
               <td v-if="isAdmin" class="px-6 py-3 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button @click="openEdit(row)" class="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <button @click="openDelete(row)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="ลบ">
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </div>
+                <TableRowActions
+                  :actions="[
+                    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+                    { key: 'delete', label: 'ลบ', variant: 'danger', onClick: () => openDelete(row) },
+                  ]"
+                />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -157,7 +155,8 @@ import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import { Plus, Search, Pencil, Trash2, AlertCircle } from 'lucide-vue-next'
+import TableRowActions from '@/components/TableRowActions.vue'
+import { Plus, Search, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useDecorations()
 const auth = useAuthStore()

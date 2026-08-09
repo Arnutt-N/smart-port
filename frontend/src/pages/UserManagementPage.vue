@@ -98,24 +98,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDateTime(row.lastLoginAt) }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <button @click="openEdit(row)" class="p-1 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer" title="แก้ไข">
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <button @click="openResetPassword(row)" class="p-1 text-gray-400 hover:text-amber-600 transition-colors cursor-pointer" title="รีเซ็ตรหัสผ่าน">
-                    <KeyRound class="w-4 h-4" />
-                  </button>
-                  <!-- Self-guard: ไม่แสดงปุ่มปิดบัญชีของตัวเอง -->
-                  <button
-                    v-if="row.userId !== auth.user?.id"
-                    @click="openToggleActive(row)"
-                    class="p-1 text-gray-400 transition-colors cursor-pointer"
-                    :class="row.isActive ? 'hover:text-red-600' : 'hover:text-green-600'"
-                    :title="row.isActive ? 'ปิดบัญชี' : 'เปิดใช้งานบัญชี'"
-                  >
-                    <component :is="row.isActive ? Ban : CheckCircle" class="w-4 h-4" />
-                  </button>
-                </div>
+                <TableRowActions :actions="rowActions(row)" />
               </td>
             </tr>
           </tbody>
@@ -309,13 +292,38 @@ import { useUiStore } from '@/stores/ui.js'
 import { roleLabel } from '@/utils/roleLabels.js'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { Plus, Search, Pencil, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
+import TableRowActions from '@/components/TableRowActions.vue'
+import { Plus, Search, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
 
 const PASSWORD_MIN_LENGTH = 8
 
 const { fetchList, create, update } = useUsers()
 const auth = useAuthStore()
 const ui = useUiStore()
+
+function rowActions(row) {
+  const actions = [
+    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+    {
+      key: 'reset',
+      label: 'รีเซ็ตรหัสผ่าน',
+      icon: KeyRound,
+      variant: 'warning',
+      onClick: () => openResetPassword(row),
+    },
+  ]
+  // Self-guard: ไม่แสดงปุ่มปิดบัญชีของตัวเอง
+  if (row.userId !== auth.user?.id) {
+    actions.push({
+      key: 'toggle',
+      label: row.isActive ? 'ปิดบัญชี' : 'เปิดใช้งานบัญชี',
+      icon: row.isActive ? Ban : CheckCircle,
+      variant: row.isActive ? 'danger' : 'success',
+      onClick: () => openToggleActive(row),
+    })
+  }
+  return actions
+}
 
 // Data state
 const loading = ref(false)
