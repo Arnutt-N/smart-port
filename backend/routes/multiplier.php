@@ -167,11 +167,12 @@ function getMultiplierById(PDO $pdo, int $multiplierId): void
     $stmt = $pdo->prepare("
         SELECT
             me.*,
-            CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
             sam.legal_reference,
             sam.source_reference
         FROM multiplier_experience me
         LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
+        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
         LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
         WHERE me.multiplier_id = ?
     ");
@@ -212,6 +213,7 @@ function getMultiplierList(PDO $pdo): void
     $baseQuery = "
         FROM multiplier_experience me
         LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
+        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
         LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
         {$whereSql}
     ";
@@ -219,7 +221,7 @@ function getMultiplierList(PDO $pdo): void
     $sql = "
         SELECT
             me.*,
-            CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
             sam.legal_reference,
             sam.source_reference
         {$baseQuery}
@@ -645,11 +647,12 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
     $updatedStmt = $pdo->prepare("
         SELECT
             me.*,
-            CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
             sam.legal_reference,
             sam.source_reference
         FROM multiplier_experience me
         LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
+        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
         LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
         WHERE me.multiplier_id = ?
     ");

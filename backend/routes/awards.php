@@ -65,7 +65,7 @@ function handleAwards(PDO $pdo, string $method, array $path): void
 
 const AWARD_SELECT = "a.award_id, a.servant_id, a.award_name, a.award_type,
                       a.award_level, a.awarded_date, a.description, a.created_at,
-                      CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                      CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
 
 function awardBaseQuery(): string
 {

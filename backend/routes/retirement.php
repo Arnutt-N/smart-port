@@ -46,7 +46,7 @@ function getRetirementList(PDO $pdo): void
 
     $select = "p.personnel_id AS servant_id, p.employee_id, p.retirement_date, p.servant_status,
                DATEDIFF(p.retirement_date, CURDATE()) AS remaining_days,
-               CONCAT(COALESCE(px.prefix_name_th, ''), p.first_name, ' ', p.last_name) AS full_name";
+               CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name";
     $base = "FROM personnel p LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
     $sql = "SELECT {$select} {$base}{$where}

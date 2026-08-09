@@ -65,6 +65,23 @@ final class ProbationDashboardViewTest extends TestCase
     }
 
     #[Test]
+    public function it_joins_prefixes_for_full_name(): void
+    {
+        try {
+            $ddl = self::$pdo->query('SHOW CREATE VIEW vw_probation_dashboard')->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            self::markTestSkipped('vw_probation_dashboard ไม่พร้อม: ' . $e->getMessage());
+        }
+
+        $create = (string) ($ddl['Create View'] ?? '');
+        self::assertStringContainsString(
+            'prefix_name_th',
+            $create,
+            'view ต้อง JOIN prefixes (migration 28) — มิฉะนั้นรายชื่อทดลองงานไม่มีคำนำหน้า'
+        );
+    }
+
+    #[Test]
     public function it_matches_task_aggregates_from_base_tables(): void
     {
         try {

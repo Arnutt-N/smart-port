@@ -62,7 +62,7 @@ class QualificationEngine
         $baseSelect = "
             SELECT
                 p.personnel_id,
-                CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                 pos.position_name AS current_position,
                 p.current_level_code,
                 p.current_level_start_date,
@@ -103,6 +103,7 @@ class QualificationEngine
                     ELSE 'not_yet'
                 END AS status
             FROM personnel p
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN position pos ON p.current_position_id = pos.position_id
             LEFT JOIN organization o ON p.current_org_id = o.org_id
             LEFT JOIN promotion_criteria pc
@@ -328,7 +329,7 @@ class QualificationEngine
         $sql = "
             SELECT
                 p.personnel_id,
-                CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                 pos.position_name AS current_position,
                 p.current_level_code,
                 p.current_level_start_date,
@@ -347,6 +348,7 @@ class QualificationEngine
                     ELSE 'not_yet'
                 END AS status
             FROM personnel p
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN position pos ON p.current_position_id = pos.position_id
             LEFT JOIN organization o ON p.current_org_id = o.org_id
             LEFT JOIN (
@@ -698,7 +700,7 @@ class QualificationEngine
             SELECT
                 p.personnel_id,
                 p.citizen_id,
-                CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                 p.first_name,
                 p.last_name,
                 p.hire_date,
@@ -743,6 +745,7 @@ class QualificationEngine
                     ELSE 'not_yet'
                 END AS status
             FROM personnel p
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN position pos ON p.current_position_id = pos.position_id
             LEFT JOIN organization o ON p.current_org_id = o.org_id
             LEFT JOIN promotion_criteria pc

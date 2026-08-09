@@ -241,6 +241,8 @@ CREATE TABLE probation_committee_member (
 -- PART 9: DASHBOARD VIEW
 -- ############################################################################
 
+-- หมายเหตุ: full_name ใน view นี้ยังไม่มีคำนำหน้า — personnel.prefix_id มาทีหลังใน 22
+-- migration 28 จะ recreate view ให้รวมคำนำหน้า (อย่าใส่ JOIN prefixes ที่นี่ — จะพังตอน docker init)
 DROP VIEW IF EXISTS vw_probation_dashboard;
 CREATE VIEW vw_probation_dashboard AS
 SELECT

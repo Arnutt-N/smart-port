@@ -80,16 +80,18 @@ function getEquivalenceList(PDO $pdo): void
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $baseQuery = "SELECT pe.*,
-                         CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                         CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                          u.username AS approved_by_name
                   FROM position_equivalence pe
                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                   LEFT JOIN users u ON pe.approved_by = u.user_id";
 
-    // count ต้อง join personnel ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่ง personnel
+    // count ต้อง join personnel + prefixes ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่งชื่อเต็ม
     $countQuery = "SELECT COUNT(*) AS total
                    FROM position_equivalence pe
-                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id";
+                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
+                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
     $conditions = [];
     $params = [];
@@ -101,7 +103,7 @@ function getEquivalenceList(PDO $pdo): void
 
     if ($search !== '') {
         $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR CONCAT(p.first_name, ' ', p.last_name) LIKE ?
+                          OR CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ?
                           OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
                           OR pe.approval_order_ref LIKE ?)";
         $term = "%{$search}%";
@@ -168,10 +170,11 @@ function getEquivalenceList(PDO $pdo): void
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
     $sql = "SELECT pe.*,
-                   CONCAT(p.first_name, ' ', p.last_name) AS full_name,
+                   CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
                    u.username AS approved_by_name
             FROM position_equivalence pe
             LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN users u ON pe.approved_by = u.user_id
             WHERE pe.equivalence_id = ?";
 
