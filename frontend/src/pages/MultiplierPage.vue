@@ -112,7 +112,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันจริง</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันทวีคูณ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สุทธิ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -131,23 +131,13 @@
                 <td class="px-6 py-3 text-sm text-gray-700">
                   {{ row.netYears }} ปี {{ row.netMonths }} เดือน {{ row.netDayRemainder }} วัน
                 </td>
-                <td class="px-6 py-3 text-sm">
-                  <div class="flex items-center gap-2">
-                    <button
-                      class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      @click="openEditModal(row)"
-                      title="แก้ไข"
-                    >
-                      <Pencil class="w-4 h-4" />
-                    </button>
-                    <button
-                      class="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                      @click="openDeleteConfirm(row)"
-                      title="ลบ"
-                    >
-                      <Trash2 class="w-4 h-4" />
-                    </button>
-                  </div>
+                <td class="px-6 py-3 text-sm text-right">
+                  <TableRowActions
+                    :actions="[
+                      { key: 'edit', label: 'แก้ไข', onClick: () => openEditModal(row) },
+                      { key: 'delete', label: 'ลบ', variant: 'danger', onClick: () => openDeleteConfirm(row) },
+                    ]"
+                  />
                 </td>
               </tr>
               <tr v-if="rows.length === 0">
@@ -369,17 +359,16 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import {
   AlertCircle,
   Clock,
   FileText,
   Home,
   MapPinned,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
-  Trash2,
   X,
 } from 'lucide-vue-next'
 

@@ -98,7 +98,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนวัน</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อัตราลดทอน</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ได้</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -115,25 +115,8 @@
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.totalDays }}</td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.ratioPercent }}%</td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.effectiveDays }}</td>
-              <td class="px-6 py-3 text-sm">
-                <div class="flex items-center gap-2">
-                  <button
-                    class="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                    title="แก้ไข"
-                    @click="openEdit(row)"
-                  >
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <!-- ลบได้เฉพาะ admin (backend: checkPermission delete => [] สำหรับ operator) -->
-                  <button
-                    v-if="isAdmin"
-                    class="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                    title="ลบ"
-                    @click="confirmDelete(row.supportiveId)"
-                  >
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </div>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions :actions="rowActions(row)" />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -295,7 +278,8 @@ import { ymdToDate } from '@/utils/thaiDate.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import { Home, Plus, Search, FileText, Users, Clock, AlertCircle, Pencil, Trash2 } from 'lucide-vue-next'
+import TableRowActions from '@/components/TableRowActions.vue'
+import { Home, Plus, Search, FileText, Users, Clock, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useSupportive()
 const api = useApi()
@@ -305,6 +289,21 @@ const ui = useUiStore()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
+
+function rowActions(row) {
+  const actions = [
+    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
+  ]
+  if (isAdmin.value) {
+    actions.push({
+      key: 'delete',
+      label: 'ลบ',
+      variant: 'danger',
+      onClick: () => confirmDelete(row.supportiveId),
+    })
+  }
+  return actions
+}
 
 // Data state
 const loading = ref(false)

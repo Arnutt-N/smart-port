@@ -87,7 +87,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รายการ</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวน</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ความสำคัญ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -104,8 +104,8 @@
                     {{ task.priority }}
                   </span>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <RouterLink :to="task.route" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                <td class="px-6 py-4 whitespace-nowrap text-right">
+                  <RouterLink :to="task.route" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
                     ดูรายละเอียด
                   </RouterLink>
                 </td>

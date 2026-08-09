@@ -106,7 +106,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การกระทำ</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตาราง</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Record ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รายละเอียด</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -130,13 +130,10 @@
               </td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ tableName(row.table_name) }}</td>
               <td class="px-6 py-3 text-sm text-gray-500">{{ row.record_id || '-' }}</td>
-              <td class="px-6 py-3 text-sm">
-                <button
-                  class="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                  @click="showDetail(row)"
-                >
-                  ดูรายละเอียด
-                </button>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions
+                  :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => showDetail(row) }]"
+                />
               </td>
             </tr>
             <tr v-if="rows.length === 0">
@@ -215,6 +212,7 @@ import { Home, RefreshCw, AlertCircle, X } from 'lucide-vue-next'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import { useApi } from '@/composables/useApi.js'
 
 const api = useApi()

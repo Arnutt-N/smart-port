@@ -221,6 +221,35 @@ All buttons: `rounded-md text-sm font-medium transition-colors`, focus ring `rin
 - Cells: `px-4 py-3 text-sm`
 - Striped (optional): `odd:bg-white even:bg-government-50`
 
+### Table row actions (`จัดการ`)
+
+Use shared component `TableRowActions` for row action columns. Do not invent per-page icon styles.
+
+**Column rules**
+
+- Header label: always `จัดการ` (never `การดำเนินการ`, `ดู`, or `รายละเอียด` as the action column title)
+- Align the actions column **right** (`text-right` + `justify-end`)
+- Icon order (when present): ดู → แก้ไข → specialty actions → ลบ
+- Show only actions that match the page job and the user’s role — do **not** force Eye + Edit + Delete on every table
+- Delete always requires confirmation
+
+**When to show which actions**
+
+| Page type | Typical actions |
+|-----------|-----------------|
+| Read-only / computed lists (candidates, probation, work results, audit) | ดู |
+| Master-data CRUD (awards, decorations, multiplier, diverse, supportive) | แก้ไข + ลบ (omit ดู if edit form already shows full detail) |
+| Separate view vs edit modes | ดู + แก้ไข (+ ลบ if permitted) |
+| Admin specialty (users, approval) | Specialty icons; move into `⋮` when total visible actions ≥ 4 |
+
+**Presentation**
+
+- **1–3 actions:** inline Lucide icon buttons with Thai `title`
+- **≥ 4 actions:** vertical kebab `⋮` (`MoreVertical`) + dropdown menu; order same as above; put destructive items last with a separator
+- Do **not** use hamburger `☰` for row actions
+- Do **not** use horizontal ellipsis `⋯` as the default row-action trigger
+- Default icon style: `text-government-400`; hover view/edit = `text-primary-600`; delete = `text-red-600`
+
 ### Status Badge
 
 ```html
@@ -318,7 +347,9 @@ Do not implement full dark mode — only the sidebar is dark.
 | Use Thai labels for user-facing text | Use English labels for domain concepts |
 | Use `rounded-md` / `rounded-lg` | Use `rounded-full` on buttons or cards |
 | Use subtle shadows (elevation-1) | Use heavy drop shadows |
-| Left-align all table content | Center-align table cells (except stat numbers) |
+| Left-align table content; right-align the `จัดการ` column | Center-align table cells (except stat numbers) |
+| Use `TableRowActions` for row icons / `⋮` menus | Mix Eye-only / Edit-Delete styles or hamburger menus per page |
+| Show only role-appropriate row actions | Show disabled actions the user cannot perform |
 
 ## File Conventions
 

@@ -90,7 +90,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ไป</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนต่าง</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบ 3 ต่าง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -113,25 +113,8 @@
                 </template>
               </td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.qualifiedDateThai || '-' }}</td>
-              <td class="px-6 py-3 text-sm">
-                <div class="flex items-center gap-2">
-                  <button
-                    @click="openEditModal(row)"
-                    class="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                    title="แก้ไข"
-                  >
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <!-- ลบได้เฉพาะ admin (backend: checkPermission delete => [] สำหรับ operator) -->
-                  <button
-                    v-if="isAdmin"
-                    @click="confirmDelete(row)"
-                    class="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                    title="ลบ"
-                  >
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </div>
+              <td class="px-6 py-3 text-sm text-right">
+                <TableRowActions :actions="rowActions(row)" />
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
@@ -355,9 +338,10 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import {
   Home, Plus, Search, FileText, CheckCircle, AlertTriangle,
-  AlertCircle, Pencil, Trash2, X
+  AlertCircle, X
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useDiverse()
@@ -368,6 +352,21 @@ const ui = useUiStore()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
+
+function rowActions(row) {
+  const actions = [
+    { key: 'edit', label: 'แก้ไข', onClick: () => openEditModal(row) },
+  ]
+  if (isAdmin.value) {
+    actions.push({
+      key: 'delete',
+      label: 'ลบ',
+      variant: 'danger',
+      onClick: () => confirmDelete(row),
+    })
+  }
+  return actions
+}
 
 // List state
 const loading = ref(false)
