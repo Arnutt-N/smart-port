@@ -7,9 +7,9 @@
 // ตีความเป็น UTC ทำให้วันเลื่อนใน timezone +7 — ใช้ local component (getFullYear/
 // getMonth/getDate) และ new Date(y, m-1, d) เสมอ
 
-export const BE_OFFSET = 543
+const BE_OFFSET = 543
 
-export const THAI_MONTHS_SHORT = [
+const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ]
@@ -23,8 +23,8 @@ export const THAI_MONTHS_LONG = [
 export const THAI_WEEKDAYS_SHORT = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
 // ช่วงปี พ.ศ. ที่ยอมรับ + เกณฑ์สงสัยว่าพิมพ์ ค.ศ.
-export const MIN_BE_YEAR = 2400
-export const MAX_BE_YEAR = 2700
+const MIN_BE_YEAR = 2400
+const MAX_BE_YEAR = 2700
 const SUSPECT_CE_THRESHOLD = 2500
 
 export function toBE(ceYear) {

@@ -280,6 +280,7 @@ import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRem
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
+import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -296,19 +297,12 @@ const ui = useUiStore()
 const isAdmin = computed(() => auth.isAdmin)
 
 function rowActions(row) {
-  const actions = [
-    { key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) },
-    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
-  ]
-  if (isAdmin.value) {
-    actions.push({
-      key: 'delete',
-      label: 'ลบ',
-      variant: 'danger',
-      onClick: () => confirmDelete(row),
-    })
-  }
-  return actions
+  return buildStandardRowActions({
+    onView: () => openView(row),
+    onEdit: () => openEdit(row),
+    onDelete: () => confirmDelete(row),
+    canDelete: isAdmin.value,
+  })
 }
 
 const loading = ref(false)
