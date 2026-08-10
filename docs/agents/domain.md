@@ -2,6 +2,8 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
+Agent operating instructions (structure, commands, conventions) live in root `AGENTS.md` — `CLAUDE.md` only links there.
+
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root, or
