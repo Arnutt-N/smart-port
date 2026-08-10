@@ -272,6 +272,7 @@ import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
+import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import { ymdToDate } from '@/utils/thaiDate.js'
@@ -291,18 +292,11 @@ const ui = useUiStore()
 const isAdmin = computed(() => auth.isAdmin)
 
 function rowActions(row) {
-  const actions = [
-    { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
-  ]
-  if (isAdmin.value) {
-    actions.push({
-      key: 'delete',
-      label: 'ลบ',
-      variant: 'danger',
-      onClick: () => confirmDelete(row.supportiveId),
-    })
-  }
-  return actions
+  return buildStandardRowActions({
+    onEdit: () => openEdit(row),
+    onDelete: () => confirmDelete(row.supportiveId),
+    canDelete: isAdmin.value,
+  })
 }
 
 // Data state

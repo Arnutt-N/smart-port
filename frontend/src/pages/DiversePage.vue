@@ -332,6 +332,7 @@ import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
+import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -354,18 +355,11 @@ const ui = useUiStore()
 const isAdmin = computed(() => auth.isAdmin)
 
 function rowActions(row) {
-  const actions = [
-    { key: 'edit', label: 'แก้ไข', onClick: () => openEditModal(row) },
-  ]
-  if (isAdmin.value) {
-    actions.push({
-      key: 'delete',
-      label: 'ลบ',
-      variant: 'danger',
-      onClick: () => confirmDelete(row),
-    })
-  }
-  return actions
+  return buildStandardRowActions({
+    onEdit: () => openEditModal(row),
+    onDelete: () => confirmDelete(row),
+    canDelete: isAdmin.value,
+  })
 }
 
 // List state
