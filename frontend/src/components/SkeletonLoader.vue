@@ -34,15 +34,27 @@
     <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-3">
       <div class="h-5 bg-gray-200 rounded w-32"></div>
       <div class="space-y-2">
-        <div v-for="i in rows" :key="i" class="h-4 bg-gray-200 rounded" :style="{ width: `${70 + Math.random() * 30}%` }"></div>
+        <div
+          v-for="i in rows"
+          :key="i"
+          class="h-4 bg-gray-200 rounded"
+          :style="{ width: lineWidth(i) }"
+        ></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+/** Deterministic widths — avoid Math.random() (non-stable render) */
+const LINE_WIDTHS = ['85%', '70%', '92%', '78%', '88%', '74%']
+
 defineProps({
   type: { type: String, default: 'card' },
   rows: { type: Number, default: 4 },
 })
+
+function lineWidth(index) {
+  return LINE_WIDTHS[(index - 1) % LINE_WIDTHS.length]
+}
 </script>

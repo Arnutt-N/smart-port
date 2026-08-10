@@ -1,13 +1,7 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
-      <Home class="w-4 h-4" />
-      <span>/</span>
-      <span>การนับแตกต่าง</span>
-    </nav>
+    <PageBreadcrumb label="การนับแตกต่าง" />
 
-    <!-- Page Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">การนับแตกต่าง</h1>
@@ -47,22 +41,13 @@
       />
     </div>
 
-    <!-- Search Bar -->
     <div class="flex items-center gap-3 mb-4">
-      <div class="relative flex-1">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="w-4 h-4 text-gray-400" />
-        </div>
-        <input
-          v-model="searchQuery"
-          @input="onSearchInput"
-          @compositionstart="isComposing = true"
-          @compositionend="onCompositionEnd"
-          type="text"
-          placeholder="ค้นหาชื่อ หรือสายงาน..."
-          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
+      <ListSearchInput
+        v-model="searchQuery"
+        placeholder="ค้นหาชื่อ หรือสายงาน..."
+        ime-guard
+        @search="onSearchInput"
+      />
     </div>
 
     <!-- Loading State -->
@@ -327,12 +312,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useDiverse } from '@/composables/useDiverse.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useApi } from '@/composables/useApi.js'
 import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
+import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -341,7 +330,7 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
 import {
-  Home, Plus, Search, FileText, CheckCircle, AlertTriangle,
+  Plus, FileText, CheckCircle, AlertTriangle,
   AlertCircle, X
 } from 'lucide-vue-next'
 
@@ -350,6 +339,8 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { next: nextRequest } = useRequestSeq()
+const { next: nextPersonnelRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -379,23 +370,14 @@ const notYetCount = computed(() => {
   return rows.value.filter(r => r.diffCount < 3).length
 })
 
-// Search with IME guard
 const searchQuery = ref('')
-const isComposing = ref(false)
-let searchTimeout = null
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 
 function onSearchInput() {
-  if (isComposing.value) return
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
-}
-
-function onCompositionEnd() {
-  isComposing.value = false
-  onSearchInput()
+  scheduleSearch()
 }
 
 // Modal state
@@ -429,24 +411,28 @@ const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
 const selectedPersonnelName = ref('')
 const isComposingPersonnel = ref(false)
-let personnelTimeout = null
+const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
+  const req = nextPersonnelRequest()
+  if (personnelSearch.value.length < 2) {
+    if (!req.isCurrent()) return
+    personnelResults.value = []
+    showPersonnelDropdown.value = false
+    return
+  }
+  try {
+    const rowsFound = await searchPersonnel(personnelSearch.value, { limit: 10 })
+    if (!req.isCurrent()) return
+    personnelResults.value = rowsFound
+    showPersonnelDropdown.value = true
+  } catch {
+    if (!req.isCurrent()) return
+    personnelResults.value = []
+  }
+}, 300)
 
 function onPersonnelSearch() {
   if (isComposingPersonnel.value) return
-  clearTimeout(personnelTimeout)
-  personnelTimeout = setTimeout(async () => {
-    if (personnelSearch.value.length < 2) {
-      personnelResults.value = []
-      showPersonnelDropdown.value = false
-      return
-    }
-    try {
-      personnelResults.value = await searchPersonnel(personnelSearch.value, { limit: 10 })
-      showPersonnelDropdown.value = true
-    } catch {
-      personnelResults.value = []
-    }
-  }, 300)
+  schedulePersonnelSearch()
 }
 
 function onPersonnelCompositionEnd() {
@@ -465,6 +451,7 @@ function selectPersonnel(person) {
 
 // Fetch data
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -473,13 +460,15 @@ async function fetchData() {
       limit: pagination.value.limit,
       offset: pagination.value.offset,
     })
+    if (!req.isCurrent()) return
     rows.value = result.data
     summary.value = result.summary || null
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 

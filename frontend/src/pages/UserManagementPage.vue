@@ -17,18 +17,12 @@
 
     <!-- Search -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-      <div class="relative max-w-md">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="h-4 w-4 text-gray-400" />
-        </div>
-        <input
+      <div class="max-w-md">
+        <ListSearchInput
           v-model="searchQuery"
-          type="text"
           placeholder="ค้นหาชื่อผู้ใช้หรือชื่อ-สกุล..."
-          class="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          @input="onSearchInput"
-          @compositionstart="isComposing = true"
-          @compositionend="onCompositionEnd"
+          ime-guard
+          @search="onSearchInput"
         />
       </div>
     </div>
@@ -287,19 +281,23 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUsers } from '@/composables/useUsers.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { roleLabel } from '@/utils/roleLabels.js'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
-import { Plus, Search, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
+import { Plus, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
 
 const PASSWORD_MIN_LENGTH = 8
 
 const { fetchList, create, update } = useUsers()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { next: nextRequest } = useRequestSeq()
 
 function rowActions(row) {
   const actions = [
@@ -331,10 +329,11 @@ const error = ref(null)
 const rows = ref([])
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-// Search state with IME guard
 const searchQuery = ref('')
-const isComposing = ref(false)
-let searchTimeout = null
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 
 // Create/Edit modal state
 const showFormModal = ref(false)
@@ -366,6 +365,7 @@ const togglingUser = ref(null)
 // ==================== Data fetching ====================
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -374,12 +374,14 @@ async function fetchData() {
       limit: pagination.value.limit,
       offset: pagination.value.offset,
     })
+    if (!req.isCurrent()) return
     rows.value = result.data
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
@@ -390,18 +392,8 @@ function onPageChange(offset) {
 
 // ==================== Search ====================
 
-function onCompositionEnd() {
-  isComposing.value = false
-  onSearchInput()
-}
-
 function onSearchInput() {
-  if (isComposing.value) return
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
+  scheduleSearch()
 }
 
 // ==================== Create / Edit ====================

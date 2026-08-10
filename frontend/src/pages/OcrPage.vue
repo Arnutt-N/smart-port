@@ -111,7 +111,11 @@
           </button>
         </div>
 
-        <div v-if="tab === 'preview'" class="prose prose-sm max-w-none max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded-lg whitespace-pre-wrap" v-html="renderedHtml" />
+        <!-- Preview เป็น plain text (ไม่ใช้ v-html) — กัน XSS จากเนื้อหา OCR -->
+        <pre
+          v-if="tab === 'preview'"
+          class="prose prose-sm max-w-none max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap break-words"
+        >{{ previewText }}</pre>
         <pre
           v-if="tab === 'raw'"
           class="max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded-lg text-xs text-gray-800 whitespace-pre-wrap break-words"
@@ -136,7 +140,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useApi } from '@/composables/useApi.js'
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle, Copy, Download,
@@ -156,6 +160,21 @@ const result = ref(null)
 const tab = ref('preview')
 const copied = ref(false)
 const copyError = ref(false)
+let copiedTimer = null
+let copyErrorTimer = null
+
+function clearFeedbackTimers() {
+  if (copiedTimer != null) {
+    clearTimeout(copiedTimer)
+    copiedTimer = null
+  }
+  if (copyErrorTimer != null) {
+    clearTimeout(copyErrorTimer)
+    copyErrorTimer = null
+  }
+}
+
+onBeforeUnmount(clearFeedbackTimers)
 
 const busy = computed(() => status.value === 'uploading')
 
@@ -167,17 +186,12 @@ const engineLabel = computed(() => {
   return e || ''
 })
 
-const renderedHtml = computed(() => {
+/** Preview ที่อ่านง่ายขึ้นเล็กน้อย โดยไม่สร้าง HTML */
+const previewText = computed(() => {
   const md = result.value?.markdown || ''
   return md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^\|(.+)\|$/gm, (m) => `<span class="block font-mono text-[11px]">${m}</span>`)
+    .replace(/^#{1,3}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
 })
 
 function openPicker() {
@@ -242,15 +256,22 @@ async function submit() {
 }
 
 async function copyMarkdown() {
+  clearFeedbackTimers()
   copied.value = false
   copyError.value = false
   try {
     await navigator.clipboard.writeText(result.value?.markdown || '')
     copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
+    copiedTimer = setTimeout(() => {
+      copiedTimer = null
+      copied.value = false
+    }, 2000)
   } catch {
     copyError.value = true
-    setTimeout(() => { copyError.value = false }, 2500)
+    copyErrorTimer = setTimeout(() => {
+      copyErrorTimer = null
+      copyError.value = false
+    }, 2500)
   }
 }
 
@@ -278,6 +299,7 @@ async function focusResult() {
 }
 
 function reset() {
+  clearFeedbackTimers()
   file.value = null
   status.value = 'idle'
   errorMsg.value = ''

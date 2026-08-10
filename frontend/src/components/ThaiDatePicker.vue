@@ -80,9 +80,12 @@ function commit() {
   }
 }
 
+let blurTimer = null
 function onBlur() {
   // commit เมื่อ focus ออกจาก component ทั้งก้อน
-  setTimeout(() => {
+  clearTimeout(blurTimer)
+  blurTimer = setTimeout(() => {
+    blurTimer = null
     if (!rootRef.value || rootRef.value.contains(document.activeElement)) return
     isEditing.value = false
     const allEmpty = !day.value && !month.value && !year.value
@@ -213,6 +216,7 @@ onMounted(() => {
   document.addEventListener('keydown', onDocKeydown)
 })
 onBeforeUnmount(() => {
+  clearTimeout(blurTimer)
   document.removeEventListener('mousedown', onDocPointer)
   document.removeEventListener('keydown', onDocKeydown)
 })

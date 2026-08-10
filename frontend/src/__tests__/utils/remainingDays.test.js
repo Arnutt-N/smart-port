@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getRemainingDaysClass, getCandidateRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { getRemainingDaysClass, getCandidateRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
 
 describe('getRemainingDaysClass (probation)', () => {
   it('returns red for days < 0 (overdue)', () => {

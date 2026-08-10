@@ -250,13 +250,15 @@ describe('DiversePage', () => {
     const wrapper = await mountPage()
     mockFetchList.mockClear()
 
-    wrapper.vm.isComposing = true
-    wrapper.vm.onSearchInput()
+    const input = wrapper.findComponent({ name: 'ListSearchInput' }).find('input')
+    await input.trigger('compositionstart')
+    await input.setValue('สม')
+    await input.trigger('input')
     expect(mockFetchList).not.toHaveBeenCalled()
 
-    wrapper.vm.onCompositionEnd()
+    await input.trigger('compositionend')
     await vi.advanceTimersByTimeAsync(300)
-    expect(mockFetchList).toHaveBeenCalled()
+    expect(mockFetchList).toHaveBeenCalledWith(expect.objectContaining({ search: 'สม', offset: 0 }))
     vi.useRealTimers()
   })
 
