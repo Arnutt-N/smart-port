@@ -83,6 +83,7 @@ services:
       - ./database/25-ensure-multiplier-tables.sql:/docker-entrypoint-initdb.d/25-ensure-multiplier-tables.sql
       - ./database/27-superadmin-permission-overrides.sql:/docker-entrypoint-initdb.d/27-superadmin-permission-overrides.sql
       - ./database/28-prefix-in-probation-view.sql:/docker-entrypoint-initdb.d/28-prefix-in-probation-view.sql
+      - ./database/29-ensure-probation-view-prefixes.sql:/docker-entrypoint-initdb.d/29-ensure-probation-view-prefixes.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 10s

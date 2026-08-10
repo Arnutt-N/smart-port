@@ -193,3 +193,13 @@ function personnelExists(PDO $pdo, int $personnelId): bool
     $stmt->execute([$personnelId]);
     return (bool) $stmt->fetchColumn();
 }
+
+/**
+ * SQL expression: คำนำหน้า + ชื่อ + นามสกุล (NULL-safe)
+ * ใช้คู่กับ LEFT JOIN prefixes — COLLATE บังคับเพราะ prefixes / personnel คนละ collation
+ */
+function sqlPersonnelFullName(string $personnelAlias = 'p', string $prefixAlias = 'px'): string
+{
+    return "CONCAT(COALESCE({$prefixAlias}.prefix_name_th COLLATE utf8mb4_unicode_ci, ''),"
+        . " {$personnelAlias}.first_name, ' ', {$personnelAlias}.last_name)";
+}

@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock useApi before importing useCandidates
 const mockGet = vi.fn()
+const mockDel = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({ get: mockGet }),
+  useApi: () => ({ get: mockGet, del: mockDel }),
 }))
 
 const { useCandidates } = await import('@/composables/useCandidates.js')
@@ -11,11 +12,13 @@ const { useCandidates } = await import('@/composables/useCandidates.js')
 describe('useCandidates', () => {
   beforeEach(() => {
     mockGet.mockReset()
+    mockDel.mockReset()
   })
 
-  it('returns fetchByLevel function', () => {
-    const { fetchByLevel } = useCandidates()
+  it('returns fetchByLevel and deactivatePersonnel', () => {
+    const { fetchByLevel, deactivatePersonnel } = useCandidates()
     expect(typeof fetchByLevel).toBe('function')
+    expect(typeof deactivatePersonnel).toBe('function')
   })
 
   it('calls API with correct URL and default params', async () => {
@@ -153,7 +156,17 @@ describe('useCandidates', () => {
       remainingDays: 45,
       status: 'NEAR_MET',
       department: 'กองบริหาร',
+      supportiveDays: undefined,
+      equivalenceDays: undefined,
+      diverseStatus: undefined,
     })
+  })
+
+  it('deactivates personnel via DELETE civil-servants', async () => {
+    mockDel.mockResolvedValue({ success: true })
+    const { deactivatePersonnel } = useCandidates()
+    await deactivatePersonnel(42)
+    expect(mockDel).toHaveBeenCalledWith('/civil-servants/42')
   })
 
   it('maps 91 remaining days as NOT_MET and 90 as NEAR_MET', async () => {

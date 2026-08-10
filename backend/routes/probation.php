@@ -5,10 +5,11 @@
 // จัดการเส้นทาง API สำหรับติดตามทดลองปฏิบัติราชการ
 //
 // Endpoints:
-//   GET  /probation                     — รายชื่อผู้ทดลองปฏิบัติราชการ (จาก view)
-//   GET  /probation/{enrollmentId}      — รายละเอียดการทดลองปฏิบัติราชการรายบุคคล
-//   POST /probation                     — สร้างการลงทะเบียนทดลองใหม่
-//   PUT  /probation/{enrollmentId}      — อัปเดตข้อมูลการทดลอง
+//   GET    /probation                     — รายชื่อผู้ทดลองปฏิบัติราชการ (จาก view)
+//   GET    /probation/{enrollmentId}      — รายละเอียดการทดลองปฏิบัติราชการรายบุคคล
+//   POST   /probation                     — สร้างการลงทะเบียนทดลองใหม่
+//   PUT    /probation/{enrollmentId}      — อัปเดตข้อมูลการทดลอง
+//   DELETE /probation/{enrollmentId}      — ถอดออกจากรายการติดตาม (CANCELLED)
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
@@ -64,6 +65,16 @@ function handleProbation(PDO $pdo, string $method, array $path): void
             updateProbationEnrollment($pdo, intval($enrollmentId));
             break;
 
+        case 'DELETE':
+            $enrollmentId = $path[1] ?? null;
+            if ($enrollmentId === null) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Enrollment ID is required']);
+                return;
+            }
+            deleteProbationEnrollment($pdo, intval($enrollmentId));
+            break;
+
         default:
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
@@ -83,35 +94,46 @@ function getProbationList(PDO $pdo): void
     $where = '';
     $params = [];
 
-    // ลองใช้ view ก่อน ถ้าพัง (TiDB definer issue) ใช้ fallback query จาก base tables
+    // ใช้ view สำหรับ task aggregates แต่คำนวณ full_name จาก personnel+prefixes เสมอ
+    // (view บน TiDB อาจค้างรุ่นก่อน migration 28 — อย่าเชื่อ v.full_name)
+    $fullNameExpr = sqlPersonnelFullName('p', 'px');
     try {
-        $baseQuery = "SELECT enrollment_id, personnel_id, full_name, position_name,
-                             department, probation_start AS start_date, probation_end AS end_date,
-                             remaining_days, overall_status AS status,
-                             total_tasks, completed_tasks
-                      FROM vw_probation_dashboard";
-        $countQuery = "SELECT COUNT(*) AS total FROM vw_probation_dashboard";
+        $baseQuery = "SELECT v.enrollment_id, v.personnel_id,
+                             {$fullNameExpr} AS full_name,
+                             v.position_name,
+                             v.department, v.probation_start AS start_date, v.probation_end AS end_date,
+                             v.remaining_days, v.overall_status AS status,
+                             v.total_tasks, v.completed_tasks,
+                             pe.remarks
+                      FROM vw_probation_dashboard v
+                      JOIN personnel p ON v.personnel_id = p.personnel_id
+                      LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+                      JOIN probation_enrollment pe ON v.enrollment_id = pe.enrollment_id";
+        $countQuery = "SELECT COUNT(*) AS total
+                       FROM vw_probation_dashboard v
+                       JOIN personnel p ON v.personnel_id = p.personnel_id
+                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 
         if (!empty($search)) {
-            $where = " WHERE (full_name LIKE ? OR position_name LIKE ? OR department LIKE ?)";
+            $where = " WHERE ({$fullNameExpr} LIKE ? OR v.position_name LIKE ? OR v.department LIKE ?)";
             $searchTerm = "%{$search}%";
             $params = [$searchTerm, $searchTerm, $searchTerm];
         }
 
-        // Test the view first
-        $sql = $baseQuery . $where . " ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
+        $sql = $baseQuery . $where . " ORDER BY v.remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         // Fallback: query จาก base tables โดยตรง (ไม่มี task_progress / stakeholder subqueries)
         $baseQuery = "SELECT pe.enrollment_id, pe.personnel_id,
-                             CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                             {$fullNameExpr} AS full_name,
                              pos.position_name, o.org_name AS department,
                              pe.start_date, pe.end_date,
                              DATEDIFF(pe.end_date, CURDATE()) AS remaining_days,
                              pe.overall_status AS status,
-                             0 AS total_tasks, 0 AS completed_tasks
+                             0 AS total_tasks, 0 AS completed_tasks,
+                             pe.remarks
                       FROM probation_enrollment pe
                       JOIN personnel p ON pe.personnel_id = p.personnel_id
                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
@@ -130,7 +152,7 @@ function getProbationList(PDO $pdo): void
         $where = '';
         $params = [];
         if (!empty($search)) {
-            $where = " AND (CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ? OR pos.position_name LIKE ? OR o.org_name LIKE ?)";
+            $where = " AND ({$fullNameExpr} LIKE ? OR pos.position_name LIKE ? OR o.org_name LIKE ?)";
             $searchTerm = "%{$search}%";
             $params = [$searchTerm, $searchTerm, $searchTerm];
         }
@@ -209,8 +231,9 @@ function getProbationList(PDO $pdo): void
  */
 function getProbationDetail(PDO $pdo, int $enrollmentId): void
 {
+    $fullNameExpr = sqlPersonnelFullName('p', 'px');
     $sql = "SELECT pe.enrollment_id, pe.personnel_id,
-                   CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                   {$fullNameExpr} AS full_name,
                    pos.position_name, o.org_name AS department,
                    pe.start_date, pe.end_date,
                    DATEDIFF(pe.end_date, CURDATE()) AS remaining_days,
@@ -288,14 +311,23 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
 {
     $data = json_decode(file_get_contents('php://input'), true);
 
-    $allowed = ['overall_status', 'final_result', 'final_result_date', 'extension_end_date', 'extension_reason', 'remarks'];
+    $allowed = [
+        'start_date',
+        'end_date',
+        'overall_status',
+        'final_result',
+        'final_result_date',
+        'extension_end_date',
+        'extension_reason',
+        'remarks',
+    ];
     $sets = [];
     $params = [];
 
     foreach ($allowed as $field) {
-        if (isset($data[$field])) {
+        if (array_key_exists($field, $data)) {
             $sets[] = "{$field} = ?";
-            $params[] = $data[$field];
+            $params[] = $data[$field] === '' ? null : $data[$field];
         }
     }
 
@@ -312,9 +344,43 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
     $stmt->execute($params);
 
     if ($stmt->rowCount() === 0) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Enrollment not found']);
-        return;
+        // แถวอาจมีอยู่แต่ค่าไม่เปลี่ยน — แยก 404 จริง
+        $check = $pdo->prepare('SELECT 1 FROM probation_enrollment WHERE enrollment_id = ?');
+        $check->execute([$enrollmentId]);
+        if (!$check->fetchColumn()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Enrollment not found']);
+            return;
+        }
+    }
+
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * DELETE /probation/{enrollmentId}
+ * ถอดออกจากรายการติดตามโดยตั้งสถานะ CANCELLED (ไม่ hard-delete เพราะมี FK งาน/stakeholder)
+ */
+function deleteProbationEnrollment(PDO $pdo, int $enrollmentId): void
+{
+    $stmt = $pdo->prepare(
+        "UPDATE probation_enrollment
+         SET overall_status = 'CANCELLED'
+         WHERE enrollment_id = ?
+           AND overall_status <> 'CANCELLED'"
+    );
+    $stmt->execute([$enrollmentId]);
+
+    if ($stmt->rowCount() === 0) {
+        $check = $pdo->prepare('SELECT overall_status FROM probation_enrollment WHERE enrollment_id = ?');
+        $check->execute([$enrollmentId]);
+        $status = $check->fetchColumn();
+        if ($status === false) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Enrollment not found']);
+            return;
+        }
+        // already cancelled — treat as success (idempotent)
     }
 
     echo json_encode(['success' => true]);
