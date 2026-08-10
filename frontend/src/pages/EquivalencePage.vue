@@ -471,13 +471,16 @@ const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
 const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
   const req = nextPersonnelRequest()
+  const query = personnelSearch.value.trim()
   try {
-    const rowsFound = await searchPersonnel(personnelSearch.value, { limit: 10 })
+    const rowsFound = await searchPersonnel(query, { limit: 10 })
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = rowsFound
     showPersonnelDropdown.value = true
   } catch {
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
   }
@@ -546,6 +549,7 @@ function onSearchInput() {
 
 function onPersonnelSearch() {
   if (!personnelSearch.value || personnelSearch.value.length < 2) {
+    nextPersonnelRequest() // invalidate in-flight autocomplete
     cancelPersonnelSearch()
     personnelResults.value = []
     showPersonnelDropdown.value = false

@@ -413,10 +413,12 @@ const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebou
   try {
     const found = await searchPersonnel(query, { limit: 10 })
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = found
     showPersonnelDropdown.value = true
   } catch {
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
   }
@@ -605,6 +607,7 @@ function queuePersonnelSearch() {
   formData.value.personnel_id = null
   const query = personnelSearch.value.trim()
   if (query.length < 2) {
+    nextPersonnelRequest() // invalidate in-flight autocomplete
     cancelPersonnelSearch()
     personnelResults.value = []
     showPersonnelDropdown.value = false

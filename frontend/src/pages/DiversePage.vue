@@ -413,25 +413,34 @@ const selectedPersonnelName = ref('')
 const isComposingPersonnel = ref(false)
 const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
   const req = nextPersonnelRequest()
-  if (personnelSearch.value.length < 2) {
+  const query = personnelSearch.value.trim()
+  if (query.length < 2) {
     if (!req.isCurrent()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
     return
   }
   try {
-    const rowsFound = await searchPersonnel(personnelSearch.value, { limit: 10 })
+    const rowsFound = await searchPersonnel(query, { limit: 10 })
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = rowsFound
     showPersonnelDropdown.value = true
   } catch {
     if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
     personnelResults.value = []
   }
 }, 300)
 
 function onPersonnelSearch() {
   if (isComposingPersonnel.value) return
+  const query = personnelSearch.value.trim()
+  if (query.length < 2) {
+    nextPersonnelRequest() // invalidate in-flight autocomplete
+    personnelResults.value = []
+    showPersonnelDropdown.value = false
+  }
   schedulePersonnelSearch()
 }
 

@@ -336,10 +336,12 @@ const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebou
   try {
     const rowsFound = await searchPersonnel(val, { limit: 10 })
     if (!req.isCurrent()) return
+    if (val !== personnelSearch.value.trim()) return
     personnelResults.value = rowsFound
     showPersonnelDropdown.value = true
   } catch {
     if (!req.isCurrent()) return
+    if (val !== personnelSearch.value.trim()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
   }
@@ -485,6 +487,7 @@ function onPersonnelInput() {
   formData.value.personnel_id = null
   const val = personnelSearch.value.trim()
   if (!val) {
+    nextPersonnelRequest() // invalidate in-flight autocomplete
     cancelPersonnelSearch()
     personnelResults.value = []
     showPersonnelDropdown.value = false

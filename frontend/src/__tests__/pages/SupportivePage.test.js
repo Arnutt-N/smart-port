@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
@@ -220,6 +220,28 @@ describe('SupportivePage', () => {
     await vi.advanceTimersByTimeAsync(300)
     expect(mockSearchPersonnel).toHaveBeenCalledWith('สมช', { limit: 10 })
     expect(wrapper.vm.showPersonnelDropdown).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('ignores in-flight personnel results after input is cleared', async () => {
+    vi.useFakeTimers()
+    let resolveSearch
+    mockSearchPersonnel.mockImplementation(
+      () => new Promise((resolve) => { resolveSearch = resolve }),
+    )
+    const wrapper = await mountPage()
+    wrapper.vm.openCreate()
+    wrapper.vm.personnelSearch = 'สมชาย'
+    wrapper.vm.onPersonnelInput()
+    await vi.advanceTimersByTimeAsync(300)
+
+    wrapper.vm.personnelSearch = ''
+    wrapper.vm.onPersonnelInput()
+    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
+    await flushPromises()
+
+    expect(wrapper.vm.personnelResults).toEqual([])
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
     vi.useRealTimers()
   })
 

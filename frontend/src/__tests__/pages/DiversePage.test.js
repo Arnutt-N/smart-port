@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
@@ -296,7 +296,30 @@ describe('DiversePage', () => {
     wrapper.vm.personnelSearch = 'ส'
     wrapper.vm.onPersonnelSearch()
 
+    expect(wrapper.vm.personnelResults).toEqual([])
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
     await vi.advanceTimersByTimeAsync(300)
+    expect(wrapper.vm.personnelResults).toEqual([])
+    vi.useRealTimers()
+  })
+
+  it('ignores in-flight personnel results after query is cleared', async () => {
+    vi.useFakeTimers()
+    let resolveSearch
+    mockSearchPersonnel.mockImplementation(
+      () => new Promise((resolve) => { resolveSearch = resolve }),
+    )
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.personnelSearch = 'สมชาย'
+    wrapper.vm.onPersonnelSearch()
+    await vi.advanceTimersByTimeAsync(300)
+
+    wrapper.vm.personnelSearch = ''
+    wrapper.vm.onPersonnelSearch()
+    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
+    await flushPromises()
+
     expect(wrapper.vm.personnelResults).toEqual([])
     expect(wrapper.vm.showPersonnelDropdown).toBe(false)
     vi.useRealTimers()
