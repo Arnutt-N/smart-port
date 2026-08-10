@@ -32,18 +32,12 @@
 
     <!-- Filters -->
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-      <div class="relative flex-1">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="w-4 h-4 text-gray-400" />
-        </div>
-        <input
-          v-model="searchQuery"
-          @input="onSearchInput"
-          type="text"
-          placeholder="ค้นหาชื่อ หรือรหัสพนักงาน..."
-          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
+      <ListSearchInput
+        v-model="searchQuery"
+        placeholder="ค้นหาชื่อ หรือรหัสพนักงาน..."
+        ime-guard
+        @search="onSearchInput"
+      />
       <select
         v-model="within"
         @change="onFilterChange"
@@ -130,36 +124,45 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRetirement } from '@/composables/useRetirement.js'
-import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { getRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
-import { Users, CalendarClock, AlertTriangle, AlertCircle, Search } from 'lucide-vue-next'
+import { Users, CalendarClock, AlertTriangle, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList } = useRetirement()
+const { next: nextRequest } = useRequestSeq()
 
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 const searchQuery = ref('')
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 const within = ref('')
 const totalWithin12 = ref(0)
 const totalWithin6 = ref(0)
-let searchTimeout = null
 
-async function fetchStatTotals() {
+async function fetchStatTotals(req) {
   const [r12, r6] = await Promise.all([
     fetchList({ search: searchQuery.value, within: 12, limit: 1, offset: 0 }),
     fetchList({ search: searchQuery.value, within: 6, limit: 1, offset: 0 }),
   ])
+  if (!req.isCurrent()) return
   totalWithin12.value = r12.pagination.total
   totalWithin6.value = r6.pagination.total
 }
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -170,23 +173,21 @@ async function fetchData() {
         limit: pagination.value.limit,
         offset: pagination.value.offset,
       }),
-      fetchStatTotals(),
+      fetchStatTotals(req),
     ])
+    if (!req.isCurrent()) return
     rows.value = result.data
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
 function onSearchInput() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
+  scheduleSearch()
 }
 
 function onFilterChange() {

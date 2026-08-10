@@ -351,6 +351,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApi } from '@/composables/useApi.js'
 import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
@@ -377,6 +379,8 @@ const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.isAdmin)
+const { next: nextRequest } = useRequestSeq()
+const { next: nextPersonnelRequest } = useRequestSeq()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -396,7 +400,29 @@ const personnelSearch = ref('')
 const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
 const isComposingPersonnel = ref(false)
-let personnelSearchTimeout = null
+
+const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
+  const req = nextPersonnelRequest()
+  const query = personnelSearch.value.trim()
+  if (query.length < 2) {
+    if (!req.isCurrent()) return
+    personnelResults.value = []
+    showPersonnelDropdown.value = false
+    return
+  }
+  try {
+    const found = await searchPersonnel(query, { limit: 10 })
+    if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
+    personnelResults.value = found
+    showPersonnelDropdown.value = true
+  } catch {
+    if (!req.isCurrent()) return
+    if (query !== personnelSearch.value.trim()) return
+    personnelResults.value = []
+    showPersonnelDropdown.value = false
+  }
+}, 300)
 
 const formData = ref(emptyForm())
 
@@ -417,6 +443,7 @@ const filteredAreas = computed(() => {
 })
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -424,15 +451,17 @@ async function fetchData() {
       fetchList({ limit: pagination.value.limit, offset: pagination.value.offset }),
       fetchAreas(),
     ])
+    if (!req.isCurrent()) return
     rows.value = listResult.data
     recordSummary.value = listResult.summary
     pagination.value = listResult.pagination
     areas.value = areaResult.data
     areaSummary.value = areaResult.summary
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลทวีคูณได้'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
@@ -576,26 +605,15 @@ function onPersonnelCompositionEnd() {
 
 function queuePersonnelSearch() {
   formData.value.personnel_id = null
-  clearTimeout(personnelSearchTimeout)
   const query = personnelSearch.value.trim()
   if (query.length < 2) {
+    nextPersonnelRequest() // invalidate in-flight autocomplete
+    cancelPersonnelSearch()
     personnelResults.value = []
     showPersonnelDropdown.value = false
     return
   }
-  personnelSearchTimeout = setTimeout(async () => {
-    try {
-      const rows = await searchPersonnel(query, { limit: 10 })
-      // กัน race: ถ้า user พิมพ์ต่อจนคำค้นเปลี่ยนไปแล้ว ให้ทิ้งผลเก่านี้ (ไม่ทับผลใหม่)
-      if (query !== personnelSearch.value.trim()) return
-      personnelResults.value = rows
-      showPersonnelDropdown.value = true
-    } catch {
-      if (query !== personnelSearch.value.trim()) return
-      personnelResults.value = []
-      showPersonnelDropdown.value = false
-    }
-  }, 300)
+  schedulePersonnelSearch()
 }
 
 function selectPersonnel(person) {
@@ -630,6 +648,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
-  clearTimeout(personnelSearchTimeout)
+  cancelPersonnelSearch()
 })
 </script>

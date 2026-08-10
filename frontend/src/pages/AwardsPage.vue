@@ -15,16 +15,12 @@
       </button>
     </div>
 
-    <div class="relative max-w-md">
-      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search class="w-4 h-4 text-gray-400" />
-      </div>
-      <input
+    <div class="max-w-md">
+      <ListSearchInput
         v-model="searchQuery"
-        @input="onSearchInput"
-        type="text"
         placeholder="ค้นหาชื่อรางวัล หรือชื่อข้าราชการ..."
-        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        ime-guard
+        @search="onSearchInput"
       />
     </div>
 
@@ -163,20 +159,24 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAwards } from '@/composables/useAwards.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
-import { Plus, Search, AlertCircle } from 'lucide-vue-next'
+import { Plus, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useAwards()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { next: nextRequest } = useRequestSeq()
 
 const isAdmin = computed(() => auth.isAdmin)
 
@@ -185,7 +185,10 @@ const error = ref(null)
 const rows = ref([])
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 const searchQuery = ref('')
-let searchTimeout = null
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 
 const showFormModal = ref(false)
 const editing = ref(null)
@@ -202,6 +205,7 @@ function awardLevelLabel(level) {
 }
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -210,21 +214,19 @@ async function fetchData() {
       limit: pagination.value.limit,
       offset: pagination.value.offset,
     })
+    if (!req.isCurrent()) return
     rows.value = result.data
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
 function onSearchInput() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
+  scheduleSearch()
 }
 
 function openCreate() {

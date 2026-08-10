@@ -1,19 +1,12 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
-      <Home class="w-4 h-4" />
-      <span>/</span>
-      <span>พ้นทดลองปฏิบัติราชการ</span>
-    </nav>
+    <PageBreadcrumb label="พ้นทดลองปฏิบัติราชการ" />
 
-    <!-- Page Header -->
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-900">ติดตามพ้นทดลองปฏิบัติราชการ</h1>
       <p class="text-sm text-gray-500 mt-1">ติดตามสถานะการทดลองปฏิบัติราชการของข้าราชการบรรจุใหม่</p>
     </div>
 
-    <!-- Stat Cards -->
     <SkeletonLoader v-if="loading && rows.length === 0" type="stat-cards" />
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard
@@ -46,26 +39,17 @@
       />
     </div>
 
-    <!-- Search Bar -->
     <div class="flex items-center gap-3 mb-4">
-      <div class="relative flex-1">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="w-4 h-4 text-gray-400" />
-        </div>
-        <input
-          v-model="searchQuery"
-          @input="onSearchInput"
-          type="text"
-          placeholder="ค้นหาชื่อ, ตำแหน่ง หรือหน่วยงาน..."
-          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
+      <ListSearchInput
+        v-model="searchQuery"
+        placeholder="ค้นหาชื่อ, ตำแหน่ง หรือหน่วยงาน..."
+        ime-guard
+        @search="onSearch"
+      />
     </div>
 
-    <!-- Loading State -->
     <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
 
-    <!-- Error State -->
     <EmptyState
       v-else-if="error"
       :icon="AlertCircle"
@@ -80,7 +64,6 @@
       </button>
     </EmptyState>
 
-    <!-- Data Table -->
     <div v-else class="bg-white rounded-lg shadow overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full">
@@ -134,7 +117,6 @@
       </div>
     </div>
 
-    <!-- Pagination -->
     <PaginationBar
       v-if="pagination.total > 0"
       :total="pagination.total"
@@ -143,7 +125,6 @@
       @update:offset="val => { pagination.offset = val; fetchData() }"
     />
 
-    <!-- ==================== View Modal ==================== -->
     <Teleport to="body">
       <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
@@ -203,7 +184,6 @@
       </div>
     </Teleport>
 
-    <!-- ==================== Edit Modal ==================== -->
     <Teleport to="body">
       <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
@@ -276,11 +256,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useProbation } from '@/composables/useProbation.js'
-import { getRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { getRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
+import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -288,11 +272,12 @@ import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
-import { Users, UserCheck, Clock, AlertTriangle, AlertCircle, Home, Search } from 'lucide-vue-next'
+import { Users, UserCheck, Clock, AlertTriangle, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, update, remove } = useProbation()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { next: nextRequest } = useRequestSeq()
 
 const isAdmin = computed(() => auth.isAdmin)
 
@@ -311,11 +296,16 @@ const rows = ref([])
 const summary = ref({ total: 0, in_progress: 0, near_deadline: 0, overdue: 0 })
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-// Search with 300ms debounce
 const searchQuery = ref('')
-let searchTimeout = null
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 
-// View modal state
+function onSearch() {
+  scheduleSearch()
+}
+
 const showViewModal = ref(false)
 const viewingRow = ref(null)
 
@@ -324,7 +314,6 @@ function openView(row) {
   showViewModal.value = true
 }
 
-// Edit modal state
 const showEditModal = ref(false)
 const editingRow = ref(null)
 const saving = ref(false)
@@ -397,6 +386,7 @@ async function confirmDelete(row) {
 }
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -405,22 +395,16 @@ async function fetchData() {
       limit: pagination.value.limit,
       offset: pagination.value.offset,
     })
+    if (!req.isCurrent()) return
     rows.value = result.data
     summary.value = result.summary
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
-}
-
-function onSearchInput() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
 }
 
 onMounted(() => {

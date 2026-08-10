@@ -31,7 +31,7 @@ vi.mock('@/composables/useConfirm.js', () => ({
   confirmSave: vi.fn(async () => true),
 }))
 
-vi.mock('@/composables/useRemainingDays.js', () => ({
+vi.mock('@/utils/remainingDays.js', () => ({
   getCandidateRemainingDaysClass: (days) => {
     if (days === null || days === undefined) return 'text-gray-400'
     if (days < 0) return 'text-gray-700'

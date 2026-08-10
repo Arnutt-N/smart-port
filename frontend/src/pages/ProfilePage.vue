@@ -104,6 +104,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProfile } from '@/composables/useProfile.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { roleLabel } from '@/utils/roleLabels.js'
@@ -111,6 +112,7 @@ import { User, AlertCircle } from 'lucide-vue-next'
 
 const route = useRoute()
 const { fetchMe, fetchById } = useProfile()
+const { next: nextRequest } = useRequestSeq()
 
 const loading = ref(false)
 const error = ref(null)
@@ -120,6 +122,7 @@ const servant = ref(null)
 const isDetail = computed(() => !!route.params.id)
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   account.value = null
@@ -127,15 +130,18 @@ async function fetchData() {
   try {
     if (isDetail.value) {
       const result = await fetchById(route.params.id)
+      if (!req.isCurrent()) return
       servant.value = result.data
     } else {
       const result = await fetchMe()
+      if (!req.isCurrent()) return
       account.value = result.data
     }
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 

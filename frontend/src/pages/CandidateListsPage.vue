@@ -194,15 +194,12 @@
 
       <!-- Search bar + filter -->
       <div class="flex items-center gap-3 mb-4">
-        <div class="flex-1 relative">
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="ค้นหาชื่อ หรือตำแหน่ง..."
-            @input="onSearchInput"
-          />
-        </div>
+        <ListSearchInput
+          v-model="searchQuery"
+          placeholder="ค้นหาชื่อ หรือตำแหน่ง..."
+          ime-guard
+          @search="onSearchInput"
+        />
       </div>
 
       <!-- Loading state -->
@@ -374,11 +371,14 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCandidates } from '@/composables/useCandidates.js'
-import { getCandidateRemainingDaysClass, formatRemainingDays } from '@/composables/useRemainingDays.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { getCandidateRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
+import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -398,6 +398,8 @@ const { fetchByLevel, fetchOverview, deactivatePersonnel } = useCandidates()
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
+const { next: nextRequest } = useRequestSeq()
+const { next: nextOverviewRequest } = useRequestSeq()
 
 const isAdmin = computed(() => auth.isAdmin)
 
@@ -420,9 +422,11 @@ const rows = ref([])
 const summary = ref(null)
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-// Search state with 300ms debounce (Pitfall 3)
 const searchQuery = ref('')
-let searchTimeout = null
+const { run: scheduleSearch } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
 
 // Overview state
 const overviewLoading = ref(false)
@@ -520,6 +524,7 @@ const hasSubTabs = computed(() => currentSubTabs.value.length > 0)
 // Fetch data for sub-tab level pages
 async function fetchData() {
   if (!activeSubTab.value) return
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
@@ -528,22 +533,26 @@ async function fetchData() {
       limit: pagination.value.limit,
       offset: pagination.value.offset,
     })
+    if (!req.isCurrent()) return
     rows.value = result.data
     summary.value = result.summary
     pagination.value = result.pagination
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
 // Fetch overview data — aggregate จาก backend ครั้งเดียว (เลขถูกต้องทั้ง dataset เสมอ)
 async function fetchOverviewData() {
+  const req = nextOverviewRequest()
   overviewLoading.value = true
   overviewError.value = null
   try {
     const result = await fetchOverview()
+    if (!req.isCurrent()) return
     const s = result.summary
     overviewData.value = {
       generalTotal: s.general_total || 0,
@@ -557,19 +566,15 @@ async function fetchOverviewData() {
       top5: result.top5,
     }
   } catch (err) {
+    if (!req.isCurrent()) return
     overviewError.value = err.message || 'ไม่สามารถโหลดข้อมูลภาพรวมได้'
   } finally {
-    overviewLoading.value = false
+    if (req.isCurrent()) overviewLoading.value = false
   }
 }
 
-// Debounced search (Pitfall 3)
 function onSearchInput() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.value.offset = 0
-    fetchData()
-  }, 300)
+  scheduleSearch()
 }
 
 // Page change handler
@@ -595,7 +600,7 @@ watch(() => props.section, (newSection) => {
 watch(activeSubTab, (newTab) => {
   if (!newTab) return
   if (isOverview.value) return
-  // Reset offset and search when sub-tab changes (Pitfall 4)
+  // Reset offset and search when sub-tab changes
   pagination.value.offset = 0
   searchQuery.value = ''
   fetchData()

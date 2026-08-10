@@ -1,4 +1,4 @@
-import { mount, RouterLinkStub } from '@vue/test-utils'
+import { mount, RouterLinkStub, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
@@ -8,6 +8,7 @@ const mockFetchAreas = vi.fn()
 const mockCreate = vi.fn()
 const mockUpdate = vi.fn()
 const mockRemove = vi.fn()
+const mockSearchPersonnel = vi.fn(async () => [])
 
 vi.mock('@/composables/useMultiplier.js', () => ({
   useMultiplier: () => ({
@@ -32,7 +33,7 @@ vi.mock('@/composables/useConfirm.js', () => ({
 }))
 
 vi.mock('@/composables/usePersonnelSearch.js', () => ({
-  usePersonnelSearch: () => ({ searchPersonnel: vi.fn(async () => []) }),
+  usePersonnelSearch: () => ({ searchPersonnel: mockSearchPersonnel }),
 }))
 
 const MultiplierPage = (await import('@/pages/MultiplierPage.vue')).default
@@ -275,5 +276,27 @@ describe('MultiplierPage', () => {
     expect(wrapper.vm.formData.personnel_id).toBe(9)
     expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
     expect(wrapper.vm.showPersonnelDropdown).toBe(false)
+  })
+
+  it('ignores in-flight personnel results after query is cleared', async () => {
+    vi.useFakeTimers()
+    let resolveSearch
+    mockSearchPersonnel.mockImplementation(
+      () => new Promise((resolve) => { resolveSearch = resolve }),
+    )
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    wrapper.vm.personnelSearch = 'สมชาย'
+    wrapper.vm.queuePersonnelSearch()
+    await vi.advanceTimersByTimeAsync(300)
+
+    wrapper.vm.personnelSearch = ''
+    wrapper.vm.queuePersonnelSearch()
+    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
+    await flushPromises()
+
+    expect(wrapper.vm.personnelResults).toEqual([])
+    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
+    vi.useRealTimers()
   })
 })

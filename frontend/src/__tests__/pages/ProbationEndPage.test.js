@@ -156,7 +156,7 @@ describe('ProbationEndPage', () => {
 
     wrapper.vm.searchQuery = 'สมหญิง'
     wrapper.vm.pagination.offset = 40
-    wrapper.vm.onSearchInput()
+    wrapper.vm.onSearch()
     expect(mockFetchList).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(300)
