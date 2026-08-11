@@ -38,6 +38,7 @@ export function useProfile() {
       appointmentDate: row.appointment_date,
       retirementDate: row.retirement_date,
       servantStatus: row.servant_status,
+      isActive: Boolean(Number(row.is_active)),
       // backend คืน path สัมพัทธ์ (uploads/xxx.jpg) — ต้องประกอบผ่าน API base ก่อนใช้กับ <img>
       photoPath: apiAssetUrl(row.photo_path),
     }

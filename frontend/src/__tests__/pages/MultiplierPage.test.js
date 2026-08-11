@@ -9,6 +9,8 @@ const mockCreate = vi.fn()
 const mockUpdate = vi.fn()
 const mockRemove = vi.fn()
 const mockSearchPersonnel = vi.fn(async () => [])
+const mockReplace = vi.fn()
+const routeQuery = { value: {} }
 
 vi.mock('@/composables/useMultiplier.js', () => ({
   useMultiplier: () => ({
@@ -34,6 +36,11 @@ vi.mock('@/composables/useConfirm.js', () => ({
 
 vi.mock('@/composables/usePersonnelSearch.js', () => ({
   usePersonnelSearch: () => ({ searchPersonnel: mockSearchPersonnel }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ get query() { return routeQuery.value } }),
+  useRouter: () => ({ replace: mockReplace }),
 }))
 
 const MultiplierPage = (await import('@/pages/MultiplierPage.vue')).default
@@ -117,6 +124,7 @@ function fillValidForm(wrapper) {
 describe('MultiplierPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeQuery.value = {}
     resolvedData()
   })
 
@@ -298,5 +306,18 @@ describe('MultiplierPage', () => {
     expect(wrapper.vm.personnelResults).toEqual([])
     expect(wrapper.vm.showPersonnelDropdown).toBe(false)
     vi.useRealTimers()
+  })
+
+  it('opens create modal prefilled from profile create query', async () => {
+    routeQuery.value = {
+      create: '1',
+      personnel_id: '12',
+      full_name: 'นายสมชาย ไทยแท้',
+    }
+    const wrapper = await mountPage()
+    expect(wrapper.vm.showModal).toBe(true)
+    expect(wrapper.vm.formData.personnel_id).toBe(12)
+    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
   })
 })

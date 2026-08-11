@@ -54,42 +54,60 @@
       </dl>
     </div>
 
-    <!-- Servant detail -->
-    <div v-else-if="isDetail && servant" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl">
-      <div class="flex items-center gap-4 mb-6">
-        <img
-          v-if="servant.photoPath"
-          :src="servant.photoPath"
-          alt="รูปข้าราชการ"
-          class="w-20 h-20 rounded-lg object-cover border border-gray-200"
-        />
-        <div v-else class="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center">
-          <User class="w-10 h-10 text-gray-400" />
+    <!-- Servant detail + career shortcuts -->
+    <template v-else-if="isDetail && servant">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl">
+        <div class="flex items-center gap-4 mb-6">
+          <img
+            v-if="servant.photoPath"
+            :src="servant.photoPath"
+            alt="รูปข้าราชการ"
+            class="w-20 h-20 rounded-lg object-cover border border-gray-200"
+          />
+          <div v-else class="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center">
+            <User class="w-10 h-10 text-gray-400" />
+          </div>
+          <div>
+            <p class="text-lg font-semibold text-gray-900">{{ servant.fullName }}</p>
+            <p class="text-sm text-gray-500">รหัสพนักงาน: {{ servant.employeeId }}</p>
+          </div>
         </div>
-        <div>
-          <p class="text-lg font-semibold text-gray-900">{{ servant.fullName }}</p>
-          <p class="text-sm text-gray-500">รหัสพนักงาน: {{ servant.employeeId }}</p>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <dt class="text-xs text-gray-500">วันเกิด</dt>
+            <dd class="text-sm text-gray-900">{{ servant.birthDate || '-' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500">วันบรรจุ</dt>
+            <dd class="text-sm text-gray-900">{{ servant.appointmentDate || '-' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500">วันเกษียณ</dt>
+            <dd class="text-sm text-gray-900">{{ servant.retirementDate || '-' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-gray-500">สถานะ</dt>
+            <dd class="text-sm text-gray-900">{{ servant.servantStatus || '-' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div v-if="careerShortcuts.length" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl">
+        <h2 class="text-sm font-semibold text-gray-900">ทางลัดเพิ่มรายการนับเวลา</h2>
+        <p class="text-xs text-gray-500 mt-1 mb-4">เปิดหน้าโมดูลแล้วเริ่มฟอร์มพร้อมบุคลากรคนนี้</p>
+        <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+          <button
+            v-for="item in careerShortcuts"
+            :key="item.path"
+            type="button"
+            class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors text-left"
+            @click="goCreateTimeEntry(item.path)"
+          >
+            {{ item.label }}
+          </button>
         </div>
       </div>
-      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <dt class="text-xs text-gray-500">วันเกิด</dt>
-          <dd class="text-sm text-gray-900">{{ servant.birthDate || '-' }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-gray-500">วันบรรจุ</dt>
-          <dd class="text-sm text-gray-900">{{ servant.appointmentDate || '-' }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-gray-500">วันเกษียณ</dt>
-          <dd class="text-sm text-gray-900">{{ servant.retirementDate || '-' }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-gray-500">สถานะ</dt>
-          <dd class="text-sm text-gray-900">{{ servant.servantStatus || '-' }}</dd>
-        </div>
-      </dl>
-    </div>
+    </template>
 
     <EmptyState
       v-else
@@ -102,15 +120,27 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useProfile } from '@/composables/useProfile.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useAuthStore } from '@/stores/auth.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { roleLabel } from '@/utils/roleLabels.js'
 import { User, AlertCircle } from 'lucide-vue-next'
 
+const TIME_SHORTCUTS = [
+  { resource: 'supportive', label: 'การนับเกื้อกูล', path: '/time-counting' },
+  { resource: 'multiplier', label: 'การนับทวีคูณ', path: '/time-multiplier' },
+  { resource: 'diverse', label: 'การนับแตกต่าง', path: '/time-difference' },
+  { resource: 'equivalence', label: 'การเทียบตำแหน่ง', path: '/position-compare' },
+]
+
+const OPERATOR_CREATE = new Set(['supportive', 'multiplier', 'diverse', 'equivalence'])
+
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 const { fetchMe, fetchById } = useProfile()
 const { next: nextRequest } = useRequestSeq()
 
@@ -120,6 +150,30 @@ const account = ref(null)
 const servant = ref(null)
 
 const isDetail = computed(() => !!route.params.id)
+
+function canCreateResource(resource) {
+  const role = auth.user?.role
+  if (role === 'admin' || role === 'superadmin') return true
+  if (role === 'operator') return OPERATOR_CREATE.has(resource)
+  return false
+}
+
+const careerShortcuts = computed(() => {
+  if (!servant.value?.isActive) return []
+  return TIME_SHORTCUTS.filter((item) => canCreateResource(item.resource))
+})
+
+function goCreateTimeEntry(path) {
+  if (!servant.value) return
+  router.push({
+    path,
+    query: {
+      create: '1',
+      personnel_id: String(servant.value.servantId),
+      full_name: servant.value.fullName || '',
+    },
+  })
+}
 
 async function fetchData() {
   const req = nextRequest()

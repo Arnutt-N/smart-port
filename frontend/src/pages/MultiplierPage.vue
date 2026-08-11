@@ -356,6 +356,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi.js'
 import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
@@ -363,6 +364,7 @@ import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
+import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -385,6 +387,8 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const isAdmin = computed(() => auth.isAdmin)
 const { next: nextRequest } = useRequestSeq()
 const { next: nextPersonnelRequest } = useRequestSeq()
@@ -657,6 +661,13 @@ function onGlobalKeydown(e) {
 onMounted(() => {
   fetchData()
   window.addEventListener('keydown', onGlobalKeydown)
+  applyPersonnelCreateQuery({
+    route,
+    router,
+    openCreate: openCreateModal,
+    formData,
+    personnelSearch,
+  })
 })
 
 onBeforeUnmount(() => {

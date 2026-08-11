@@ -8,6 +8,8 @@ const mockCreate = vi.fn()
 const mockUpdate = vi.fn()
 const mockApprove = vi.fn()
 const mockReject = vi.fn()
+const mockReplace = vi.fn()
+const routeQuery = { value: {} }
 
 vi.mock('@/composables/useEquivalence.js', () => ({
   useEquivalence: () => ({
@@ -33,6 +35,11 @@ vi.mock('@/composables/useConfirm.js', () => ({
 
 vi.mock('@/composables/usePersonnelSearch.js', () => ({
   usePersonnelSearch: () => ({ searchPersonnel: vi.fn(async () => []) }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ get query() { return routeQuery.value } }),
+  useRouter: () => ({ replace: mockReplace }),
 }))
 
 const EquivalencePage = (await import('@/pages/EquivalencePage.vue')).default
@@ -81,6 +88,7 @@ function fillValidForm(wrapper) {
 describe('EquivalencePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeQuery.value = {}
     mockFetchList.mockResolvedValue({
       success: true,
       data: [sampleRow],
@@ -241,5 +249,18 @@ describe('EquivalencePage', () => {
     expect(wrapper.vm.formData.personnel_id).toBe(9)
     expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
     expect(wrapper.vm.showPersonnelDropdown).toBe(false)
+  })
+
+  it('opens create modal prefilled from profile create query', async () => {
+    routeQuery.value = {
+      create: '1',
+      personnel_id: '12',
+      full_name: 'นายสมชาย ไทยแท้',
+    }
+    const wrapper = await mountPage()
+    expect(wrapper.vm.showModal).toBe(true)
+    expect(wrapper.vm.formData.personnel_id).toBe(12)
+    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
   })
 })

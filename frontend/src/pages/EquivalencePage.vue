@@ -396,6 +396,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useEquivalence } from '@/composables/useEquivalence.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
@@ -404,6 +405,7 @@ import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmAction, confirmSave } from '@/composables/useConfirm.js'
+import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -423,6 +425,8 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const ui = useUiStore()
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
 const { next: nextPersonnelRequest } = useRequestSeq()
 
@@ -727,5 +731,12 @@ function openView(record) {
 
 onMounted(() => {
   fetchData()
+  applyPersonnelCreateQuery({
+    route,
+    router,
+    openCreate,
+    formData,
+    personnelSearch,
+  })
 })
 </script>
