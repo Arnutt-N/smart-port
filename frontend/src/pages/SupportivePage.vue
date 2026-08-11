@@ -165,6 +165,13 @@
                   {{ person.full_name }}
                 </button>
               </div>
+              <p
+                v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
+                class="text-xs mt-1"
+                :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
+              >
+                {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
+              </p>
               <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
             </div>
           </div>
@@ -324,13 +331,15 @@ const formErrors = ref({})
 const personnelSearch = ref('')
 const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
+const personnelSearchFailed = ref(false)
 const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
   const req = nextPersonnelRequest()
   const val = personnelSearch.value.trim()
-  if (!val) {
+  if (val.length < 2) {
     if (!req.isCurrent()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
+    personnelSearchFailed.value = false
     return
   }
   try {
@@ -339,11 +348,13 @@ const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebou
     if (val !== personnelSearch.value.trim()) return
     personnelResults.value = rowsFound
     showPersonnelDropdown.value = true
+    personnelSearchFailed.value = false
   } catch {
     if (!req.isCurrent()) return
     if (val !== personnelSearch.value.trim()) return
     personnelResults.value = []
-    showPersonnelDropdown.value = false
+    showPersonnelDropdown.value = true
+    personnelSearchFailed.value = true
   }
 }, 300)
 
@@ -486,11 +497,12 @@ async function confirmDelete(id) {
 function onPersonnelInput() {
   formData.value.personnel_id = null
   const val = personnelSearch.value.trim()
-  if (!val) {
+  if (val.length < 2) {
     nextPersonnelRequest() // invalidate in-flight autocomplete
     cancelPersonnelSearch()
     personnelResults.value = []
     showPersonnelDropdown.value = false
+    personnelSearchFailed.value = false
     return
   }
   schedulePersonnelSearch()
@@ -501,6 +513,7 @@ function selectPersonnel(person) {
   personnelSearch.value = person.full_name
   personnelResults.value = []
   showPersonnelDropdown.value = false
+  personnelSearchFailed.value = false
 }
 
 onMounted(() => {

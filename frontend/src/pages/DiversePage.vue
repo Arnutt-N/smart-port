@@ -164,9 +164,16 @@
                   class="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
                 >
                   <span class="font-medium">{{ person.full_name }}</span>
-                  <span class="text-gray-400 text-xs">{{ person.position_title || '' }}</span>
+                  <span class="text-gray-400 text-xs">{{ person.current_position || '' }}</span>
                 </button>
               </div>
+              <p
+                v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
+                class="text-xs mt-1"
+                :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
+              >
+                {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
+              </p>
             </div>
             <p v-if="validationErrors.personnel_id" class="text-red-500 text-xs mt-1">{{ validationErrors.personnel_id }}</p>
             <p v-if="formData.personnel_id && selectedPersonnelName" class="text-green-600 text-xs mt-1">เลือกแล้ว: {{ selectedPersonnelName }}</p>
@@ -409,6 +416,7 @@ const diffCountPreview = computed(() => {
 const personnelSearch = ref('')
 const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
+const personnelSearchFailed = ref(false)
 const selectedPersonnelName = ref('')
 const isComposingPersonnel = ref(false)
 const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
@@ -418,6 +426,7 @@ const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
     if (!req.isCurrent()) return
     personnelResults.value = []
     showPersonnelDropdown.value = false
+    personnelSearchFailed.value = false
     return
   }
   try {
@@ -426,10 +435,13 @@ const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
     if (query !== personnelSearch.value.trim()) return
     personnelResults.value = rowsFound
     showPersonnelDropdown.value = true
+    personnelSearchFailed.value = false
   } catch {
     if (!req.isCurrent()) return
     if (query !== personnelSearch.value.trim()) return
     personnelResults.value = []
+    showPersonnelDropdown.value = true
+    personnelSearchFailed.value = true
   }
 }, 300)
 
@@ -440,6 +452,7 @@ function onPersonnelSearch() {
     nextPersonnelRequest() // invalidate in-flight autocomplete
     personnelResults.value = []
     showPersonnelDropdown.value = false
+    personnelSearchFailed.value = false
   }
   schedulePersonnelSearch()
 }
@@ -455,6 +468,7 @@ function selectPersonnel(person) {
   personnelSearch.value = person.full_name
   personnelResults.value = []
   showPersonnelDropdown.value = false
+  personnelSearchFailed.value = false
   validationErrors.value.personnel_id = ''
 }
 
