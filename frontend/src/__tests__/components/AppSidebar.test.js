@@ -86,6 +86,7 @@ describe('AppSidebar', () => {
     userVal = { name: 'op', role: 'operator' }
     const wrapper = mountSidebar()
     const text = wrapper.text()
+    expect(text).toContain('ข้อมูลบุคลากร')
     expect(text).toContain('พ้นทดลองปฏิบัติราชการ')
     expect(text).toContain('Candidate Lists')
     expect(text).toContain('การนับเวลาเพิ่มเติม')

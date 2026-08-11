@@ -112,6 +112,7 @@ import { roleLabel } from '@/utils/roleLabels.js'
 import {
   X, BookOpen, LayoutDashboard, UserCheck, Users, Clock, Award, UserMinus,
   Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp, FileSearch, Shield, ScanText,
+  Contact,
 } from 'lucide-vue-next'
 
 defineProps({ open: Boolean })
@@ -133,6 +134,7 @@ const menuSections = computed(() => [
     id: 'main',
     label: 'MAIN',
     items: [
+      { id: 'personnel', label: 'ข้อมูลบุคลากร', icon: Contact, to: '/personnel' },
       { id: 'probation-end', label: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, to: '/probation-end' },
       {
         id: 'candidates', label: 'Candidate Lists', icon: Users,
