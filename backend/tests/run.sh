@@ -36,27 +36,38 @@ esac
 echo "[run.sh] building test image ${IMAGE} ..."
 docker build -t "${IMAGE}" -f "${DOCKER_SCRIPT_DIR}/Dockerfile.test" "${DOCKER_SCRIPT_DIR}" >/dev/null
 
-# ---- 2) ตรวจ network ของ db (compose สร้าง <project>_smartport-net) --------
-NET="$(docker network ls --format '{{.Name}}' | grep -E 'smartport-net$' | head -1 || true)"
+# ---- 2) ตรวจว่ามี db รันอยู่ แล้วตั้งค่าเชื่อมต่อสำหรับ integration ----------
+NET="$(docker network ls --format '{{.Name}}' | grep -E 'smartport-net$' | head -1 | tr -d '\r' || true)"
+DB_CID="$(docker ps -qf name=smartport-db | head -1 | tr -d '\r' || true)"
 
 NET_ARGS=()
 ENV_ARGS=()
-if [ -n "${NET}" ]; then
+if [ -n "${NET}" ] || [ -n "${DB_CID}" ]; then
   # ดึงค่า DB จาก .env (root + root password = ต่อได้ทุก schema แน่นอน)
   get_env() { grep -E "^$1=" "${ROOT_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r"' ; }
   DB_NAME="$(get_env MYSQL_DATABASE)"; DB_NAME="${DB_NAME:-civil_service_mgmt}"
   DB_PASS="$(get_env MYSQL_ROOT_PASSWORD)"; DB_PASS="${DB_PASS:-rootpassword}"
 
-  NET_ARGS=(--network "${NET}")
+  if [ -n "${DB_CID}" ] && [ -n "${NET}" ]; then
+    # Docker CLI มองเห็น container + network → ใช้ชื่อ service ตามปกติ
+    NET_ARGS=(--network "${NET}")
+    DB_HOST="db"
+  else
+    # WSL/CLI แยกจาก Docker Desktop: มองเห็น network แต่ไม่เห็น container /
+    # หรือ DNS ชื่อ db พัง — ต่อผ่านพอร์ตที่ publish บน host แทน
+    NET_ARGS=(--add-host=host.docker.internal:host-gateway)
+    DB_HOST="host.docker.internal"
+  fi
+
   ENV_ARGS=(
-    -e MYSQL_HOST=db
+    -e "MYSQL_HOST=${DB_HOST}"
     -e "MYSQL_DATABASE=${DB_NAME}"
     -e MYSQL_USER=root
     -e "MYSQL_PASSWORD=${DB_PASS}"
   )
-  echo "[run.sh] db network: ${NET} — integration suite จะรัน (db=${DB_NAME})"
+  echo "[run.sh] integration จะรัน (db=${DB_NAME} host=${DB_HOST})"
 else
-  echo "[run.sh] ไม่พบ db network — integration จะถูก skip (unit suite อย่างเดียว)"
+  echo "[run.sh] ไม่พบ db network/container — integration จะถูก skip (unit suite อย่างเดียว)"
   echo "[run.sh] (ถ้าต้องการ integration: docker compose up -d --build db backend)"
 fi
 

@@ -76,7 +76,7 @@ final class AuditPermissionTest extends TestCase
     {
         return [
             'multiplier (allowed)'   => ['multiplier', true],
-            'personnel (allowed)'    => ['personnel', true],
+            'personnel (denied)'     => ['personnel', false],
             'candidates (allowed)'   => ['candidates', true],
             'probation (allowed)'    => ['probation', true],
             'equivalence (allowed)'  => ['equivalence', true],

@@ -42,6 +42,11 @@ const routes = [
         component: () => import('@/pages/ProbationEndPage.vue'),
       },
       {
+        path: 'personnel',
+        name: 'personnel',
+        component: () => import('@/pages/PersonnelPage.vue'),
+      },
+      {
         path: 'profile',
         name: 'my-profile',
         component: () => import('@/pages/ProfilePage.vue'),

@@ -48,12 +48,13 @@ function defaultPermissionMatrix(): array
         ],
         'operator' => [
             'read' => ['*'],
+            // personnel master write = admin/superadmin เท่านั้น (ADR-0004)
             'create' => [
-                'multiplier', 'personnel', 'candidates', 'probation',
+                'multiplier', 'candidates', 'probation',
                 'equivalence', 'supportive', 'diverse', 'photos',
             ],
             'update' => [
-                'multiplier', 'personnel', 'candidates', 'probation',
+                'multiplier', 'candidates', 'probation',
                 'equivalence', 'supportive', 'diverse',
             ],
             'delete' => [],
