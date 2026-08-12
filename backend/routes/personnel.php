@@ -27,7 +27,7 @@ function personnelTypeaheadSql(int $limit = 10): string
     $fullName = sqlPersonnelFullName('p', 'px');
 
     return "
-        SELECT p.personnel_id, p.citizen_id,
+        SELECT p.personnel_id,
                {$fullName} AS full_name,
                p.first_name, p.last_name,
                pos.position_name AS current_position,
