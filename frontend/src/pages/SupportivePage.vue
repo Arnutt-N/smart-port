@@ -258,6 +258,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSupportive } from '@/composables/useSupportive.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
@@ -267,6 +268,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
+import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -283,6 +285,8 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
+const route = useRoute()
+const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
 const { next: nextPersonnelRequest } = useRequestSeq()
 
@@ -518,5 +522,12 @@ function selectPersonnel(person) {
 
 onMounted(() => {
   fetchData()
+  applyPersonnelCreateQuery({
+    route,
+    router,
+    openCreate,
+    formData,
+    personnelSearch,
+  })
 })
 </script>

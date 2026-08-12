@@ -7,6 +7,8 @@ const mockFetchList = vi.fn()
 const mockCreate = vi.fn()
 const mockUpdate = vi.fn()
 const mockRemove = vi.fn()
+const mockReplace = vi.fn()
+const routeQuery = { value: {} }
 
 vi.mock('@/composables/useSupportive.js', () => ({
   useSupportive: () => ({
@@ -32,6 +34,11 @@ vi.mock('@/composables/useConfirm.js', () => ({
 const mockSearchPersonnel = vi.fn(async () => [])
 vi.mock('@/composables/usePersonnelSearch.js', () => ({
   usePersonnelSearch: () => ({ searchPersonnel: (...args) => mockSearchPersonnel(...args) }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ get query() { return routeQuery.value } }),
+  useRouter: () => ({ replace: mockReplace }),
 }))
 
 const SupportivePage = (await import('@/pages/SupportivePage.vue')).default
@@ -77,6 +84,7 @@ function fillValidForm(wrapper) {
 describe('SupportivePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeQuery.value = {}
     mockFetchList.mockResolvedValue({
       success: true,
       data: [sampleRow],
@@ -258,5 +266,25 @@ describe('SupportivePage', () => {
     const wrapper = await mountPage('admin')
     expect(wrapper.vm.isAdmin).toBe(true)
     expect(wrapper.findAll('button[title="ลบ"]').length).toBeGreaterThan(0)
+  })
+
+  it('opens create modal prefilled from profile create query', async () => {
+    routeQuery.value = {
+      create: '1',
+      personnel_id: '12',
+      full_name: 'นายสมชาย ไทยแท้',
+    }
+    const wrapper = await mountPage()
+    expect(wrapper.vm.showModal).toBe(true)
+    expect(wrapper.vm.formData.personnel_id).toBe(12)
+    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+  })
+
+  it('does not open create modal without create=1 query', async () => {
+    routeQuery.value = { personnel_id: '12', full_name: 'นายสมชาย ไทยแท้' }
+    const wrapper = await mountPage()
+    expect(wrapper.vm.showModal).toBe(false)
+    expect(mockReplace).not.toHaveBeenCalled()
   })
 })
