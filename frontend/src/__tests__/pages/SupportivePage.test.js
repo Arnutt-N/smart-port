@@ -39,6 +39,11 @@ vi.mock('@/composables/usePersonnelSearch.js', () => ({
 vi.mock('vue-router', () => ({
   useRoute: () => ({ get query() { return routeQuery.value } }),
   useRouter: () => ({ replace: mockReplace }),
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a class="router-link" :href="typeof to === \'string\' ? to : (to?.path || \'#\')"><slot /></a>',
+  },
 }))
 
 const SupportivePage = (await import('@/pages/SupportivePage.vue')).default
@@ -266,6 +271,32 @@ describe('SupportivePage', () => {
     const wrapper = await mountPage('admin')
     expect(wrapper.vm.isAdmin).toBe(true)
     expect(wrapper.findAll('button[title="ลบ"]').length).toBeGreaterThan(0)
+  })
+
+  it('shows admin create link when typeahead finds no personnel', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.showModal = true
+    wrapper.vm.personnelSearch = 'ไม่มีคนนี้'
+    wrapper.vm.personnelResults = []
+    wrapper.vm.showPersonnelDropdown = true
+    wrapper.vm.personnelSearchFailed = false
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('ไม่พบบุคลากรที่ตรงกับคำค้น')
+    expect(wrapper.text()).toContain('ไปสร้างที่ข้อมูลบุคลากร')
+  })
+
+  it('hides admin create link for operator on empty typeahead', async () => {
+    const wrapper = await mountPage('operator')
+    wrapper.vm.showModal = true
+    wrapper.vm.personnelSearch = 'ไม่มีคนนี้'
+    wrapper.vm.personnelResults = []
+    wrapper.vm.showPersonnelDropdown = true
+    wrapper.vm.personnelSearchFailed = false
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('ไม่พบบุคลากรที่ตรงกับคำค้น')
+    expect(wrapper.text()).not.toContain('ไปสร้างที่ข้อมูลบุคลากร')
   })
 
   it('opens create modal prefilled from profile create query', async () => {

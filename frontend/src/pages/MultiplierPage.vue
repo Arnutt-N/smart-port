@@ -265,13 +265,22 @@
                   <span class="text-gray-400 text-xs ml-2">{{ person.current_position || '' }}</span>
                 </button>
               </div>
-              <p
+              <div
                 v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
                 class="text-xs mt-1"
                 :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
               >
-                {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-              </p>
+                <p>
+                  {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
+                </p>
+                <RouterLink
+                  v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
+                  :to="PERSONNEL_MASTER_CREATE_TO"
+                  class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                >
+                  {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
+                </RouterLink>
+              </div>
             </div>
             <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
             <p v-else-if="formData.personnel_id && personnelSearch" class="text-xs text-green-600 mt-1">เลือกแล้ว: {{ personnelSearch }}</p>
@@ -356,7 +365,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi.js'
 import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
@@ -365,6 +374,11 @@ import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
+import {
+  PERSONNEL_MASTER_CREATE_LINK_LABEL,
+  PERSONNEL_MASTER_CREATE_TO,
+  personnelCreateLinkVisible,
+} from '@/utils/personnelTypeaheadEmpty.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'

@@ -238,12 +238,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { usePersonnelMaster } from '@/composables/usePersonnelMaster.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
+import { shouldOpenPersonnelMasterCreate } from '@/utils/personnelTypeaheadEmpty.js'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -253,6 +254,8 @@ import { Plus, Ban, CheckCircle, Users } from 'lucide-vue-next'
 const { fetchList, fetchLookups, create, update } = usePersonnelMaster()
 const auth = useAuthStore()
 const ui = useUiStore()
+const route = useRoute()
+const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
 
 const isAdmin = computed(() => auth.isAdmin)
@@ -433,5 +436,9 @@ onMounted(async () => {
     ui.showToast('โหลดรายการคำนำหน้าไม่สำเร็จ', 'error')
   }
   fetchData()
+  if (isAdmin.value && shouldOpenPersonnelMasterCreate(route.query)) {
+    openCreate()
+    router.replace({ query: {} })
+  }
 })
 </script>

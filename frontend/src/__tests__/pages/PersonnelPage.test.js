@@ -19,7 +19,12 @@ vi.mock('@/composables/usePersonnelMaster.js', () => ({
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a :href="to"><slot /></a>', props: ['to'] },
+  useRoute: () => ({ get query() { return routeQuery.value } }),
+  useRouter: () => ({ replace: mockReplace }),
 }))
+
+const mockReplace = vi.fn()
+const routeQuery = { value: {} }
 
 const PersonnelPage = (await import('@/pages/PersonnelPage.vue')).default
 
@@ -59,6 +64,7 @@ async function mountPage(role = 'admin') {
 describe('PersonnelPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeQuery.value = {}
     resolvedData()
   })
 
@@ -81,6 +87,20 @@ describe('PersonnelPage', () => {
     wrapper.vm.openCreate()
     await wrapper.vm.$nextTick()
     expect(wrapper.vm.showFormModal).toBe(true)
+  })
+
+  it('opens create modal from ?create=1 for admin and clears query', async () => {
+    routeQuery.value = { create: '1' }
+    const wrapper = await mountPage('admin')
+    expect(wrapper.vm.showFormModal).toBe(true)
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+  })
+
+  it('does not open create modal from ?create=1 for operator', async () => {
+    routeQuery.value = { create: '1' }
+    const wrapper = await mountPage('operator')
+    expect(wrapper.vm.showFormModal).toBe(false)
+    expect(mockReplace).not.toHaveBeenCalled()
   })
 
   it('hides add button for non-admin', async () => {
