@@ -40,6 +40,11 @@ vi.mock('@/composables/usePersonnelSearch.js', () => ({
 vi.mock('vue-router', () => ({
   useRoute: () => ({ get query() { return routeQuery.value } }),
   useRouter: () => ({ replace: mockReplace }),
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a class="router-link"><slot /></a>',
+  },
 }))
 
 const EquivalencePage = (await import('@/pages/EquivalencePage.vue')).default

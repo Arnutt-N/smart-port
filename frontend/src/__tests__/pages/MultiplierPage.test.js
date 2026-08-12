@@ -41,6 +41,11 @@ vi.mock('@/composables/usePersonnelSearch.js', () => ({
 vi.mock('vue-router', () => ({
   useRoute: () => ({ get query() { return routeQuery.value } }),
   useRouter: () => ({ replace: mockReplace }),
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a class="router-link"><slot /></a>',
+  },
 }))
 
 const MultiplierPage = (await import('@/pages/MultiplierPage.vue')).default

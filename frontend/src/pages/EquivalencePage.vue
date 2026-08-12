@@ -182,13 +182,22 @@
                     {{ person.full_name }}
                   </button>
                 </div>
-                <p
+                <div
                   v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
                   class="text-xs mt-1"
                   :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
                 >
-                  {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-                </p>
+                  <p>
+                    {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
+                  </p>
+                  <RouterLink
+                    v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
+                    :to="PERSONNEL_MASTER_CREATE_TO"
+                    class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                  >
+                    {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
+                  </RouterLink>
+                </div>
               </div>
               <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">{{ formErrors.personnel_id }}</p>
             </div>
@@ -396,7 +405,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useEquivalence } from '@/composables/useEquivalence.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
@@ -406,6 +415,11 @@ import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmAction, confirmSave } from '@/composables/useConfirm.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
+import {
+  PERSONNEL_MASTER_CREATE_LINK_LABEL,
+  PERSONNEL_MASTER_CREATE_TO,
+  personnelCreateLinkVisible,
+} from '@/utils/personnelTypeaheadEmpty.js'
 import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -425,6 +439,7 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const ui = useUiStore()
 const auth = useAuthStore()
+const isAdmin = computed(() => auth.isAdmin)
 const route = useRoute()
 const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
