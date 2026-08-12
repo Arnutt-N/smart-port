@@ -80,6 +80,7 @@ final class PersonnelTypeaheadSearchTest extends TestCase
         self::assertNotEmpty($rows);
         self::assertSame($this->personnelId, (int) $rows[0]['personnel_id']);
         self::assertSame('นาย' . $this->firstName . ' ' . $this->lastName, $rows[0]['full_name']);
+        self::assertArrayNotHasKey('citizen_id', $rows[0]);
     }
 
     #[Test]

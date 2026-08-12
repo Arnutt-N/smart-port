@@ -41,6 +41,10 @@ final class PersonnelTypeaheadQueryTest extends TestCase
         self::assertStringContainsString('p.citizen_id LIKE ?', $sql);
         self::assertStringContainsString('p.employee_id LIKE ?', $sql);
         self::assertStringContainsString('prefix_name_th', $sql);
+        // PII: search by citizen_id ok, but do not return it in typeahead JSON
+        $selectClause = strstr($sql, 'FROM', true);
+        self::assertNotFalse($selectClause);
+        self::assertStringNotContainsString('citizen_id', $selectClause);
         // full_name expression used in WHERE (not only SELECT)
         self::assertGreaterThanOrEqual(
             2,
