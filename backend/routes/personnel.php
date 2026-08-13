@@ -188,6 +188,17 @@ function isValidCitizenId(string $citizenId): bool
     return (bool) preg_match('/^\d{13}$/', $citizenId);
 }
 
+/**
+ * Master list ?include_inactive=1 — admin/superadmin only (soft-deny, not 403).
+ */
+function resolvePersonnelIncludeInactive(bool $requested, string $role): bool
+{
+    if (!$requested) {
+        return false;
+    }
+    return $role === 'admin' || $role === 'superadmin';
+}
+
 function personnelPrefixExists(PDO $pdo, int $prefixId): bool
 {
     if ($prefixId <= 0) {
@@ -445,14 +456,11 @@ function handlePersonnel(PDO $pdo, string $method, array $path): void
 
         // Master list when offset is present; otherwise typeahead (backward compatible)
         if (array_key_exists('offset', $_GET)) {
-            $includeInactive = isset($_GET['include_inactive']) && (string) $_GET['include_inactive'] !== '0';
-            if ($includeInactive) {
-                $role = getAuthenticatedUser()['role'] ?? '';
-                if ($role !== 'admin' && $role !== 'superadmin') {
-                    // แผน: โชว์คนปิดใช้งานเฉพาะแอดมิน — กัน operator/viewer ดึงรายการปิดใช้งานผ่าน query
-                    $includeInactive = false;
-                }
-            }
+            $requestedInactive = isset($_GET['include_inactive']) && (string) $_GET['include_inactive'] !== '0';
+            $includeInactive = resolvePersonnelIncludeInactive(
+                $requestedInactive,
+                (string) (getAuthenticatedUser()['role'] ?? '')
+            );
             $result = listPersonnelMaster(
                 $pdo,
                 (string) ($_GET['search'] ?? ''),
