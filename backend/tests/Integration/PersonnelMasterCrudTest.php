@@ -63,8 +63,7 @@ final class PersonnelMasterCrudTest extends TestCase
     public function create_list_update_deactivate_and_reject_citizen_id_change(): void
     {
         $auth = ['user_id' => 1];
-        $citizenId = '1' . str_pad((string) hexdec(substr($this->suffix, 0, 5)), 12, '0', STR_PAD_LEFT);
-        $citizenId = substr($citizenId, 0, 13);
+        $citizenId = $this->uniqueCitizenId('1');
 
         ob_start();
         $newId = createPersonnelRecord(self::$pdo, $auth, [
@@ -137,8 +136,7 @@ final class PersonnelMasterCrudTest extends TestCase
     public function duplicate_citizen_id_returns_conflict(): void
     {
         $auth = ['user_id' => 1];
-        $citizenId = '2' . str_pad((string) hexdec(substr($this->suffix, 0, 5)), 12, '0', STR_PAD_LEFT);
-        $citizenId = substr($citizenId, 0, 13);
+        $citizenId = $this->uniqueCitizenId('2');
 
         ob_start();
         $first = createPersonnelRecord(self::$pdo, $auth, [
@@ -174,8 +172,7 @@ final class PersonnelMasterCrudTest extends TestCase
     public function create_rejects_unknown_prefix_id(): void
     {
         $auth = ['user_id' => 1];
-        $citizenId = '3' . str_pad((string) hexdec(substr($this->suffix, 0, 5)), 12, '0', STR_PAD_LEFT);
-        $citizenId = substr($citizenId, 0, 13);
+        $citizenId = $this->uniqueCitizenId('3');
 
         ob_start();
         $id = createPersonnelRecord(self::$pdo, $auth, [
@@ -187,5 +184,28 @@ final class PersonnelMasterCrudTest extends TestCase
         $out = ob_get_clean();
         self::assertNull($id);
         self::assertStringContainsString('คำนำหน้า', $out);
+    }
+
+    #[Test]
+    public function create_rejects_citizen_id_with_invalid_checksum(): void
+    {
+        $auth = ['user_id' => 1];
+
+        ob_start();
+        $id = createPersonnelRecord(self::$pdo, $auth, [
+            'first_name' => 'D' . $this->suffix,
+            'last_name' => 'BadChecksum',
+            'citizen_id' => '1234567890123',
+        ]);
+        $out = ob_get_clean();
+        self::assertNull($id);
+        self::assertStringContainsString('เลขบัตรประชาชนไม่ถูกต้อง', $out);
+        self::assertStringNotContainsString('13 หลัก', $out);
+    }
+
+    private function uniqueCitizenId(string $lead): string
+    {
+        $first12 = substr($lead . str_pad((string) hexdec($this->suffix), 11, '0', STR_PAD_LEFT), 0, 12);
+        return testCitizenId($first12);
     }
 }

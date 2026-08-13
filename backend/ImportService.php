@@ -13,6 +13,8 @@ declare(strict_types=1);
 // all-or-nothing: insert ทั้ง 4 ตารางใน transaction เดียว rollback ถ้าแถวใดผิด
 // ============================================================================
 
+require_once __DIR__ . '/helpers.php';
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportService
@@ -126,6 +128,8 @@ class ImportService
             $cid = (string) ($p['citizen_id'] ?? '');
             if (!preg_match('/^\d{13}$/', $cid)) {
                 $errors[] = "Personnel แถว {$rowNo}: citizen_id ต้องเป็นเลข 13 หลัก";
+            } elseif (!isValidCitizenId($cid)) {
+                $errors[] = "Personnel แถว {$rowNo}: เลขบัตรประชาชนไม่ถูกต้อง";
             } elseif (isset($citizenIds[$cid])) {
                 $errors[] = "Personnel แถว {$rowNo}: citizen_id ซ้ำในไฟล์";
             } else {

@@ -47,3 +47,20 @@ function testPdo(): ?PDO
         return null;
     }
 }
+
+/**
+ * Build a checksum-valid 13-digit citizen_id from a 12-digit stem (test data only).
+ */
+function testCitizenId(string $first12): string
+{
+    if (!preg_match('/^\d{12}$/', $first12)) {
+        throw new InvalidArgumentException('testCitizenId expects exactly 12 digits');
+    }
+    for ($d = 0; $d <= 9; $d++) {
+        $id = $first12 . (string) $d;
+        if (isValidCitizenId($id)) {
+            return $id;
+        }
+    }
+    throw new RuntimeException('no valid Thai citizen-id check digit for stem');
+}

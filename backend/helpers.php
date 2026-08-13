@@ -17,6 +17,24 @@ function isValidUsername(string $username): bool
 }
 
 /**
+ * Thai citizen ID: 13 digits + official checksum.
+ * sum = d1*13 + … + d12*2; check = (11 - (sum % 11)) % 10; d13 must equal check.
+ * New writes only — existing rows are not rewritten.
+ */
+function isValidCitizenId(string $citizenId): bool
+{
+    if (!preg_match('/^\d{13}$/', $citizenId)) {
+        return false;
+    }
+    $sum = 0;
+    for ($i = 0; $i < 12; $i++) {
+        $sum += (int) $citizenId[$i] * (13 - $i);
+    }
+    $check = (11 - ($sum % 11)) % 10;
+    return (int) $citizenId[12] === $check;
+}
+
+/**
  * ตอบ 405 พร้อม JSON body — ใช้กับ route ที่รองรับเฉพาะบาง method
  *
  * ถ้าไม่ตอบอะไรเลย client จะได้ HTTP 200 + body ว่าง ทั้งที่ header เป็น JSON

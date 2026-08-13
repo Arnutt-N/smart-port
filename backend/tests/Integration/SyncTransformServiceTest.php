@@ -175,7 +175,7 @@ final class SyncTransformServiceTest extends TestCase
         $source = new ArraySourceAdapter();
         $source->setRows('per_personal', [
             [
-                'per_id' => '9001', 'per_cardno' => '1999900000001', 'per_name' => 'ทดสอบ',
+                'per_id' => '9001', 'per_cardno' => '1999900000005', 'per_name' => 'ทดสอบ',
                 'per_surname' => 'ซิงก์', 'per_startdate' => '2560-04-01 00:00:00',
                 'pos_id' => '801', 'org_id' => '901', 'level_no' => '03', 'per_status' => '1', 'pn_code' => '001',
             ],
@@ -187,7 +187,7 @@ final class SyncTransformServiceTest extends TestCase
         self::assertSame(1, $result['created'], json_encode($result));
         self::assertSame(0, count($result['errors']));
 
-        $stmt = self::$pdo->prepare("SELECT * FROM personnel WHERE citizen_id = '1999900000001'");
+        $stmt = self::$pdo->prepare("SELECT * FROM personnel WHERE citizen_id = '1999900000005'");
         $stmt->execute();
         $person = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -197,6 +197,35 @@ final class SyncTransformServiceTest extends TestCase
         self::assertSame('2017-04-01', $person['hire_date'], 'G1: BE 2560 → CE 2017');
         self::assertSame('K3', $person['current_level_code'], 'level 03 → K3');
         self::assertSame(1, (int) $person['is_active']);
+    }
+
+    #[Test]
+    public function it_skips_person_with_invalid_citizen_id_checksum(): void
+    {
+        $this->seedCrosswalkDependencies();
+
+        $source = new ArraySourceAdapter();
+        $source->setRows('per_personal', [
+            [
+                'per_id' => '9003', 'per_cardno' => '1999900000001', 'per_name' => 'ผิด',
+                'per_surname' => 'เช็คซัม', 'per_startdate' => '2560-04-01 00:00:00',
+                'pos_id' => '801', 'org_id' => '901', 'level_no' => '03', 'per_status' => '1', 'pn_code' => '001',
+            ],
+        ]);
+
+        $service = new SyncTransformService(self::$pdo, $source);
+        $result = $service->syncDomain('D1', true);
+
+        self::assertSame(0, $result['created']);
+        self::assertSame(1, $result['skipped']);
+        self::assertNotEmpty($result['errors']);
+        $errText = implode(' ', $result['errors']);
+        self::assertStringContainsString('invalid citizen_id', $errText);
+        self::assertStringNotContainsString('1999900000001', $errText);
+
+        $stmt = self::$pdo->prepare("SELECT 1 FROM personnel WHERE citizen_id = '1999900000001'");
+        $stmt->execute();
+        self::assertFalse($stmt->fetchColumn());
     }
 
     #[Test]
