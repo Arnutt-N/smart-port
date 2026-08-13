@@ -183,11 +183,6 @@ function getPersonnelLookups(PDO $pdo): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function isValidCitizenId(string $citizenId): bool
-{
-    return (bool) preg_match('/^\d{13}$/', $citizenId);
-}
-
 /**
  * Master list ?include_inactive=1 — admin/superadmin only (soft-deny, not 403).
  */
@@ -237,9 +232,14 @@ function createPersonnelRecord(PDO $pdo, array $auth, ?array $input = null): ?in
         echo json_encode(['error' => 'กรุณาระบุชื่อและนามสกุล'], JSON_UNESCAPED_UNICODE);
         return null;
     }
-    if (!isValidCitizenId($citizenId)) {
+    if (!preg_match('/^\d{13}$/', $citizenId)) {
         http_response_code(400);
         echo json_encode(['error' => 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก'], JSON_UNESCAPED_UNICODE);
+        return null;
+    }
+    if (!isValidCitizenId($citizenId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'เลขบัตรประชาชนไม่ถูกต้อง'], JSON_UNESCAPED_UNICODE);
         return null;
     }
     if ($prefixId !== null && $prefixId <= 0) {

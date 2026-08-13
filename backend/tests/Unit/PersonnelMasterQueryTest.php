@@ -15,9 +15,10 @@ require_once __DIR__ . '/../../routes/personnel.php';
 final class PersonnelMasterQueryTest extends TestCase
 {
     #[Test]
-    public function citizen_id_must_be_exactly_13_digits(): void
+    public function citizen_id_must_be_13_digits_with_valid_checksum(): void
     {
-        self::assertTrue(isValidCitizenId('1234567890123'));
+        self::assertTrue(isValidCitizenId('1234567890121'));
+        self::assertFalse(isValidCitizenId('1234567890123'));
         self::assertFalse(isValidCitizenId('123456789012'));
         self::assertFalse(isValidCitizenId('12345678901234'));
         self::assertFalse(isValidCitizenId('123456789012a'));

@@ -245,6 +245,7 @@ import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { shouldOpenPersonnelMasterCreate } from '@/utils/personnelTypeaheadEmpty.js'
+import { thaiCitizenIdError } from '@/utils/thaiCitizenId.js'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -367,9 +368,9 @@ function validateForm() {
     return false
   }
   if (!editingRow.value) {
-    const cid = formData.value.citizenId.trim()
-    if (!/^\d{13}$/.test(cid)) {
-      ui.showToast('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก', 'error')
+    const cidError = thaiCitizenIdError(formData.value.citizenId)
+    if (cidError) {
+      ui.showToast(cidError, 'error')
       return false
     }
   }

@@ -5,10 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../TransformHelpers.php';
 require_once __DIR__ . '/../CrosswalkService.php';
 require_once __DIR__ . '/../SourceAdapterInterface.php';
+require_once __DIR__ . '/../../helpers.php';
 
 /**
  * D1: per_personal → personnel
- * Natural key: per_cardno = citizen_id (13-digit)
+ * Natural key: per_cardno = citizen_id (13-digit + Thai checksum)
  * Depends on: D2 (org crosswalk), D3 (position crosswalk), D4 (prefix crosswalk)
  */
 class PersonTransformer
@@ -62,8 +63,8 @@ class PersonTransformer
                     continue;
                 }
 
-                if (!preg_match('/^\d{13}$/', $citizenId)) {
-                    $result['errors'][] = "per_personal [{$sourceId}]: invalid citizen_id format '{$citizenId}'";
+                if (!isValidCitizenId($citizenId)) {
+                    $result['errors'][] = "per_personal [{$sourceId}]: invalid citizen_id";
                     $result['skipped']++;
                     continue;
                 }

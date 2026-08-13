@@ -57,12 +57,12 @@ final class ImportServiceTest extends TestCase
         // engine คำนวณได้หลังนำเข้า — executive ไม่ว่างอีกต่อไป
         $engine = new QualificationEngine(self::$pdo);
 
-        $m1 = $engine->computeDetail('M1', $this->personnelId('1100100299001'));
+        $m1 = $engine->computeDetail('M1', $this->personnelId('1100100299005'));
         self::assertNotNull($m1);
         // K3 2020-01-01 +3ปี = 2023-01-01 (MAX กับ 3 ต่าง 2018-01-01)
         self::assertSame('2023-01-01', $m1['data']['qualification_date']);
 
-        $s2 = $engine->computeDetail('S2', $this->personnelId('1100100299002'));
+        $s2 = $engine->computeDetail('S2', $this->personnelId('1100100299013'));
         self::assertNotNull($s2);
         // S1 2022-01-01 +1ปี = 2023-01-01
         self::assertSame('2023-01-01', $s2['data']['qualification_date']);
@@ -85,7 +85,7 @@ final class ImportServiceTest extends TestCase
         $stmt = self::$pdo->prepare(
             'SELECT current_org_id, current_position_id FROM personnel WHERE citizen_id = ?'
         );
-        $stmt->execute(['1100100299001']);
+        $stmt->execute(['1100100299005']);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         self::assertNotNull($row['current_org_id']);
@@ -93,7 +93,7 @@ final class ImportServiceTest extends TestCase
         self::assertNotNull($row['current_position_id']);
 
         // ชื่อ org ซ้ำ 2 แถว (กองบริหารทรัพยากรบุคคล) → reuse org_id เดียวกัน
-        $stmt->execute(['1100100299002']);
+        $stmt->execute(['1100100299013']);
         $row2 = $stmt->fetch(PDO::FETCH_ASSOC);
         self::assertSame((int) $row['current_org_id'], (int) $row2['current_org_id'], 'org ชื่อซ้ำต้อง reuse id เดิม');
         // ตำแหน่งต่างกัน (ชำนาญการ vs ผู้อำนวยการกอง) → position_id ต่างกัน
@@ -109,7 +109,7 @@ final class ImportServiceTest extends TestCase
         $ref->setAccessible(true);
         $sheets = [
             'Personnel' => [[
-                'citizen_id' => '1100100299010', 'first_name' => 'ก', 'last_name' => 'ข',
+                'citizen_id' => '1100100299013', 'first_name' => 'ก', 'last_name' => 'ข',
                 'hire_date' => '2010-01-01', 'current_level_code' => 'K3',
                 'current_level_start_date' => '2020-01-01', 'education_level' => 'MASTER',
                 'org_name' => '', 'position_name' => '',
@@ -119,6 +119,26 @@ final class ImportServiceTest extends TestCase
         $errors = $ref->invoke($svc, $sheets);
         self::assertNotEmpty($errors);
         self::assertStringContainsString('หน่วยงาน', implode(' ', $errors));
+    }
+
+    #[Test]
+    public function it_rejects_personnel_with_invalid_citizen_id_checksum(): void
+    {
+        $svc = new ImportService(self::$pdo);
+        $ref = new \ReflectionMethod($svc, 'validate');
+        $ref->setAccessible(true);
+        $sheets = [
+            'Personnel' => [[
+                'citizen_id' => '1100100299001', 'first_name' => 'ก', 'last_name' => 'ข',
+                'hire_date' => '2010-01-01', 'current_level_code' => 'K3',
+                'current_level_start_date' => '2020-01-01', 'education_level' => 'MASTER',
+                'org_name' => 'กอง', 'position_name' => 'นักทรัพยากร',
+            ]],
+            'Diverse' => [], 'Equivalence' => [], 'History' => [],
+        ];
+        $errors = $ref->invoke($svc, $sheets);
+        self::assertNotEmpty($errors);
+        self::assertStringContainsString('เลขบัตรประชาชนไม่ถูกต้อง', implode(' ', $errors));
     }
 
     #[Test]
