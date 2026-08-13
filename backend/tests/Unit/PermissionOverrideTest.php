@@ -22,6 +22,8 @@ final class PermissionOverrideTest extends TestCase
         self::assertTrue(checkPermissionDefault('operator', 'create', 'multiplier'));
         self::assertFalse(checkPermissionDefault('operator', 'delete', 'multiplier'));
         self::assertFalse(checkPermissionDefault('operator', 'update', 'equivalence_approval'));
+        self::assertFalse(checkPermissionDefault('operator', 'create', 'personnel'));
+        self::assertFalse(checkPermissionDefault('operator', 'update', 'personnel'));
     }
 
     #[Test]
