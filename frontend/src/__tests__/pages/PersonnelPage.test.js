@@ -75,6 +75,7 @@ describe('PersonnelPage', () => {
   it('loads data on mount and renders rows', async () => {
     const wrapper = await mountPage()
     expect(wrapper.text()).toContain('นายสมชาย ใจดี')
+    expect(wrapper.findAll('th').map((th) => th.text())).toContain('เลขบัตร')
     expect(wrapper.text()).toContain('1234567890123')
     expect(mockFetchList).toHaveBeenCalledWith(
       expect.objectContaining({ offset: 0, includeInactive: false }),
@@ -107,6 +108,13 @@ describe('PersonnelPage', () => {
     const wrapper = await mountPage('operator')
     expect(wrapper.vm.isAdmin).toBe(false)
     expect(wrapper.text()).not.toContain('เพิ่มบุคลากร')
+  })
+
+  it('hides citizen_id column for non-admin', async () => {
+    const wrapper = await mountPage('operator')
+    expect(wrapper.text()).toContain('นายสมชาย ใจดี')
+    expect(wrapper.findAll('th').map((th) => th.text())).not.toContain('เลขบัตร')
+    expect(wrapper.text()).not.toContain('1234567890123')
   })
 
   it('shows error state when loading fails', async () => {

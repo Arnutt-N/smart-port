@@ -64,7 +64,7 @@
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เลขบัตร</th>
+              <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เลขบัตร</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสพนักงาน</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่ง</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
@@ -82,7 +82,7 @@
                   {{ row.fullName }}
                 </RouterLink>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ row.citizenId || '-' }}</td>
+              <td v-if="isAdmin" class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ row.citizenId || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ row.employeeId || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ row.currentPosition || '-' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ row.department || '-' }}</td>

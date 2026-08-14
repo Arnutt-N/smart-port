@@ -14,7 +14,8 @@ require_once __DIR__ . '/../../routes/personnel.php';
 
 /**
  * HTTP contract: operator/viewer cannot write personnel (403);
- * include_inactive is admin-only (soft-deny, not 403).
+ * include_inactive is admin-only (soft-deny, not 403);
+ * master list/detail omits citizen_id for non-admin.
  */
 final class PersonnelAuthzHttpTest extends TestCase
 {
@@ -71,6 +72,36 @@ final class PersonnelAuthzHttpTest extends TestCase
         self::assertFalse(resolvePersonnelIncludeInactive(true, 'operator'));
         self::assertFalse(resolvePersonnelIncludeInactive(true, 'viewer'));
         self::assertFalse(resolvePersonnelIncludeInactive(true, ''));
+    }
+
+    #[Test]
+    public function citizen_id_visible_only_to_admin_and_superadmin(): void
+    {
+        self::assertTrue(personnelRoleSeesCitizenId('admin'));
+        self::assertTrue(personnelRoleSeesCitizenId('superadmin'));
+        self::assertFalse(personnelRoleSeesCitizenId('operator'));
+        self::assertFalse(personnelRoleSeesCitizenId('viewer'));
+        self::assertFalse(personnelRoleSeesCitizenId(''));
+    }
+
+    #[Test]
+    public function redact_omits_citizen_id_for_non_admin(): void
+    {
+        $row = ['personnel_id' => 1, 'citizen_id' => '1234567890121', 'first_name' => 'ก'];
+
+        $admin = redactPersonnelCitizenIdForRole($row, 'admin');
+        self::assertSame('1234567890121', $admin['citizen_id']);
+        self::assertSame(1, $admin['personnel_id']);
+
+        $super = redactPersonnelCitizenIdForRole($row, 'superadmin');
+        self::assertSame('1234567890121', $super['citizen_id']);
+
+        foreach (['operator', 'viewer', ''] as $role) {
+            $redacted = redactPersonnelCitizenIdForRole($row, $role);
+            self::assertArrayNotHasKey('citizen_id', $redacted);
+            self::assertSame(1, $redacted['personnel_id']);
+            self::assertSame('ก', $redacted['first_name']);
+        }
     }
 
     /**
