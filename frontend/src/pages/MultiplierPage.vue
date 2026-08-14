@@ -372,8 +372,10 @@ import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
+import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
 import {
   PERSONNEL_MASTER_CREATE_LINK_LABEL,
   PERSONNEL_MASTER_CREATE_TO,
@@ -401,6 +403,7 @@ const api = useApi()
 const { searchPersonnel } = usePersonnelSearch()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
 const auth = useAuthStore()
+const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
 const isAdmin = computed(() => auth.isAdmin)
@@ -675,12 +678,14 @@ function onGlobalKeydown(e) {
 onMounted(() => {
   fetchData()
   window.addEventListener('keydown', onGlobalKeydown)
-  applyPersonnelCreateQuery({
+  void applyPersonnelCreateQuery({
     route,
     router,
     openCreate: openCreateModal,
     formData,
     personnelSearch,
+    get: (url) => api.get(url),
+    onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
   })
 })
 

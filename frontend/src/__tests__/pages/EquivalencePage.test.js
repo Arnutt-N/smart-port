@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
@@ -94,6 +94,7 @@ describe('EquivalencePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
     mockFetchList.mockResolvedValue({
       success: true,
       data: [sampleRow],
@@ -263,9 +264,11 @@ describe('EquivalencePage', () => {
       full_name: 'นายสมชาย ไทยแท้',
     }
     const wrapper = await mountPage()
+    await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
     expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+    expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
   })
 })
