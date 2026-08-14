@@ -113,6 +113,18 @@ describe('ProfilePage', () => {
     expect(wrapper.text()).not.toContain('ทางลัดเพิ่มรายการนับเวลา')
   })
 
+  it('shows career time shortcuts for operator when personnel is active', async () => {
+    routeParams.value = { id: '5' }
+    const wrapper = await mountPage('operator')
+    await vi.waitFor(() => expect(mockFetchById).toHaveBeenCalledWith('5'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('ทางลัดเพิ่มรายการนับเวลา')
+    expect(wrapper.text()).toContain('การนับเกื้อกูล')
+    expect(wrapper.text()).toContain('การนับทวีคูณ')
+    expect(wrapper.text()).toContain('การนับแตกต่าง')
+    expect(wrapper.text()).toContain('การเทียบตำแหน่ง')
+  })
+
   it('navigates to time page with create query when shortcut clicked', async () => {
     routeParams.value = { id: '5' }
     const wrapper = await mountPage('admin')
