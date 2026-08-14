@@ -130,6 +130,7 @@ describe('MultiplierPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
     resolvedData()
   })
 
@@ -320,9 +321,11 @@ describe('MultiplierPage', () => {
       full_name: 'นายสมชาย ไทยแท้',
     }
     const wrapper = await mountPage()
+    await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
     expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+    expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
   })
 })

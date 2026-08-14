@@ -2,6 +2,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
+import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
 
 const mockFetchList = vi.fn()
 const mockCreate = vi.fn()
@@ -96,6 +98,7 @@ describe('SupportivePage', () => {
       summary: null,
       pagination: { total: 1, limit: 20, offset: 0 },
     })
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
   })
 
   it('loads and renders supportive records on mount', async () => {
@@ -306,10 +309,29 @@ describe('SupportivePage', () => {
       full_name: 'นายสมชาย ไทยแท้',
     }
     const wrapper = await mountPage()
+    await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
     expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+    expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
+  })
+
+  it('does not open create modal when create-query personnel is inactive', async () => {
+    routeQuery.value = {
+      create: '1',
+      personnel_id: '12',
+      full_name: 'นายสมชาย ไทยแท้',
+    }
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 0 } })
+    const wrapper = await mountPage()
+    await flushPromises()
+    expect(wrapper.vm.showModal).toBe(false)
+    expect(wrapper.vm.formData.personnel_id).toBeNull()
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+    expect(useUiStore().toasts.some((toast) => (
+      toast.message === PERSONNEL_CREATE_QUERY_UNAVAILABLE.inactive && toast.type === 'error'
+    ))).toBe(true)
   })
 
   it('does not open create modal without create=1 query', async () => {

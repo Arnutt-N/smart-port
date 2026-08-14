@@ -415,6 +415,7 @@ import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmAction, confirmSave } from '@/composables/useConfirm.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
+import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
 import {
   PERSONNEL_MASTER_CREATE_LINK_LABEL,
   PERSONNEL_MASTER_CREATE_TO,
@@ -746,12 +747,14 @@ function openView(record) {
 
 onMounted(() => {
   fetchData()
-  applyPersonnelCreateQuery({
+  void applyPersonnelCreateQuery({
     route,
     router,
     openCreate,
     formData,
     personnelSearch,
+    get: (url) => api.get(url),
+    onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
   })
 })
 </script>
