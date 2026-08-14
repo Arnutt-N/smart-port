@@ -150,8 +150,9 @@ async function main() {
     process.exit(2)
   }
 
-  // /personnel requires a non-empty search; use common Thai vowel to collect a pool
-  const peopleRes = await api('GET', `/personnel?search=${encodeURIComponent('า')}&limit=20`, {
+  // Use the paginated master list so the UAT works with both TEST_SEED and real HR data.
+  // Supplying offset selects this mode without relying on fixture-specific search text.
+  const peopleRes = await api('GET', '/personnel?offset=0&limit=20', {
     token,
   })
   if (peopleRes.status !== 200) {

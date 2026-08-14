@@ -130,7 +130,9 @@ node scripts/uat-multiplier-live-api.mjs
 
 All PASS against `docs/multiplier_phase0_master_data_template.csv` + `docs/multiplier_phase0_uat_cases_template.csv`.
 
-Note: check “All rows verified by HR” passes because `verified_by=TEST_SEED` is non-TODO text — **not** a real HR signature.
+Note: `Verification fields populated (format only)` checks only that the field is
+non-empty. The validator classifies `verified_by=TEST_SEED` as `SYNTHETIC_ONLY`
+and does **not** treat it as a real HR signature.
 
 ### Live API UAT (TC-001..TC-010)
 
