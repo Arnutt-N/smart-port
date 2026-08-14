@@ -194,6 +194,26 @@ function resolvePersonnelIncludeInactive(bool $requested, string $role): bool
     return $role === 'admin' || $role === 'superadmin';
 }
 
+function personnelRoleSeesCitizenId(string $role): bool
+{
+    return $role === 'admin' || $role === 'superadmin';
+}
+
+/**
+ * Master list/detail JSON — omit citizen_id unless admin/superadmin.
+ * Do not use on update/audit paths (those need the real ID).
+ *
+ * @param array<string, mixed> $row
+ * @return array<string, mixed>
+ */
+function redactPersonnelCitizenIdForRole(array $row, string $role): array
+{
+    if (!personnelRoleSeesCitizenId($role)) {
+        unset($row['citizen_id']);
+    }
+    return $row;
+}
+
 function personnelPrefixExists(PDO $pdo, int $prefixId): bool
 {
     if ($prefixId <= 0) {
@@ -442,6 +462,8 @@ function handlePersonnel(PDO $pdo, string $method, array $path): void
             return;
         }
 
+        $role = (string) (getAuthenticatedUser()['role'] ?? '');
+
         if ($sub !== null && $sub !== '') {
             $id = (int) $sub;
             $row = getPersonnelById($pdo, $id);
@@ -450,23 +472,27 @@ function handlePersonnel(PDO $pdo, string $method, array $path): void
                 echo json_encode(['error' => 'ไม่พบบุคลากร'], JSON_UNESCAPED_UNICODE);
                 return;
             }
-            echo json_encode(['success' => true, 'data' => $row], JSON_UNESCAPED_UNICODE);
+            echo json_encode([
+                'success' => true,
+                'data' => redactPersonnelCitizenIdForRole($row, $role),
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
         // Master list when offset is present; otherwise typeahead (backward compatible)
         if (array_key_exists('offset', $_GET)) {
             $requestedInactive = isset($_GET['include_inactive']) && (string) $_GET['include_inactive'] !== '0';
-            $includeInactive = resolvePersonnelIncludeInactive(
-                $requestedInactive,
-                (string) (getAuthenticatedUser()['role'] ?? '')
-            );
+            $includeInactive = resolvePersonnelIncludeInactive($requestedInactive, $role);
             $result = listPersonnelMaster(
                 $pdo,
                 (string) ($_GET['search'] ?? ''),
                 intval($_GET['limit'] ?? 20),
                 intval($_GET['offset'] ?? 0),
                 $includeInactive
+            );
+            $result['data'] = array_map(
+                static fn (array $row) => redactPersonnelCitizenIdForRole($row, $role),
+                $result['data']
             );
             echo json_encode([
                 'success' => true,
