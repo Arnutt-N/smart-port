@@ -103,7 +103,7 @@ if [[ "${SKIP_E2E}" -eq 0 ]]; then
   elif (
     set -e
     cd "${ROOT}"
-    docker compose up -d db backend
+    docker compose up -d --build db backend
     backend_ready=0
     for _ in $(seq 1 60); do
       if docker compose exec -T db sh -c \

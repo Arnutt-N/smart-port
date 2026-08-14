@@ -155,7 +155,7 @@ if (-not $SkipE2E) {
     $failed += 'e2e'
   } else {
     try {
-      docker compose --project-directory $Root up -d db backend
+      docker compose --project-directory $Root up -d --build db backend
       if ($LASTEXITCODE -ne 0) { throw "docker compose up exited $LASTEXITCODE" }
 
       $backendReady = $false
