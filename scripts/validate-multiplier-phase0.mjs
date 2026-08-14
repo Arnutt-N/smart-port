@@ -33,6 +33,7 @@ function parseCsv(path) {
 }
 
 const isTodo = (v) => v === '' || /^TODO/i.test(v);
+const isTestSeed = (v) => /TEST_SEED/i.test(v);
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const toUtc = (v) => Date.parse(`${v}T00:00:00Z`);
 const inclusiveDays = (a, b) => Math.round((toUtc(b) - toUtc(a)) / 86400000) + 1;
@@ -138,24 +139,24 @@ check(
     : decreeRows.filter((r) => !isDate(r.effective_start_date)).map((r) => `${r.row_id}: effective_start_date ยังเป็น TODO`)
 );
 
-// --- Check 9: UAT cases >= 10 with real data ---
-const realCases = uat.filter((r) => !isTodo(r.province) && isDate(r.service_start_date) && isDate(r.service_end_date));
+// --- Check 9: UAT cases >= 10 with structurally valid data ---
+const validCases = uat.filter((r) => !isTodo(r.province) && isDate(r.service_start_date) && isDate(r.service_end_date));
 check(
-  `UAT cases complete (>= ${MIN_UAT_CASES} real cases)`,
-  realCases.length >= MIN_UAT_CASES ? [] : [`มี real case ${realCases.length}/${MIN_UAT_CASES}`]
+  `UAT case structure complete (>= ${MIN_UAT_CASES} cases)`,
+  validCases.length >= MIN_UAT_CASES ? [] : [`มี valid case ${validCases.length}/${MIN_UAT_CASES}`]
 );
 
 // --- Check 10: boundary cases present (clamp start + clamp end) ---
-const clampStart = realCases.some((r) => toUtc(r.service_start_date) < toUtc(r.expected_eligible_start_date));
-const clampEnd = realCases.some((r) => toUtc(r.service_end_date) > toUtc(r.expected_eligible_end_date));
+const clampStart = validCases.some((r) => toUtc(r.service_start_date) < toUtc(r.expected_eligible_start_date));
+const clampEnd = validCases.some((r) => toUtc(r.service_end_date) > toUtc(r.expected_eligible_end_date));
 check('Boundary UAT cases present', [
   ...(clampStart ? [] : ['ไม่มี case ที่เริ่มงานก่อนวันเริ่มประกาศ (clamp start)']),
   ...(clampEnd ? [] : ['ไม่มี case ที่สิ้นสุดงานหลังวันสิ้นสุดประกาศ (clamp end)']),
 ]);
 
-// --- Check 11: recompute expected values for every real UAT case ---
+// --- Check 11: recompute expected values for every structurally valid UAT case ---
 const calcErrs = [];
-for (const r of realCases) {
+for (const r of validCases) {
   const caseErr = (msg) => calcErrs.push(`${r.case_id}: ${msg}`);
   const serviceDays = inclusiveDays(r.service_start_date, r.service_end_date);
   if (serviceDays !== Number(r.expected_service_days))
@@ -192,9 +193,9 @@ for (const r of realCases) {
 }
 check('UAT expected values match calculation rules', calcErrs);
 
-// --- Check 12: HR verification fields filled ---
+// --- Check 12: verification fields filled (format check, not HR approval) ---
 check(
-  'All rows verified by HR',
+  'Verification fields populated (format only)',
   [
     ...master.filter((r) => isTodo(r.verified_by)).map((r) => `${r.row_id}: verified_by ยังเป็น TODO`),
     ...uat.filter((r) => isTodo(r.verified_by)).map((r) => `${r.case_id}: verified_by ยังเป็น TODO`),
@@ -202,8 +203,12 @@ check(
 );
 
 // --- Report ---
+const syntheticMasterRows = master.filter((r) => Object.values(r).some(isTestSeed));
+const syntheticUatRows = uat.filter((r) => Object.values(r).some(isTestSeed));
+const hasSyntheticData = syntheticMasterRows.length > 0 || syntheticUatRows.length > 0;
+
 console.log('Phase 0 Multiplier Master Data — Validation Report');
-console.log(`master rows: ${master.length}, uat rows: ${uat.length} (real: ${realCases.length})`);
+console.log(`master rows: ${master.length} (synthetic: ${syntheticMasterRows.length}), uat rows: ${uat.length} (valid: ${validCases.length}, synthetic: ${syntheticUatRows.length})`);
 console.log('');
 let failed = 0;
 for (const r of results) {
@@ -216,5 +221,11 @@ for (const r of results) {
   }
 }
 console.log('');
-console.log(failed === 0 ? 'ALL CHECKS PASSED — พร้อมสร้าง database/13-multiplier-time-counting.sql' : `${failed}/${results.length} checks ไม่ผ่าน — ยังห้ามสร้าง migration seed`);
+if (failed > 0) {
+  console.log(`${failed}/${results.length} checks ไม่ผ่าน — ยังห้ามสร้าง migration seed`);
+} else if (hasSyntheticData) {
+  console.log('TECHNICAL CHECKS PASSED — SYNTHETIC_ONLY; ยังห้ามสร้าง migration seed และยังไม่พร้อม director review');
+} else {
+  console.log('ALL CHECKS PASSED — พร้อมสร้าง database/13-multiplier-time-counting.sql');
+}
 process.exit(failed === 0 ? 0 : 1);

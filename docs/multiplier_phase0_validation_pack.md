@@ -103,7 +103,7 @@ Mismatch log: **ไม่มี** (0 FAIL)
 | No ambiguous active overlap | ไม่มีช่วงซ้อนคลุมเครือ | PASS | PASS (0) | |
 | District precedence reviewed | สงขลา/สตูลเป็น district-level | PASS | PASS (8 district rows) | |
 | Emergency decree coverage reviewed | มี E-001..E-003 | PASS (TEST_SEED) | PASS (3 rows) | รอ HR confirm วันที่ |
-| UAT cases complete | ≥ 10 cases + clamp | PASS | Live 10/10 PASS | synthetic เท่านั้น |
+| UAT case structure complete | ≥ 10 cases + clamp | PASS | Live 10/10 PASS | synthetic เท่านั้น |
 
 Local DB snapshot: 14 areas (ยะลา 2, ปัตตานี 2, นราธิวาส 2, สงขลา 4, สตูล 4)
 
