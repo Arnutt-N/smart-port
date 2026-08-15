@@ -157,3 +157,74 @@ function rateLimitGlobal(): void
 
     checkRateLimit($user['user_id'], $method, $limit, $window);
 }
+
+// ============================================================================
+// Issue #122: rate limit สำหรับ endpoint public (readyz / csp-report / uploads)
+// — key ด้วย IP ไม่ใช่ user_id และไม่แตะ DB เลย:
+//   การ probe DB ตอน outage คือ amplification vector ที่ต้องการกัน
+// ============================================================================
+
+/**
+ * IP ของ client — first hop ของ X-Forwarded-For (Render/nginx ตั้งให้)
+ * fallback REMOTE_ADDR; sanitize ให้เหลือแค่รูปของ IPv4/IPv6
+ */
+function publicClientIp(): string
+{
+    $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    $first = trim(explode(',', $forwarded)[0]);
+    if ($first !== '' && preg_match('/^[0-9a-fA-F:.]{7,45}$/', $first) === 1) {
+        return $first;
+    }
+
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+}
+
+/**
+ * File-based sliding window สำหรับ public endpoint — คืน bool (ไม่ exit) เพื่อ test ได้
+ * บันทึก hit เฉพาะตอนยังไม่เกิน limit — ช่วงถูก flood window จะได้ไม่บวมไปเรื่อย
+ */
+function publicRateLimitWithin(string $bucket, int $limit, int $windowSeconds, ?string $ip = null): bool
+{
+    if (!is_dir(RATE_LIMIT_DIR)) {
+        mkdir(RATE_LIMIT_DIR, 0775, true);
+    }
+
+    $key = 'public_' . ($ip ?? publicClientIp()) . '_' . $bucket;
+    $file = RATE_LIMIT_DIR . md5($key) . '.json';
+    $now = time();
+
+    $handle = fopen($file, 'c+');
+    if ($handle === false) {
+        error_log("[RateLimit] cannot open {$file}");
+        return true; // fail-open — ปิด rate limit ดีกว่าปิด service ทั้งก้อน
+    }
+    flock($handle, LOCK_EX);
+
+    $content = stream_get_contents($handle);
+    $data = $content ? (json_decode($content, true) ?: []) : [];
+    $data['hits'] = array_filter($data['hits'] ?? [], fn($ts) => $ts > $now - $windowSeconds);
+
+    $within = count($data['hits']) < $limit;
+    if ($within) {
+        $data['hits'][] = $now;
+    }
+
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, json_encode($data));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+
+    return $within;
+}
+
+/**
+ * Wrapper ที่ exit 429 เมื่อเกิน limit (เรียกจาก api.php สำหรับเส้นทาง public)
+ */
+function checkRateLimitPublic(string $bucket, int $limit, int $windowSeconds): void
+{
+    if (!publicRateLimitWithin($bucket, $limit, $windowSeconds)) {
+        rateLimitExceededResponse($windowSeconds);
+    }
+}

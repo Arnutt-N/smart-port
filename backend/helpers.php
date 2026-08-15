@@ -200,6 +200,16 @@ function sanitizeHtml(?string $input): ?string
 }
 
 /**
+ * Issue #122: ทำค่าที่ attacker คุมได้ให้ปลอดภัยก่อนเข้า error_log()
+ * — strip control chars (CRLF ปลอม log line ได้) + truncate กัน log บวม
+ */
+function sanitizeLogValue(?string $input, int $maxLength = 100): string
+{
+    $clean = preg_replace('/[\x00-\x1F\x7F]/', '', (string) $input) ?? '';
+    return substr($clean, 0, $maxLength);
+}
+
+/**
  * ตรวจว่า personnel_id มีอยู่จริง (soft-link enforcement แทน FK)
  */
 function personnelExists(PDO $pdo, int $personnelId): bool
