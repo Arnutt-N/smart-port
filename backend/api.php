@@ -101,8 +101,12 @@ $isPasswordChange = $path[0] === 'auth' && ($path[1] ?? '') === 'change-password
 // (access JWT อาจหมดอายุแล้ว จึงบังคับ JWT/CSRF ไม่ได้)
 $isPublicAuth = $isPublicLogin || $isPublicRefresh || $isPublicLogout;
 
+// Issue #112: asset รูป (GET /uploads/{file}) เป็น public เหมือนตอน Apache เสิร์ฟ static
+// (<img> ไม่ส่ง Authorization header) — ชื่อไฟล์ uniqid เดาไม่ได้ทำหน้าที่เป็น capability URL
+$isPublicPhotoAsset = $path[0] === 'uploads' && $method === 'GET';
+
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicAuth && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -121,7 +125,7 @@ if (in_array($method, $statefulMethods, true) && !$isPublicAuth) {
 }
 
 // ผู้ใช้ที่ถูกบังคับเปลี่ยนรหัสผ่านเข้าถึงได้เฉพาะ endpoint เปลี่ยนรหัสผ่าน
-if (!$isPublicAuth && !$isPasswordChange && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPasswordChange && $method !== 'OPTIONS') {
     $authenticatedUser = getAuthenticatedUser();
     if ((int) ($authenticatedUser['must_change_password'] ?? 0) === 1) {
         http_response_code(403);
@@ -204,6 +208,12 @@ switch ($path[0]) {
         }
         break;
 
+    case 'uploads':
+        // Issue #112: เสิร์ฟรูปจาก DB — แทนที่ static file ที่ Apache เคยเสิร์ฟตรง ๆ
+        include_once __DIR__ . '/routes/photos.php';
+        handleUploadsAsset(getDB(), $method, $path);
+        break;
+
     case 'photos':
         if ($method == 'POST') {
             requirePermission('create', 'photos');
@@ -262,49 +272,32 @@ switch ($path[0]) {
             // Generate safe filename
             $safeFileName = uniqid('photo_', true) . '.' . $ext;
 
-            if (!is_dir(UPLOAD_DIR)) {
-                mkdir(UPLOAD_DIR, 0775, true);
-            }
-
-            $file_path = UPLOAD_DIR . $safeFileName;
-            // เก็บลง DB เป็น path สัมพัทธ์ (uploads/xxx.jpg) ไม่ใช่ path ของ filesystem
-            // เพื่อให้ frontend ประกอบ URL ผ่าน API base ได้ตรง ๆ
-            $web_path = photoWebPath($safeFileName);
-            if (!move_uploaded_file($file['tmp_name'], $file_path)) {
+            // Issue #112: เก็บ bytes ลงฐานข้อมูล (TiDB persist ข้าม deploy) —
+            // ห้ามเขียนลง filesystem ของ container เพราะหายตอน redeploy (ADR-0001/0003)
+            $bytes = file_get_contents((string) $file['tmp_name']);
+            if ($bytes === false) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
                 break;
             }
 
+            // เก็บลง DB เป็น path สัมพัทธ์ (uploads/xxx.jpg) เหมือนเดิม
+            // เพื่อให้ frontend ประกอบ URL ผ่าน API base ได้ตรง ๆ
+            $web_path = photoWebPath($safeFileName);
+
             try {
                 $pdo = getDB();
-                $pdo->beginTransaction();
-
-                $stmt = $pdo->prepare(
-                    "INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (?, ?, ?)"
-                );
-                $stmt->execute([$servant_id, $safeFileName, $web_path]);
-
-                $photo_id = (int) $pdo->lastInsertId();
-                $versions = createPhotoVersions($pdo, $photo_id, $safeFileName);
-
-                $pdo->commit();
+                include_once __DIR__ . '/routes/photos.php';
+                $stored = storePhotoRecord($pdo, $servant_id, $safeFileName, $web_path, $bytes, $mimeType);
 
                 echo json_encode([
                     'success' => true,
-                    'photo_id' => $photo_id,
+                    'photo_id' => $stored['photo_id'],
                     'path' => $web_path,
-                    'versions' => $versions,
+                    'versions' => $stored['versions'],
                 ]);
             } catch (Throwable $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-
-                if (is_file($file_path)) {
-                    @unlink($file_path);
-                }
-
+                error_log('[photos] store failed: ' . $e->getMessage());
                 http_response_code(500);
                 echo json_encode(['error' => 'Upload failed']);
             }
