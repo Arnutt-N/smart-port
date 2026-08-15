@@ -80,6 +80,8 @@ class ImportService
         $reader = IOFactory::createReader('Xlsx');
         $reader->setReadDataOnly(true);     // ปิด formula/style/external-ref (ลด attack surface)
         $reader->setReadEmptyCells(false);
+        // โหลดเฉพาะชีตที่ใช้จริง — ไม่ parse ชีตอื่นที่แนบมาใน workbook (attack surface + memory)
+        $reader->setLoadSheetsOnly(array_keys(self::SHEETS));
         $book = $reader->load($xlsxPath);
         $result = [];
 
@@ -93,7 +95,10 @@ class ImportService
             if ($ws->getHighestDataRow() - 1 > self::MAX_ROWS_PER_SHEET) {
                 throw new RuntimeException("ชีต {$name} มีข้อมูลเกิน " . self::MAX_ROWS_PER_SHEET . ' แถว');
             }
-            $rows = $ws->toArray(null, true, false, false); // raw values, 0-indexed
+            // toArray($null, FALSE, false, false) — arg ที่ 2 คือ calculateFormulas:
+            // ต้องเป็น false เสมอ ห้าม evaluate สูตรของไฟล์ที่อัปโหลดเด็ดขาด
+            // (โค้ดเดิมส่ง true → สูตรอย่าง =WEBSERVICE() ถูกคำนวณ = SSRF, class ของ CVE-2026-59931)
+            $rows = $ws->toArray(null, false, false, false); // raw values, 0-indexed
             array_shift($rows); // ตัด header
 
             $parsed = [];
@@ -120,6 +125,19 @@ class ImportService
     private function validate(array $sheets): array
     {
         $errors = [];
+
+        // Fail-closed: reject ทุกไฟล์ที่มีสูตรหลงเหลือ (ค่าเริ่มด้วย '=') — toArray ไม่ evaluate สูตร
+        // ดังนั้นสูตรจะมาเป็น raw string; ถ้าผ่านเข้า persist ได้จะเก็บ "=..." เป็นข้อมูลเสีย
+        // (กัน class ของ CVE-2026-59931 เช่น =WEBSERVICE() ด้วย)
+        foreach ($sheets as $name => $rows) {
+            foreach ($rows as $i => $row) {
+                foreach ($row as $col => $val) {
+                    if (is_string($val) && str_starts_with($val, '=')) {
+                        $errors[] = "{$name} แถว " . ($i + 2) . " ({$col}): พบสูตร (formula) — กรุณาวางข้อมูลเป็นค่าคงที่ (paste as values) ก่อนนำเข้า";
+                    }
+                }
+            }
+        }
 
         // Personnel เป็นแกน — citizen_id เป็น key ของตารางลูก
         $citizenIds = [];
