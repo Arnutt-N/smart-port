@@ -22,6 +22,8 @@ require_once __DIR__ . '/scripts/migration-lib.php';
 $response = [
     'status' => 'success',
     'message' => 'Smart Port API is running.',
+    // Render inject RENDER_GIT_COMMIT ตอน runtime — ผูก service ที่ live กับ commit ได้ (issue #114)
+    'release' => getenv('RENDER_GIT_COMMIT') ?: 'dev',
 ];
 
 try {

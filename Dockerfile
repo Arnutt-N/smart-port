@@ -43,7 +43,7 @@ RUN mkdir -p /var/www/html/uploads /var/www/html/storage/rate_limits \
 ENV MIGRATIONS_DIR=/var/www/database
 ENV RUN_MIGRATIONS=1
 
-RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL MYSQL_SSL_CA JWT_SECRET" \
+RUN echo "PassEnv MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_SSL MYSQL_SSL_CA JWT_SECRET RENDER_GIT_COMMIT" \
     >> /etc/apache2/conf-enabled/passenv.conf
 
 RUN printf '%s\n' \
