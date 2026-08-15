@@ -13,6 +13,36 @@ services:
     envVars:
       - key: VITE_API_URL
         value: /api
+    # Issue #113: Render static site ไม่ได้ใช้ frontend/nginx.conf — ต้องประกาศ headers ที่นี่
+    # นโยบายเต็ม + cache decision อยู่ใน docs/frontend-security-headers.md
+    # CSP เริ่มแบบ report-only เพื่อ inventory ก่อน enforce (report ไปที่ backend /api/csp-report)
+    headers:
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(), geolocation=(), microphone=(), payment=()"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      # app shell: revalidate ทุกครั้ง — กัน stale shell ที่ชี้ hashed chunk หาย (เหตุผลเดียวกับ nginx.conf)
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      # Vite hashed assets — cache ถาวรได้ปลอดภัย
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
     routes:
       - type: rewrite
         source: /api/*

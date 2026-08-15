@@ -109,8 +109,11 @@ $isPublicPhotoAsset = $path[0] === 'uploads' && $method === 'GET';
 // ไม่มีชื่อตาราง/schema (minimal disclosure)
 $isPublicReadyz = $path[0] === 'readyz' && $method === 'GET';
 
+// Issue #113: browser ส่ง CSP violation report เอง — ไม่มี JWT/CSRF แนบมาด้วย
+$isPublicCspReport = $path[0] === 'csp-report' && $method === 'POST';
+
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -124,12 +127,12 @@ if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && $method !== 'O
 // CSRF Protection for state-changing requests
 $statefulMethods = ['POST', 'PUT', 'DELETE'];
 
-if (in_array($method, $statefulMethods, true) && !$isPublicAuth) {
+if (in_array($method, $statefulMethods, true) && !$isPublicAuth && !$isPublicCspReport) {
     requireCSRFToken();
 }
 
 // ผู้ใช้ที่ถูกบังคับเปลี่ยนรหัสผ่านเข้าถึงได้เฉพาะ endpoint เปลี่ยนรหัสผ่าน
-if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPasswordChange && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && !$isPasswordChange && $method !== 'OPTIONS') {
     $authenticatedUser = getAuthenticatedUser();
     if ((int) ($authenticatedUser['must_change_password'] ?? 0) === 1) {
         http_response_code(403);
@@ -210,6 +213,24 @@ switch ($path[0]) {
             }
             echo json_encode(['success' => true, 'data' => $account]);
         }
+        break;
+
+    case 'csp-report':
+        // Issue #113: รับ CSP violation report จาก browser (report-only phase) — log แล้วทิ้ง
+        if ($method !== 'POST') {
+            respondMethodNotAllowed();
+            break;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 10240); // cap 10KB กัน abuse
+        $report = json_decode((string) $raw, true);
+        $body = is_array($report) ? ($report['csp-report'] ?? $report) : [];
+        if (is_array($body)) {
+            $directive = (string) ($body['effective-directive'] ?? $body['violated-directive'] ?? 'unknown');
+            $blocked = parse_url((string) ($body['blocked-uri'] ?? ''), PHP_URL_HOST) ?: 'self';
+            // log เฉพาะ directive + host ของ blocked URI — ไม่มี PII
+            error_log("[csp-report] violation directive={$directive} blocked-host={$blocked}");
+        }
+        http_response_code(204);
         break;
 
     case 'readyz':
