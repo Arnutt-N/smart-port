@@ -34,7 +34,8 @@ if ($jwtSecret === '') {
     exit;
 }
 define('JWT_SECRET', $jwtSecret);
-define('UPLOAD_DIR', __DIR__ . '/uploads/');
+// Issue #112: รูปเก็บเป็น bytes ในฐานข้อมูล (civil_servant_photos.file_data) —
+// ไม่มี upload directory บน filesystem ของ container แล้ว (ดู ADR-0003)
 
 // ============================================================================
 // Lazy PDO Connection
