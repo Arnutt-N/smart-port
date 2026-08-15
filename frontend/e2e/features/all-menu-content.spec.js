@@ -3,6 +3,7 @@ import { loginAsAdmin } from '../helpers/auth.js'
 
 const expectedMenuPaths = [
   '/dashboard',
+  '/personnel',
   '/probation-end',
   '/candidates/overview',
   '/candidates/general',
@@ -43,7 +44,7 @@ test('all sidebar menu destinations keep the content area rendered', async ({ pa
     }))
   ))
 
-  expect(destinations).toHaveLength(21)
+  expect(destinations).toHaveLength(expectedMenuPaths.length)
   expect(destinations.map(({ href }) => href).sort()).toEqual([...expectedMenuPaths].sort())
 
   for (const { href, label } of destinations) {
