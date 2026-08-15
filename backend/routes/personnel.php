@@ -214,6 +214,79 @@ function redactPersonnelCitizenIdForRole(array $row, string $role): array
     return $row;
 }
 
+/**
+ * Legacy /civil-servants list (เรียกจาก api.php) — contract เดิม + pagination
+ * แต่ค้นหาด้วย citizen_id ได้โดย "ไม่ให้ค่าคืน" แก่ role ที่ไม่ใช่ admin/superadmin
+ * (CONTEXT.md: operator/viewer ค้นหาด้วยเลขบัตรได้ แต่ต้องไม่เห็นค่าใน response)
+ *
+ * LIMIT/OFFSET เป็นตัวเลข clamp แล้วใน string — ห้าม bind เป็น ?
+ * เพราะ PDO ATTR_EMULATE_PREPARES=false ทำให้ LIMIT ? พังบน MySQL/TiDB
+ *
+ * @return array{success:bool, data:list<array<string, mixed>>, pagination:array<string, mixed>}
+ */
+function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $limit, int $offset): array
+{
+    $limit = max(1, min(200, $limit));
+    $offset = max(0, $offset);
+
+    $params = [];
+    $searchTermSql = trim($search);
+    if ($searchTermSql !== '') {
+        $searchQuery = ' WHERE (p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ? OR p.citizen_id LIKE ?)';
+        $searchTerm = "%{$searchTermSql}%";
+        $params = [$searchTerm, $searchTerm, $searchTerm, $searchTerm];
+    } else {
+        $searchQuery = ' WHERE 1=1';
+    }
+
+    $sql = "
+        SELECT
+            p.personnel_id AS servant_id,
+            p.employee_id,
+            p.citizen_id,
+            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) as full_name,
+            p.first_name,
+            p.last_name,
+            p.birth_date,
+            p.appointment_date,
+            p.retirement_date,
+            p.servant_status
+        FROM personnel p
+        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+        {$searchQuery}
+        AND p.is_active = 1
+        ORDER BY p.first_name, p.last_name
+        LIMIT {$limit} OFFSET {$offset}
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // PII gate: role ที่ไม่ใช่ admin/superadmin ต้องไม่ได้รับ citizen_id
+    $servants = array_map(
+        static fn (array $row): array => redactPersonnelCitizenIdForRole($row, $role),
+        $servants
+    );
+
+    // นับ total ให้ตรงกับ filter ของ list query (is_active = 1)
+    $countSql = "SELECT COUNT(*) as total FROM personnel p {$searchQuery} AND p.is_active = 1";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    return [
+        'success' => true,
+        'data' => $servants,
+        'pagination' => [
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+            'has_more' => ($offset + $limit) < $total,
+        ],
+    ];
+}
+
 function personnelPrefixExists(PDO $pdo, int $prefixId): bool
 {
     if ($prefixId <= 0) {

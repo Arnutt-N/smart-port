@@ -319,62 +319,14 @@ switch ($path[0]) {
 
         if ($method == 'GET') {
             requirePermission('read', 'personnel');
+            include_once __DIR__ . '/routes/personnel.php';
+            // Fail-closed: ไม่มี role = viewer (redact citizen_id เสมอ)
+            $role = (string) (getAuthenticatedUser()['role'] ?? 'viewer');
             $search = $_GET['search'] ?? '';
             $limit = intval($_GET['limit'] ?? 20);
             $offset = intval($_GET['offset'] ?? 0);
 
-            // Build search query
-            $searchQuery = '';
-            $params = [];
-
-            if (!empty($search)) {
-                $searchQuery = " WHERE (p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ?)";
-                $searchTerm = "%{$search}%";
-                $params = [$searchTerm, $searchTerm, $searchTerm];
-            } else {
-                $searchQuery = " WHERE 1=1";
-            }
-
-            $sql = "
-                SELECT
-                    p.personnel_id AS servant_id,
-                    p.employee_id,
-                    p.citizen_id,
-                    CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) as full_name,
-                    p.first_name,
-                    p.last_name,
-                    p.birth_date,
-                    p.appointment_date,
-                    p.retirement_date,
-                    p.servant_status
-                FROM personnel p
-                LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-                {$searchQuery}
-                AND p.is_active = 1
-                ORDER BY p.first_name, p.last_name
-                LIMIT ? OFFSET ?
-            ";
-
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute(array_merge($params, [$limit, $offset]));
-            $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Get total count for pagination (must match is_active filter on the list query)
-            $countSql = "SELECT COUNT(*) as total FROM personnel p {$searchQuery} AND p.is_active = 1";
-            $countStmt = $pdo->prepare($countSql);
-            $countStmt->execute($params);
-            $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-
-            echo json_encode([
-                'success' => true,
-                'data' => $servants,
-                'pagination' => [
-                    'total' => $total,
-                    'limit' => $limit,
-                    'offset' => $offset,
-                    'has_more' => ($offset + $limit) < $total
-                ]
-            ]);
+            echo json_encode(legacyCivilServantsList($pdo, $role, $search, $limit, $offset));
         } elseif ($method === 'DELETE' && $servantId > 0) {
             // Soft-delete: ปิดใช้งานบุคลากร (ออกจากรายชื่อ candidates ที่กรอง is_active=1)
             requirePermission('delete', 'personnel');
