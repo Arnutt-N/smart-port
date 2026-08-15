@@ -6,7 +6,7 @@
 .DESCRIPTION
   Local gates:
     0) Fast gates: schema parity + multiplier validator regression
-    1) Frontend:  npm ci (optional) + npm test + npm run build
+    1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run build
     2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
     3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
     4) Docker:    build frontend + backend images (no push)
@@ -58,7 +58,7 @@ Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBa
 
 Mirrors .github/workflows/ci.yml locally (no GitHub Actions minutes):
   0) Fast gates schema parity + multiplier validator regression
-  1) Frontend   npm ci + vitest (forks/2) + build
+  1) Frontend   npm ci + npm audit (prod, high+) + vitest (forks/2) + build
   2) E2E        Docker db/backend + Playwright Chromium (all sidebar menus)
   3) Backend    bash backend/tests/run.sh
   4) Docker     build frontend + backend images
@@ -126,6 +126,12 @@ if (-not $SkipFrontend) {
     } else {
       Write-Host 'skip npm ci (-SkipInstall)'
     }
+
+    # Severity policy: prod deps ต้องไม่มี advisory ระดับ high/critical
+    # (moderate และ dev-only advisories ไม่บล็อก — triage ด้วยมือเป็นกรณีไป)
+    Write-Host 'npm audit --omit=dev --audit-level=high ...'
+    npm audit --omit=dev --audit-level=high
+    if ($LASTEXITCODE -ne 0) { throw "npm audit found high/critical prod vulnerabilities - run 'npm audit fix' or triage and document the exception" }
 
     # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
     Write-Host 'npm test (vitest) ...'
