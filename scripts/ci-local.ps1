@@ -4,11 +4,12 @@
   Local CI gate — mirrors .github/workflows/ci.yml without GitHub Actions minutes.
 
 .DESCRIPTION
-  Jobs (same as ci.yml):
-    1) Frontend: npm ci (optional) + npm test + npm run build
-    2) E2E:      Playwright Chromium checks all 21 menus (Docker db + backend)
-    3) Backend:  bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
-    4) Docker:   build frontend + backend images (no push)
+  Local gates:
+    0) Fast gates: schema parity + multiplier validator regression
+    1) Frontend:  npm ci (optional) + npm test + npm run build
+    2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
+    3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
+    4) Docker:    build frontend + backend images (no push)
 
   Prerequisites:
     - Node 24+, npm
@@ -56,10 +57,11 @@ if ($Help) {
 Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBackend] [-SkipDocker] [-Help]
 
 Mirrors .github/workflows/ci.yml locally (no GitHub Actions minutes):
-  1) Frontend  npm ci + vitest (forks/2) + build
-  2) E2E       Docker db/backend + Playwright Chromium (21 menus)
-  3) Backend   bash backend/tests/run.sh
-  4) Docker    build frontend + backend images
+  0) Fast gates schema parity + multiplier validator regression
+  1) Frontend   npm ci + vitest (forks/2) + build
+  2) E2E        Docker db/backend + Playwright Chromium (all sidebar menus)
+  3) Backend    bash backend/tests/run.sh
+  4) Docker     build frontend + backend images
 
 E2E prerequisites: Docker Desktop, frontend dependencies, Playwright Chromium,
 and a local .env file. The Compose services remain running after the gate.
@@ -103,6 +105,15 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'schema-parity'
 }
 
+Write-Step 'Multiplier Validator Regression'
+& node --test (Join-Path $Root 'scripts\tests\validate-multiplier-phase0.test.mjs')
+if ($LASTEXITCODE -eq 0) {
+  Write-Ok 'multiplier validator regression'
+} else {
+  Write-Fail 'multiplier validator regression'
+  $failed += 'multiplier-validator-regression'
+}
+
 # ---- 1) Frontend Build & Test ----------------------------------------------
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'
@@ -136,7 +147,7 @@ if (-not $SkipFrontend) {
   Write-Host 'skip frontend (-SkipFrontend)'
 }
 
-# ---- 2) Playwright E2E: all 21 menus --------------------------------------
+# ---- 2) Playwright E2E: all sidebar menus ---------------------------------
 if (-not $SkipE2E) {
   Write-Step 'E2E All Menus (Docker + Playwright Chromium)'
   if (-not (Test-Path -LiteralPath (Join-Path $Root '.env'))) {
@@ -169,7 +180,7 @@ if (-not $SkipE2E) {
       } finally {
         Pop-Location
       }
-      Write-Ok 'all 21 menu destinations rendered'
+      Write-Ok 'all sidebar menu destinations rendered'
     } catch {
       Write-Fail $_.Exception.Message
       $failed += 'e2e'

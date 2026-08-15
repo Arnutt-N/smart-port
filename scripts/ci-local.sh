@@ -2,11 +2,12 @@
 # ============================================================================
 # ci-local.sh — Local CI gate (mirrors .github/workflows/ci.yml, no Actions minutes)
 #
-# Jobs:
-#   1) Frontend: npm ci (optional) + vitest + build
-#   2) E2E:      Playwright Chromium checks all 21 menus (Docker db + backend)
-#   3) Backend:  bash backend/tests/run.sh
-#   4) Docker:   build frontend + backend images (no push)
+# Local gates:
+#   0) Fast gates: schema parity + multiplier validator regression
+#   1) Frontend:  npm ci (optional) + vitest + build
+#   2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
+#   3) Backend:   bash backend/tests/run.sh
+#   4) Docker:    build frontend + backend images (no push)
 #
 # Usage:
 #   bash scripts/ci-local.sh
@@ -63,6 +64,13 @@ else
   fail 'schema parity'
 fi
 
+step 'Multiplier Validator Regression'
+if node --test "${ROOT}/scripts/tests/validate-multiplier-phase0.test.mjs"; then
+  ok 'multiplier validator regression'
+else
+  fail 'multiplier validator regression'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'
@@ -87,7 +95,7 @@ else
   echo 'skip frontend (--skip-frontend)'
 fi
 
-# ---- 2) Playwright E2E: all 21 menus --------------------------------------
+# ---- 2) Playwright E2E: all sidebar menus ---------------------------------
 if [[ "${SKIP_E2E}" -eq 0 ]]; then
   step 'E2E All Menus (Docker + Playwright Chromium)'
   if [[ ! -f "${ROOT}/.env" ]]; then
@@ -115,7 +123,7 @@ if [[ "${SKIP_E2E}" -eq 0 ]]; then
     cd frontend
     npm run test:e2e:menus
   ); then
-    ok 'all 21 menu destinations rendered'
+    ok 'all sidebar menu destinations rendered'
   else
     fail 'e2e'
   fi
