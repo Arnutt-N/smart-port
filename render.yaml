@@ -4,7 +4,7 @@ services:
     runtime: static
     branch: main
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     staticPublishPath: dist
     buildFilter:
       paths:
@@ -43,6 +43,7 @@ services:
         - backend/**
         - database/**
         - render.yaml
+        - Dockerfile
     envVars:
       - key: MYSQL_HOST
         sync: false
@@ -56,5 +57,9 @@ services:
         sync: false
       - key: MYSQL_SSL
         value: "true"
+      # TiDB Serverless chain จบที่ public root CA ซึ่งอยู่ใน /etc/ssl/certs/ca-certificates.crt
+      # ของ image php:8.3-apache อยู่แล้ว — config.php fail-closed ถ้า MYSQL_SSL=true แต่ไม่มี CA (issue #114)
+      - key: MYSQL_SSL_CA
+        value: /etc/ssl/certs/ca-certificates.crt
       - key: JWT_SECRET
         generateValue: true

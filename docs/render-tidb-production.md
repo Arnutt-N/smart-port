@@ -55,9 +55,16 @@ Set these on the `smartport-backend` Render service:
 | `MYSQL_USER` | TiDB username |
 | `MYSQL_PASSWORD` | TiDB password |
 | `MYSQL_SSL` | `true` |
+| `MYSQL_SSL_CA` | `/etc/ssl/certs/ca-certificates.crt` (system CA bundle ใน image — ดูหมายเหตุข้างล่าง) |
 | `JWT_SECRET` | long random secret |
 
 Notes:
+
+- `MYSQL_SSL_CA` **ต้องตั้งคู่กับ `MYSQL_SSL=true` เสมอ** — `backend/config.php::buildSslOptions()`
+  fail-closed (throw) ถ้าเปิด SSL แต่ CA ว่างหรืออ่านไม่ได้ (issue #114) ค่าที่ blueprint ใช้คือ
+  CA bundle ของ Debian ที่มาใน image `php:8.3-apache` ซึ่งครอบคลุม root CA ของ TiDB Serverless
+  จึงไม่ต้องอัปโหลดไฟล์ secret เพิ่ม ถ้าต้องการ pin CA ของ TiDB โดยเฉพาะ ให้ mount/วางไฟล์ใน image
+  แล้วชี้ env ไปที่ path นั้น
 
 - The backend falls back to `MYSQL_HOST=db` when `MYSQL_HOST` is missing in [backend/config.php](../backend/config.php#L12), which is why Render currently returns a database connection error.
 - The backend connects to the database before routing requests in [backend/api.php](../backend/api.php#L20), so even `/api/auth/login` fails if TiDB env values are missing.
@@ -157,7 +164,21 @@ After redeploying:
 curl -i https://smartport-backend.onrender.com/
 ```
 
-Expected result: `200 OK` with JSON similar to `{"status":"success","message":"Smart Port API is running."}`
+Expected result: `200 OK` with JSON similar to
+`{"status":"success","message":"Smart Port API is running.","release":"<commit-sha>"}` —
+the `release` field binds the live service to a commit SHA (Render injects
+`RENDER_GIT_COMMIT`; locally it reports `dev`).
+
+1b. Check backend **readiness** (distinct from liveness — touches the DB):
+
+```bash
+curl -i https://smartport-backend.onrender.com/readyz
+```
+
+Expected result: `200` with `{"status":"ready","release":"...","db":"ok","migrations_bundled":N,"migrations_pending":0}`.
+A `503` with `migrations_pending > 0` means the image is ahead of the schema;
+`db:"unreachable"` (or a `503` from the connection layer) means TiDB env values are wrong.
+The endpoint is public but discloses only counts/status — no table or migration names.
 
 2. Check login:
 

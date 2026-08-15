@@ -105,8 +105,12 @@ $isPublicAuth = $isPublicLogin || $isPublicRefresh || $isPublicLogout;
 // (<img> ไม่ส่ง Authorization header) — ชื่อไฟล์ uniqid เดาไม่ได้ทำหน้าที่เป็น capability URL
 $isPublicPhotoAsset = $path[0] === 'uploads' && $method === 'GET';
 
+// Issue #114: readiness endpoint เปิด public สำหรับ monitoring — คืนเฉพาะตัวเลข/สถานะ
+// ไม่มีชื่อตาราง/schema (minimal disclosure)
+$isPublicReadyz = $path[0] === 'readyz' && $method === 'GET';
+
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicAuth && !$isPublicPhotoAsset && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -125,7 +129,7 @@ if (in_array($method, $statefulMethods, true) && !$isPublicAuth) {
 }
 
 // ผู้ใช้ที่ถูกบังคับเปลี่ยนรหัสผ่านเข้าถึงได้เฉพาะ endpoint เปลี่ยนรหัสผ่าน
-if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPasswordChange && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPasswordChange && $method !== 'OPTIONS') {
     $authenticatedUser = getAuthenticatedUser();
     if ((int) ($authenticatedUser['must_change_password'] ?? 0) === 1) {
         http_response_code(403);
@@ -206,6 +210,12 @@ switch ($path[0]) {
             }
             echo json_encode(['success' => true, 'data' => $account]);
         }
+        break;
+
+    case 'readyz':
+        // Issue #114: readiness (DB + migration state) — ต่างจาก `/` ที่เป็น liveness ไม่แตะ DB
+        include_once __DIR__ . '/routes/readyz.php';
+        handleReadyz(getDB(), $method);
         break;
 
     case 'uploads':
