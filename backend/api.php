@@ -112,6 +112,16 @@ $isPublicReadyz = $path[0] === 'readyz' && $method === 'GET';
 // Issue #113: browser ส่ง CSP violation report เอง — ไม่มี JWT/CSRF แนบมาด้วย
 $isPublicCspReport = $path[0] === 'csp-report' && $method === 'POST';
 
+// Issue #122: rate limit เส้นทาง public แบบไม่แตะ DB — กัน unauthenticated
+// amplification (readyz ยิง DB ทุกคำขอ, csp-report เขียน log, uploads อ่าน DB ต่อรูป)
+if ($isPublicPhotoAsset) {
+    checkRateLimitPublic('uploads', 300, 60);
+} elseif ($isPublicReadyz) {
+    checkRateLimitPublic('readyz', 30, 60);
+} elseif ($isPublicCspReport) {
+    checkRateLimitPublic('csp-report', 60, 60);
+}
+
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
 if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
@@ -228,7 +238,8 @@ switch ($path[0]) {
             $directive = (string) ($body['effective-directive'] ?? $body['violated-directive'] ?? 'unknown');
             $blocked = parse_url((string) ($body['blocked-uri'] ?? ''), PHP_URL_HOST) ?: 'self';
             // log เฉพาะ directive + host ของ blocked URI — ไม่มี PII
-            error_log("[csp-report] violation directive={$directive} blocked-host={$blocked}");
+            // Issue #122: sanitize ก่อนเข้า log — ค่ามาจาก body ที่ attacker คุมได้ (กัน CRLF ปลอม log line)
+            error_log('[csp-report] violation directive=' . sanitizeLogValue($directive) . ' blocked-host=' . sanitizeLogValue($blocked));
         }
         http_response_code(204);
         break;
