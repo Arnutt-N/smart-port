@@ -45,11 +45,11 @@ WHERE pv.version_type = 'thumbnail' AND pv.file_name LIKE 'thumb\_%';
 
 ## Acceptance criteria
 
-- [ ] ไม่มี phantom `photo_versions` row ถูกสร้างตอนอัปโหลด (test ครอบ)
-- [ ] ชื่อไฟล์ใหม่มาจาก CSPRNG (`random_bytes`)
-- [ ] รูปเดิม (ชื่อ uniqid เก่า) ยังเสิร์ฟได้ — lookup ตาม file_name ที่เก็บไว้
-- [ ] Upload response ไม่มี `versions`
-- [ ] Backend suite เขียว + CI gate ผ่าน
+- [x] ไม่มี phantom `photo_versions` row ถูกสร้างตอนอัปโหลด (test ครอบ)
+- [x] ชื่อไฟล์ใหม่มาจาก CSPRNG (`random_bytes`)
+- [x] รูปเดิม (ชื่อ uniqid เก่า) ยังเสิร์ฟได้ — lookup ตาม file_name ที่เก็บไว้
+- [x] Upload response ไม่มี `versions`
+- [x] Backend suite เขียว (354 tests) — รอ CI gate เต็ม
 
 ## Risks
 

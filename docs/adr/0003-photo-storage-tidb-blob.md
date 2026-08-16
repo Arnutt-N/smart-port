@@ -27,9 +27,14 @@ redeploy/restart รูปทั้งหมดหาย ขณะที่แ�
    URL เดิมที่ frontend ใช้ (`apiAssetUrl('uploads/...')`) ทำงานต่อโดยไม่ต้องแก้ frontend
    เพราะ `.htaccess` rewrite ไฟล์ที่ไม่มีอยู่จริงเข้า `api.php`
 4. การอ่านเป็น **public** เหมือนตอน Apache เสิร์ฟ static file — ชื่อไฟล์สร้างจาก
-   `uniqid(..., true)` (entropy สูง เดาไม่ได้) จึงทำหน้าที่เป็น capability URL
+   `'photo_' . bin2hex(random_bytes(16)) . '.' . $ext` (CSPRNG เดาไม่ได้) จึงทำหน้าที่เป็น capability URL
+   (issue #127: เดิมใช้ `uniqid(..., true)` ซึ่งเป็น time+LCG — predictable)
 5. อัปโหลดยังคง validation เดิม: extension/MIME/`getimagesize`/size ≤ 5MB +
    `requirePermission('create', 'photos')`
+6. Issue #127: **เลิกแทรกแถว `photo_versions` ตอนอัปโหลด** — ของเดิมแทรก
+   `thumb_<file>` โดยไม่สร้าง bytes ทำให้ `GET /uploads/thumb_<file>` 404 เสมอ
+   (โฆษณา asset ที่เข้าไม่ถึง) ตาราง `photo_versions` คงอยู่เผื่อทำ thumbnail จริงในอนาคต
+   (ต้องติดตั้ง GD ใน image ก่อน — ยังไม่มีใน `backend/Dockerfile`)
 
 ## Consequences
 
@@ -55,7 +60,7 @@ redeploy/restart รูปทั้งหมดหาย ขณะที่แ�
 - INSERT ล้มเหลว → rollback ทั้งแถว (ไม่มีแถว DB ที่ไร้ bytes) + log
   `[photos] store failed: ...` (ไม่มี PII)
 - อ่านรูปที่ไม่พบ/inactive → 404 + log `[photos] asset not found or inactive: <file_name>`
-  (file_name เป็น uniqid ไม่มี PII)
+  (file_name เป็นชื่อสุ่ม CSPRNG/uniqid ไม่มี PII)
 
 **Migration/reconciliation สำหรับแถวเก่า** (ไฟล์สูญหายจาก ephemeral disk ไปแล้ว
 ตั้งแต่ก่อน migration นี้ — กู้คืนไม่ได้):
@@ -72,6 +77,6 @@ WHERE is_active = 1 AND file_data IS NULL;
 
 ## References
 
-- Issue #112 · Migration: `database/30-photo-blob-storage.sql`
+- Issue #112 · Issue #127 · Migration: `database/30-photo-blob-storage.sql`
 - Code: `backend/routes/photos.php`, `backend/api.php` (case 'uploads', 'photos')
 - ADR-0001 (filesystem ไม่ persist) · ADR-0002 (schema parity gate)

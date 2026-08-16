@@ -8,21 +8,24 @@ declare(strict_types=1);
 // ของ container — filesystem ของ Render ไม่ persist ข้าม deploy (ADR-0001/0003)
 //
 // การอ่าน (GET /uploads/{file}) เป็น public เหมือนเดิมที่ Apache เคยเสิร์ฟ static —
-// ชื่อไฟล์สร้างจาก uniqid (เดาไม่ได้) จึงทำหน้าที่เป็น capability URL
+// ชื่อไฟล์สร้างจาก CSPRNG (เดาไม่ได้) จึงทำหน้าที่เป็น capability URL
 // ============================================================================
 
 require_once __DIR__ . '/../helpers.php';
 
-/** ชื่อไฟล์รูปที่รับได้ — กัน path traversal (ของจริงคือ photo_<uniqid>.<ext>) */
+/** ชื่อไฟล์รูปที่รับได้ — กัน path traversal (ของจริงคือ photo_<hex32>.<ext> จาก CSPRNG) */
 function isValidPhotoFileName(string $name): bool
 {
     return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/', $name);
 }
 
 /**
- * บันทึกแถวรูป + bytes + thumbnail version ใน transaction เดียว (all-or-nothing)
+ * บันทึกแถวรูป + bytes ใน transaction เดียว (all-or-nothing)
  *
- * @return array{photo_id: int, versions: array<int, array<string, mixed>>}
+ * Issue #127: ไม่สร้างแถว photo_versions แล้ว — ของเดิมแทรก thumb_<file> ที่ไม่มี bytes
+ * ทำให้ GET /uploads/thumb_<file> 404 เสมอ (โฆษณา asset ที่เข้าไม่ถึง)
+ *
+ * @return array{photo_id: int}
  */
 function storePhotoRecord(PDO $pdo, int $servantId, string $fileName, string $webPath, string $bytes, string $mime): array
 {
@@ -35,10 +38,9 @@ function storePhotoRecord(PDO $pdo, int $servantId, string $fileName, string $we
         $stmt->execute([$servantId, $fileName, $webPath, $bytes, $mime, strlen($bytes)]);
         $photoId = (int) $pdo->lastInsertId();
 
-        $versions = createPhotoVersions($pdo, $photoId, $fileName);
         $pdo->commit();
 
-        return ['photo_id' => $photoId, 'versions' => $versions];
+        return ['photo_id' => $photoId];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -90,7 +92,7 @@ function handleUploadsAsset(PDO $pdo, string $method, array $path): void
 
     $photo = fetchActivePhoto($pdo, $fileName);
     if ($photo === null) {
-        // log เฉพาะ file_name (uniqid-generated, ไม่มี PII) — ใช้ตามหา missing objects
+        // log เฉพาะ file_name (CSPRNG-generated, ไม่มี PII) — ใช้ตามหา missing objects
         error_log('[photos] asset not found or inactive: ' . $fileName);
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
