@@ -121,7 +121,7 @@ while the schema stayed frozen. Now a resolved directory must actually contain `
 explicitly-set `MIGRATIONS_DIR` that is missing or empty aborts the start instead of silently falling back
 to another directory.
 
-**Existing TiDB / already-initialized DBs:** if `schema_migrations` is empty but `personnel` or `users` already exists, the runner **baselines** migrations through `14-multiplier-area-admin.sql` (marks them applied, does not re-run non-idempotent `ALTER`s). Only newer files such as `15-api-rate-limit-hits.sql` are executed.
+**Existing TiDB / already-initialized DBs:** if `schema_migrations` is empty but `personnel` or `users` already exists, the runner **baselines** migrations through `30-photo-blob-storage.sql` (marks them applied, does not re-run non-idempotent `ALTER`s; files containing `test-seed` are never baselined). Only newer files are executed. ⚠️ The committed dumps (`database/export-*.sql`, `reimport-data.sql`) predate migrations 27–30 — restoring one and running the runner will baseline 27–30 **without applying them**; delete `schema_migrations` rows ≥ 26 first (or use a current dump).
 
 **TEST_SEED migrations:** files whose name contains `test-seed` (e.g. `16-multiplier-test-seed-expand.sql`) are **skipped by default** so provisional data does not land on production. To apply them on a dedicated UAT/dev database, set `APPLY_TEST_SEED_MIGRATIONS=1` on the backend service. Local Docker can set the same env when you intentionally want TEST_SEED rows.
 

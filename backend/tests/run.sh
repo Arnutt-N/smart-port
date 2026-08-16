@@ -24,11 +24,13 @@ IMAGE="smartport-phpunit:local"
 # เป็นรูป Windows (D:/...) — ป้องกัน /app กลายเป็น C:/Program Files/Git/app
 DOCKER_SCRIPT_DIR="${SCRIPT_DIR}"
 DOCKER_BACKEND_DIR="${BACKEND_DIR}"
+DOCKER_ROOT_DIR="${ROOT_DIR}"
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
     export MSYS_NO_PATHCONV=1
     DOCKER_SCRIPT_DIR="$(cd "${SCRIPT_DIR}" && pwd -W)"
     DOCKER_BACKEND_DIR="$(cd "${BACKEND_DIR}" && pwd -W)"
+    DOCKER_ROOT_DIR="$(cd "${ROOT_DIR}" && pwd -W)"
     ;;
 esac
 
@@ -71,17 +73,34 @@ else
   echo "[run.sh] (ถ้าต้องการ integration: docker compose up -d --build db backend)"
 fi
 
-# ---- 3) composer install + phpunit ใน container ----------------------------
+# ---- 3) composer install + migrate + phpunit ใน container -------------------
 # ครั้งแรก lock ยังไม่มี phpunit → install ล้มเหลว → fallback เป็น update (เขียน lock ใหม่)
+# Issue #129: mount database/ เข้า /database ด้วย แล้วรัน migration runner ก่อน suite —
+# ถ้าไม่ทำ readyzReport() จะเห็น bundled=[] → migrations_pending เป็น 0 เสมอแบบว่างเปล่า
+# (migrationDirectory() candidate คือ /var/www/database กับ dirname(__DIR__,2).'/database'
+#  ซึ่งตัวหลังชี้ /database พอดีเมื่อ backend ถูก mount ที่ /app)
 docker run --rm \
   "${NET_ARGS[@]}" \
   "${ENV_ARGS[@]}" \
   -v "${DOCKER_BACKEND_DIR}:/app" \
+  -v "${DOCKER_ROOT_DIR}/database:/database" \
   -w /app \
   "${IMAGE}" \
   sh -c '
     set -e
     composer install --no-interaction --no-progress --ignore-platform-req=ext-gd 2>/dev/null \
       || composer update --no-interaction --no-progress --ignore-platform-req=ext-gd
+    # มี DB ต่ออยู่เท่านั้นถึง migrate (ไม่มี = unit suite อย่างเดียว) —
+    # ล้มเหลวให้พังตรงนี้เลย: DB ที่ migrate ไม่ครบต้องหยุด suite ไม่ใช่ผ่านเงียบ ๆ
+    # retry 3 ครั้งเฉพาะ race ชั่วคราว (db กำลัง init/restart); error จริงจะพังครบทั้ง 3
+    if [ -n "${MYSQL_HOST:-}" ]; then
+      tries=0
+      until php scripts/run-migrations.php; do
+        tries=$((tries + 1))
+        if [ "$tries" -ge 3 ]; then exit 1; fi
+        echo "[run.sh] migrate attempt $tries failed — retrying in 10s (db อาจยัง init อยู่)"
+        sleep 10
+      done
+    fi
     php vendor/bin/phpunit "$@"
   ' -- "$@"

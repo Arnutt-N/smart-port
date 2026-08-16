@@ -182,8 +182,11 @@ jobs:
 
       - name: Wait for schema init to finish
         run: |
+          # -h 127.0.0.1 สำคัญ: ระหว่าง init mysql:8.0 รัน temporary server แบบ
+          # socket-only (--skip-networking) — probe ผ่าน socket จะผ่านก่อน init จบ
+          # แล้ว step migrations จะชน TCP refused (Issue #129)
           for i in $(seq 1 60); do
-            if docker exec ci-mysql mysql -uroot -prootpassword --silent \
+            if docker exec ci-mysql mysql -h 127.0.0.1 -uroot -prootpassword --silent \
               -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
               echo "schema ready"; exit 0
             fi
@@ -194,6 +197,24 @@ jobs:
       - name: Build PHPUnit test image
         run: docker build -t smartport-phpunit:ci -f backend/tests/Dockerfile.test backend/tests
 
+      # Issue #129: init mounts ไม่ได้สร้าง schema_migrations → ต้องรัน migration runner
+      # ก่อน suite (baseline 03–30 ข้าม test-seed) ไม่งั้น readyz pending===0 ว่างเปล่า
+      # retry 3 ครั้งกัน race ชั่วคราว (TCP ยังไม่เปิด/init ยังไม่จบ) — error จริงจะพังครบทั้ง 3
+      - name: Run migrations against CI MySQL
+        run: |
+          for i in 1 2 3; do
+            docker run --rm --network host \
+              -e MYSQL_HOST=127.0.0.1 \
+              -e MYSQL_DATABASE=civil_service_mgmt \
+              -e MYSQL_USER=root \
+              -e MYSQL_PASSWORD=rootpassword \
+              -v "$PWD/backend:/app" -v "$PWD/database:/database" -w /app smartport-phpunit:ci \
+              php scripts/run-migrations.php && exit 0
+            echo "migration attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "migrations failed after 3 attempts"; exit 1
+
       - name: Run PHPUnit (unit + integration)
         run: |
           docker run --rm --network host \
@@ -201,7 +222,7 @@ jobs:
             -e MYSQL_DATABASE=civil_service_mgmt \
             -e MYSQL_USER=root \
             -e MYSQL_PASSWORD=rootpassword \
-            -v "$PWD/backend:/app" -w /app smartport-phpunit:ci \
+            -v "$PWD/backend:/app" -v "$PWD/database:/database" -w /app smartport-phpunit:ci \
             sh -c 'composer install --no-interaction --no-progress --ignore-platform-req=ext-gd 2>/dev/null \
               || composer update --no-interaction --no-progress --ignore-platform-req=ext-gd; \
               php vendor/bin/phpunit'

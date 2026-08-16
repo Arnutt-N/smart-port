@@ -34,20 +34,57 @@ final class ReadyzTest extends TestCase
     {
         $report = readyzReport(self::$pdo);
 
-        // Issue #124: assert เข้มตามชื่อ test — หมายเหตุ: harness (run.sh/CI) mount เฉพาะ
-        // backend/ → migrationDirectory() หา database/ ไม่เจอ → bundled=[] → pending เป็น 0 เสมอ
-        // ใน automated run (ตรวจจริงต้องดู live /readyz; harness limitation นี้ tracked เป็น follow-up)
+        // Issue #129: harness (run.sh/CI) mount database/ เข้า /database และรัน
+        // migration runner ก่อน suite แล้ว → bundled/pending วัดจาก state จริง ไม่ว่างเปล่า
         $this->assertSame('ready', $report['status']);
         $this->assertSame('ok', $report['db']);
         $this->assertSame(0, $report['migrations_pending']);
         $this->assertArrayHasKey('release', $report);
-        $this->assertIsInt($report['migrations_bundled']);
+
+        // bundled ต้องเห็นไฟล์จริง (กัน regression กลับไป bundled=[]) —
+        // readyzReport นับทุกไฟล์ในโฟลเดอร์ (ไม่กรอง test-seed; การกรองมีเฉพาะฝั่ง pending)
+        $expectedBundled = count(listMigrationFiles(migrationDirectory()));
+        $this->assertGreaterThan(0, $report['migrations_bundled']);
+        $this->assertSame($expectedBundled, $report['migrations_bundled']);
 
         // minimal disclosure: มีแค่ key สถานะ/ตัวเลข — ไม่มีรายการ schema/migration รั่วออกมา
         $this->assertSame(
             ['status', 'release', 'db', 'migrations_bundled', 'migrations_pending'],
             array_keys($report)
         );
+    }
+
+    public function test_report_detects_missing_migration_row(): void
+    {
+        // Issue #129: negative case — row หายจาก schema_migrations ต้องถูกจับจริง
+        // (ดึง migration สุดท้ายที่ไม่ใช่ test-seed ตาม natural order)
+        $files = array_values(array_filter(
+            listMigrationFiles(migrationDirectory()),
+            static fn (string $path): bool => !str_contains(basename($path), 'test-seed')
+        ));
+        if ($files === []) {
+            $this->markTestSkipped('no non-test-seed migrations bundled');
+        }
+        $name = basename(end($files));
+
+        $stmt = self::$pdo->prepare('SELECT 1 FROM schema_migrations WHERE migration_name = ?');
+        $stmt->execute([$name]);
+        if (!$stmt->fetchColumn()) {
+            $this->markTestSkipped("{$name} not applied in this environment");
+        }
+
+        self::$pdo->prepare('DELETE FROM schema_migrations WHERE migration_name = ?')
+            ->execute([$name]);
+        try {
+            $report = readyzReport(self::$pdo);
+            $this->assertSame('migrations_pending', $report['status']);
+            $this->assertSame(1, $report['migrations_pending']);
+        } finally {
+            // restore แถวที่ลบ — ตารางนี้ share กับ suite อื่น/การรันซ้ำ
+            // (applied_at ถูก reset เป็น now — ไม่มี consumer ของคอลัมน์นี้)
+            self::$pdo->prepare('INSERT INTO schema_migrations (migration_name) VALUES (?)')
+                ->execute([$name]);
+        }
     }
 
     public function test_release_falls_back_to_dev_without_render_env(): void

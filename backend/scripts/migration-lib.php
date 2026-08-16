@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 /**
  * Last migration assumed already applied when the DB was provisioned by
- * docker-compose init mounts or tidb-init (both include through 25).
- * Fresh volumes must not re-run non-idempotent files such as 22.
+ * docker-compose init mounts, CI init mounts, or tidb-init (all include through 30).
+ * Fresh volumes must not re-run non-idempotent files such as 22 or 30
+ * (Issue #129: baseline เดิมตัดที่ 25 ทำให้ fresh volume โดน re-apply 30
+ *  ซึ่งเป็น ALTER TABLE ADD COLUMN ล้วน ๆ → Duplicate column แล้ว runner พัง)
  */
-const MIGRATION_BASELINE_THROUGH = '25-ensure-multiplier-tables.sql';
+const MIGRATION_BASELINE_THROUGH = '30-photo-blob-storage.sql';
 
 function migrationEnv(string $key, string $default = ''): string
 {
@@ -78,9 +80,11 @@ function migrationDirectory(): string
 
     // migration อยู่ใน database/ ที่เดียว (ดู scripts/validate-schema-parity.mjs)
     // ในภาพ production คือ /var/www/database ส่วนตอนรันจาก checkout คือ <repo>/database
+    // rtrim: test harness mount backend/ ที่ /app → dirname(__DIR__, 2) คืน '/'
+    // ไม่ตัดจะได้ '//database' ซึ่งทำให้ assert path แบบ exact-match ในเทสพัง
     $candidates = [
         '/var/www/database',
-        dirname(__DIR__, 2) . '/database',
+        rtrim(dirname(__DIR__, 2), '/\\') . '/database',
     ];
 
     $emptyDirs = [];
