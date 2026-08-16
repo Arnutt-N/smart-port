@@ -22,6 +22,8 @@ const CSP_CORE = [
   'font-src https://fonts.gstatic.com',
   "img-src 'self' data:",
   "connect-src 'self'",
+  // Issue #125: app ไม่ใช้ plugin/embed — 'none' เป็น defense-in-depth ฟรี
+  "object-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
