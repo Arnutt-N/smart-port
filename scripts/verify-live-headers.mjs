@@ -83,12 +83,24 @@ function parseRenderHeaders(yaml) {
   return entries.filter((e) => e.name && e.value);
 }
 
-/** สร้างชุดตรวจจาก entries ของ render.yaml — แยกตาม path pattern */
+/**
+ * สร้างชุดตรวจจาก entries ของ render.yaml — แยกตาม path pattern
+ * fail-closed: path group ที่ไม่รู้จักต้อง throw ไม่ใช่ข้ามเงียบ ๆ
+ * (ไม่งั้นวันหน้าเพิ่ม tier ใหม่ เช่น /img/* แล้ว header ของ path นั้นจะ
+ * ผ่าน gate โดยไม่ถูกตรวจ — เป็น false-pass ทางเดียวของ gate นี้)
+ */
 function buildExpectations(entries) {
-  const byPath = (p) => entries.filter((e) => e.path === p);
+  const supported = new Set(['/*', '/assets/*']);
+  const unknown = [...new Set(entries.filter((e) => !supported.has(e.path)).map((e) => e.path))];
+  if (unknown.length > 0) {
+    throw new Error(
+      `render.yaml ประกาศ path group ที่ gate นี้ยังไม่รองรับ: ${unknown.join(', ')} — ` +
+        `ขยาย buildExpectations (และเทส) ให้รองรับ path นี้ก่อน ไม่เช่นนั้น header ของ path นั้นจะไม่ถูกตรวจ`
+    );
+  }
   return {
-    shell: byPath('/*'),
-    asset: byPath('/assets/*'),
+    shell: entries.filter((e) => e.path === '/*'),
+    asset: entries.filter((e) => e.path === '/assets/*'),
   };
 }
 
