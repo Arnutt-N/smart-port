@@ -117,10 +117,17 @@ final class MigrationDirectoryTest extends TestCase
     #[Test]
     public function it_reports_which_directories_were_tried_when_no_fallback_exists(): void
     {
-        // ไม่ตั้ง MIGRATIONS_DIR → ไล่ fallback; ในคอนเทนเนอร์เทส backend/ ถูก mount เป็น /app
-        // จึงไม่มีทั้ง /var/www/database และ <repo>/database → ต้องบอกว่าลองที่ไหนไปบ้าง
+        // ไม่ตั้ง MIGRATIONS_DIR → ไล่ fallback
+        // - harness ใหม่ (Issue #129) mount database/ เป็น /database → fallback เจอจริง:
+        //   ต้องคืน /database ไม่ใช่ throw
+        // - ถ้าทั้งสอง candidate ไม่มีอยู่จริง → ต้องบอกว่าลองที่ไหนไปบ้าง
         putenv('MIGRATIONS_DIR');
         unset($_ENV['MIGRATIONS_DIR'], $_SERVER['MIGRATIONS_DIR']);
+
+        if (is_dir('/database') && listMigrationFiles('/database') !== []) {
+            self::assertSame('/database', migrationDirectory());
+            return;
+        }
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('No migrations directory found');
