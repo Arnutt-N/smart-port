@@ -176,8 +176,13 @@ curl -i https://smartport-backend.onrender.com/readyz
 ```
 
 Expected result: `200` with `{"status":"ready","release":"...","db":"ok","migrations_bundled":N,"migrations_pending":0}`.
-A `503` with `migrations_pending > 0` means the image is ahead of the schema;
-`db:"unreachable"` (or a `503` from the connection layer) means TiDB env values are wrong.
+A `503` with `migrations_pending > 0` means the image is ahead of the schema.
+DB down / wrong TiDB env: `503` with `{"status":"not_ready","release":"...","db":"unreachable"}`
+(Issue #124 — readyz probes via a non-exiting connection, so this shape is what
+monitors actually receive; the generic connection-layer 503 only applies to other routes).
+Caution: `ready` with `migrations_bundled: 0` means the image shipped without the
+`database/` folder — nothing was checked against the schema; cross-check the
+`migrations_available` field on the `/` liveness endpoint before trusting it.
 The endpoint is public but discloses only counts/status — no table or migration names.
 
 2. Check login:

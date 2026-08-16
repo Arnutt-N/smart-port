@@ -246,8 +246,9 @@ switch ($path[0]) {
 
     case 'readyz':
         // Issue #114: readiness (DB + migration state) — ต่างจาก `/` ที่เป็น liveness ไม่แตะ DB
+        // Issue #124: ใช้ tryGetDB() (ไม่ exit) เพื่อให้ handler คืน documented not_ready shape ได้จริง
         include_once __DIR__ . '/routes/readyz.php';
-        handleReadyz(getDB(), $method);
+        handleReadyz(tryGetDB(), $method);
         break;
 
     case 'uploads':

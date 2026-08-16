@@ -34,11 +34,14 @@ final class ReadyzTest extends TestCase
     {
         $report = readyzReport(self::$pdo);
 
+        // Issue #124: assert เข้มตามชื่อ test — หมายเหตุ: harness (run.sh/CI) mount เฉพาะ
+        // backend/ → migrationDirectory() หา database/ ไม่เจอ → bundled=[] → pending เป็น 0 เสมอ
+        // ใน automated run (ตรวจจริงต้องดู live /readyz; harness limitation นี้ tracked เป็น follow-up)
+        $this->assertSame('ready', $report['status']);
         $this->assertSame('ok', $report['db']);
+        $this->assertSame(0, $report['migrations_pending']);
         $this->assertArrayHasKey('release', $report);
         $this->assertIsInt($report['migrations_bundled']);
-        $this->assertIsInt($report['migrations_pending']);
-        $this->assertGreaterThanOrEqual(0, $report['migrations_pending']);
 
         // minimal disclosure: มีแค่ key สถานะ/ตัวเลข — ไม่มีรายการ schema/migration รั่วออกมา
         $this->assertSame(

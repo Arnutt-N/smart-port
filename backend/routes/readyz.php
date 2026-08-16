@@ -66,11 +66,31 @@ function readyzReport(PDO $pdo): array
     ];
 }
 
+/**
+ * DB-down response ที่ monitor เห็นจริง (Issue #124): api.php ส่ง tryGetDB()
+ * ที่คืน null แทนการ exit แบบ getDB() — shape นี้ต้องตรงกับ
+ * docs/render-tidb-production.md
+ */
+function emitNotReady(): void
+{
+    http_response_code(503);
+    echo json_encode([
+        'status' => 'not_ready',
+        'release' => releaseSha(),
+        'db' => 'unreachable',
+    ], JSON_UNESCAPED_UNICODE);
+}
+
 /** GET /readyz — 200 เมื่อ DB พร้อมและไม่มี migration ค้าง, มิฉะนั้น 503 */
-function handleReadyz(PDO $pdo, string $method): void
+function handleReadyz(?PDO $pdo, string $method): void
 {
     if ($method !== 'GET') {
         respondMethodNotAllowed();
+        return;
+    }
+
+    if ($pdo === null) {
+        emitNotReady();
         return;
     }
 
@@ -79,12 +99,7 @@ function handleReadyz(PDO $pdo, string $method): void
     } catch (Throwable $e) {
         // log เฉพาะข้อความ error ของ DB driver — ไม่มี PII
         error_log('[readyz] db check failed: ' . $e->getMessage());
-        http_response_code(503);
-        echo json_encode([
-            'status' => 'not_ready',
-            'release' => releaseSha(),
-            'db' => 'unreachable',
-        ], JSON_UNESCAPED_UNICODE);
+        emitNotReady();
         return;
     }
 

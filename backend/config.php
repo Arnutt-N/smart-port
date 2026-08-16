@@ -44,12 +44,7 @@ define('JWT_SECRET', $jwtSecret);
 // ============================================================================
 $pdo = null;
 
-function getDB(): PDO {
-    global $pdo;
-    if ($pdo !== null) {
-        return $pdo;
-    }
-
+function attemptDbConnection(): ?PDO {
     $host     = env('MYSQL_HOST', 'db');
     $port     = env('MYSQL_PORT', '3306');
     $dbname   = env('MYSQL_DATABASE', 'civil_service_mgmt');
@@ -77,9 +72,10 @@ function getDB(): PDO {
     // Retry on transient connection failure (TiDB Cloud Serverless cold start)
     $maxRetries = 3;
     $lastException = null;
+    $connection = null;
     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
         try {
-            $pdo = new PDO($dsn, $username, $password, $options);
+            $connection = new PDO($dsn, $username, $password, $options);
             $lastException = null;
             break;
         } catch (PDOException $e) {
@@ -92,14 +88,36 @@ function getDB(): PDO {
 
     if ($lastException !== null) {
         error_log('[db] Connection failed after ' . $maxRetries . ' attempts: ' . $lastException->getMessage());
-        $isLocal = in_array($host, ['db', 'localhost', '127.0.0.1'], true);
-        $msg = $isLocal
-            ? 'Database connection failed (check docker compose db service)'
-            : 'Database connection failed';
-        http_response_code(503);
-        echo json_encode(['error' => $msg]);
-        exit;
+        return null;
     }
 
+    return $connection;
+}
+
+// Issue #124: probe แบบไม่ exit — readyz ใช้เพื่อคืน documented not_ready shape
+// เองเมื่อ DB ต่อไม่ได้ (getDB() จะ exit ก่อนถึง handler เสมอ)
+function tryGetDB(): ?PDO {
+    global $pdo;
+    if ($pdo !== null) {
+        return $pdo;
+    }
+
+    $pdo = attemptDbConnection();
     return $pdo;
+}
+
+function getDB(): PDO {
+    $db = tryGetDB();
+    if ($db !== null) {
+        return $db;
+    }
+
+    $host = env('MYSQL_HOST', 'db');
+    $isLocal = in_array($host, ['db', 'localhost', '127.0.0.1'], true);
+    $msg = $isLocal
+        ? 'Database connection failed (check docker compose db service)'
+        : 'Database connection failed';
+    http_response_code(503);
+    echo json_encode(['error' => $msg]);
+    exit;
 }
