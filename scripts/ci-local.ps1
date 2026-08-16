@@ -114,6 +114,16 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'multiplier-validator-regression'
 }
 
+# mock-server regression — ไม่ยิง production จริง (issue #131 Part 2)
+Write-Step 'Live Header Smoke Regression'
+& node --test (Join-Path $Root 'scripts\tests\verify-live-headers.test.mjs')
+if ($LASTEXITCODE -eq 0) {
+  Write-Ok 'live header smoke regression'
+} else {
+  Write-Fail 'live header smoke regression'
+  $failed += 'live-header-smoke-regression'
+}
+
 # ---- 1) Frontend Build & Test ----------------------------------------------
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'

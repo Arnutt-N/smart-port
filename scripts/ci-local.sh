@@ -71,6 +71,14 @@ else
   fail 'multiplier validator regression'
 fi
 
+# mock-server regression — ไม่ยิง production จริง (issue #131 Part 2)
+step 'Live Header Smoke Regression'
+if node --test "${ROOT}/scripts/tests/verify-live-headers.test.mjs"; then
+  ok 'live header smoke regression'
+else
+  fail 'live header smoke regression'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'
