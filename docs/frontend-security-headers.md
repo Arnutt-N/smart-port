@@ -7,7 +7,7 @@
 | Path | ใช้ตอน | Headers ประกาศที่ |
 |---|---|---|
 | Render static site (`smart-port.onrender.com`) | **production** | `render.yaml` → `headers:` (ไม่ใช่ nginx.conf!) |
-| Docker/Nginx (`localhost:8081`) | local/compose | `frontend/nginx.conf` |
+| Docker/Nginx (`localhost:8081`) | local/compose | `frontend/nginx-security-headers.conf` (snippet ที่ `nginx.conf` include — Issue #126) |
 | Vite dev (`localhost:5174`) | dev | ไม่มี security headers (ไม่เป็นไร — dev only) |
 
 บทเรียน: repo เคยมี headers เฉพาะใน `nginx.conf` ซึ่ง production ไม่ได้ใช้เลย
