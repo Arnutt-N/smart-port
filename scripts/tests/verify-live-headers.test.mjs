@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseRenderHeaders } from '../verify-live-headers.mjs';
+import { parseRenderHeaders, buildExpectations } from '../verify-live-headers.mjs';
 
 // Issue #131 Part 2 — regression ของ live header smoke check
 // เทสแบบ end-to-end ผ่าน CLI (เหมือน validate-multiplier) แต่ชี้ --base-url
@@ -91,6 +91,25 @@ test('parser แกะได้เฉพาะ block headers: ของ static s
   assert.equal(asset.length, 1);
   assert.equal(asset[0].name, 'Cache-Control');
   assert.equal(asset[0].value, 'public, max-age=31536000, immutable');
+});
+
+test('buildExpectations ต้อง fail-closed เมื่อเจอ path group ที่ยังไม่รองรับ (review follow-up)', () => {
+  // ถ้าข้ามเงียบ ๆ path group ใหม่ใน render.yaml จะผ่าน gate โดยไม่ถูกตรวจ = false-pass
+  assert.throws(
+    () =>
+      buildExpectations([
+        { path: '/*', name: 'X-Frame-Options', value: 'DENY' },
+        { path: '/img/*', name: 'Cache-Control', value: 'public, max-age=86400' },
+      ]),
+    /ไม่รองรับ.*\/img\/\*/
+  );
+  // ชุดที่รองรับทั้งหมดต้องไม่ throw
+  const ok = buildExpectations([
+    { path: '/*', name: 'X-Frame-Options', value: 'DENY' },
+    { path: '/assets/*', name: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+  ]);
+  assert.equal(ok.shell.length, 1);
+  assert.equal(ok.asset.length, 1);
 });
 
 test('CSP ถูกผ่อนหรือ HSTS อ่อนกว่าต้อง fail แม้จะมี header ครบทุกตัว', async () => {
