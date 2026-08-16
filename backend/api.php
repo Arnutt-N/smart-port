@@ -102,7 +102,7 @@ $isPasswordChange = $path[0] === 'auth' && ($path[1] ?? '') === 'change-password
 $isPublicAuth = $isPublicLogin || $isPublicRefresh || $isPublicLogout;
 
 // Issue #112: asset รูป (GET /uploads/{file}) เป็น public เหมือนตอน Apache เสิร์ฟ static
-// (<img> ไม่ส่ง Authorization header) — ชื่อไฟล์ uniqid เดาไม่ได้ทำหน้าที่เป็น capability URL
+// (<img> ไม่ส่ง Authorization header) — ชื่อไฟล์ CSPRNG เดาไม่ได้ทำหน้าที่เป็น capability URL
 $isPublicPhotoAsset = $path[0] === 'uploads' && $method === 'GET';
 
 // Issue #114: readiness endpoint เปิด public สำหรับ monitoring — คืนเฉพาะตัวเลข/สถานะ
@@ -312,8 +312,8 @@ switch ($path[0]) {
                 break;
             }
 
-            // Generate safe filename
-            $safeFileName = uniqid('photo_', true) . '.' . $ext;
+            // Generate safe filename — CSPRNG; uniqid เป็น time+LCG เดาได้ (issue #127)
+            $safeFileName = 'photo_' . bin2hex(random_bytes(16)) . '.' . $ext;
 
             // Issue #112: เก็บ bytes ลงฐานข้อมูล (TiDB persist ข้าม deploy) —
             // ห้ามเขียนลง filesystem ของ container เพราะหายตอน redeploy (ADR-0001/0003)
@@ -337,7 +337,6 @@ switch ($path[0]) {
                     'success' => true,
                     'photo_id' => $stored['photo_id'],
                     'path' => $web_path,
-                    'versions' => $stored['versions'],
                 ]);
             } catch (Throwable $e) {
                 error_log('[photos] store failed: ' . $e->getMessage());

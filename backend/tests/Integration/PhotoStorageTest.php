@@ -48,7 +48,12 @@ final class PhotoStorageTest extends TestCase
         $stored = storePhotoRecord(self::$pdo, 1, $name, 'uploads/' . $name, $bytes, 'image/jpeg');
 
         $this->assertGreaterThan(0, $stored['photo_id']);
-        $this->assertSame('thumb_' . $name, $stored['versions'][0]['file_name'] ?? null);
+        $this->assertArrayNotHasKey('versions', $stored);
+
+        // Issue #127: ต้องไม่มีแถว phantom ใน photo_versions (thumb_ ที่ไร้ bytes → 404)
+        $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM photo_versions WHERE photo_id = ?');
+        $stmt->execute([$stored['photo_id']]);
+        $this->assertSame(0, (int) $stmt->fetchColumn());
 
         $fetched = fetchActivePhoto(self::$pdo, $name);
         $this->assertNotNull($fetched);
@@ -98,6 +103,7 @@ final class PhotoStorageTest extends TestCase
     public function test_file_name_validation_rejects_traversal_and_accepts_generated_names(): void
     {
         $this->assertTrue(isValidPhotoFileName('photo_65e1c8a0b1f2a3.45678901.jpg'));
+        $this->assertTrue(isValidPhotoFileName('photo_' . str_repeat('0a1b2c3d', 4) . '.jpg')); // CSPRNG shape (#127)
         $this->assertTrue(isValidPhotoFileName('thumb_photo_abc.png'));
 
         $this->assertFalse(isValidPhotoFileName('../etc/passwd'));

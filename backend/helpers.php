@@ -129,46 +129,6 @@ function getLevelName(string $code): string
 }
 
 /**
- * Create photo version records in the application layer instead of a DB routine.
- *
- * @param PDO $pdo
- * @param int $photoId
- * @param string|null $fileName
- * @return array<int, array<string, mixed>>
- */
-function createPhotoVersions(PDO $pdo, int $photoId, ?string $fileName = null): array
-{
-    if ($photoId <= 0) {
-        throw new InvalidArgumentException('Photo id is required');
-    }
-
-    if ($fileName === null || $fileName === '') {
-        $stmt = $pdo->prepare('SELECT file_name FROM civil_servant_photos WHERE photo_id = ?');
-        $stmt->execute([$photoId]);
-        $fileName = $stmt->fetchColumn() ?: '';
-    }
-
-    if ($fileName === '') {
-        throw new RuntimeException('Photo file name not found');
-    }
-
-    $thumbnailFileName = 'thumb_' . $fileName;
-
-    $deleteStmt = $pdo->prepare('DELETE FROM photo_versions WHERE photo_id = ? AND version_type = ?');
-    $deleteStmt->execute([$photoId, 'thumbnail']);
-
-    $insertStmt = $pdo->prepare(
-        'INSERT INTO photo_versions (photo_id, version_type, file_name) VALUES (?, ?, ?)'
-    );
-    $insertStmt->execute([$photoId, 'thumbnail', $thumbnailFileName]);
-
-    return [[
-        'version_type' => 'thumbnail',
-        'file_name' => $thumbnailFileName,
-    ]];
-}
-
-/**
  * Sanitize text input to prevent XSS
  *
  * @param string|null $input Raw user input
