@@ -64,6 +64,16 @@ report-uri /api/csp-report     ← เฉพาะ render.yaml (report-only phas
 ไม่มี header จาก render.yaml เลย → **code-push auto-deploy ไม่ re-sync blueprint
 config** (ใช้ config ของ last-synced blueprint) ต้อง manual Sync จาก dashboard เท่านั้น
 
+**ผลตรวจ 2026-08-16 รอบที่ 3 (~18:04–18:11 UTC) ด้วย `scripts/verify-live-headers.mjs`:**
+ยังเป็น default เหมือนเดิมทุกจุด — `/` และ `/assets/index-B1YyXcfC.js` (ชื่อ asset
+เดิมตั้งแต่รอบ 1 = ไม่มี build ใหม่หลัง 10:28 UTC) คืน `Cache-Control: public,
+max-age=0, s-maxage=300` และไม่มี CSP-Report-Only / X-Frame-Options / Referrer-Policy /
+Permissions-Policy หลักฐานเสริมว่า header ที่เห็นมาจาก edge layer ไม่ใช่ render.yaml:
+HSTS จริงเป็น `max-age=315360000; includeSubdomains; preload` ซึ่งไม่ใช่ค่าที่ render.yaml
+ประกาศ (`max-age=31536000; includeSubDomains`) และ `x-content-type-options: nosniff`
+ก็มีอยู่แล้วก่อน sync — สองตัวนี้จึง**ไม่ใช่**สัญญาณว่า blueprint ถูก apply (สคริปต์
+จึงถือ HSTS ค่า-ไม่-ตรงเป็น warning ไม่ใช่ fail)
+
 **ผลตรวจรอบแรก (เช้าวันเดียวกัน):** ทั้ง `/` และ `/assets/index-B1YyXcfC.js` คืนค่า
 default ของ Render และไม่มี header อื่นจาก render.yaml เลย (ไม่มี CSP-Report-Only/
 X-Frame-Options ฯลฯ) ทั้งที่ site ถูก deploy ใหม่ → header จาก blueprint ยังไม่มีผลจริง
@@ -108,6 +118,11 @@ default คือ [auto-sync ทุกครั้งที่ push blueprint ch
 
 - `frontend/src/__tests__/securityHeaders.test.js` — assert header set ข้างต้นในทั้ง
   render.yaml และ nginx.conf กัน drift/regression
+- `scripts/verify-live-headers.mjs` — external smoke gate (issue #131): curl
+  production จริงแล้ว assert กับ header set ที่ parse จาก render.yaml ตรง ๆ (single
+  source of truth — แก้ render.yaml แล้ว gate ตามอัตโนมัติ) exit 1 เมื่อพบ drift;
+  regression อยู่ที่ `scripts/tests/verify-live-headers.test.mjs` (mock origin บน
+  127.0.0.1 ไม่พึ่งเครือข่าย) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
