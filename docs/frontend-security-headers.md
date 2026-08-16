@@ -58,14 +58,18 @@ report-uri /api/csp-report     ← เฉพาะ render.yaml (report-only phas
 
 ## Live verification — Render Cache-Control precedence (issue #125)
 
-**ผลตรวจ 2026-08-16 (curl smart-port.onrender.com):** ทั้ง `/` และ
-`/assets/index-B1YyXcfC.js` คืนค่า default ของ Render
-(`Cache-Control: public, max-age=0, s-maxage=300`) และไม่มี header อื่นจาก
-render.yaml เลย (ไม่มี CSP-Report-Only/X-Frame-Options ฯลฯ) ทั้งที่ site ถูก deploy
-ใหม่ในวันเดียวกัน → header จาก blueprint ยังไม่มีผลจริง สาเหตุที่เป็นไปได้:
-(1) blueprint นี้ปิด auto-sync ไว้ หรือ (2) static site นี้ไม่ได้ถูก manage โดย
-blueprint นี้ตั้งแต่แรก (เช่น สร้างก่อนรับ render.yaml เข้ามา) — Render ค่า default
-คือ [auto-sync ทุกครั้งที่ push blueprint changes](https://render.com/docs/infrastructure-as-code)
+**ผลตรวจ 2026-08-16 รอบที่ 2 (~10:47 UTC) หลัง merge #125 เข้า main:** auto-deploy
+จาก push main ทำงานจริง (site rebuild 10:28 UTC, asset hash ใหม่) แต่ `/` และ
+`/assets/*` ยังคงคืน default `Cache-Control: public, max-age=0, s-maxage=300` และ
+ไม่มี header จาก render.yaml เลย → **code-push auto-deploy ไม่ re-sync blueprint
+config** (ใช้ config ของ last-synced blueprint) ต้อง manual Sync จาก dashboard เท่านั้น
+
+**ผลตรวจรอบแรก (เช้าวันเดียวกัน):** ทั้ง `/` และ `/assets/index-B1YyXcfC.js` คืนค่า
+default ของ Render และไม่มี header อื่นจาก render.yaml เลย (ไม่มี CSP-Report-Only/
+X-Frame-Options ฯลฯ) ทั้งที่ site ถูก deploy ใหม่ → header จาก blueprint ยังไม่มีผลจริง
+สาเหตุที่เป็นไปได้: (1) blueprint นี้ปิด auto-sync ไว้ หรือ (2) static site นี้ไม่ได้ถูก
+manage โดย blueprint นี้ตั้งแต่แรก (เช่น สร้างก่อนรับ render.yaml เข้ามา) — Render ค่า
+default คือ [auto-sync ทุกครั้งที่ push blueprint changes](https://render.com/docs/infrastructure-as-code)
 และ [docs ของ static-site headers](https://render.com/docs/static-site-headers)
 ไม่ระบุ precedence สำหรับ path pattern ที่ทับกัน จึงต้องวัดจริงเท่านั้น
 
