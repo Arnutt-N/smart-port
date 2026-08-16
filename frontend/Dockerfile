@@ -43,6 +43,10 @@ RUN rm /etc/nginx/conf.d/default.conf
 # **สำคัญ**: ตรวจสอบให้แน่ใจว่าคุณมีไฟล์ nginx.conf อยู่ในโฟลเดอร์ frontend
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Security headers snippet — nginx.conf include ไฟล์นี้ใน location ที่ตั้ง add_header เอง
+# (add_header ไม่ inherit จาก server level เมื่อ location มี add_header ของตัวเอง; Issue #126)
+COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
+
 # คัดลอกไฟล์ที่ buildเสร็จแล้วจาก stage 'builder' มายัง web root ของ Nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 
