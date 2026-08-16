@@ -1,6 +1,6 @@
 # Frontend Security Headers & Cache Policy (issue #113 — ระยะที่ 1)
 
-อัปเดต: 2026-08-15
+อัปเดต: 2026-08-16
 
 ## Deploy paths และที่ที่ headers ถูกประกาศ
 
@@ -33,6 +33,7 @@ style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
 font-src https://fonts.gstatic.com;
 img-src 'self' data:;
 connect-src 'self';
+object-src 'none';              ← Issue #125: ไม่ใช้ plugin/embed
 frame-ancestors 'none';
 base-uri 'self';
 form-action 'self';
@@ -54,6 +55,40 @@ report-uri /api/csp-report     ← เฉพาะ render.yaml (report-only phas
 - **Hashed assets (`/assets/*`):** `public, max-age=31536000, immutable` — เนื้อหาผูกกับ
   hash ในชื่อไฟล์ เปลี่ยนเมื่อไหร่ URL เปลี่ยนเมื่อนั้น
 - ข้อมูล auth ไม่เคยถูก cache (มาทาง `/api/*` ของ backend)
+
+## Live verification — Render Cache-Control precedence (issue #125)
+
+**ผลตรวจ 2026-08-16 (curl smart-port.onrender.com):** ทั้ง `/` และ
+`/assets/index-B1YyXcfC.js` คืนค่า default ของ Render
+(`Cache-Control: public, max-age=0, s-maxage=300`) และไม่มี header อื่นจาก
+render.yaml เลย (ไม่มี CSP-Report-Only/X-Frame-Options ฯลฯ) ทั้งที่ site ถูก deploy
+ใหม่ในวันเดียวกัน → header จาก blueprint ยังไม่มีผลจริง สาเหตุที่เป็นไปได้:
+(1) blueprint นี้ปิด auto-sync ไว้ หรือ (2) static site นี้ไม่ได้ถูก manage โดย
+blueprint นี้ตั้งแต่แรก (เช่น สร้างก่อนรับ render.yaml เข้ามา) — Render ค่า default
+คือ [auto-sync ทุกครั้งที่ push blueprint changes](https://render.com/docs/infrastructure-as-code)
+และ [docs ของ static-site headers](https://render.com/docs/static-site-headers)
+ไม่ระบุ precedence สำหรับ path pattern ที่ทับกัน จึงต้องวัดจริงเท่านั้น
+
+**Checklist หลังทำให้ blueprint sync จริง + deploy ใหม่:**
+
+0. ที่ Render dashboard → Blueprint: ตรวจ sync status / auto-sync setting ว่าเปิดอยู่
+1. ตรวจว่า header set ออกครบ (คำสั่งเดียวกับ section "การทดสอบ" ข้างล่าง):
+   ```bash
+   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
+   ```
+2. ตรวจ Cache-Control precedence:
+   ```bash
+   curl -sI https://smart-port.onrender.com/ | grep -i cache-control
+   # ต้องได้: no-cache
+   curl -sI https://smart-port.onrender.com/assets/index-B1YyXcfC.js | grep -i cache-control
+   # (แทนชื่อ asset ปัจจุบันจาก <script src> ในหน้าเว็บ) ต้องได้: public, max-age=31536000, immutable
+   ```
+
+- ถ้า step 1 ยังไม่มี header เลยแม้ sync แล้ว → ตรวจว่า static site ถูก manage โดย
+  blueprint นี้จริงหรือไม่ (dashboard ของ service ต้องชี้มาที่ render.yaml นี้)
+- ถ้า `/assets/*` ได้ค่าถูกต้อง → บันทึกผลจริงแทน section นี้, ปิดประเด็น precedence
+- ถ้า `no-cache` ชนะบน assets (worst case ของ issue) → restructure: ยกเลิกกฎ `/*`
+  แล้วตั้ง `no-cache` เฉพาะ path เอกสาร (หรือแนวทางอื่นตาม behavior ที่วัดได้)
 
 ## CSP monitoring ก่อน enforce
 
