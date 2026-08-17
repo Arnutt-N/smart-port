@@ -1,6 +1,6 @@
 # Frontend Security Headers & Cache Policy (issue #113 — ระยะที่ 1)
 
-อัปเดต: 2026-08-16
+อัปเดต: 2026-08-17
 
 ## Deploy paths และที่ที่ headers ถูกประกาศ
 
@@ -121,6 +121,62 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
 3. วิธี enforce: ใน `render.yaml` เปลี่ยน key `Content-Security-Policy-Report-Only`
    เป็น `Content-Security-Policy` (ค่าเดิม ตัด `report-uri` หรือไว้ต่อก็ได้)
    แล้วอัปเดตเทส `securityHeaders.test.js`
+
+### Baseline check 2026-08-17 (~14:24–14:45 UTC) — วันที่ headers live วันแรก
+
+หน้าต่าง 7 วันเพิ่งเริ่มนับวันนี้ (`last-modified` ของ `/` = 08:18 UTC 17 ส.ค. — เวลา deploy
+ของ PR #139; header ขึ้นจริงตั้งแต่รอบ 4 ~06:35 UTC ใช้ค่าที่ช้ากว่าเพื่อความอนุรักษ์นิยม)
+→ **จุดตัดสินใจ enforce เร็วที่สุดคือ 24 ส.ค. 2026** วันนี้เก็บได้แค่ baseline
+
+- **pipeline ส่งถึง endpoint ได้จริง**: POST self-test ไป `https://smart-port.onrender.com/api/csp-report`
+  (ผ่าน rewrite `/api/*` แบบเดียวกับที่ browser ใช้) → **HTTP 204** ตามสัญญาของ handler
+  marker ที่ใช้คือ `blocked-host=csp-selftest.invalid` (directive `img-src`) — **เวลา ~14:45 UTC
+  17 ส.ค. เป็นของทีม ไม่ใช่ violation จริง ให้ตัดทิ้งตอนอ่าน log** (ความสำคัญ: ถ้าไม่ยืนยันข้อนี้
+  "log ว่าง" จะแยกไม่ออกระหว่าง "ไม่มี violation" กับ "report ไม่เคยส่งถึง")
+  - **log อยู่ที่ service `smartport-backend` ไม่ใช่ static site `smart-port`** — `error_log()`
+    ที่ handler เรียกออก stderr ของ container backend (`Dockerfile:64` ตั้ง `error_log = /dev/stderr`)
+    เปิด log ผิด service จะเห็นว่างเสมอ และ hop สุดท้าย (`error_log` → Render log stream)
+    ยังไม่เคยถูกยืนยันด้วยตา เพราะ session นี้เข้าถึง Render log ไม่ได้
+  - **ข้อควรระวังที่ยังทำให้ "log ว่าง" ตีความไม่ได้ 100%:** POST นัดแรก timeout ที่ 30 วินาที
+    ต้อง warm up ด้วย `GET /api/readyz` (ตอบ 200 ใน 1.1s) ก่อนจึงยิงผ่าน — สาเหตุยังสรุปไม่ได้
+    ระหว่าง network hiccup ของ gateway (เคยเจอ 16 ส.ค.) กับ cold start แต่ **backend เป็น
+    `plan: free` ที่ spin down เมื่อไม่มี traffic** ซึ่งเป็นกลไกจริง และ CSP report เป็น
+    fire-and-forget ไม่มี retry → report ที่ browser ยิงตอน backend หลับหายเงียบได้
+    ในแอป HR ที่ traffic ต่ำ การเปิดหน้าแรกของวัน (จุดที่ violation จะโผล่พอดี) คือจุดที่
+    backend หลับพอดี นอกจากนี้ handler ยัง rate limit ที่ 60 req/นาที ต่อ IP
+    (`api.php:122`) — หน้าที่มี subresource ถูกบล็อกเยอะอาจชนเพดานจนบาง report ถูกทิ้ง
+  - **ก่อนอ่าน log วันที่ 24 ให้ยิง self-test ใหม่ 1 นัดเพื่อให้ได้ marker สด** (Render retention
+    ของ plan ที่ไม่ใช่ Enterprise ราว 7 วัน = marker ของ 17 ส.ค. จะอยู่ริมขอบพอดีหรือหลุดไปแล้ว)
+    **decision rule: เจอ marker สด → pipeline ครบวงจร ตัด marker ทิ้งแล้วดูที่เหลือ;
+    ไม่เจอ marker → สรุปไม่ได้ ห้าม enforce**
+- **ต้องมี traffic จริงในหน้าต่าง 7 วันด้วย** — เกณฑ์ข้อ 2 มีความหมายก็ต่อเมื่อมีคนเปิดใช้จริง
+  แอปมี ~24 route แต่ audit ด้านล่างครอบคลุมแค่ 6 chunk ถ้าไม่มีใครเปิดหน้าที่เหลือเลย
+  "log ว่าง" แปลว่า "ยังไม่มีใครลอง" ไม่ใช่ "ปลอดภัย" → ก่อน enforce ให้เดินคลิกครบหน้าหลัก
+  (dashboard / personnel / profile ที่มีรูป / import / ocr) โดยเปิด DevTools console ดู
+  violation ตรง ๆ อย่างน้อย 1 รอบ — วิธีนี้ไม่ต้องพึ่ง Render log เลย
+- **static audit ของ bundle production จริง** (entry + **6 จาก ~24** route chunks + CSS
+  ที่ดึงจาก production ไม่ใช่ build ในเครื่อง) ไม่พบสิ่งที่จะชน policy:
+
+  | Directive | ที่วัดได้ |
+  |---|---|
+  | `connect-src 'self'` | API base compile เป็น `"/api"` relative ล้วน ไม่มี absolute URL ใน chunk ที่ตรวจ — หลักฐานที่แข็งกว่า: `grep -rE "https?://" frontend/src` (ไม่นับ tests) ไม่เจออะไรเลย และ API base ประกอบจาก `import.meta.env.VITE_API_URL \|\| '/api'` แค่ 3 จุด (`useApi.js`, `auth.js` ×2) |
+  | `script-src 'self'` | ไม่มี inline `<script>` / `eval(` / `new Function(` / `new Worker` |
+  | `style-src` + `font-src` | external มีแค่ `fonts.googleapis.com` + `fonts.gstatic.com`; CSS bundle ไม่มี `url()` และ build ไม่มีไฟล์ font local |
+  | `img-src 'self' data:` | blob URL ตัวเดียวในโค้ดคือ `OcrPage.vue` (`URL.createObjectURL`) ซึ่งใช้กับ `<a download>` = download ไม่ใช่ subresource จึงไม่อยู่ใต้ directive ใดเลย |
+
+**ความเสี่ยงที่ต้องกันไว้ก่อน enforce (คนละเรื่องกับจำนวน violation ใน log):**
+
+1. `VITE_API_URL` เป็น `sync: false` = ค่าจริงอยู่บน dashboard เท่านั้น bundle ที่ deploy
+   อยู่ตอนนี้ใช้ `/api` (same-origin) จึงผ่าน แต่ยังมีค่าแบบ absolute
+   (`https://smartport-backend.onrender.com/api` — origin เดียวกับ `destination` ของ rewrite
+   ใน render.yaml) จดไว้ในบันทึกค่าคอนฟิกของทีม — **ถ้าใครตั้งค่านั้นกลับเข้า dashboard
+   หลัง enforce จะพังสองชั้นพร้อมกัน**: `connect-src 'self'` บล็อก API call ทั้งหมด **และ**
+   `img-src 'self' data:` บล็อกรูปข้าราชการทุกใบด้วย เพราะ `apiAssetUrl()` ประกอบ URL รูป
+   จาก API base เดียวกัน (`useApi.js:112` → `useProfile.js:43` → `<img :src>` ที่
+   `ProfilePage.vue:63`) — คนที่แก้โดยเติม backend origin เข้า `connect-src` อย่างเดียว
+   จะได้ API กลับมาแต่รูปยังพังทั้งระบบ เช็ค bundle จริงอีกครั้งก่อนกดสวิตช์
+2. `font-src https://fonts.gstatic.com` ไม่มี `'self'` — วันนี้ไม่พังเพราะไม่มี font ใน
+   bundle แต่ถ้าย้ายมา self-host font เมื่อไร จะพังทันทีทั้งที่ดูเหมือนแค่เปลี่ยน asset
 
 ## การทดสอบ
 
