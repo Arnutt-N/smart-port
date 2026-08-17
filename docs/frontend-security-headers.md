@@ -94,7 +94,9 @@ HEAD ตรง origin (cf MISS) ก็สลับค่าเช่นกัน
 docs ของ Render ไม่ระบุเรื่องนี้ สรุปจากการวัดจริงเท่านั้น) → **decision รอบปลาย: ตัดกฎ
 `/assets/*` ออก เหลือ `no-cache` เดียวทั้ง site** (PR #139) ยอมแลก asset caching กับความ
 deterministic เพราะ stale shell ที่ชี้ chunk หาย แพงกว่า perf ที่เสียจาก revalidate
-(ETag ยังทำให้ได้ 304 เมื่อเนื้อหาไม่เปลี่ยน)
+(ETag ยังทำให้ได้ 304 เมื่อเนื้อหาไม่เปลี่ยน) ผลหลัง sync PR #139 (deploy 08:18 UTC):
+`verify-live-headers.mjs` **PASS เต็ม** (shell + asset ครบทุก header) และค่าจริง
+deterministic — 8 request ติด ๆ ได้ `no-cache` เหมือนกันหมดไม่มีแกว่ง → **#131 ปิดจบ**
 
 **ผลตรวจรอบแรก (เช้าวันเดียวกัน):** ทั้ง `/` และ `/assets/index-B1YyXcfC.js` คืนค่า
 default ของ Render และไม่มี header อื่นจาก render.yaml เลย (ไม่มี CSP-Report-Only/
