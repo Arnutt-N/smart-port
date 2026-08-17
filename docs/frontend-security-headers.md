@@ -74,6 +74,16 @@ HSTS จริงเป็น `max-age=315360000; includeSubdomains; preload` �
 ก็มีอยู่แล้วก่อน sync — สองตัวนี้จึง**ไม่ใช่**สัญญาณว่า blueprint ถูก apply (สคริปต์
 จึงถือ HSTS ค่า-ไม่-ตรงเป็น warning ไม่ใช่ fail)
 
+**ผลตรวจ 2026-08-17 รอบที่ 4 (~06:35 UTC) หลังสร้าง Blueprint instance (associate existing):**
+header ทั้งชุดขึ้นจริงครั้งแรก — CSP-Report-Only / X-Frame-Options / Referrer-Policy /
+Permissions-Policy / XCTO และ `Cache-Control: no-cache` บน shell (backend ยืนที่ `075483f`,
+`/api/*` rewrite ยังใช้ได้) root cause ของรอบ 1–3: **บัญชี Render ไม่เคยมี Blueprint instance
+เลย** — render.yaml ไม่เคยถูกอ่าน ต้องสร้าง instance แบบ *Associate existing services*
+(PR #137 reconcile ให้ config ตรงของจริงก่อน) กุญแจที่ได้มาพร้อมรอบนี้: **precedence
+ของ path ที่ทับกัน = กฎที่เรียงก่อนหน้าชนะ** (กฎ `/*` ที่ขึ้นก่อนกลบกฎ `/assets/*` ที่เฉพาะกว่า
+จน asset ได้ `no-cache` แทน `immutable`) → ต้องเรียงกฎ immutable ของ assets ไว้ก่อนกฎ
+`no-cache` ของ shell (docs ของ Render ไม่ระบุเรื่องนี้ สรุปจากการวัดจริงเท่านั้น)
+
 **ผลตรวจรอบแรก (เช้าวันเดียวกัน):** ทั้ง `/` และ `/assets/index-B1YyXcfC.js` คืนค่า
 default ของ Render และไม่มี header อื่นจาก render.yaml เลย (ไม่มี CSP-Report-Only/
 X-Frame-Options ฯลฯ) ทั้งที่ site ถูก deploy ใหม่ → header จาก blueprint ยังไม่มีผลจริง
