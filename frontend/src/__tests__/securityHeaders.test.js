@@ -49,10 +49,13 @@ describe('render.yaml security headers (Render static-site path)', () => {
     expect(renderYaml).toContain('max-age=31536000; includeSubDomains')
   })
 
-  it('documents the cache decision: shell revalidates, hashed assets immutable', () => {
+  it('documents the cache decision: single deterministic no-cache rule for the whole site', () => {
     expect(renderYaml).toMatch(/Cache-Control\s*\n\s*value:\s*no-cache/)
-    expect(renderYaml).toContain('/assets/*')
-    expect(renderYaml).toContain('public, max-age=31536000, immutable')
+    // 2026-08-17: ตัดกฎ /assets/* immutable ออก — Render จัดกฎ Cache-Control ซ้อนทับ
+    // แบบ non-deterministic (วัดจริง) เหลือกฎเดียว no-cache ทั้ง site
+    // (คำว่า immutable ยังได้อยู่ใน comment อธิบายเหตุผล — เลยยืนที่ path rule + value)
+    expect(renderYaml).not.toMatch(/- path: \/assets\//)
+    expect(renderYaml).not.toMatch(/value:\s*public, max-age=\d+, immutable/)
   })
 
   it('does not reintroduce the old broad CSP allowances', () => {

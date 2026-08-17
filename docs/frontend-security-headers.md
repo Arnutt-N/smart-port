@@ -50,10 +50,13 @@ report-uri /api/csp-report     ← เฉพาะ render.yaml (report-only phas
 
 ## Cache behavior (app shell) — decision
 
-- **Shell (`index.html`, path อื่น ๆ):** `Cache-Control: no-cache` (render.yaml) /
-  `no-store` (nginx) — revalidate ทุกครั้ง กัน stale shell ที่อ้างอิง hashed chunk ที่หายไปแล้ว
-- **Hashed assets (`/assets/*`):** `public, max-age=31536000, immutable` — เนื้อหาผูกกับ
-  hash ในชื่อไฟล์ เปลี่ยนเมื่อไหร่ URL เปลี่ยนเมื่อนั้น
+- **Render (production) — กฎเดียวทั้ง site (shell + hashed assets):** `Cache-Control: no-cache`
+  — revalidate ทุกครั้ง (ETag ทำให้ได้ 304 เมื่อเนื้อหาไม่เปลี่ยน) กัน stale shell ที่อ้างอิง
+  hashed chunk ที่หายไปแล้ว เหตุผลที่ไม่แยกกฎ `immutable` ให้ assets บน Render:
+  engine จัดกฎ Cache-Control ซ้อนทับ (`/*` + `/assets/*`) แบบ non-deterministic
+  (วัดจริง 2026-08-17 รอบ 5 — ด้านล่าง)
+- **nginx (Docker local):** shell `no-store` แต่ `/assets/*` ยังเป็น `public, immutable`
+  ได้ เพราะ location matching ของ nginx เป็น longest-prefix deterministic
 - ข้อมูล auth ไม่เคยถูก cache (มาทาง `/api/*` ของ backend)
 
 ## Live verification — Render Cache-Control precedence (issue #125)
@@ -79,10 +82,19 @@ header ทั้งชุดขึ้นจริงครั้งแรก —
 Permissions-Policy / XCTO และ `Cache-Control: no-cache` บน shell (backend ยืนที่ `075483f`,
 `/api/*` rewrite ยังใช้ได้) root cause ของรอบ 1–3: **บัญชี Render ไม่เคยมี Blueprint instance
 เลย** — render.yaml ไม่เคยถูกอ่าน ต้องสร้าง instance แบบ *Associate existing services*
-(PR #137 reconcile ให้ config ตรงของจริงก่อน) กุญแจที่ได้มาพร้อมรอบนี้: **precedence
-ของ path ที่ทับกัน = กฎที่เรียงก่อนหน้าชนะ** (กฎ `/*` ที่ขึ้นก่อนกลบกฎ `/assets/*` ที่เฉพาะกว่า
-จน asset ได้ `no-cache` แทน `immutable`) → ต้องเรียงกฎ immutable ของ assets ไว้ก่อนกฎ
-`no-cache` ของ shell (docs ของ Render ไม่ระบุเรื่องนี้ สรุปจากการวัดจริงเท่านั้น)
+(PR #137 reconcile ให้ config ตรงของจริงก่อน) จุดที่ยังไม่ผ่านรอบนี้: asset ได้ `no-cache`
+จากกฎ `/*` แทน `immutable` จากกฎ `/assets/*`
+
+**ผลตรวจ 2026-08-17 รอบที่ 5 (~07:04–07:45 UTC) — precedence ของกฎซ้อนทับคือ
+non-deterministic:** สมมติฐานแรกคือ "กฎแรกที่ match ชนะ" เลยสลับลำดับให้กฎ `/assets/*`
+ขึ้นก่อน (PR #138) — แต่หลัง sync จริง (deploy 07:04 UTC + manual sync) ค่ายังแกว่ง
+~90/10 ต่อ request: ยิง URL asset เดิมซ้ำ 3 ครั้งติดกันได้ทั้ง `immutable` และ `no-cache`,
+HEAD ตรง origin (cf MISS) ก็สลับค่าเช่นกัน (ไม่ใช่ edge cache) สรุป: **engine ของ Render
+จัดกฎ Cache-Control สองตัวที่ path ทับกันแบบไม่ deterministic** (สลับลำดับก็ไม่ช่วย —
+docs ของ Render ไม่ระบุเรื่องนี้ สรุปจากการวัดจริงเท่านั้น) → **decision รอบปลาย: ตัดกฎ
+`/assets/*` ออก เหลือ `no-cache` เดียวทั้ง site** (PR #139) ยอมแลก asset caching กับความ
+deterministic เพราะ stale shell ที่ชี้ chunk หาย แพงกว่า perf ที่เสียจาก revalidate
+(ETag ยังทำให้ได้ 304 เมื่อเนื้อหาไม่เปลี่ยน)
 
 **ผลตรวจรอบแรก (เช้าวันเดียวกัน):** ทั้ง `/` และ `/assets/index-B1YyXcfC.js` คืนค่า
 default ของ Render และไม่มี header อื่นจาก render.yaml เลย (ไม่มี CSP-Report-Only/
@@ -93,26 +105,10 @@ default คือ [auto-sync ทุกครั้งที่ push blueprint ch
 และ [docs ของ static-site headers](https://render.com/docs/static-site-headers)
 ไม่ระบุ precedence สำหรับ path pattern ที่ทับกัน จึงต้องวัดจริงเท่านั้น
 
-**Checklist หลังทำให้ blueprint sync จริง + deploy ใหม่:**
-
-0. ที่ Render dashboard → Blueprint: ตรวจ sync status / auto-sync setting ว่าเปิดอยู่
-1. ตรวจว่า header set ออกครบ (คำสั่งเดียวกับ section "การทดสอบ" ข้างล่าง):
-   ```bash
-   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
-   ```
-2. ตรวจ Cache-Control precedence:
-   ```bash
-   curl -sI https://smart-port.onrender.com/ | grep -i cache-control
-   # ต้องได้: no-cache
-   curl -sI https://smart-port.onrender.com/assets/index-B1YyXcfC.js | grep -i cache-control
-   # (แทนชื่อ asset ปัจจุบันจาก <script src> ในหน้าเว็บ) ต้องได้: public, max-age=31536000, immutable
-   ```
-
-- ถ้า step 1 ยังไม่มี header เลยแม้ sync แล้ว → ตรวจว่า static site ถูก manage โดย
-  blueprint นี้จริงหรือไม่ (dashboard ของ service ต้องชี้มาที่ render.yaml นี้)
-- ถ้า `/assets/*` ได้ค่าถูกต้อง → บันทึกผลจริงแทน section นี้, ปิดประเด็น precedence
-- ถ้า `no-cache` ชนะบน assets (worst case ของ issue) → restructure: ยกเลิกกฎ `/*`
-  แล้วตั้ง `no-cache` เฉพาะ path เอกสาร (หรือแนวทางอื่นตาม behavior ที่วัดได้)
+**Checklist นี้จบแล้ว (resolved รอบ 4–5, 2026-08-17):** blueprint adopt สำเร็จ header
+ครบ และ Cache-Control ใช้กฎเดียว `no-cache` ทั้ง site — การตรวจประจำวันใช้
+`node scripts/verify-live-headers.mjs` อย่างเดียว (gate อ่าน render.yaml เป็น source of
+truth และ fail-closed เมื่อโครงสร้างเปลี่ยน)
 
 ## CSP monitoring ก่อน enforce
 

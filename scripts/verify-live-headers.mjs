@@ -98,10 +98,12 @@ function buildExpectations(entries) {
         `ขยาย buildExpectations (และเทส) ให้รองรับ path นี้ก่อน ไม่เช่นนั้น header ของ path นั้นจะไม่ถูกตรวจ`
     );
   }
-  return {
-    shell: entries.filter((e) => e.path === '/*'),
-    asset: entries.filter((e) => e.path === '/assets/*'),
-  };
+  const shell = entries.filter((e) => e.path === '/*');
+  const asset = entries.filter((e) => e.path === '/assets/*');
+  // 2026-08-17: render.yaml ใช้กฎ Cache-Control เดียว (/*) ทั้ง site เพราะ engine ของ Render
+  // จัดกฎซ้อนทับ (/* + /assets/*) แบบไม่ deterministic — เมื่อไม่มีกฎ /assets/* ให้ตรวจ
+  // asset ด้วยชุดของ /* เพื่อยืนยันว่าทุก path ได้ค่าเดียวกัน deterministic
+  return { shell, asset: asset.length > 0 ? asset : shell };
 }
 
 async function fetchWithRetry(url, method) {
@@ -222,8 +224,8 @@ async function main() {
     return;
   }
   const expectations = buildExpectations(entries);
-  if (expectations.shell.length === 0 || expectations.asset.length === 0) {
-    console.error('✗ parse render.yaml ได้ header ไม่ครบ (ต้องมีทั้ง path /* และ /assets/*)');
+  if (expectations.shell.length === 0) {
+    console.error('✗ parse render.yaml ไม่ได้ header ของ path /* (ต้องมีอย่างน้อยกฎของ /*)');
     process.exitCode = 1;
     return;
   }
