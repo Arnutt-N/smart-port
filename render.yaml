@@ -6,13 +6,15 @@ services:
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    autoDeployTrigger: commit
     buildFilter:
       paths:
         - frontend/**
         - render.yaml
+    # ค่าจริงตั้งไว้บน Render service แล้ว (dashboard) — sync: false = sync ข้าม ไม่แตะค่าเดิม
     envVars:
       - key: VITE_API_URL
-        value: /api
+        sync: false
     # Issue #113: Render static site ไม่ได้ใช้ frontend/nginx.conf — ต้องประกาศ headers ที่นี่
     # นโยบายเต็ม + cache decision อยู่ใน docs/frontend-security-headers.md
     # CSP เริ่มแบบ report-only เพื่อ inventory ก่อน enforce (report ไปที่ backend /api/csp-report)
@@ -55,41 +57,46 @@ services:
     name: smartport-backend
     runtime: docker
     branch: main
+    # plan/region จาก dashboard export 2026-08-17 — ต้องระบุ ไม่งั้น sync ใช้ค่า default ที่ไม่ตรงของจริง
+    region: singapore
+    plan: free
     # Build จาก repo root เพื่อให้ database/ (ไฟล์ migration) ติดไปกับ image และ
     # docker-entrypoint.sh รัน run-migrations.php ได้เอง — ตัว Dockerfile ที่ root มี
     # production hardening ครบเท่ากับ backend/Dockerfile ทุกข้อ ต่างแค่ COPY database/
     # และตั้ง RUN_MIGRATIONS=1
     #
-    # ⚠️ ต้องเคลียร์ "Root Directory" ในหน้า Render dashboard ของ service นี้ให้ว่าง
-    #    ถ้า dashboard ยังตั้งเป็น backend อยู่ ค่าจะทับ blueprint แล้ว build จะกลับไปใช้
-    #    backend/Dockerfile (ยังทำงานได้ แต่ไม่มี migration = schema ต้อง apply มือ)
-    #    วิธีเช็คว่าใช้ตัวไหน: GET / ของ backend จะคืน migrations_available
+    # (ยืนยันกับ dashboard export 2026-08-17: service จริงใช้ Dockerfile root และ
+    # ไม่ได้ตั้ง Root Directory ทับ — เช็คซ้ำได้ด้วย GET / ของ backend ที่คืน migrations_available)
     rootDir: .
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /
+    autoDeployTrigger: commit
     buildFilter:
       paths:
         - backend/**
         - database/**
         - render.yaml
         - Dockerfile
+    # env ทั้ง 8 ตัว (ค่า TiDB + JWT_SECRET) มีค่าจริงอยู่บน Render service แล้ว —
+    # sync: false ทุกตัวเพื่อ adoption แบบไม่ขยับค่าเดิม (รวม JWT_SECRET ไม่โดน regenerate)
+    # ค่าที่ไม่ใช่ความลับที่ควรมีบน service (จดกันหาย): MYSQL_SSL=true,
+    # MYSQL_SSL_CA=/etc/ssl/certs/ca-certificates.crt (CA สาธารณะใน image ใช้ยืนยัน TiDB),
+    # MYSQL_PORT=4000, MYSQL_DATABASE=civil_service_mgmt — เหตุผลเต็ม docs/render-tidb-production.md
     envVars:
       - key: MYSQL_HOST
         sync: false
       - key: MYSQL_PORT
-        value: "4000"
+        sync: false
       - key: MYSQL_DATABASE
-        value: civil_service_mgmt
+        sync: false
       - key: MYSQL_USER
         sync: false
       - key: MYSQL_PASSWORD
         sync: false
       - key: MYSQL_SSL
-        value: "true"
-      # TiDB Serverless chain จบที่ public root CA ซึ่งอยู่ใน /etc/ssl/certs/ca-certificates.crt
-      # ของ image php:8.3-apache อยู่แล้ว — config.php fail-closed ถ้า MYSQL_SSL=true แต่ไม่มี CA (issue #114)
+        sync: false
       - key: MYSQL_SSL_CA
-        value: /etc/ssl/certs/ca-certificates.crt
+        sync: false
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
