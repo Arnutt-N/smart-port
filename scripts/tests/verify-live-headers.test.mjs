@@ -60,11 +60,13 @@ function startServer({ shell, asset }) {
 
 test('ผ่านเมื่อ origin ส่ง header ครบตามที่ render.yaml ประกาศ', async () => {
   // mock origin ที่ "ถูกต้อง" = ส่งทุก header ตาม entries ที่ parse ได้จาก render.yaml จริง
+  // (กฎเดียว /* ครอบทั้ง site — asset จึงได้ชุดเดียวกับ shell ตาม fallback ของ buildExpectations)
   const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
   const headers = { shell: {}, asset: {} };
   for (const e of entries) {
-    headers[e.path === '/assets/*' ? 'asset' : 'shell'][e.name] = e.value;
+    headers.shell[e.name] = e.value;
   }
+  headers.asset = { ...headers.shell };
   const { server, baseUrl } = await startServer(headers);
   try {
     const { status, output } = await run(baseUrl);
@@ -87,10 +89,12 @@ test('parser แกะได้เฉพาะ block headers: ของ static s
     'X-Content-Type-Options',
     'X-Frame-Options',
   ]);
-  const asset = entries.filter((e) => e.path === '/assets/*');
-  assert.equal(asset.length, 1);
-  assert.equal(asset[0].name, 'Cache-Control');
-  assert.equal(asset[0].value, 'public, max-age=31536000, immutable');
+  // 2026-08-17: ตัดกฎ /assets/* (immutable) ออก — Render จัดกฎ Cache-Control ซ้อนทับ
+  // แบบ non-deterministic เหลือกฎเดียว no-cache ทั้ง site ถ้ามี /assets/* โผล่มาอีก
+  // = มีคนกลับไปใช้กฎซ้อนทับ ซึ่ง gate จะเริ่มตรวจไม่ deterministic อีก — ต้องรู้ตัว
+  assert.equal(entries.filter((e) => e.path === '/assets/*').length, 0);
+  const cacheControl = entries.find((e) => e.name === 'Cache-Control');
+  assert.equal(cacheControl.value, 'no-cache');
 });
 
 test('buildExpectations ต้อง fail-closed เมื่อเจอ path group ที่ยังไม่รองรับ (review follow-up)', () => {
@@ -110,6 +114,11 @@ test('buildExpectations ต้อง fail-closed เมื่อเจอ path g
   ]);
   assert.equal(ok.shell.length, 1);
   assert.equal(ok.asset.length, 1);
+  // 2026-08-17: เมื่อไม่มีกฎ /assets/* เลย (โครงสร้างปัจจุบัน) ให้ asset ตรวจด้วยชุดของ /*
+  const single = buildExpectations([{ path: '/*', name: 'X-Frame-Options', value: 'DENY' }]);
+  assert.equal(single.shell.length, 1);
+  assert.equal(single.asset.length, 1);
+  assert.equal(single.asset[0].name, 'X-Frame-Options');
 });
 
 test('CSP ถูกผ่อนหรือ HSTS อ่อนกว่าต้อง fail แม้จะมี header ครบทุกตัว', async () => {
@@ -118,8 +127,9 @@ test('CSP ถูกผ่อนหรือ HSTS อ่อนกว่าต้�
   const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
   const headers = { shell: {}, asset: {} };
   for (const e of entries) {
-    headers[e.path === '/assets/*' ? 'asset' : 'shell'][e.name] = e.value;
+    headers.shell[e.name] = e.value;
   }
+  headers.asset = { ...headers.shell };
   headers.shell['Content-Security-Policy-Report-Only'] = headers.shell['Content-Security-Policy-Report-Only'].replace(
     "script-src 'self'",
     "script-src 'self' 'unsafe-eval'"
