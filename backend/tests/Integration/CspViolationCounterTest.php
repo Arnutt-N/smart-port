@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Integration;
+
+use PDO;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+
+require_once __DIR__ . '/../../csp_violations.php';
+
+/**
+ * Integration tests ของตัวนับ CSP violation (issue #113)
+ * เขียนลงตาราง csp_violation_daily จริงแล้วอ่านกลับมาตรวจ
+ *
+ * ใช้ directive ที่ขึ้นต้นด้วย TEST- เพื่อไม่ชนข้อมูลจริง และลบทิ้งใน tearDown
+ */
+final class CspViolationCounterTest extends TestCase
+{
+    private const TEST_DIRECTIVE = 'TEST-img-src';
+
+    private static ?PDO $pdo = null;
+
+    public static function setUpBeforeClass(): void
+    {
+        self::$pdo = testPdo();
+    }
+
+    protected function setUp(): void
+    {
+        if (self::$pdo === null) {
+            self::markTestSkipped('ต่อ MySQL ไม่ได้ — รัน: docker compose up -d db แล้วใช้ tests/run.sh');
+        }
+        $exists = self::$pdo->query("SHOW TABLES LIKE 'csp_violation_daily'")->fetchColumn();
+        if (!$exists) {
+            self::markTestSkipped('ไม่พบตาราง csp_violation_daily — รัน database/31-csp-violation-daily.sql ก่อน');
+        }
+        $this->cleanUp();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->cleanUp();
+    }
+
+    private function cleanUp(): void
+    {
+        self::$pdo->prepare('DELETE FROM csp_violation_daily WHERE directive = ?')
+            ->execute([self::TEST_DIRECTIVE]);
+    }
+
+    private function hitsOf(string $blockedHost): int
+    {
+        $stmt = self::$pdo->prepare(
+            'SELECT hits FROM csp_violation_daily WHERE day = CURDATE() AND directive = ? AND blocked_host = ?'
+        );
+        $stmt->execute([self::TEST_DIRECTIVE, $blockedHost]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    private function keyCount(): int
+    {
+        $stmt = self::$pdo->prepare(
+            'SELECT COUNT(*) FROM csp_violation_daily WHERE day = CURDATE() AND directive = ?'
+        );
+        $stmt->execute([self::TEST_DIRECTIVE]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * นับ key ของ "วันนี้ทุก directive" ไม่กรองเฉพาะ TEST_DIRECTIVE
+     *
+     * ต้องใช้ตัวนี้เทียบก่อน/หลังของเทส cap แทน keyCount() เพราะโค้ดจริง
+     * cspKeyCountToday() นับทุกแถวของวันนี้ไม่สนใจ directive (ดู csp_violations.php)
+     * ถ้าเทสนับด้วย keyCount() (กรองเฉพาะ TEST_DIRECTIVE) แล้ว DB มีแถว directive
+     * อื่นค้างอยู่พร้อมกัน (suite อื่นรันคู่ขนาน/ทิ้งข้อมูลไว้) เพดานจริงจะถูกชนก่อน
+     * ครบลูปตามที่เทสคาดไว้ ทำให้ assert ล้มแบบสุ่มโดยไม่เกี่ยวกับบั๊กจริง
+     */
+    private function totalKeysToday(): int
+    {
+        $stmt = self::$pdo->query('SELECT COUNT(*) FROM csp_violation_daily WHERE day = CURDATE()');
+        return (int) $stmt->fetchColumn();
+    }
+
+    #[Test]
+    public function it_creates_a_row_with_one_hit_for_a_new_host(): void
+    {
+        $result = recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid');
+
+        $this->assertSame('recorded', $result);
+        $this->assertSame(1, $this->hitsOf('example.invalid'));
+    }
+
+    #[Test]
+    public function it_increments_instead_of_adding_a_row_for_a_repeated_host(): void
+    {
+        // เทสนี้จะพังทันทีถ้ามีคนเปิด PDO::MYSQL_ATTR_FOUND_ROWS ใน backend/config.php
+        // เพราะ rowCount() จะไม่คืน 1/2 ตาม affected-rows semantics ที่ตรรกะ cap พึ่งอยู่
+        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid');
+        $result = recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid');
+
+        $this->assertSame('recorded', $result);
+        $this->assertSame(2, $this->hitsOf('example.invalid'));
+        $this->assertSame(1, $this->keyCount());
+    }
+
+    #[Test]
+    public function it_folds_new_hosts_into_the_overflow_row_past_the_daily_cap(): void
+    {
+        for ($i = 0; $i < CSP_MAX_KEYS_PER_DAY; $i++) {
+            recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, "host{$i}.invalid");
+        }
+        // นับข้ามทุก directive (ดู totalKeysToday()) เพราะ cspKeyCountToday() ของจริงทำแบบนั้น
+        $before = $this->totalKeysToday();
+
+        $result = recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'one-too-many.invalid');
+
+        $this->assertSame('overflow', $result);
+        $this->assertSame(0, $this->hitsOf('one-too-many.invalid'), 'host ที่เกิน cap ต้องไม่มีแถวของตัวเอง');
+        $this->assertGreaterThanOrEqual(1, $this->hitsOf(CSP_OVERFLOW_HOST));
+        $this->assertSame($before + 1, $this->totalKeysToday(), 'โตได้แค่แถว __overflow__ แถวเดียว');
+    }
+
+    #[Test]
+    public function it_returns_skipped_when_there_is_no_database(): void
+    {
+        $this->assertSame('skipped', recordCspViolation(null, self::TEST_DIRECTIVE, 'example.invalid'));
+    }
+
+    #[Test]
+    public function it_returns_skipped_when_the_table_is_missing(): void
+    {
+        // จำลองสถานะ production ก่อนรัน DDL — handler ต้องไม่พังและ contract 204 ต้องไม่เปลี่ยน
+        $original = $GLOBALS['_csp_table_ready'];
+        $GLOBALS['_csp_table_ready'] = false;
+        try {
+            $this->assertSame('skipped', recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid'));
+            $this->assertSame(0, $this->hitsOf('example.invalid'));
+        } finally {
+            $GLOBALS['_csp_table_ready'] = $original;
+        }
+    }
+
+    #[Test]
+    public function it_prunes_rows_past_the_retention_window_without_touching_recent_ones(): void
+    {
+        // prune เป็น DELETE ที่ถ้าเขียนผิดจะกินข้อมูลปัจจุบันทิ้ง — ต้องมีเทสยืนยันขอบเขต
+        $stale = date('Y-m-d', time() - (CSP_RETENTION_DAYS + 30) * 86400);
+        self::$pdo->prepare(
+            'INSERT INTO csp_violation_daily (day, directive, blocked_host, hits) VALUES (?, ?, ?, 1)'
+        )->execute([$stale, self::TEST_DIRECTIVE, 'old.invalid']);
+
+        // prune ทำงานเฉพาะตอนสร้าง key ใหม่
+        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'fresh.invalid');
+
+        $stmt = self::$pdo->prepare(
+            'SELECT COUNT(*) FROM csp_violation_daily WHERE directive = ? AND day = ?'
+        );
+        $stmt->execute([self::TEST_DIRECTIVE, $stale]);
+        $this->assertSame(0, (int) $stmt->fetchColumn(), 'แถวเก่ากว่า retention ต้องถูกลบ');
+        $this->assertSame(1, $this->hitsOf('fresh.invalid'), 'แถวของวันนี้ต้องไม่ถูกแตะ');
+    }
+
+    #[Test]
+    public function it_truncates_values_to_column_width(): void
+    {
+        $longHost = str_repeat('a', 200) . '.invalid';
+
+        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, $longHost);
+
+        $this->assertSame(1, $this->hitsOf(substr($longHost, 0, 128)));
+    }
+}

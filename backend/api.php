@@ -239,7 +239,13 @@ switch ($path[0]) {
             $blocked = parse_url((string) ($body['blocked-uri'] ?? ''), PHP_URL_HOST) ?: 'self';
             // log เฉพาะ directive + host ของ blocked URI — ไม่มี PII
             // Issue #122: sanitize ก่อนเข้า log — ค่ามาจาก body ที่ attacker คุมได้ (กัน CRLF ปลอม log line)
-            error_log('[csp-report] violation directive=' . sanitizeLogValue($directive) . ' blocked-host=' . sanitizeLogValue($blocked));
+            $safeDirective = sanitizeLogValue($directive);
+            $safeBlocked = sanitizeLogValue($blocked);
+            error_log('[csp-report] violation directive=' . $safeDirective . ' blocked-host=' . $safeBlocked);
+            // Issue #113 (R1): เก็บตัวนับรายวันเพื่อให้เกณฑ์ enforce query ได้ — ไม่แทน error_log()
+            // ข้างบน (หลักฐานสองทาง) และกลืน error ทุกชนิดเพื่อรักษาสัญญา "ตอบ 204 เสมอ"
+            include_once __DIR__ . '/csp_violations.php';
+            recordCspViolation(tryGetDB(), $safeDirective, $safeBlocked);
         }
         http_response_code(204);
         break;
