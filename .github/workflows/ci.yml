@@ -182,6 +182,7 @@ jobs:
             -v "$PWD/database/28-prefix-in-probation-view.sql:/docker-entrypoint-initdb.d/28-prefix-in-probation-view.sql" \
             -v "$PWD/database/29-ensure-probation-view-prefixes.sql:/docker-entrypoint-initdb.d/29-ensure-probation-view-prefixes.sql" \
             -v "$PWD/database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql" \
+            -v "$PWD/database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish
