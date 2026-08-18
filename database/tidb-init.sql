@@ -1508,6 +1508,9 @@ CREATE TABLE IF NOT EXISTS external_ref (
     KEY idx_external_ref_internal (internal_table, internal_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ============================================
+-- FILE: 31-csp-violation-daily.sql
+-- ============================================
 -- ตัวนับ CSP violation รายวัน (issue #113) — ดู database/31-csp-violation-daily.sql
 CREATE TABLE IF NOT EXISTS csp_violation_daily (
     day           DATE NOT NULL,
