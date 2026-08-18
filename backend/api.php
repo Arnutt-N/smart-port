@@ -125,7 +125,10 @@ if ($isPublicPhotoAsset) {
 } elseif ($isPublicCspReport) {
     checkRateLimitPublic('csp-report', 60, 60);
 } elseif ($isCspSummary) {
-    // เข้มกว่าตัวอื่นเพราะ endpoint นี้มี secret ให้เดา — 10/นาที ทำ brute-force ไม่ไหว
+    // Issue #113 code review I3: เข้มกว่าตัวอื่นเพราะ endpoint นี้มี secret ให้เดา แต่ 10/นาที
+    // นี้เป็นแค่ defence-in-depth ไม่ใช่ตัวกัน brute-force ตัวจริง — publicClientIp() อ่าน XFF
+    // hop แรกที่ client ปลอมได้ (มีเทสยืนยันที่ PublicRateLimitTest) ตัวกันจริงคือ entropy ของ
+    // token เอง (ดู CSP_SUMMARY_TOKEN_MIN_LENGTH ใน routes/csp_summary.php)
     checkRateLimitPublic('csp-summary', 10, 60);
 }
 
@@ -236,7 +239,12 @@ switch ($path[0]) {
         // GET /api/csp-report/summary — อ่านสรุปตัวนับ (issue #113)
         if (($path[1] ?? '') === 'summary') {
             include_once __DIR__ . '/routes/csp_summary.php';
-            handleCspSummary(tryGetDB(), $method, $_GET);
+            // Issue #113 code review I1: ไม่เรียก tryGetDB() ตรงนี้แล้ว — ของเดิม evaluate
+            // เป็น argument ก่อนเข้า handleCspSummary() เสมอ ทำให้ request ที่ไม่มี token
+            // ก็จุดชนวน DB connect (ขัด invariant "public path ไม่แตะ DB" ของ rate_limit.php)
+            // และถ้า buildSslOptions() throw จะหลุดไปเป็น 500 แทนคำตอบปกติ — handleCspSummary()
+            // เรียก DB factory เอง "หลัง" token ผ่านแล้ว พร้อม try/catch ภายในตัวมันเอง
+            handleCspSummary($method, $_GET);
             break;
         }
         // POST /api/csp-report — รับ violation report จาก browser (report-only phase)

@@ -149,14 +149,17 @@ function cspPrune(PDO $pdo): void
  * violations.top ได้ครบ (ไม่ให้ '__overflow__' โผล่เป็น "directive จริง" ปนกับของจริงที่
  * ผู้บริโภค — สคริปต์ gate — เอาไปตัดสินใจ enforce)
  *
+ * หมายเหตุ (code review M6): violations.total "ไม่เท่า" ผลรวมของ violations.top เพราะ
+ * top ถูกตัดที่ LIMIT 50 (selftest.markers ก็ตัดที่ LIMIT 20 เช่นกัน) — total มาจาก
+ * SUM(hits) ของทั้งหน้าต่างเสมอ ไม่ใช่ผลรวมของแถวที่ถูกส่งกลับใน top
+ *
  * @return array{window_days:int, since:string, storage:string, violations:array, selftest:array, overflow_hits:int}
  */
 function cspSummary(?PDO $pdo, int $days): array
 {
-    $since = date('Y-m-d', time() - ($days - 1) * 86400);
     $summary = [
         'window_days' => $days,
-        'since' => $since,
+        'since' => date('Y-m-d', time() - ($days - 1) * 86400),
         'storage' => 'unavailable',
         'violations' => ['total' => 0, 'top' => []],
         'selftest' => ['total' => 0, 'markers' => []],
@@ -169,11 +172,21 @@ function cspSummary(?PDO $pdo, int $days): array
         if (!cspTableReady($pdo)) {
             return $summary;
         }
+        // Issue #113 code review M5: "since" คำนวณด้วย MySQL DATE_SUB(CURDATE(), ...)
+        // แบบเดียวกับ cspPrune() — ไม่ใช่ PHP date() เพราะแถวถูกเขียนด้วย MySQL CURDATE()
+        // และ repo ไม่ได้ตั้ง timezone ให้ตรงกันระหว่าง PHP กับ MySQL ที่ไหนเลย ถ้าคำนวณคนละ
+        // ทางขอบหน้าต่างเลื่อนได้ 1 วัน (ค่าที่คืนใน JSON ต้องมาจาก DB ตัวเดียวกับที่ query
+        // ใช้จริง ไม่ใช่แค่คำนวณคู่ขนานแล้วหวังว่าตรงกัน)
+        $sinceStmt = $pdo->prepare('SELECT DATE_SUB(CURDATE(), INTERVAL ? DAY)');
+        $sinceStmt->execute([$days - 1]);
+        $since = (string) $sinceStmt->fetchColumn();
+
         $realWhere = 'day >= ? AND blocked_host <> ? AND blocked_host NOT LIKE ?';
         $realArgs = [$since, CSP_OVERFLOW_HOST, CSP_SELFTEST_LIKE];
 
         $total = $pdo->prepare("SELECT COALESCE(SUM(hits), 0) FROM csp_violation_daily WHERE {$realWhere}");
         $total->execute($realArgs);
+        $totalHits = (int) $total->fetchColumn();
 
         $top = $pdo->prepare(
             "SELECT directive, blocked_host, SUM(hits) AS hits, MAX(last_seen) AS last_seen
@@ -181,6 +194,7 @@ function cspSummary(?PDO $pdo, int $days): array
              GROUP BY directive, blocked_host ORDER BY hits DESC LIMIT 50"
         );
         $top->execute($realArgs);
+        $topRows = $top->fetchAll();
 
         $markers = $pdo->prepare(
             'SELECT blocked_host, SUM(hits) AS hits, MAX(last_seen) AS last_seen
@@ -194,16 +208,25 @@ function cspSummary(?PDO $pdo, int $days): array
             'SELECT COALESCE(SUM(hits), 0) FROM csp_violation_daily WHERE day >= ? AND blocked_host = ?'
         );
         $overflow->execute([$since, CSP_OVERFLOW_HOST]);
+        $overflowHits = (int) $overflow->fetchColumn();
 
+        // Issue #113 code review I2: ประกอบผลลัพธ์ทั้งหมดไว้ในตัวแปรท้องถิ่นก่อน (ข้างบน) แล้ว
+        // ค่อย assign เข้า $summary "ทีเดียวตอนจบ" ที่นี่ — ของเดิมตั้ง storage='ready' ก่อน
+        // ดึงผลลัพธ์จริง ถ้า query ถัดไปโยน exception กลางคัน catch ด้านล่างจะคืน $summary ที่
+        // storage='ready' ติดไปแล้วแต่ violations ยังเป็นค่า default (0 violation) — ผู้บริโภค
+        // (สคริปต์ gate) จะอ่านว่า "พร้อมและสะอาด" ทั้งที่จริงคือ "ไม่รู้" ซึ่งเป็น failure mode
+        // ที่แพงที่สุด (ดู CspSummaryTest::it_does_not_report_ready_when_a_query_fails_partway_through)
+        // storage จะเป็น 'ready' ได้ก็ต่อเมื่อทุก query ข้างบนสำเร็จครบเท่านั้น
+        $summary['since'] = $since;
         $summary['storage'] = 'ready';
         $summary['violations'] = [
-            'total' => (int) $total->fetchColumn(),
+            'total' => $totalHits,
             'top' => array_map(static fn (array $r): array => [
                 'directive' => $r['directive'],
                 'blocked_host' => $r['blocked_host'],
                 'hits' => (int) $r['hits'],
                 'last_seen' => $r['last_seen'],
-            ], $top->fetchAll()),
+            ], $topRows),
         ];
         $summary['selftest'] = [
             'total' => array_sum(array_map(static fn (array $r): int => (int) $r['hits'], $markerRows)),
@@ -213,7 +236,7 @@ function cspSummary(?PDO $pdo, int $days): array
                 'last_seen' => $r['last_seen'],
             ], $markerRows),
         ];
-        $summary['overflow_hits'] = (int) $overflow->fetchColumn();
+        $summary['overflow_hits'] = $overflowHits;
     } catch (Throwable $e) {
         error_log('[csp-report] summary failed: ' . $e->getMessage());
         return $summary;
