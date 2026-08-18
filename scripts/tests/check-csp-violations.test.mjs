@@ -83,6 +83,33 @@ test('--require-marker ที่เจอแล้วต้องผ่าน', 
   assert.equal(evaluateSummary(clean, { requireMarker: 'csp-selftest-20260824-a3f9.invalid' }).ok, true);
 });
 
+// code review I1 (round 1): storage:'ready' แต่ field อื่นหาย/รูปทรงผิด (proxy/cache แทรก,
+// backend เปลี่ยนสัญญาในอนาคต ฯลฯ) ต้อง "สรุปไม่ได้" (fail) ไม่ใช่ถูกอ่านเป็น 0 ด้วย `?? 0`
+// แล้ว PASS อย่างเงียบ ๆ — "ไม่รู้" ต้องไม่กลายเป็น "สะอาด"
+test('storage:ready แต่ไม่มี key violations เลย ต้องไม่ผ่าน (รูปทรงผิด ≠ สะอาด)', () => {
+  const malformed = { ...clean };
+  delete malformed.violations;
+  const result = evaluateSummary(malformed, {});
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /สรุปไม่ได้/);
+});
+
+test('storage:ready แต่ไม่มี key overflow_hits ต้องไม่ผ่าน (รูปทรงผิด ≠ สะอาด)', () => {
+  const malformed = { ...clean };
+  delete malformed.overflow_hits;
+  const result = evaluateSummary(malformed, {});
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /สรุปไม่ได้/);
+});
+
+test('--require-marker ระบุแล้วแต่ selftest หาย ต้องไม่ผ่าน (รูปทรงผิด ≠ ไม่เจอ marker)', () => {
+  const malformed = { ...clean };
+  delete malformed.selftest;
+  const result = evaluateSummary(malformed, { requireMarker: 'csp-selftest-20260824-a3f9.invalid' });
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /สรุปไม่ได้/);
+});
+
 test('ส่ง token ผ่าน header และผ่านเมื่อสะอาด', async () => {
   const { server, baseUrl, received } = await startServer((req, res) => {
     res.setHeader('content-type', 'application/json');
@@ -132,6 +159,20 @@ test('backend ตอบ 401 (token ไม่ตรง) → exit 1 พร้อ�
     const { status, output } = await runArgs(['--base-url', baseUrl], { CSP_SUMMARY_TOKEN: 'wrong-token' });
     assert.equal(status, 1, output);
     assert.match(output, /401/);
+  } finally {
+    server.close();
+  }
+});
+
+test('backend ตอบ 500 (generic, ไม่ใช่ 401/503) → exit 1 พร้อมบอก HTTP status', async () => {
+  const { server, baseUrl } = await startServer((req, res) => {
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: 'internal error' }));
+  });
+  try {
+    const { status, output } = await runArgs(['--base-url', baseUrl], { CSP_SUMMARY_TOKEN: 'x' });
+    assert.equal(status, 1, output);
+    assert.match(output, /500/);
   } finally {
     server.close();
   }

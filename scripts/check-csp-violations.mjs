@@ -79,33 +79,55 @@ function parseArgs(argv) {
 /**
  * ตัดสินจาก summary ว่าผ่านเกณฑ์หรือไม่ — แยกออกมาเป็นฟังก์ชันบริสุทธิ์เพื่อให้เทสตรวจ
  * "ความหมายของผลลัพธ์" ได้โดยไม่ต้องมี server
+ *
+ * code review I1 (round 1): เดิมใช้ `summary.violations?.total ?? 0` — field หายหรือเป็น
+ * null (เช่น response ถูก proxy/cache แทรกหรือ backend เปลี่ยนรูปแบบในอนาคต) จะถูกอ่านเป็น
+ * 0 แล้ว PASS ทั้งที่จริงคือ "ไม่รู้" ไม่ใช่ "สะอาด" — ขัดกับหลักการเดียวกับที่เช็ค storage
+ * แบบ strict (`!== 'ready'`) ด้านบน ต้องเช็ครูปทรงก่อนอ่านค่าเสมอ: รูปทรงผิด = สรุปไม่ได้
+ * (fail-closed) ไม่ใช่ตีความเป็น 0 แล้วปล่อยผ่านเงียบ ๆ
  */
 function evaluateSummary(summary, { requireMarker = null } = {}) {
   const reasons = [];
   if (summary.storage !== 'ready') {
     reasons.push('backend ยังไม่มีตาราง csp_violation_daily (storage=' + summary.storage + ') → สรุปไม่ได้ ไม่ใช่ "ไม่มี violation"');
   }
-  const total = summary.violations?.total ?? 0;
-  if (total > 0) {
+
+  const hasViolationsTotal = typeof summary?.violations?.total === 'number';
+  if (!hasViolationsTotal) {
+    reasons.push('รูปแบบ response ไม่มี violations.total เป็นตัวเลข → สรุปไม่ได้ ไม่ใช่ "ไม่มี violation"');
+  }
+  const hasOverflowHits = typeof summary?.overflow_hits === 'number';
+  if (!hasOverflowHits) {
+    reasons.push('รูปแบบ response ไม่มี overflow_hits เป็นตัวเลข → สรุปไม่ได้ ไม่ใช่ "ไม่มี violation"');
+  }
+
+  if (hasViolationsTotal && summary.violations.total > 0) {
     const detail = (summary.violations.top ?? [])
       .slice(0, 5)
       .map((r) => `${r.directive} ← ${r.blocked_host} (${r.hits})`)
       .join(', ');
-    reasons.push(`พบ violation จากระบบจริง ${total} ครั้ง: ${detail}`);
+    reasons.push(`พบ violation จากระบบจริง ${summary.violations.total} ครั้ง: ${detail}`);
   }
-  if ((summary.overflow_hits ?? 0) > 0) {
+  if (hasOverflowHits && summary.overflow_hits > 0) {
     reasons.push(`overflow_hits=${summary.overflow_hits} → ชนเพดาน key ต่อวัน ข้อมูลไม่ครบ ต้องดู Render log ประกอบ`);
   }
   if (requireMarker) {
-    const markers = (summary.selftest?.markers ?? []).map((m) => m.blocked_host);
-    if (!markers.includes(requireMarker)) {
-      reasons.push(`ไม่เจอ marker "${requireMarker}" ในหน้าต่างนี้ → pipeline ยังพิสูจน์ไม่ได้`);
+    if (!Array.isArray(summary?.selftest?.markers)) {
+      reasons.push(`รูปแบบ response ไม่มี selftest.markers เป็น array → สรุปไม่ได้ว่าเจอ marker "${requireMarker}" หรือไม่`);
+    } else {
+      const markers = summary.selftest.markers.map((m) => m.blocked_host);
+      if (!markers.includes(requireMarker)) {
+        reasons.push(`ไม่เจอ marker "${requireMarker}" ในหน้าต่างนี้ → pipeline ยังพิสูจน์ไม่ได้`);
+      }
     }
   }
   return { ok: reasons.length === 0, reasons };
 }
 
 async function fetchSummary(baseUrl, days, token) {
+  // redirect: 'manual' ตั้งใจ (เหมือน csp-report-selftest.mjs) — ถ้าตาม redirect ไปเงียบ ๆ
+  // แล้วปลายทางเป็น origin อื่นที่ตอบ 200 ด้วย JSON ของมันเอง สคริปต์จะเอา JSON ของคนอื่นมา
+  // ตัดสิน "สะอาด" โดยไม่รู้ตัว (false-PASS) ต้องเห็น 3xx แล้ว fail ชัด ๆ แทน
   const res = await fetch(`${baseUrl}${SUMMARY_PATH}?days=${days}`, {
     method: 'GET',
     headers: { 'x-csp-summary-token': token },
