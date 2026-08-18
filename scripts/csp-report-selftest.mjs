@@ -161,6 +161,20 @@ function isBackendAwake(status, body) {
 }
 
 /**
+ * ดึง release SHA จาก body ของ readyz (`RENDER_GIT_COMMIT` หรือ 'dev' — readyz.php:19-23)
+ * ใช้ผูก marker เข้ากับ deployment ที่รับ request จริง เวลาต้องสืบว่า marker หายไปกับ
+ * deploy ไหน — Render log ก็แสดง commit ของ container ทำให้เทียบกันได้
+ */
+function readReleaseSha(body) {
+  try {
+    const release = JSON.parse(body)?.release;
+    return typeof release === 'string' && release !== '' ? release : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * ปลุก backend ก่อนยิง report — CSP report เป็น fire-and-forget ไม่มี retry ฝั่ง browser
  * ถ้ายิงตอน container ยังหลับ marker จะหายเงียบและทำให้ผลรอบนี้ตีความไม่ได้
  */
@@ -176,7 +190,7 @@ async function warmUp(baseUrl) {
       });
       const body = await res.text().catch(() => '');
       const ms = Date.now() - started;
-      if (isBackendAwake(res.status, body)) return { status: res.status, ms, attempts: attempt };
+      if (isBackendAwake(res.status, body)) return { status: res.status, ms, attempts: attempt, release: readReleaseSha(body) };
       lastDetail = `HTTP ${res.status} ที่ไม่ใช่รูป JSON ของ readyz — edge ตอบแทนระหว่าง container บูต`;
     } catch (err) {
       lastDetail = err.message;
@@ -246,6 +260,9 @@ function printNextSteps(markerHost) {
   console.log('\n— ขั้นต่อไป (ต้องทำด้วยตา) —');
   console.log(`  1. เปิด Render log ของ service "${RENDER_LOG_SERVICE}" (ไม่ใช่ static site) แล้วค้นหา:`);
   console.log(`\n     ${LOG_DIRECTIVE_PREFIX}${MARKER_DIRECTIVE}${LOG_BLOCKED_PREFIX}${markerHost}\n`);
+  // สำรอง: ถ้า log filter ตีความ [ หรือ = เป็น syntax หรือ copy ตกไปตัวหนึ่ง ผลจะกลายเป็น
+  // "ไม่เจอ marker" = ห้าม enforce ซึ่งเผาหน้าต่าง 7 วันทิ้งฟรี ๆ — marker มี nonce จึง unique พอ
+  console.log(`     (ถ้า filter ไม่รับอักขระพิเศษ ค้นด้วย marker ล้วน ๆ ก็พอ: ${markerHost})\n`);
   console.log('  2. เจอ marker  → pipeline ครบวงจร: ตัดบรรทัด marker ทิ้ง แล้วดู violation ที่เหลือในหน้าต่าง 7 วัน');
   console.log('  3. ไม่เจอ marker → สรุปไม่ได้ ห้าม enforce (log ว่างอาจแปลว่า report ไม่เคยส่งถึง)');
   console.log('\n  เตือน: marker เดียวไม่พอสำหรับตัดสินใจ enforce — ต้องมี traffic จริงในหน้าต่าง 7 วันด้วย');
@@ -280,11 +297,14 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  const release = warm.release ? `, release=${warm.release.slice(0, 12)}` : '';
   if (warm.status === 200) {
-    console.log(`  [✓] backend ตื่นแล้ว (HTTP 200 ใน ${warm.ms}ms, ลอง ${warm.attempts} ครั้ง)`);
+    console.log(`  [✓] backend ตื่นแล้ว (HTTP 200 ใน ${warm.ms}ms, ลอง ${warm.attempts} ครั้ง${release})`);
   } else {
-    console.log(`  [~] backend ตอบเองแล้วแต่ได้ HTTP ${warm.status} ใน ${warm.ms}ms (ลอง ${warm.attempts} ครั้ง)`);
-    console.log('      ยิง report ต่อได้ — readyz ตอบเป็น JSON ของตัวเอง = PHP รับงานแล้ว และ handler csp-report ไม่แตะ DB');
+    // ระวังอย่าอ้างเกินที่ตรวจ: isBackendAwake ปล่อยผ่าน status < 500 โดยไม่แตะ body เลย
+    // (เช่น 404 ตอน route หาย) จึงพูดได้แค่ว่า "ไม่ใช่ 5xx ของ edge" ไม่ใช่ "readyz ตอบเอง"
+    console.log(`  [~] ได้คำตอบที่ไม่ใช่ 5xx ของ edge แต่เป็น HTTP ${warm.status} ใน ${warm.ms}ms (ลอง ${warm.attempts} ครั้ง${release})`);
+    console.log('      ยิง report ต่อได้ — มีคนรับงานแล้ว และ handler csp-report ไม่แตะ DB จึง log ได้แม้ readyz จะ not_ready');
   }
 
   // 2) ยิง marker เข้า pipeline เส้นเดียวกับที่ browser ใช้

@@ -80,10 +80,12 @@ const ok204 = (req, res) => {
   res.end();
 };
 
+// release = RENDER_GIT_COMMIT ของ container ที่รับ request (readyz.php:19-23)
+const RELEASE_SHA = 'abc123def4567890abc123def4567890abc123de';
 const readyzOk = (req, res) => {
   res.statusCode = 200;
   res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ status: 'ready' }));
+  res.end(JSON.stringify({ status: 'ready', release: RELEASE_SHA }));
 };
 
 test('happy path: warm up แล้วยิง marker ผูกวันที่ ได้ 204 → exit 0 พร้อมบอกคำค้นใน log', async () => {
@@ -109,6 +111,8 @@ test('happy path: warm up แล้วยิง marker ผูกวันที�
 
     // กับดักที่เคยทำให้ "log ว่าง" ตีความผิด: log อยู่ที่ service backend ไม่ใช่ static site
     assert.ok(output.includes('smartport-backend'), `output ต้องบอกว่าให้เปิด log ของ service ไหน:\n${output}`);
+    // release ของ container ที่รับงาน — ใช้เทียบกับ Render log ตอนต้องสืบว่า marker หายไปกับ deploy ไหน
+    assert.ok(output.includes(`release=${RELEASE_SHA.slice(0, 12)}`), `output ต้องบอก release ของ container:\n${output}`);
     // 204 ไม่ใช่หลักฐานว่า error_log() ทำงาน — ห้ามให้ PASS ชวนอ่านกลับด้าน
     assert.match(output, /ยังไม่ใช่หลักฐาน/, `PASS ต้องระบุขอบเขตของสิ่งที่พิสูจน์ได้:\n${output}`);
 
@@ -389,13 +393,14 @@ test('รูปแบบ log ที่สคริปต์บอกให้ค
   // anti-drift: ถ้ามีคนแก้ข้อความ error_log ฝั่ง PHP คำค้นที่สคริปต์พิมพ์จะหาไม่เจอ
   // แล้ว "ไม่เจอ marker" จะถูกตีความผิดเป็น "pipeline พัง" ทั้งที่แค่ข้อความเปลี่ยน
   const php = readFileSync(resolve(ROOT, 'backend', 'api.php'), 'utf8');
-  assert.ok(
-    php.includes(`'${LOG_DIRECTIVE_PREFIX}'`),
-    `backend/api.php ไม่มี literal "${LOG_DIRECTIVE_PREFIX}" แล้ว — อัปเดต LOG_DIRECTIVE_PREFIX ใน csp-report-selftest.mjs`
-  );
-  assert.ok(
-    php.includes(`'${LOG_BLOCKED_PREFIX}'`),
-    `backend/api.php ไม่มี literal "${LOG_BLOCKED_PREFIX}" แล้ว — อัปเดต LOG_BLOCKED_PREFIX ใน csp-report-selftest.mjs`
+  // ต้องอยู่ใน error_log() บรรทัดเดียวกันจริง ๆ — ไม่ใช่แค่ "มี literal ที่ไหนก็ได้ในไฟล์"
+  // (ถ้าเช็คแยกกัน literal ที่ย้ายไป branch อื่นหรือ error_log ตัวที่สองจะทำให้เทสผ่านหลอก ๆ)
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sameLine = new RegExp(`error_log\\(\\s*'${escape(LOG_DIRECTIVE_PREFIX)}'.*'${escape(LOG_BLOCKED_PREFIX)}'`);
+  assert.match(
+    php,
+    sameLine,
+    `backend/api.php ไม่มี error_log() ที่ประกอบ "${LOG_DIRECTIVE_PREFIX}" + "${LOG_BLOCKED_PREFIX}" ในบรรทัดเดียวแล้ว — อัปเดตค่าคงที่ใน csp-report-selftest.mjs ให้ตรงกับของจริง`
   );
 });
 

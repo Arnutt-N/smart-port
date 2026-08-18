@@ -136,6 +136,10 @@ jobs:
       # และกัน migration ใหม่ที่ลืม mount ใน docker-compose / ไฟล์นี้
       - name: Validate schema parity
         run: node scripts/validate-schema-parity.mjs
+      # regression ของสคริปต์ใน scripts/ — mock server บน 127.0.0.1 ทั้งหมด ไม่ออกเน็ต
+      # (gate ที่บังคับจริงทุกครั้งคือ .githooks/pre-push เพราะ workflow นี้ปิด auto-trigger อยู่)
+      - name: Script regressions (offline mock servers)
+        run: node --test scripts/tests/*.test.mjs
 
   backend-tests:
     name: Backend PHPUnit (Unit + Integration)

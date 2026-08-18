@@ -214,7 +214,9 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   warm up `/api/readyz` ก่อน แล้ว POST `/api/csp-report` ผ่าน rewrite เส้นเดียวกับที่ browser ใช้
   exit 0 เมื่อได้ 204 พร้อมพิมพ์บรรทัด log ที่ต้องไปค้นหา (ผูกกับข้อความ `error_log()` จริงใน
   `backend/api.php` — มีเทสกัน drift); regression อยู่ที่ `scripts/tests/csp-report-selftest.test.mjs`
-  (mock origin บน 127.0.0.1) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
+  (mock origin บน 127.0.0.1) เสียบใน `scripts/ci-local.sh` / `.ps1` และ `.githooks/pre-push`
+  (`node --test scripts/tests/*.test.mjs` ครอบ regression ของสคริปต์ทั้งโฟลเดอร์ ~17s) —
+  pre-push คือที่เดียวที่ gate พวกนี้ถูกบังคับทุกครั้ง เพราะ GitHub Actions ปิด auto-trigger อยู่
   **ตัวสคริปต์เองไม่ได้อยู่ใน CI gate** เพราะยิง production จริง — เรียกมือตอนจะอ่าน log เท่านั้น
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
