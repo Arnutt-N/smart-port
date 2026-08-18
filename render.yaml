@@ -100,3 +100,8 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      # Issue #113 (R1): shared secret ของ GET /api/csp-report/summary
+      # ไม่ได้ตั้ง = endpoint ตอบ 503 (fail-closed) ส่วนการนับ violation ยังทำงานปกติ
+      # ต้องยาว >= 32 ตัวอักษร ไม่งั้นถูกปฏิเสธเป็น 503 เหมือนกัน (backend/routes/csp_summary.php)
+      - key: CSP_SUMMARY_TOKEN
+        sync: false

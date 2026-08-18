@@ -172,6 +172,18 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
 
     **decision rule: เจอ marker สด → pipeline ครบวงจร ตัด marker ทิ้งแล้วดูที่เหลือ;
     ไม่เจอ marker → สรุปไม่ได้ ห้าม enforce**
+  - **เมื่อ CSP counter (R1) ถูกเปิดใช้บน production แล้ว** ขั้นตอนนี้เหลือสองคำสั่งและไม่ต้องเปิด
+    dashboard เลย:
+
+    ```bash
+    node scripts/csp-report-selftest.mjs
+    CSP_SUMMARY_TOKEN='<ค่าที่ตั้งไว้>' node scripts/check-csp-violations.mjs --days 7 --require-marker '<marker ที่บรรทัดบนพิมพ์>'
+    ```
+
+    exit 0 = marker ถึงจริงและไม่มี violation จากระบบจริงในหน้าต่างนั้น · ขั้นตอนเปิดใช้ (รัน DDL บน
+    prod + ตั้ง env) อยู่ที่ `docs/runbooks/csp-counter-activation.md`
+    **ข้อจำกัดที่ห้ามลืม: counter เริ่มนับ ณ วันที่รัน DDL ย้อนหลังไม่ได้** — สำหรับรอบ 24 ส.ค.
+    จึงเป็นหลักฐาน **เสริม** เท่านั้น หลักฐานหลักยังเป็น Render log + self-test
 - **ต้องมี traffic จริงในหน้าต่าง 7 วันด้วย** — เกณฑ์ข้อ 2 มีความหมายก็ต่อเมื่อมีคนเปิดใช้จริง
   แอปมี ~24 route แต่ audit ด้านล่างครอบคลุมแค่ 6 chunk ถ้าไม่มีใครเปิดหน้าที่เหลือเลย
   "log ว่าง" แปลว่า "ยังไม่มีใครลอง" ไม่ใช่ "ปลอดภัย" → ก่อน enforce ให้เดินคลิกครบหน้าหลัก
@@ -218,6 +230,14 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   (`node --test scripts/tests/*.test.mjs` ครอบ regression ของสคริปต์ทั้งโฟลเดอร์ ~17s) —
   pre-push คือที่เดียวที่ gate พวกนี้ถูกบังคับทุกครั้ง เพราะ GitHub Actions ปิด auto-trigger อยู่
   **ตัวสคริปต์เองไม่ได้อยู่ใน CI gate** เพราะยิง production จริง — เรียกมือตอนจะอ่าน log เท่านั้น
+- `scripts/check-csp-violations.mjs` — gate ที่ตัดสินเกณฑ์ด้วย exit code แทนการเพ่ง log (issue #113 R1):
+  ถาม `GET /api/csp-report/summary?days=N` (auth ด้วย header `X-CSP-Summary-Token` เทียบกับ env
+  `CSP_SUMMARY_TOKEN` ที่ต้องยาว ≥ 32 ตัวอักษร) แล้ว **exit 0 เฉพาะเมื่อ `storage=ready` และ
+  ไม่มี violation จริง และ (ถ้าระบุ `--require-marker`) เจอ marker ที่เพิ่งยิง** —
+  `storage=unavailable` กับ `overflow_hits > 0` นับเป็นไม่ผ่านทั้งคู่โดยตั้งใจ ("ไม่มีข้อมูล" ≠ "ปลอดภัย")
+  token อ่านจาก env เท่านั้น ไม่รับผ่าน argument; regression อยู่ที่
+  `scripts/tests/check-csp-violations.test.mjs` · **ตัวสคริปต์ไม่อยู่ใน CI gate** เพราะยิง production จริง
+  · ขั้นตอนเปิดใช้บน production: `docs/runbooks/csp-counter-activation.md`
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
