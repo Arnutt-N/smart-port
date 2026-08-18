@@ -79,6 +79,14 @@ else
   fail 'live header smoke regression'
 fi
 
+# mock-server regression ของ CSP self-test — ไม่ยิง production จริง (issue #113 R3)
+step 'CSP Report Self-test Regression'
+if node --test "${ROOT}/scripts/tests/csp-report-selftest.test.mjs"; then
+  ok 'csp report self-test regression'
+else
+  fail 'csp report self-test regression'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'
