@@ -112,6 +112,10 @@ $isPublicReadyz = $path[0] === 'readyz' && $method === 'GET';
 // Issue #113: browser ส่ง CSP violation report เอง — ไม่มี JWT/CSRF แนบมาด้วย
 $isPublicCspReport = $path[0] === 'csp-report' && $method === 'POST';
 
+// Issue #113 (R1): endpoint สรุปตัวนับ — ไม่ใช้ JWT เพราะผู้อ่านคือสคริปต์ที่ไม่มีบัญชี
+// ยืนยันตัวตนด้วย shared secret ใน handler แทน (ดู routes/csp_summary.php)
+$isCspSummary = $path[0] === 'csp-report' && ($path[1] ?? '') === 'summary' && $method === 'GET';
+
 // Issue #122: rate limit เส้นทาง public แบบไม่แตะ DB — กัน unauthenticated
 // amplification (readyz ยิง DB ทุกคำขอ, csp-report เขียน log, uploads อ่าน DB ต่อรูป)
 if ($isPublicPhotoAsset) {
@@ -120,10 +124,13 @@ if ($isPublicPhotoAsset) {
     checkRateLimitPublic('readyz', 30, 60);
 } elseif ($isPublicCspReport) {
     checkRateLimitPublic('csp-report', 60, 60);
+} elseif ($isCspSummary) {
+    // เข้มกว่าตัวอื่นเพราะ endpoint นี้มี secret ให้เดา — 10/นาที ทำ brute-force ไม่ไหว
+    checkRateLimitPublic('csp-summary', 10, 60);
 }
 
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && !$isCspSummary && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -226,7 +233,13 @@ switch ($path[0]) {
         break;
 
     case 'csp-report':
-        // Issue #113: รับ CSP violation report จาก browser (report-only phase) — log แล้วทิ้ง
+        // GET /api/csp-report/summary — อ่านสรุปตัวนับ (issue #113)
+        if (($path[1] ?? '') === 'summary') {
+            include_once __DIR__ . '/routes/csp_summary.php';
+            handleCspSummary(tryGetDB(), $method, $_GET);
+            break;
+        }
+        // POST /api/csp-report — รับ violation report จาก browser (report-only phase)
         if ($method !== 'POST') {
             respondMethodNotAllowed();
             break;

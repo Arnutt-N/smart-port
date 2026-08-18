@@ -132,3 +132,91 @@ function cspPrune(PDO $pdo): void
     );
     $stmt->execute([CSP_RETENTION_DAYS]);
 }
+
+/**
+ * สรุปตัวนับในหน้าต่าง N วันล่าสุด (รวมวันนี้)
+ *
+ * แยก 3 กอง: violation จริง / marker ของ self-test (ของทีม ไม่ใช่ของจริง) / overflow
+ * ที่ต้องแยกเพราะแต่ละกองมีความหมายต่อการตัดสินใจ enforce คนละแบบ:
+ *   violations > 0  → ยังมีของจริงค้าง ห้าม enforce
+ *   selftest        → หลักฐานว่า pipeline ยังส่งถึงจริง (ไม่มี = สรุปไม่ได้)
+ *   overflow > 0    → ข้อมูลไม่ครบเพราะชนเพดาน ต้องดู Render log ประกอบ
+ *
+ * แถว overflow (Task 2, code review C1) ถูกยุบเข้าแถวเดียวตายตัวที่
+ * (CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST) เสมอคู่กัน — cspFoldIntoOverflow() ไม่เคย
+ * เขียน CSP_OVERFLOW_DIRECTIVE โดยไม่มี CSP_OVERFLOW_HOST คู่กัน กรองด้วย
+ * blocked_host <> CSP_OVERFLOW_HOST คอลัมน์เดียวจึงพอกันแถว __overflow__ ทั้งแถวออกจาก
+ * violations.top ได้ครบ (ไม่ให้ '__overflow__' โผล่เป็น "directive จริง" ปนกับของจริงที่
+ * ผู้บริโภค — สคริปต์ gate — เอาไปตัดสินใจ enforce)
+ *
+ * @return array{window_days:int, since:string, storage:string, violations:array, selftest:array, overflow_hits:int}
+ */
+function cspSummary(?PDO $pdo, int $days): array
+{
+    $since = date('Y-m-d', time() - ($days - 1) * 86400);
+    $summary = [
+        'window_days' => $days,
+        'since' => $since,
+        'storage' => 'unavailable',
+        'violations' => ['total' => 0, 'top' => []],
+        'selftest' => ['total' => 0, 'markers' => []],
+        'overflow_hits' => 0,
+    ];
+    if ($pdo === null) {
+        return $summary;
+    }
+    try {
+        if (!cspTableReady($pdo)) {
+            return $summary;
+        }
+        $realWhere = 'day >= ? AND blocked_host <> ? AND blocked_host NOT LIKE ?';
+        $realArgs = [$since, CSP_OVERFLOW_HOST, CSP_SELFTEST_LIKE];
+
+        $total = $pdo->prepare("SELECT COALESCE(SUM(hits), 0) FROM csp_violation_daily WHERE {$realWhere}");
+        $total->execute($realArgs);
+
+        $top = $pdo->prepare(
+            "SELECT directive, blocked_host, SUM(hits) AS hits, MAX(last_seen) AS last_seen
+             FROM csp_violation_daily WHERE {$realWhere}
+             GROUP BY directive, blocked_host ORDER BY hits DESC LIMIT 50"
+        );
+        $top->execute($realArgs);
+
+        $markers = $pdo->prepare(
+            'SELECT blocked_host, SUM(hits) AS hits, MAX(last_seen) AS last_seen
+             FROM csp_violation_daily WHERE day >= ? AND blocked_host LIKE ?
+             GROUP BY blocked_host ORDER BY last_seen DESC LIMIT 20'
+        );
+        $markers->execute([$since, CSP_SELFTEST_LIKE]);
+        $markerRows = $markers->fetchAll();
+
+        $overflow = $pdo->prepare(
+            'SELECT COALESCE(SUM(hits), 0) FROM csp_violation_daily WHERE day >= ? AND blocked_host = ?'
+        );
+        $overflow->execute([$since, CSP_OVERFLOW_HOST]);
+
+        $summary['storage'] = 'ready';
+        $summary['violations'] = [
+            'total' => (int) $total->fetchColumn(),
+            'top' => array_map(static fn (array $r): array => [
+                'directive' => $r['directive'],
+                'blocked_host' => $r['blocked_host'],
+                'hits' => (int) $r['hits'],
+                'last_seen' => $r['last_seen'],
+            ], $top->fetchAll()),
+        ];
+        $summary['selftest'] = [
+            'total' => array_sum(array_map(static fn (array $r): int => (int) $r['hits'], $markerRows)),
+            'markers' => array_map(static fn (array $r): array => [
+                'blocked_host' => $r['blocked_host'],
+                'hits' => (int) $r['hits'],
+                'last_seen' => $r['last_seen'],
+            ], $markerRows),
+        ];
+        $summary['overflow_hits'] = (int) $overflow->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[csp-report] summary failed: ' . $e->getMessage());
+        return $summary;
+    }
+    return $summary;
+}
