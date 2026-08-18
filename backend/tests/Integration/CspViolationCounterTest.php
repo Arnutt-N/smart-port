@@ -46,16 +46,28 @@ final class CspViolationCounterTest extends TestCase
 
     private function cleanUp(): void
     {
-        self::$pdo->prepare('DELETE FROM csp_violation_daily WHERE directive = ?')
-            ->execute([self::TEST_DIRECTIVE]);
+        // Issue #113 code review I4: ลบ "ทุกแถวของวันนี้" ไม่ใช่แค่ directive = TEST_DIRECTIVE
+        // เพราะเพดาน CSP_MAX_KEYS_PER_DAY เป็น global cap ข้ามทุก directive
+        // (cspKeyCountToday() ใน csp_violations.php นับไม่กรอง directive) ถ้าตารางมีแถวของ
+        // directive อื่นค้างอยู่ของวันนี้ (เช่นเทสนี้เอง ปล่อยตกค้างจากรันก่อนหน้า หรือเทส
+        // it_caps_total_rows_even_when_new_violations_use_distinct_directives ที่ใช้หลาย
+        // directive) เพดานจริงจะถูกนับรวมด้วย ทำให้เทสอื่นได้ 'overflow' แทน 'recorded' หรือ
+        // assertion ที่เทียบ before/after ผิดแบบสุ่ม — ตารางนี้ใช้เฉพาะเทส (test DB) จึงล้าง
+        // ทั้งวันได้อย่างปลอดภัย
+        self::$pdo->exec('DELETE FROM csp_violation_daily WHERE day = CURDATE()');
     }
 
     private function hitsOf(string $blockedHost): int
     {
+        return $this->hitsOfDirectiveHost(self::TEST_DIRECTIVE, $blockedHost);
+    }
+
+    private function hitsOfDirectiveHost(string $directive, string $blockedHost): int
+    {
         $stmt = self::$pdo->prepare(
             'SELECT hits FROM csp_violation_daily WHERE day = CURDATE() AND directive = ? AND blocked_host = ?'
         );
-        $stmt->execute([self::TEST_DIRECTIVE, $blockedHost]);
+        $stmt->execute([$directive, $blockedHost]);
         return (int) $stmt->fetchColumn();
     }
 
@@ -95,8 +107,10 @@ final class CspViolationCounterTest extends TestCase
     #[Test]
     public function it_increments_instead_of_adding_a_row_for_a_repeated_host(): void
     {
-        // เทสนี้จะพังทันทีถ้ามีคนเปิด PDO::MYSQL_ATTR_FOUND_ROWS ใน backend/config.php
-        // เพราะ rowCount() จะไม่คืน 1/2 ตาม affected-rows semantics ที่ตรรกะ cap พึ่งอยู่
+        // หมายเหตุ (code review M7 แก้คอมเมนต์เดิมที่อ้างผิด — ของเดิมบอกว่าเทสนี้ "จะพังทันที"
+        // ถ้าเปิด PDO::MYSQL_ATTR_FOUND_ROWS แต่ไม่จริง): hits/keyCount ที่เทสนี้ assert
+        // มาจาก query ตรงกับตารางหลังการเขียนจริงสองครั้ง ไม่ได้พึ่งค่าที่ recordCspViolation()
+        // คืนกลับมา ต่อให้ rowCount() ตีความ isNewKey ผิดพลาดจาก FOUND_ROWS เทสนี้ก็ยังผ่านอยู่ดี
         recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid');
         $result = recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'example.invalid');
 
@@ -118,8 +132,38 @@ final class CspViolationCounterTest extends TestCase
 
         $this->assertSame('overflow', $result);
         $this->assertSame(0, $this->hitsOf('one-too-many.invalid'), 'host ที่เกิน cap ต้องไม่มีแถวของตัวเอง');
-        $this->assertGreaterThanOrEqual(1, $this->hitsOf(CSP_OVERFLOW_HOST));
+        // overflow row เก็บที่ (CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST) ไม่ใช่
+        // (TEST_DIRECTIVE, CSP_OVERFLOW_HOST) — ยุบรวมข้ามทุก directive ตาม C1
+        $this->assertGreaterThanOrEqual(1, $this->hitsOfDirectiveHost(CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST));
         $this->assertSame($before + 1, $this->totalKeysToday(), 'โตได้แค่แถว __overflow__ แถวเดียว');
+    }
+
+    #[Test]
+    public function it_caps_total_rows_even_when_new_violations_use_distinct_directives(): void
+    {
+        // C1 (code review): cspFoldIntoOverflow() เดิมเขียนแถวรวมแบบ per-directive
+        // (CURDATE(), $directive, '__overflow__') แต่เพดานเป็น global (คิดข้ามทุก
+        // directive ผ่าน cspKeyCountToday()) ถ้า attacker ยิงด้วย directive ที่ไม่ซ้ำกัน
+        // ทุกครั้ง แถวรวมจะไม่ถูก upsert ทับกันเลย (key ต่างกันทุกครั้ง) ทำให้ตารางโตต่อไป
+        // ได้เรื่อย ๆ ไม่มีเพดานจริง — เทสนี้ยิงจนชนเพดานด้วย TEST_DIRECTIVE ก่อน แล้วยิงต่อ
+        // ด้วย directive ที่ไม่ซ้ำกันหลายสิบตัว ต้องเห็นว่าแถวรวมของวันนี้ไม่โตอีกเลย
+        for ($i = 0; $i < CSP_MAX_KEYS_PER_DAY; $i++) {
+            recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, "cap-host-{$i}.invalid");
+        }
+        // ยิงอีกครั้งให้ชนเพดานแน่นอน (สร้าง overflow row ตัวแรกของวันนี้)
+        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'trigger-overflow.invalid');
+        $before = $this->totalKeysToday();
+
+        for ($i = 0; $i < 25; $i++) {
+            $result = recordCspViolation(self::$pdo, self::TEST_DIRECTIVE . "-distinct-{$i}", 'same-host.invalid');
+            $this->assertSame('overflow', $result, "directive ที่ไม่ซ้ำกันตัวที่ {$i} ก็ต้องถูกยุบเข้า overflow ด้วย");
+        }
+
+        $this->assertSame(
+            $before,
+            $this->totalKeysToday(),
+            'จำนวนแถวรวมของวันนี้ต้องไม่โตอีกแม้ violation ใหม่จะใช้ directive ที่ไม่ซ้ำกันทุกครั้ง'
+        );
     }
 
     #[Test]

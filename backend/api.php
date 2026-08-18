@@ -243,9 +243,26 @@ switch ($path[0]) {
             $safeBlocked = sanitizeLogValue($blocked);
             error_log('[csp-report] violation directive=' . $safeDirective . ' blocked-host=' . $safeBlocked);
             // Issue #113 (R1): เก็บตัวนับรายวันเพื่อให้เกณฑ์ enforce query ได้ — ไม่แทน error_log()
-            // ข้างบน (หลักฐานสองทาง) และกลืน error ทุกชนิดเพื่อรักษาสัญญา "ตอบ 204 เสมอ"
+            // ข้างบน (หลักฐานสองทาง)
             include_once __DIR__ . '/csp_violations.php';
-            recordCspViolation(tryGetDB(), $safeDirective, $safeBlocked);
+            try {
+                // Issue #113 code review I2: tryGetDB() ถูก evaluate เป็น argument ก่อนเข้า
+                // recordCspViolation() จึงอยู่นอก try/catch ภายในฟังก์ชันนั้น — ถ้า
+                // buildSslOptions() (config.php) throw RuntimeException ตอนอ่าน MYSQL_SSL_CA
+                // ไม่ได้ (MYSQL_SSL=true บน TiDB production) exception จะหลุดไปถึง
+                // set_exception_handler กลายเป็น 500 แทน 204 ต้องครอบอีกชั้นตรงนี้เพิ่ม
+                //
+                // Issue #113 code review I3: การเรียก tryGetDB() ใน public path นี้คือ
+                // trade-off ที่รู้ตัวและเลือกแล้ว — backend/middleware/rate_limit.php:162-164
+                // เขียนไว้ว่า public path "ไม่แตะ DB เลย" เพื่อกัน amplification vector ตอน DB
+                // ล่ม (attemptDbConnection() retry 3 ครั้ง คั่น usleep 200ms = กิน worker
+                // ~0.4s ต่อ request) แต่การเก็บตัวนับลง DB คือสิ่งที่ spec ของ issue นี้สั่งไว้
+                // ตรง ๆ และ negative cache ข้าม request ต้องพึ่ง APCu ที่ไม่การันตีว่ามีใน
+                // image นี้ — ต้นทุนถ้าเลือกผิดคือ endpoint ช้าลงตอน DB ล่ม ไม่ใช่ข้อมูลเสียหาย
+                recordCspViolation(tryGetDB(), $safeDirective, $safeBlocked);
+            } catch (Throwable $e) {
+                error_log('[csp-report] persist skipped: ' . $e->getMessage());
+            }
         }
         http_response_code(204);
         break;
