@@ -9,6 +9,11 @@
 **สิ่งนี้มีไว้ทำอะไร:** เกณฑ์ก่อนเปิดโหมดบังคับ CSP คือ "ไม่มี violation จากระบบจริง ≥ 7 วัน"
 ซึ่งเดิมต้องเปิด Render log ไล่อ่านด้วยตา ตัวนับนี้ทำให้ถามได้ด้วยคำสั่งเดียวว่าผ่านเกณฑ์หรือยัง
 
+> **เปิดเทอร์มินัลตัวไหน:** คำสั่งในเอกสารนี้เขียนสำหรับ **Git Bash** (ที่ติดมากับ Git for Windows)
+> ไม่ใช่ PowerShell หรือ Command Prompt — ถ้าเปิดผิดตัวจะขึ้น error ทันทีตั้งแต่คำสั่งแรก
+> วิธีเปิด: คลิกขวาในโฟลเดอร์โปรเจกต์ → "Open Git Bash here"
+> (ถ้าถนัด PowerShell มีคำสั่งเทียบเท่าให้ในข้อ 3)
+
 ---
 
 ## ข้อ 1 — สร้างตารางบน prod TiDB
@@ -89,6 +94,15 @@ node scripts/check-csp-violations.mjs --days 7 --require-marker '<marker ที�
 ถ้าจะพิมพ์แบบสั้นว่า `CSP_SUMMARY_TOKEN='<ค่า>' node scripts/...` ก็ได้ผลเหมือนกัน แต่ **ค่ารหัสจะถูก
 บันทึกลงประวัติคำสั่งของเทอร์มินัล (`~/.bash_history`) แบบอ่านได้** ถ้าใช้วิธีนั้นให้ล้างประวัติหลังเสร็จ
 หรือใช้วิธี `read -rs` ข้างบนแทน
+
+**ถ้าใช้ PowerShell แทน Git Bash** สองบรรทัดข้างบนเทียบเท่ากับ:
+
+```powershell
+$env:CSP_SUMMARY_TOKEN = Read-Host -Prompt 'CSP_SUMMARY_TOKEN' -MaskInput
+node scripts/check-csp-violations.mjs --days 7 --require-marker '<marker ที่คัดลอกมา>'
+```
+
+(`-MaskInput` ต้องใช้ PowerShell 7.1 ขึ้นไป — ตรวจเวอร์ชันด้วย `$PSVersionTable.PSVersion`)
 
 คำสั่งแรกยิง marker สดเข้าระบบ คำสั่งที่สองถามว่า "7 วันที่ผ่านมาสะอาดไหม และ marker ที่เพิ่งยิงถึงจริงไหม"
 
