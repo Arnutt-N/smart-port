@@ -124,6 +124,16 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'live-header-smoke-regression'
 }
 
+# mock-server regression ของ CSP self-test — ไม่ยิง production จริง (issue #113 R3)
+Write-Step 'CSP Report Self-test Regression'
+& node --test (Join-Path $Root 'scripts\tests\csp-report-selftest.test.mjs')
+if ($LASTEXITCODE -eq 0) {
+  Write-Ok 'csp report self-test regression'
+} else {
+  Write-Fail 'csp report self-test regression'
+  $failed += 'csp-report-selftest-regression'
+}
+
 # ---- 1) Frontend Build & Test ----------------------------------------------
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'

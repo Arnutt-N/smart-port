@@ -138,15 +138,38 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
     เปิด log ผิด service จะเห็นว่างเสมอ และ hop สุดท้าย (`error_log` → Render log stream)
     ยังไม่เคยถูกยืนยันด้วยตา เพราะ session นี้เข้าถึง Render log ไม่ได้
   - **ข้อควรระวังที่ยังทำให้ "log ว่าง" ตีความไม่ได้ 100%:** POST นัดแรก timeout ที่ 30 วินาที
-    ต้อง warm up ด้วย `GET /api/readyz` (ตอบ 200 ใน 1.1s) ก่อนจึงยิงผ่าน — สาเหตุยังสรุปไม่ได้
-    ระหว่าง network hiccup ของ gateway (เคยเจอ 16 ส.ค.) กับ cold start แต่ **backend เป็น
-    `plan: free` ที่ spin down เมื่อไม่มี traffic** ซึ่งเป็นกลไกจริง และ CSP report เป็น
+    ต้อง warm up ด้วย `GET /api/readyz` (ตอบ 200 ใน 1.1s) ก่อนจึงยิงผ่าน — ตอนนั้นสรุปสาเหตุ
+    ไม่ได้ระหว่าง network hiccup ของ gateway (เคยเจอ 16 ส.ค.) กับ cold start
+    **หลักฐานเพิ่ม 2026-08-18 05:00 UTC:** รอบนั้น request แรกคือ `GET /api/readyz` เอง
+    และใช้เวลา **23.1 วินาที** ส่วน POST ถัดมาเร็วปกติ — รูปแบบ "request แรกที่ชน container
+    ที่หลับช้ามาก ถัดไปเร็ว" ตรงกันทั้งสองรอบ จึงอธิบายได้ด้วย spin down อย่างเดียวโดยไม่ต้อง
+    พึ่ง network hiccup (ยังเป็นการวัดครั้งเดียว ไม่ใช่ข้อพิสูจน์ปิดตาย) และยิ่งตอกย้ำว่า
+    **backend เป็น `plan: free` ที่ spin down เมื่อไม่มี traffic** ซึ่งเป็นกลไกจริง และ CSP report เป็น
     fire-and-forget ไม่มี retry → report ที่ browser ยิงตอน backend หลับหายเงียบได้
     ในแอป HR ที่ traffic ต่ำ การเปิดหน้าแรกของวัน (จุดที่ violation จะโผล่พอดี) คือจุดที่
     backend หลับพอดี นอกจากนี้ handler ยัง rate limit ที่ 60 req/นาที ต่อ IP
     (`api.php:122`) — หน้าที่มี subresource ถูกบล็อกเยอะอาจชนเพดานจนบาง report ถูกทิ้ง
   - **ก่อนอ่าน log วันที่ 24 ให้ยิง self-test ใหม่ 1 นัดเพื่อให้ได้ marker สด** (Render retention
     ของ plan ที่ไม่ใช่ Enterprise ราว 7 วัน = marker ของ 17 ส.ค. จะอยู่ริมขอบพอดีหรือหลุดไปแล้ว)
+    คำสั่งเดียวจบ — warm up `/api/readyz` ให้เองก่อน แล้วพิมพ์บรรทัดที่ต้องเอาไปค้นใน log:
+
+    ```bash
+    node scripts/csp-report-selftest.mjs
+    ```
+
+    marker ผูกวันที่ UTC + nonce (`csp-selftest-YYYYMMDD-xxxx.invalid`) จึงแยก "marker ที่เพิ่งยิง"
+    ออกจากรอบก่อน ๆ ได้แม้รันหลายรอบในวันเดียวกัน — **ใช้ค่าที่สคริปต์พิมพ์ออกมาไปค้นเท่านั้น
+    อย่าค้นด้วย prefix `csp-selftest-` ลอย ๆ** เพราะจะไปเจอ marker ของรอบเก่า
+    **อ่านผลของสคริปต์ให้ครบสองทิศ:**
+    - `exit 1` = ยังไม่มี marker สดในรอบนี้ → ห้ามข้ามไปอ่าน log
+    - `exit 0` = request ถึงปลายทางและได้ 204 เท่านั้น **ไม่ใช่หลักฐานว่า marker ถูก log**
+      (handler ตอบ 204 แม้แกะ body ไม่ได้ และ `error_log()` อาจเขียนไม่ลง) — ยังต้องเห็นด้วยตา
+    - marker ที่เป็นของทีมและมีอยู่แล้วใน log (ตัดทิ้งตอนอ่าน ไม่ใช่ violation จริง):
+      `csp-selftest.invalid` (17 ส.ค. ~14:45 UTC, ยิงด้วยมือ) ·
+      `csp-selftest-20260818.invalid` (18 ส.ค. 05:00 UTC) ·
+      `csp-selftest-20260818-ecc9.invalid` (18 ส.ค. 05:10 UTC) — สองตัวหลังคือรอบ validate
+      สคริปต์กับ production ทั้งคู่ได้ 204 และ **จะหลุด retention ~7 วันพอดีช่วง 24–25 ส.ค.**
+
     **decision rule: เจอ marker สด → pipeline ครบวงจร ตัด marker ทิ้งแล้วดูที่เหลือ;
     ไม่เจอ marker → สรุปไม่ได้ ห้าม enforce**
 - **ต้องมี traffic จริงในหน้าต่าง 7 วันด้วย** — เกณฑ์ข้อ 2 มีความหมายก็ต่อเมื่อมีคนเปิดใช้จริง
@@ -187,6 +210,12 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   source of truth — แก้ render.yaml แล้ว gate ตามอัตโนมัติ) exit 1 เมื่อพบ drift;
   regression อยู่ที่ `scripts/tests/verify-live-headers.test.mjs` (mock origin บน
   127.0.0.1 ไม่พึ่งเครือข่าย) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
+- `scripts/csp-report-selftest.mjs` — ยิง CSP report marker สดเข้า pipeline จริง (issue #113):
+  warm up `/api/readyz` ก่อน แล้ว POST `/api/csp-report` ผ่าน rewrite เส้นเดียวกับที่ browser ใช้
+  exit 0 เมื่อได้ 204 พร้อมพิมพ์บรรทัด log ที่ต้องไปค้นหา (ผูกกับข้อความ `error_log()` จริงใน
+  `backend/api.php` — มีเทสกัน drift); regression อยู่ที่ `scripts/tests/csp-report-selftest.test.mjs`
+  (mock origin บน 127.0.0.1) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
+  **ตัวสคริปต์เองไม่ได้อยู่ใน CI gate** เพราะยิง production จริง — เรียกมือตอนจะอ่าน log เท่านั้น
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
