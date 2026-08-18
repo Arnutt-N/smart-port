@@ -177,8 +177,12 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
 
     ```bash
     node scripts/csp-report-selftest.mjs
-    CSP_SUMMARY_TOKEN='<ค่าที่ตั้งไว้>' node scripts/check-csp-violations.mjs --days 7 --require-marker '<marker ที่บรรทัดบนพิมพ์>'
+    read -rs CSP_SUMMARY_TOKEN && export CSP_SUMMARY_TOKEN
+    node scripts/check-csp-violations.mjs --days 7 --require-marker '<marker ที่บรรทัดบนพิมพ์ เฉพาะส่วนที่ลงท้าย .invalid>'
     ```
+
+    (ใช้ `read -rs` แทนการพิมพ์ค่า token ในบรรทัดคำสั่ง — การพิมพ์ inline ทำให้ค่าตกไปอยู่ใน
+    `~/.bash_history` แบบอ่านได้)
 
     exit 0 = marker ถึงจริงและไม่มี violation จากระบบจริงในหน้าต่างนั้น · ขั้นตอนเปิดใช้ (รัน DDL บน
     prod + ตั้ง env) อยู่ที่ `docs/runbooks/csp-counter-activation.md`
