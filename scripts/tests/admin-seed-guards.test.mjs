@@ -1,0 +1,117 @@
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, extname, join, relative, resolve } from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+// Guard แบบ static ของ seed admin — คู่กับเทสพฤติกรรมใน
+// backend/tests/Integration/AdminSeedUpsertTest.php
+//
+// ทำไมอยู่ที่นี่ ไม่ใช่ใน PHPUnit: เทสชุดนี้อ่านไฟล์ทั่ว repo (รวม docs/) ซึ่งไม่ได้
+// ถูก mount เข้า container ของ backend/tests/run.sh (mount แค่ /app กับ /database)
+// และที่สำคัญกว่านั้น — ใน PHPUnit เทสทั้งคลาสถูก skip เมื่อต่อ MySQL ไม่ได้
+// ทำให้ guard หายเงียบบนเครื่องที่ไม่มี Docker ซึ่งคือรูปแบบที่โปรเจกต์นี้ห้าม:
+// สภาพ "ไม่ได้ตรวจ" ต้องไม่แสดงผลเป็น "ผ่าน"
+//
+// ที่นี่ไม่ต้องพึ่ง DB เลย จึงรันได้เสมอทั้งใน pre-push, ci-local และ CI
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const MIGRATION_FILE = resolve(ROOT, 'database', '09-auth-users.sql');
+const TIDB_INIT_FILE = resolve(ROOT, 'database', 'tidb-init.sql');
+const DOCS_DIR = resolve(ROOT, 'docs');
+
+// host ของ backend production — ใช้คัดว่าเอกสารไหน "ชี้ไปที่ระบบจริง"
+const PRODUCTION_HOST = 'smartport-backend.onrender.com';
+
+// ประกอบสตริงเพื่อไม่ให้ค่าปรากฏเป็นคำเดียวในไฟล์เทสเอง
+const BOOTSTRAP_PASSWORD = 'admin' + '123';
+
+const SEED_BLOCK =
+  /INSERT INTO users \(username, password_hash.*?VALUES \('admin', '([^']+)'.*?ON DUPLICATE KEY UPDATE(.*?);/s;
+
+/** อ่านไฟล์แล้วคืนค่าเป็น LF เสมอ (ไฟล์ในโปรเจกต์เป็น CRLF) */
+function readText(path) {
+  return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+}
+
+/** ดึง hash และ clause ของ seed admin ออกจากไฟล์ .sql จริง */
+function extractSeedBlock(path) {
+  const matched = SEED_BLOCK.exec(readText(path));
+  assert.ok(matched, `หา seed admin ใน ${relative(ROOT, path)} ไม่เจอ — โครงไฟล์เปลี่ยนไป`);
+
+  return { hash: matched[1], clause: matched[2] };
+}
+
+/** ตัดคอมเมนต์ SQL ออกแล้วยุบช่องว่าง เพื่อเทียบเนื้อคำสั่งล้วน ๆ */
+function normalizeClause(clause) {
+  return clause.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** ไฟล์ .md ทั้งหมดใต้ docs/ (recursive) */
+function listMarkdownFiles(dir) {
+  const found = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      found.push(...listMarkdownFiles(full));
+    } else if (extname(entry) === '.md') {
+      found.push(full);
+    }
+  }
+
+  return found;
+}
+
+test('seed clause ของ migration กับ tidb-init ต้องตรงกัน', () => {
+  const migration = normalizeClause(extractSeedBlock(MIGRATION_FILE).clause);
+  const tidbInit = normalizeClause(extractSeedBlock(TIDB_INIT_FILE).clause);
+
+  // tidb-init.sql คือ bootstrap ตัวจริงของ production (prod ตั้ง RUN_MIGRATIONS=0)
+  // ถ้า clause ไม่ตรงกัน แปลว่าแก้ migration ไปแล้วไม่มีผลกับ production
+  assert.equal(tidbInit, migration, 'clause ใน tidb-init.sql ไม่ตรงกับ 09-auth-users.sql');
+});
+
+test('guard ที่กันการเขียนทับรหัสผ่านเดิมต้องยังอยู่', () => {
+  for (const path of [MIGRATION_FILE, TIDB_INIT_FILE]) {
+    const clause = normalizeClause(extractSeedBlock(path).clause);
+    assert.ok(
+      clause.includes('users.password_hash IS NULL OR users.password_hash'),
+      `${relative(ROOT, path)}: guard หายไป — รัน migration ซ้ำจะรีเซ็ตรหัสผ่าน production`
+    );
+  }
+});
+
+test('hash ของ seed ต้องตรงกันทั้งสองไฟล์', () => {
+  // ถ้ามีคนแก้ค่าใน VALUES ของไฟล์เดียว local กับ production จะได้คนละรหัส
+  assert.equal(
+    extractSeedBlock(TIDB_INIT_FILE).hash,
+    extractSeedBlock(MIGRATION_FILE).hash,
+    'seed hash ใน tidb-init.sql ไม่ตรงกับ 09-auth-users.sql'
+  );
+});
+
+test('ไฟล์ที่ bootstrap production และเอกสารที่ชี้ไประบบจริง ต้องไม่มีรหัสผ่าน plaintext', () => {
+  // ขอบเขตโดยตั้งใจ: ไฟล์ที่ bootstrap production + เอกสารใน docs/ ที่อ้าง host production
+  //
+  // นอกขอบเขต (และตั้งใจให้อยู่นอก): fixture ของ dev/e2e เช่น frontend/e2e/helpers/auth.js,
+  // backend/tests/verify-executive.sh, สคริปต์ UAT ที่ default ชี้ localhost และบันทึก/แผน
+  // ย้อนหลังใน project-log-md/ กับ .claude/ — เพราะ dev credential ที่รู้กันเป็นเรื่องปกติ
+  // เส้นที่ต้องกันคือ "อย่าแจกรหัสที่ใช้กับ production ได้" ไม่ใช่ "ห้ามมีคำนี้ใน repo"
+  // (รหัสเดิมยังอยู่ใน git history อยู่ดี — ลบไม่ได้ และไม่ใช่สิ่งที่เทสนี้อ้างว่าทำ)
+  const productionDocs = listMarkdownFiles(DOCS_DIR).filter((path) =>
+    readText(path).includes(PRODUCTION_HOST)
+  );
+
+  // fail-closed: หาไม่เจอสักไฟล์ = ตัวกรองพัง ไม่ใช่ "สะอาด"
+  assert.ok(
+    productionDocs.length > 0,
+    `ไม่พบเอกสารใน docs/ ที่อ้าง ${PRODUCTION_HOST} เลย — ตัวกรองน่าจะพัง`
+  );
+
+  for (const path of [MIGRATION_FILE, TIDB_INIT_FILE, ...productionDocs]) {
+    assert.ok(
+      !readText(path).includes(BOOTSTRAP_PASSWORD),
+      `${relative(ROOT, path)}: มีรหัสผ่าน bootstrap เป็น plaintext อยู่ในไฟล์ที่เกี่ยวกับ production`
+    );
+  }
+});

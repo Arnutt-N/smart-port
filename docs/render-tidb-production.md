@@ -198,10 +198,14 @@ curl -i \
 
 Expected result: JSON token payload, not a database connection error.
 
-> รหัสผ่าน bootstrap ที่ `database/09-auth-users.sql` seed ไว้เป็นค่าสาธารณะ
-> (hash อยู่ใน repo ที่เปิดสาธารณะ) production ต้องเปลี่ยนรหัสของบัญชี `admin`
-> ทันทีหลัง deploy ครั้งแรก — ธง `must_change_password` เป็นแค่การพาไปหน้าเปลี่ยนรหัส
-> ที่ frontend ไม่ได้บล็อกการออก JWT ที่ backend
+> รหัสผ่าน bootstrap ของบัญชี `admin` เป็นค่าสาธารณะ (hash อยู่ใน repo ที่เปิด
+> สาธารณะ) บน production แถวนี้มาจาก `database/tidb-init.sql` ซึ่งเป็น bootstrap
+> ตัวจริงเพราะ prod ตั้ง `RUN_MIGRATIONS=0` ส่วน `database/09-auth-users.sql` คือ
+> migration ที่ใช้กับ local/CI — ทั้งสองไฟล์ seed ค่าเดียวกันและมี gate คุมให้ตรงกัน
+>
+> production ต้องเปลี่ยนรหัสของบัญชี `admin` ทันทีหลัง deploy ครั้งแรก — ธง
+> `must_change_password` เป็นแค่การพาไปหน้าเปลี่ยนรหัสที่ frontend
+> ไม่ได้บล็อกการออก JWT ที่ backend
 
 3. Confirm change-password route is deployed (no token needed):
 

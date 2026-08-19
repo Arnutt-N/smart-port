@@ -18,11 +18,14 @@ use RuntimeException;
  *
  * เทสอ่านคำสั่ง ON DUPLICATE KEY UPDATE จากไฟล์ .sql จริง (anti-drift) แล้วรันกับ
  * ผู้ใช้ทดสอบแยกแถว เพื่อไม่ไปแตะแถว admin ที่เทสอื่นและ e2e ใช้ล็อกอิน
+ *
+ * คลาสนี้เก็บเฉพาะเทส "พฤติกรรมบน DB จริง" เท่านั้น — guard แบบ static
+ * (clause ของสองไฟล์ตรงกัน, ไม่มีรหัสผ่าน plaintext) อยู่ที่
+ * scripts/tests/admin-seed-guards.test.mjs ซึ่งรันได้โดยไม่ต้องมี MySQL
  */
 final class AdminSeedUpsertTest extends TestCase
 {
     private const MIGRATION_FILE = __DIR__ . '/../../../database/09-auth-users.sql';
-    private const TIDB_INIT_FILE = __DIR__ . '/../../../database/tidb-init.sql';
     private const TEST_USERNAME = 'seed-upsert-probe-999';
 
     private static ?PDO $pdo = null;
@@ -32,6 +35,11 @@ final class AdminSeedUpsertTest extends TestCase
         self::$pdo = testPdo();
     }
 
+    /**
+     * ทุกเทสในคลาสนี้ต้องใช้ DB จริง — ถ้าจะเพิ่มเทสที่ไม่ต้องใช้ DB
+     * อย่าใส่ที่นี่ เพราะ setUp() skip ทั้งคลาสเมื่อต่อ MySQL ไม่ได้
+     * ให้ไปเพิ่มที่ scripts/tests/admin-seed-guards.test.mjs แทน
+     */
     protected function setUp(): void
     {
         if (self::$pdo === null) {
@@ -130,7 +138,7 @@ final class AdminSeedUpsertTest extends TestCase
     }
 
     #[Test]
-    public function seedsAdminOnFreshInstall(): void
+    public function seeds_admin_row_when_none_exists(): void
     {
         $seedHash = self::extractSeedHash(self::MIGRATION_FILE);
 
@@ -143,7 +151,7 @@ final class AdminSeedUpsertTest extends TestCase
     }
 
     #[Test]
-    public function rerunDoesNotResetPasswordThatOperatorAlreadyChanged(): void
+    public function rerun_does_not_reset_password_that_operator_already_changed(): void
     {
         $seedHash = self::extractSeedHash(self::MIGRATION_FILE);
         $this->runSeedUpsert($seedHash);
@@ -169,7 +177,7 @@ final class AdminSeedUpsertTest extends TestCase
     }
 
     #[Test]
-    public function fillsPasswordWhenExistingRowHasNoUsableHash(): void
+    public function fills_password_when_existing_row_has_no_usable_hash(): void
     {
         $seedHash = self::extractSeedHash(self::MIGRATION_FILE);
 
@@ -192,7 +200,7 @@ final class AdminSeedUpsertTest extends TestCase
     }
 
     #[Test]
-    public function rerunReactivatesDisabledAdminByDesign(): void
+    public function rerun_reactivates_disabled_admin_by_design(): void
     {
         $seedHash = self::extractSeedHash(self::MIGRATION_FILE);
         $this->runSeedUpsert($seedHash);
@@ -210,42 +218,4 @@ final class AdminSeedUpsertTest extends TestCase
         );
     }
 
-    #[Test]
-    public function bothSqlFilesShareTheSameGuardedClause(): void
-    {
-        $normalize = static function (string $s): string {
-            $withoutComments = preg_replace('/--[^\n]*/', '', $s) ?? '';
-
-            return trim(preg_replace('/\s+/', ' ', $withoutComments) ?? '');
-        };
-
-        $migration = $normalize(self::extractUpsertClause(self::MIGRATION_FILE));
-        $tidbInit = $normalize(self::extractUpsertClause(self::TIDB_INIT_FILE));
-
-        $this->assertSame(
-            $migration,
-            $tidbInit,
-            'tidb-init.sql คือ bootstrap ตัวจริงของ production — ถ้า clause ไม่ตรงกับ migration แปลว่าแก้ไปแล้วไม่มีผลกับ prod'
-        );
-        $this->assertStringContainsString(
-            'users.password_hash IS NULL OR users.password_hash',
-            $migration,
-            'ต้องยังมี guard ที่กันการเขียนทับรหัสผ่านเดิม'
-        );
-    }
-
-    #[Test]
-    public function sqlFilesDoNotPublishTheBootstrapPasswordInPlaintext(): void
-    {
-        // ประกอบสตริงเพื่อไม่ให้ค่าดังกล่าวปรากฏเป็นคำเดียวในไฟล์เทสเอง
-        $plaintext = 'admin' . '123';
-
-        foreach ([self::MIGRATION_FILE, self::TIDB_INIT_FILE] as $path) {
-            $this->assertStringNotContainsString(
-                $plaintext,
-                self::readSql($path),
-                basename($path) . ' ต้องไม่เขียนรหัสผ่าน bootstrap เป็น plaintext ลงใน repo สาธารณะ'
-            );
-        }
-    }
 }

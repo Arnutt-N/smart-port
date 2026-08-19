@@ -87,6 +87,14 @@ else
   fail 'csp report self-test regression'
 fi
 
+# guard แบบ static ของ seed admin — ไม่ต้องใช้ DB จึงรันได้เสมอแม้ไม่มี Docker
+step 'Admin Seed Guards'
+if node --test "${ROOT}/scripts/tests/admin-seed-guards.test.mjs"; then
+  ok 'admin seed guards'
+else
+  fail 'admin seed guards'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'
