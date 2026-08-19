@@ -106,6 +106,18 @@ else
   echo 'skip frontend (--skip-frontend)'
 fi
 
+# ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
+if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
+  step 'CSP Bundle Audit'
+  if node "${ROOT}/scripts/audit-bundle-csp.mjs"; then
+    ok 'csp bundle audit'
+  else
+    fail 'csp bundle audit'
+  fi
+else
+  echo 'skip CSP bundle audit (ต้องมี frontend build ก่อน)'
+fi
+
 # ---- 2) Playwright E2E: all sidebar menus ---------------------------------
 if [[ "${SKIP_E2E}" -eq 0 ]]; then
   step 'E2E All Menus (Docker + Playwright Chromium)'

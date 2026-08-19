@@ -166,6 +166,20 @@ if (-not $SkipFrontend) {
   Write-Host 'skip frontend (-SkipFrontend)'
 }
 
+# ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
+if (-not $SkipFrontend) {
+  Write-Step 'CSP Bundle Audit'
+  & node (Join-Path $Root 'scripts\audit-bundle-csp.mjs')
+  if ($LASTEXITCODE -eq 0) {
+    Write-Ok 'csp bundle audit'
+  } else {
+    Write-Fail 'csp bundle audit'
+    $failed += 'csp-bundle-audit'
+  }
+} else {
+  Write-Host 'skip CSP bundle audit (ต้องมี frontend build ก่อน)'
+}
+
 # ---- 2) Playwright E2E: all sidebar menus ---------------------------------
 if (-not $SkipE2E) {
   Write-Step 'E2E All Menus (Docker + Playwright Chromium)'
