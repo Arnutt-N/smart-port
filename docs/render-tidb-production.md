@@ -188,13 +188,20 @@ The endpoint is public but discloses only counts/status — no table or migratio
 2. Check login:
 
 ```bash
+# พิมพ์รหัสผ่าน admin ของ production ตอนรัน — ไม่ต้องเขียนรหัสลงในเอกสารนี้
+read -rs ADMIN_PASSWORD
 curl -i \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin","password":"admin123"}' \
+  --data-binary "$(printf '{"email":"admin","password":"%s"}' "$ADMIN_PASSWORD")" \
   https://smartport-backend.onrender.com/api/auth/login
 ```
 
 Expected result: JSON token payload, not a database connection error.
+
+> รหัสผ่าน bootstrap ที่ `database/09-auth-users.sql` seed ไว้เป็นค่าสาธารณะ
+> (hash อยู่ใน repo ที่เปิดสาธารณะ) production ต้องเปลี่ยนรหัสของบัญชี `admin`
+> ทันทีหลัง deploy ครั้งแรก — ธง `must_change_password` เป็นแค่การพาไปหน้าเปลี่ยนรหัส
+> ที่ frontend ไม่ได้บล็อกการออก JWT ที่ backend
 
 3. Confirm change-password route is deployed (no token needed):
 
