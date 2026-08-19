@@ -1299,7 +1299,7 @@ ON DUPLICATE KEY UPDATE
     -- ไปแล้ว เงื่อนไขจะอ่านค่าใหม่และกลายเป็นเท็จเสมอ
     must_change_password = IF(users.password_hash IS NULL OR users.password_hash = '', VALUES(must_change_password), users.must_change_password),
     password_hash = IF(users.password_hash IS NULL OR users.password_hash = '', VALUES(password_hash), users.password_hash),
-    full_name = IF(users.full_name IS NULL OR users.full_name = '', VALUES(full_name), users.full_name),
+    full_name = VALUES(full_name),
     -- Do not reset role on reimport (matches 09-auth-users.sql)
     -- is_active = 1 เสมอโดยตั้งใจ — เป็นตัวกัน lock-out (คงพฤติกรรมเดิม)
     is_active = VALUES(is_active);

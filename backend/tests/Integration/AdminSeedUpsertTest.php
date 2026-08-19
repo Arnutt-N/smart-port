@@ -173,7 +173,12 @@ final class AdminSeedUpsertTest extends TestCase
             'รัน migration ซ้ำต้องไม่รีเซ็ตรหัสผ่านกลับไปเป็นค่า bootstrap สาธารณะ'
         );
         $this->assertSame(0, (int) $row['must_change_password'], 'ต้องไม่ปลุกธงบังคับเปลี่ยนรหัสซ้ำ');
-        $this->assertSame('ชื่อที่ผู้ดูแลตั้งเอง', $row['full_name'], 'ต้องไม่เขียนทับชื่อที่ผู้ดูแลตั้งเอง');
+        $this->assertSame(
+            'ผู้ดูแลระบบ',
+            $row['full_name'],
+            'full_name ถูกเขียนทับเสมอโดยตั้งใจ — เป็นตัวซ่อมชื่อที่เพี้ยนจาก dump เก่าตอน import ทับ '
+            . 'ถ้าจะเปลี่ยนให้ปกป้องชื่อที่ผู้ดูแลตั้งเอง ต้องเป็นงานแยกที่ตัดสินใจโดยรู้ตัว'
+        );
     }
 
     #[Test]

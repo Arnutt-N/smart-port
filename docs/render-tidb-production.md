@@ -189,23 +189,39 @@ The endpoint is public but discloses only counts/status — no table or migratio
 
 ```bash
 # พิมพ์รหัสผ่าน admin ของ production ตอนรัน — ไม่ต้องเขียนรหัสลงในเอกสารนี้
-read -rs ADMIN_PASSWORD
-curl -i \
-  -H "Content-Type: application/json" \
-  --data-binary "$(printf '{"email":"admin","password":"%s"}' "$ADMIN_PASSWORD")" \
-  https://smartport-backend.onrender.com/api/auth/login
+# ส่ง body ทาง stdin เพื่อไม่ให้รหัสผ่านไปโผล่ใน argv ของ curl
+# (printf เป็น builtin ของ bash จึงไม่เกิด process แยก)
+read -rsp 'admin password: ' ADMIN_PASSWORD; echo
+printf '{"email":"admin","password":"%s"}' "$ADMIN_PASSWORD" \
+  | curl -i \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      https://smartport-backend.onrender.com/api/auth/login
 ```
 
 Expected result: JSON token payload, not a database connection error.
+(ถ้ารหัสผ่านมีอักขระ `"` หรือ `\` ต้อง escape ก่อน เพราะบรรทัดนี้ประกอบ JSON ตรง ๆ)
 
-> รหัสผ่าน bootstrap ของบัญชี `admin` เป็นค่าสาธารณะ (hash อยู่ใน repo ที่เปิด
-> สาธารณะ) บน production แถวนี้มาจาก `database/tidb-init.sql` ซึ่งเป็น bootstrap
-> ตัวจริงเพราะ prod ตั้ง `RUN_MIGRATIONS=0` ส่วน `database/09-auth-users.sql` คือ
-> migration ที่ใช้กับ local/CI — ทั้งสองไฟล์ seed ค่าเดียวกันและมี gate คุมให้ตรงกัน
->
-> production ต้องเปลี่ยนรหัสของบัญชี `admin` ทันทีหลัง deploy ครั้งแรก — ธง
+> **รหัสผ่าน bootstrap ของบัญชี `admin` เป็นค่าสาธารณะ** — hash อยู่ใน repo ที่เปิด
+> สาธารณะ production ต้องเปลี่ยนรหัสของบัญชีนี้ทันทีหลัง deploy ครั้งแรก ธง
 > `must_change_password` เป็นแค่การพาไปหน้าเปลี่ยนรหัสที่ frontend
-> ไม่ได้บล็อกการออก JWT ที่ backend
+> **ไม่ได้บล็อกการออก JWT ที่ backend** (ดู `loginUser()` ใน `backend/routes/auth.php`)
+>
+> แถว `admin` บน production มาได้สองทาง และ **ทั้งสองทางทำงานจริง**:
+>
+> - `render.yaml` ใช้ `dockerfilePath: ./Dockerfile` (ตัวที่ root) ซึ่งตั้ง
+>   `ENV RUN_MIGRATIONS=1` → **migration รันบน production จริง** ไม่ใช่ไม่รัน
+>   (`backend/Dockerfile` ที่ตั้ง `RUN_MIGRATIONS=0` ไม่ได้ถูกใช้)
+>   แต่ละไฟล์รันได้ครั้งเดียวต่อฐานข้อมูล เพราะ `run-migrations.php` บันทึกชื่อที่รันแล้ว
+>   ไว้ในตาราง `schema_migrations` แล้วรันเฉพาะตัวที่ยังไม่เคยรัน
+> - `database/tidb-init.sql` คือไฟล์ที่ runbook ใช้ bootstrap TiDB ตัวใหม่ด้วยมือ
+>
+> ความเสี่ยง "รหัสถูกรีเซ็ตกลับเป็นค่า bootstrap" จึงเกิดตอนตั้งฐานข้อมูลใหม่
+> import `tidb-init.sql` ทับ หรือมีใครล้าง `schema_migrations` — ไม่ใช่ทุกครั้งที่ deploy
+> ปัจจุบัน seed มี guard กันการเขียนทับรหัสที่ตั้งเองแล้ว และมีเทสคุมทั้งสองไฟล์
+>
+> หมายเหตุ: สองไฟล์นี้ seed **คนละ role** (`tidb-init.sql` ใช้ `superadmin`,
+> `09-auth-users.sql` ใช้ `admin`) gate เทียบเฉพาะ hash กับคำสั่ง upsert ไม่ได้เทียบ role
 
 3. Confirm change-password route is deployed (no token needed):
 

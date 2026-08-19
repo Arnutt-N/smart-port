@@ -105,33 +105,16 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'schema-parity'
 }
 
-Write-Step 'Multiplier Validator Regression'
-& node --test (Join-Path $Root 'scripts\tests\validate-multiplier-phase0.test.mjs')
+# รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push, ci.yml และ ci-local.sh
+# PowerShell ไม่ขยาย glob ให้ native command แต่ node --test ขยายเองได้ (ยืนยันแล้ว)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+Write-Step 'Script Regressions'
+& node --test (Join-Path $Root 'scripts\tests\*.test.mjs')
 if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'multiplier validator regression'
+  Write-Ok 'script regressions'
 } else {
-  Write-Fail 'multiplier validator regression'
-  $failed += 'multiplier-validator-regression'
-}
-
-# mock-server regression — ไม่ยิง production จริง (issue #131 Part 2)
-Write-Step 'Live Header Smoke Regression'
-& node --test (Join-Path $Root 'scripts\tests\verify-live-headers.test.mjs')
-if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'live header smoke regression'
-} else {
-  Write-Fail 'live header smoke regression'
-  $failed += 'live-header-smoke-regression'
-}
-
-# mock-server regression ของ CSP self-test — ไม่ยิง production จริง (issue #113 R3)
-Write-Step 'CSP Report Self-test Regression'
-& node --test (Join-Path $Root 'scripts\tests\csp-report-selftest.test.mjs')
-if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'csp report self-test regression'
-} else {
-  Write-Fail 'csp report self-test regression'
-  $failed += 'csp-report-selftest-regression'
+  Write-Fail 'script regressions'
+  $failed += 'script-regressions'
 }
 
 # ---- 1) Frontend Build & Test ----------------------------------------------

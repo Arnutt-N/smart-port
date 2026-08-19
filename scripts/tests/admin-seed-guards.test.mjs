@@ -23,11 +23,30 @@ const DOCS_DIR = resolve(ROOT, 'docs');
 // host ของ backend production — ใช้คัดว่าเอกสารไหน "ชี้ไปที่ระบบจริง"
 const PRODUCTION_HOST = 'smartport-backend.onrender.com';
 
+// เอกสารที่รู้แน่ว่าต้องติดตัวกรองเสมอ — ใช้พิสูจน์ว่าตัวกรองยังทำงาน
+// (แค่ "เจอมากกว่าศูนย์ไฟล์" ยังหลอกได้ ถ้าเอกสาร production ตัวจริงหลุดจากการสแกน
+//  แล้วบังเอิญมีไฟล์เก่าค้าง host ไว้แทน)
+const REQUIRED_PRODUCTION_DOC = 'docs/render-tidb-production.md';
+
 // ประกอบสตริงเพื่อไม่ให้ค่าปรากฏเป็นคำเดียวในไฟล์เทสเอง
 const BOOTSTRAP_PASSWORD = 'admin' + '123';
 
 const SEED_BLOCK =
   /INSERT INTO users \(username, password_hash.*?VALUES \('admin', '([^']+)'.*?ON DUPLICATE KEY UPDATE(.*?);/s;
+
+// รูปคำสั่งที่ต้องเป็น (เทียบกับ clause ที่ normalize แล้ว — ช่องว่างถูกยุบเหลือช่องเดียว)
+//
+// ห้ามเช็คด้วย includes() ของชิ้นส่วนเงื่อนไข: ข้อความ
+// "users.password_hash IS NULL OR users.password_hash" โผล่บนบรรทัด
+// must_change_password ด้วย การเช็คแบบนั้นจึงผ่านทั้งที่บรรทัด password_hash
+// กลับไปเขียนทับเสมอแล้ว — เป็น false-clean ที่ mutation test จับได้
+const GUARDED_PASSWORD_HASH =
+  /password_hash = IF\(users\.password_hash IS NULL OR users\.password_hash = '', VALUES\(password_hash\), users\.password_hash\)/;
+const GUARDED_MUST_CHANGE =
+  /must_change_password = IF\(users\.password_hash IS NULL OR users\.password_hash = '', VALUES\(must_change_password\), users\.must_change_password\)/;
+
+// รูปที่เป็นบั๊กเดิมตรง ๆ — ถ้าเจอแปลว่ารัน migration ซ้ำจะรีเซ็ตรหัสผ่าน production
+const UNGUARDED_PASSWORD_HASH = /password_hash = VALUES\(password_hash\)/;
 
 /** อ่านไฟล์แล้วคืนค่าเป็น LF เสมอ (ไฟล์ในโปรเจกต์เป็น CRLF) */
 function readText(path) {
@@ -71,12 +90,33 @@ test('seed clause ของ migration กับ tidb-init ต้องตรง�
   assert.equal(tidbInit, migration, 'clause ใน tidb-init.sql ไม่ตรงกับ 09-auth-users.sql');
 });
 
-test('guard ที่กันการเขียนทับรหัสผ่านเดิมต้องยังอยู่', () => {
+test('password_hash ต้องถูก guard ไม่ใช่เขียนทับเสมอ', () => {
   for (const path of [MIGRATION_FILE, TIDB_INIT_FILE]) {
+    const rel = relative(ROOT, path);
     const clause = normalizeClause(extractSeedBlock(path).clause);
+
     assert.ok(
-      clause.includes('users.password_hash IS NULL OR users.password_hash'),
-      `${relative(ROOT, path)}: guard หายไป — รัน migration ซ้ำจะรีเซ็ตรหัสผ่าน production`
+      !UNGUARDED_PASSWORD_HASH.test(clause),
+      `${rel}: password_hash กลับไปเขียนทับเสมอแล้ว — รัน migration ซ้ำจะรีเซ็ตรหัสผ่าน production`
+    );
+    assert.match(clause, GUARDED_PASSWORD_HASH, `${rel}: password_hash ไม่ได้อยู่ในรูปที่ guard ไว้`);
+    assert.match(clause, GUARDED_MUST_CHANGE, `${rel}: must_change_password ไม่ได้อยู่ในรูปที่ guard ไว้`);
+  }
+});
+
+test('must_change_password ต้องถูกประเมินก่อน password_hash', () => {
+  // MySQL/TiDB ประเมิน assignment เรียงซ้ายไปขวา ถ้า password_hash มาก่อน
+  // เงื่อนไขของ must_change_password จะอ่านค่าที่เขียนทับไปแล้วและเป็นเท็จเสมอ
+  for (const path of [MIGRATION_FILE, TIDB_INIT_FILE]) {
+    const rel = relative(ROOT, path);
+    const clause = normalizeClause(extractSeedBlock(path).clause);
+    const flagAt = clause.search(GUARDED_MUST_CHANGE);
+    const hashAt = clause.search(GUARDED_PASSWORD_HASH);
+
+    assert.ok(flagAt >= 0 && hashAt >= 0, `${rel}: หา assignment ที่ guard ไว้ไม่เจอ`);
+    assert.ok(
+      flagAt < hashAt,
+      `${rel}: ลำดับสลับ — must_change_password ต้องอยู่ก่อน password_hash`
     );
   }
 });
@@ -93,24 +133,34 @@ test('hash ของ seed ต้องตรงกันทั้งสองไ
 test('ไฟล์ที่ bootstrap production และเอกสารที่ชี้ไประบบจริง ต้องไม่มีรหัสผ่าน plaintext', () => {
   // ขอบเขตโดยตั้งใจ: ไฟล์ที่ bootstrap production + เอกสารใน docs/ ที่อ้าง host production
   //
-  // นอกขอบเขต (และตั้งใจให้อยู่นอก): fixture ของ dev/e2e เช่น frontend/e2e/helpers/auth.js,
-  // backend/tests/verify-executive.sh, สคริปต์ UAT ที่ default ชี้ localhost และบันทึก/แผน
-  // ย้อนหลังใน project-log-md/ กับ .claude/ — เพราะ dev credential ที่รู้กันเป็นเรื่องปกติ
+  // สิ่งที่เทสนี้ "ไม่" รับประกัน — พูดให้ชัดเพื่อไม่ให้ใครอ่านแล้วเข้าใจว่า repo สะอาด:
+  //   - เอกสารใต้ docs/ ที่ไม่มี host production ยังมีรหัสผ่านนี้เป็น plaintext อยู่จริง
+  //     (แผนงานย้อนหลังใต้ docs/superpowers/plans/) เทสนี้จงใจไม่แตะ
+  //   - fixture ของ dev/e2e (frontend/e2e/helpers/auth.js, backend/tests/verify-executive.sh),
+  //     สคริปต์ UAT ที่ default ชี้ localhost, บันทึกใน project-log-md/ และ .claude/
+  //   - git history ซึ่งลบไม่ได้อยู่แล้ว
+  //
   // เส้นที่ต้องกันคือ "อย่าแจกรหัสที่ใช้กับ production ได้" ไม่ใช่ "ห้ามมีคำนี้ใน repo"
-  // (รหัสเดิมยังอยู่ใน git history อยู่ดี — ลบไม่ได้ และไม่ใช่สิ่งที่เทสนี้อ้างว่าทำ)
-  const productionDocs = listMarkdownFiles(DOCS_DIR).filter((path) =>
-    readText(path).includes(PRODUCTION_HOST)
-  );
+  // ซึ่งเป็นไปไม่ได้ — dev credential ที่รู้กันทั้งทีมเป็นเรื่องปกติ
+  const scanned = listMarkdownFiles(DOCS_DIR)
+    .map((path) => ({ path, text: readText(path) }))
+    .filter((doc) => doc.text.includes(PRODUCTION_HOST));
 
-  // fail-closed: หาไม่เจอสักไฟล์ = ตัวกรองพัง ไม่ใช่ "สะอาด"
+  // fail-closed: ยึดกับเอกสารที่รู้ว่าต้องเจอ ไม่ใช่แค่ "เจอมากกว่าศูนย์"
+  const relativePaths = scanned.map((doc) => relative(ROOT, doc.path).replace(/\\/g, '/'));
   assert.ok(
-    productionDocs.length > 0,
-    `ไม่พบเอกสารใน docs/ ที่อ้าง ${PRODUCTION_HOST} เลย — ตัวกรองน่าจะพัง`
+    relativePaths.includes(REQUIRED_PRODUCTION_DOC),
+    `ตัวกรองไม่เจอ ${REQUIRED_PRODUCTION_DOC} — สแกนได้ ${relativePaths.length} ไฟล์: ` +
+      `${relativePaths.join(', ') || '(ไม่มีเลย)'} · ถือว่าตัวกรองพัง ไม่ใช่ "สะอาด"`
   );
 
-  for (const path of [MIGRATION_FILE, TIDB_INIT_FILE, ...productionDocs]) {
+  const bootstrapFiles = [MIGRATION_FILE, TIDB_INIT_FILE].map((path) => ({
+    path,
+    text: readText(path),
+  }));
+  for (const { path, text } of [...bootstrapFiles, ...scanned]) {
     assert.ok(
-      !readText(path).includes(BOOTSTRAP_PASSWORD),
+      !text.includes(BOOTSTRAP_PASSWORD),
       `${relative(ROOT, path)}: มีรหัสผ่าน bootstrap เป็น plaintext อยู่ในไฟล์ที่เกี่ยวกับ production`
     );
   }
