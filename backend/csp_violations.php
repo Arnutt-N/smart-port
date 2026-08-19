@@ -28,6 +28,21 @@ const CSP_OVERFLOW_HOST = '__overflow__';
 const CSP_RETENTION_DAYS = 120;
 const CSP_SELFTEST_LIKE = 'csp-selftest-%.invalid';
 
+/**
+ * ค่าที่ใช้แทน directive/host จาก report ที่ "ดันตรงกับค่าสงวน" ของแถว overflow
+ *
+ * Issue #113 code review M2: parse_url('https://__overflow__/', PHP_URL_HOST) คืน
+ * '__overflow__' ได้จริง (underscore ผ่านตัว parser) — คนนอกจึง POST report ครั้งเดียวทำให้
+ * overflow_hits > 0 ค้างทั้งหน้าต่างได้ ผลลัพธ์คือ gate แดงตลอด (fail-closed จึงไม่ใช่
+ * false-clean) แต่ runbook จะวินิจฉัยผิดว่า "ชนเพดานจำนวนแถวต่อวัน" ทั้งที่ไม่เคยชน และคนนอก
+ * ยับยั้งการ promote CSP ได้ฟรีด้วย request เดียว
+ *
+ * แถว (CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST) จึงต้องมาจาก cspFoldIntoOverflow() เท่านั้น
+ * ค่าจาก report ที่ชนค่าสงวนถูกเปลี่ยนเป็นค่านี้แทน — ไม่ทิ้ง (report แปลก ๆ ก็ยังเป็นข้อมูลที่
+ * คนต้องเห็น) แต่แยกออกได้ชัดว่ามาจาก report ไม่ใช่จากตัวนับ และไม่ตรงกับ CSP_SELFTEST_LIKE ด้วย
+ */
+const CSP_RESERVED_FROM_REPORT = 'reserved-value-from-report';
+
 /** @var bool|null cache ต่อ request — ไม่ยิง SHOW TABLES ซ้ำ */
 $GLOBALS['_csp_table_ready'] = null;
 
@@ -61,6 +76,15 @@ function recordCspViolation(?PDO $pdo, string $directive, string $blockedHost): 
     // directive/host ไม่ใช่ ASCII ล้วน (สาด "persist failed" ลง log ไม่จบบน endpoint สาธารณะ)
     $directive = mb_strcut($directive, 0, 64);
     $blockedHost = mb_strcut($blockedHost, 0, 128);
+    // Issue #113 code review M2: ค่าจาก report ห้ามกลายเป็นค่าสงวนของแถว overflow
+    // (ดูเหตุผลเต็มที่คอมเมนต์ของ CSP_RESERVED_FROM_REPORT) — เปลี่ยนเป็นค่าที่แยกออกได้ชัดแทน
+    // แล้วปล่อยให้ถูกนับเป็น violation ปกติ ผลคือ overflow_hits สะท้อน "ชนเพดานจริง" อย่างเดียว
+    if ($directive === CSP_OVERFLOW_DIRECTIVE) {
+        $directive = CSP_RESERVED_FROM_REPORT;
+    }
+    if ($blockedHost === CSP_OVERFLOW_HOST) {
+        $blockedHost = CSP_RESERVED_FROM_REPORT;
+    }
 
     try {
         if (!cspTableReady($pdo)) {
@@ -153,13 +177,17 @@ function cspPrune(PDO $pdo): void
  * top ถูกตัดที่ LIMIT 50 (selftest.markers ก็ตัดที่ LIMIT 20 เช่นกัน) — total มาจาก
  * SUM(hits) ของทั้งหน้าต่างเสมอ ไม่ใช่ผลรวมของแถวที่ถูกส่งกลับใน top
  *
- * @return array{window_days:int, since:string, storage:string, violations:array, selftest:array, overflow_hits:int}
+ * counting_since (code review I3) = วันแรกที่ตัวนับมีข้อมูลจริง — ผู้บริโภคต้องใช้เทียบกับ
+ * since เองเพื่อรู้ว่าหน้าต่างที่ขอ "ครอบครบ" หรือไม่ (null = ยังไม่มีข้อมูลสักแถว)
+ *
+ * @return array{window_days:int, since:string, counting_since:?string, storage:string, violations:array, selftest:array, overflow_hits:int}
  */
 function cspSummary(?PDO $pdo, int $days): array
 {
     $summary = [
         'window_days' => $days,
         'since' => date('Y-m-d', time() - ($days - 1) * 86400),
+        'counting_since' => null,
         'storage' => 'unavailable',
         'violations' => ['total' => 0, 'top' => []],
         'selftest' => ['total' => 0, 'markers' => []],
@@ -210,6 +238,25 @@ function cspSummary(?PDO $pdo, int $days): array
         $overflow->execute([$since, CSP_OVERFLOW_HOST]);
         $overflowHits = (int) $overflow->fetchColumn();
 
+        // Issue #113 code review I3: "ตัวนับเริ่มนับตั้งแต่เมื่อไร" ต้องอยู่ในคำตอบ ไม่ใช่ฝากไว้กับ
+        // ความจำของคน — หลังรัน DDL ตารางว่างเปล่าแต่ storage กลายเป็น 'ready' ทันที ถ้าถาม
+        // days=7 ในวันที่ 2 หลังสร้างตาราง จะได้ ready + 0 violation = "สะอาด" ทั้งที่ 5 ใน 7 วัน
+        // นั้นไม่มีข้อมูลเลย (false-clean ตรงตัว) ผู้บริโภค (สคริปต์ gate) เทียบ counting_since
+        // กับ since แล้ว fail เองเมื่อหน้าต่างครอบไม่ครบ — null (ยังไม่มีข้อมูลสักแถว) ก็สรุปไม่ได้
+        //
+        // MIN(day) คือ "วันแรกที่มีแถว" ไม่ใช่ "วันที่รัน DDL" ตรง ๆ ทิศทางของความคลาดเคลื่อน
+        // ปลอดภัย: ถ้าตารางมีมานานแต่เพิ่งมีแถวแรกวันนี้ ค่านี้จะดู "ใหม่กว่า" ความจริง → gate fail
+        // (fail-closed) ไม่ใช่ปล่อยผ่าน · ค่านี้ถูกตัดตาม CSP_RETENTION_DAYS (120) ซึ่งกว้างกว่า
+        // หน้าต่างสูงสุดที่ endpoint รับ (90 วัน) จึงไม่ทำให้ gate fail จากการ prune
+        //
+        // ใช้ query() ไม่ใช่ prepare() (ไม่มี parameter) — ลำดับ prepare() ที่
+        // CspSummaryTest::it_does_not_report_ready_when_a_query_fails_partway_through อ้างถึง
+        // จึงไม่เปลี่ยน และคำสั่งนี้ยังอยู่ "ก่อน" การ assign storage='ready' ตามรูปแบบเดิม
+        $countingSinceRaw = $pdo->query('SELECT MIN(day) FROM csp_violation_daily')->fetchColumn();
+        $countingSince = ($countingSinceRaw === false || $countingSinceRaw === null)
+            ? null
+            : (string) $countingSinceRaw;
+
         // Issue #113 code review I2: ประกอบผลลัพธ์ทั้งหมดไว้ในตัวแปรท้องถิ่นก่อน (ข้างบน) แล้ว
         // ค่อย assign เข้า $summary "ทีเดียวตอนจบ" ที่นี่ — ของเดิมตั้ง storage='ready' ก่อน
         // ดึงผลลัพธ์จริง ถ้า query ถัดไปโยน exception กลางคัน catch ด้านล่างจะคืน $summary ที่
@@ -218,6 +265,7 @@ function cspSummary(?PDO $pdo, int $days): array
         // ที่แพงที่สุด (ดู CspSummaryTest::it_does_not_report_ready_when_a_query_fails_partway_through)
         // storage จะเป็น 'ready' ได้ก็ต่อเมื่อทุก query ข้างบนสำเร็จครบเท่านั้น
         $summary['since'] = $since;
+        $summary['counting_since'] = $countingSince;
         $summary['storage'] = 'ready';
         $summary['violations'] = [
             'total' => $totalHits,

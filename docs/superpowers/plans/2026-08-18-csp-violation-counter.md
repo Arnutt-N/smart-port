@@ -1,5 +1,12 @@
 # CSP Violation Counter Implementation Plan
 
+> **สถานะ: superseded — อย่าคัดลอกโค้ดจากไฟล์นี้ไปใช้**
+> โค้ดในแผนนี้เป็น snapshot ก่อน code review · โดยเฉพาะ `cspFoldIntoOverflow()` มีบั๊ก C1
+> (แถว overflow ถูก key ด้วย `$directive` ที่ attacker คุม cardinality ได้ ทำให้เพดานจำนวนแถว
+> ไม่ทำงานเลย), `substr()` ที่ตัดกลาง multi-byte, และ signature เก่าของ `handleCspSummary()`
+> ทั้งหมดแก้ไปแล้ว — **ของจริงอยู่ที่ `backend/csp_violations.php`,
+> `backend/routes/csp_summary.php` และ `scripts/check-csp-violations.mjs`**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** ทำให้เกณฑ์ "0 CSP violation ใน N วัน" เป็นสิ่งที่ query ผ่าน HTTP ได้และตัดสินด้วย exit code ได้ แทนการเปิด Render log เพ่งด้วยตา

@@ -215,4 +215,36 @@ final class CspViolationCounterTest extends TestCase
 
         $this->assertSame(1, $this->hitsOf(substr($longHost, 0, 128)));
     }
+
+    #[Test]
+    public function it_reports_a_repeated_key_as_not_new(): void
+    {
+        // code review I2: ตรรกะ cap ทั้งหมดพึ่ง affected-rows semantics ของ ON DUPLICATE KEY
+        // UPDATE (1 = insert ใหม่, 2 = update) ซึ่งจะเพี้ยนเงียบ ๆ ถ้ามีคนเปิด
+        // PDO::MYSQL_ATTR_FOUND_ROWS ใน backend/config.php — spec สั่งให้มีเทสจับข้อนี้โดยเฉพาะ
+        // ผลถ้า drift เกิดจริง: isNewKey เป็น true ทุกครั้ง → หลังผ่าน 200 key ทุก hit ซ้ำของ
+        // key เดิมจะเข้า cspFoldIntoOverflow() ซึ่ง DELETE แถวจริงทิ้ง ข้อมูลที่สะสมไว้หายทั้งแถว
+        $this->assertTrue(cspUpsertHit(self::$pdo, self::TEST_DIRECTIVE, 'dup.invalid'));
+        $this->assertFalse(
+            cspUpsertHit(self::$pdo, self::TEST_DIRECTIVE, 'dup.invalid'),
+            'ครั้งที่สองต้องไม่ถูกมองว่าเป็น key ใหม่ — ถ้าล้มแปลว่ามีคนเปิด PDO::MYSQL_ATTR_FOUND_ROWS'
+        );
+    }
+
+    #[Test]
+    public function it_refuses_to_let_a_report_write_into_the_reserved_overflow_row(): void
+    {
+        // code review M2: parse_url('https://__overflow__/', PHP_URL_HOST) คืน '__overflow__' ได้
+        // คนนอกจึงยิง report ครั้งเดียวทำให้ overflow_hits > 0 ค้างทั้งหน้าต่างได้ ผลคือ gate แดง
+        // ตลอด (fail-closed จึงไม่ใช่ false-clean) แต่วินิจฉัยผิดว่า "ชนเพดาน" และคนนอกยับยั้ง
+        // การ promote CSP ได้ฟรี — แถวสงวนต้องมาจาก cspFoldIntoOverflow() เท่านั้น
+        recordCspViolation(self::$pdo, CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST);
+
+        $this->assertSame(0, $this->hitsOf(CSP_OVERFLOW_HOST), 'report ห้ามเขียนเข้าแถว overflow');
+        $stmt = self::$pdo->prepare(
+            'SELECT hits FROM csp_violation_daily WHERE day = CURDATE() AND directive = ? AND blocked_host = ?'
+        );
+        $stmt->execute([CSP_RESERVED_FROM_REPORT, CSP_RESERVED_FROM_REPORT]);
+        $this->assertSame(1, (int) $stmt->fetchColumn(), 'ต้องถูกนับเป็น violation ปกติภายใต้ค่าที่แยกออกได้');
+    }
 }

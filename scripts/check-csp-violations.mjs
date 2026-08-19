@@ -4,8 +4,9 @@
 // ถามสรุปตัวนับจาก backend แล้วตัดสินด้วย exit code แทนการเปิด Render log เพ่งด้วยตา
 // exit 0 = ข้อมูลพร้อม + ไม่มี violation จากระบบจริงในหน้าต่างที่ขอ (+ เจอ marker ถ้าระบุ)
 //
-// **"ไม่มีข้อมูล" ไม่เท่ากับ "ไม่มี violation"** — storage: unavailable และ overflow_hits > 0
-// ถือเป็น fail ทั้งคู่ เป็นบทเรียนเดียวกับ "log ว่าง ≠ ปลอดภัย"
+// **"ไม่มีข้อมูล" ไม่เท่ากับ "ไม่มี violation"** — storage: unavailable, overflow_hits > 0,
+// backend ตอบคนละหน้าต่างกับที่ขอ (window_days) และตัวนับเริ่มนับหลังต้นหน้าต่าง (counting_since)
+// ถือเป็น fail ทุกข้อ เป็นบทเรียนเดียวกับ "log ว่าง ≠ ปลอดภัย"
 //
 // Usage: node scripts/check-csp-violations.mjs [--base-url <url>] [--days 7] [--require-marker <host>]
 //   token อ่านจาก env CSP_SUMMARY_TOKEN เท่านั้น (argument โผล่ใน process list และ shell history)
@@ -85,11 +86,38 @@ function parseArgs(argv) {
  * 0 แล้ว PASS ทั้งที่จริงคือ "ไม่รู้" ไม่ใช่ "สะอาด" — ขัดกับหลักการเดียวกับที่เช็ค storage
  * แบบ strict (`!== 'ready'`) ด้านบน ต้องเช็ครูปทรงก่อนอ่านค่าเสมอ: รูปทรงผิด = สรุปไม่ได้
  * (fail-closed) ไม่ใช่ตีความเป็น 0 แล้วปล่อยผ่านเงียบ ๆ
+ *
+ * code review I1 (รอบสุดท้าย): `days` ต้องส่งเข้ามาด้วยเพื่อเทียบกับ window_days ที่ backend
+ * ตอบกลับ — ถ้า query string ถูก proxy/rewrite ตัดทิ้ง (rule `/api/*` ของ static site ทำได้)
+ * backend จะ default เป็น days=7 แล้วคนที่สั่ง --days 30 จะได้ PASS จากหน้าต่าง 7 วัน
+ *
+ * code review I3: counting_since ต้องครอบ since ให้ครบด้วย ไม่งั้น "ไม่มีข้อมูลในช่วงนั้น"
+ * จะถูกอ่านเป็น "สะอาดในช่วงนั้น"
  */
-function evaluateSummary(summary, { requireMarker = null } = {}) {
+function evaluateSummary(summary, { requireMarker = null, days = null } = {}) {
   const reasons = [];
   if (summary.storage !== 'ready') {
-    reasons.push('backend ยังไม่มีตาราง csp_violation_daily (storage=' + summary.storage + ') → สรุปไม่ได้ ไม่ใช่ "ไม่มี violation"');
+    // code review M1: storage='unavailable' มีได้ 3 สาเหตุ (ไม่มีตาราง / ต่อ DB ไม่ได้ /
+    // query ล้มกลางคัน) — cspSummary() คืนค่าเดียวกันทั้งสามกรณีโดยตั้งใจ (สัญญาที่สคริปต์นี้
+    // พึ่งพา) ข้อความจึงต้องไม่ชี้สาเหตุเดียว ไม่งั้น operator จะไปรัน DDL ทั้งที่จริง DB ล่ม
+    reasons.push(
+      `backend สรุปให้ไม่ได้ (storage=${summary.storage}) → สรุปไม่ได้ ไม่ใช่ "ไม่มี violation" · ` +
+        'เป็นได้ 3 อย่าง: (1) ยังไม่ได้สร้างตาราง csp_violation_daily (2) backend ต่อ DB ไม่ได้ ' +
+        '(3) query ล้มเหลวกลางคัน — แยกได้จาก log ของ smartport-backend (หา "[csp-report] summary")'
+    );
+  }
+
+  if (days !== null && summary.window_days !== days) {
+    reasons.push(`backend ตอบหน้าต่าง ${summary.window_days} วัน ไม่ใช่ ${days} ที่ขอ → สรุปไม่ได้`);
+  }
+
+  const countingSince = summary?.counting_since ?? null;
+  if (countingSince === null) {
+    reasons.push('backend ไม่ได้บอกว่าตัวนับเริ่มนับเมื่อไร (counting_since ว่าง = ยังไม่มีข้อมูลสักแถว) → ครอบไม่ครบ สรุปไม่ได้');
+  } else if (typeof summary.since !== 'string') {
+    reasons.push('รูปแบบ response ไม่มี since เป็นข้อความ → เทียบกับ counting_since ไม่ได้ สรุปไม่ได้');
+  } else if (countingSince > summary.since) {
+    reasons.push(`ตัวนับเริ่มนับ ${countingSince} แต่ขอหน้าต่างตั้งแต่ ${summary.since} → ครอบไม่ครบ สรุปไม่ได้`);
   }
 
   const hasViolationsTotal = typeof summary?.violations?.total === 'number';
@@ -166,12 +194,13 @@ async function main() {
     return;
   }
 
-  console.log(`\nตั้งแต่ ${summary.since} (storage=${summary.storage})`);
+  console.log(`\nตั้งแต่ ${summary.since} (storage=${summary.storage}, หน้าต่างที่ backend ตอบ=${summary.window_days} วัน)`);
+  console.log(`  ตัวนับเริ่มนับ  : ${summary.counting_since ?? '— (ยังไม่มีข้อมูลสักแถว)'}`);
   console.log(`  violation จริง : ${summary.violations?.total ?? 0}`);
   console.log(`  marker ของทีม  : ${summary.selftest?.total ?? 0}`);
   console.log(`  overflow       : ${summary.overflow_hits ?? 0}`);
 
-  const { ok, reasons } = evaluateSummary(summary, { requireMarker });
+  const { ok, reasons } = evaluateSummary(summary, { requireMarker, days });
   if (!ok) {
     console.error('');
     for (const reason of reasons) console.error(`  [✗] ${reason}`);

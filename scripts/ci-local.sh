@@ -87,6 +87,14 @@ else
   fail 'csp report self-test regression'
 fi
 
+# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
+step 'CSP Violation Gate Regression'
+if node --test "${ROOT}/scripts/tests/check-csp-violations.test.mjs"; then
+  ok 'csp violation gate regression'
+else
+  fail 'csp violation gate regression'
+fi
+
 # ---- 1) Frontend -----------------------------------------------------------
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'

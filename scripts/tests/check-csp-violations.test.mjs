@@ -42,6 +42,8 @@ function startServer(handler) {
 const clean = {
   window_days: 7,
   since: '2026-08-12',
+  // ตัวนับเริ่มนับก่อนต้นหน้าต่าง = ครอบครบ (ดูเทส counting_since ด้านล่าง)
+  counting_since: '2026-08-01',
   storage: 'ready',
   violations: { total: 0, top: [] },
   selftest: { total: 1, markers: [{ blocked_host: 'csp-selftest-20260824-a3f9.invalid', hits: 1, last_seen: '2026-08-24 05:10:38' }] },
@@ -100,6 +102,35 @@ test('storage:ready แต่ไม่มี key overflow_hits ต้องไ�
   const result = evaluateSummary(malformed, {});
   assert.equal(result.ok, false);
   assert.match(result.reasons.join(' '), /สรุปไม่ได้/);
+});
+
+test('backend ตอบคนละหน้าต่างกับที่ขอ ต้องไม่ผ่าน (code review I1)', () => {
+  // ถ้า query string ถูก proxy/rewrite ตัดทิ้ง backend จะ default เป็น 7 วัน แล้วคนที่ขอ 30 วัน
+  // จะได้ PASS จากหน้าต่างที่สั้นกว่าที่ถาม — false-clean ตรงตัว
+  const result = evaluateSummary({ ...clean, window_days: 7 }, { days: 30 });
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /หน้าต่าง 7 วัน ไม่ใช่ 30/);
+  assert.match(result.reasons.join(' '), /สรุปไม่ได้/);
+  // ถ้าไม่ส่ง days เข้ามา (ผู้เรียกไม่สนใจ) ต้องไม่ fail ด้วยเหตุนี้
+  assert.equal(evaluateSummary({ ...clean, window_days: 7 }, {}).ok, true);
+});
+
+test('ตัวนับยังไม่มีข้อมูลสักแถว (counting_since = null) ต้องไม่ผ่าน (code review I3)', () => {
+  const result = evaluateSummary({ ...clean, counting_since: null }, {});
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /ครอบไม่ครบ|สรุปไม่ได้/);
+});
+
+test('ตัวนับเริ่มนับหลังต้นหน้าต่าง ต้องไม่ผ่าน — "ยังไม่มีข้อมูล" ไม่ใช่ "สะอาด" (code review I3)', () => {
+  // สถานการณ์จริง: เพิ่งรัน DDL เมื่อวาน แล้วถาม --days 7 → 6 วันแรกไม่มีข้อมูลเลย
+  const result = evaluateSummary({ ...clean, counting_since: '2026-08-18' }, {});
+  assert.equal(result.ok, false);
+  assert.match(result.reasons.join(' '), /2026-08-18/);
+  assert.match(result.reasons.join(' '), /ครอบไม่ครบ/);
+});
+
+test('ตัวนับเริ่มนับพอดีวันแรกของหน้าต่าง = ครอบครบ ต้องผ่าน (ขอบเขตของ I3)', () => {
+  assert.equal(evaluateSummary({ ...clean, counting_since: clean.since }, {}).ok, true);
 });
 
 test('--require-marker ระบุแล้วแต่ selftest หาย ต้องไม่ผ่าน (รูปทรงผิด ≠ ไม่เจอ marker)', () => {

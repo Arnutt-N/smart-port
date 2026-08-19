@@ -109,7 +109,14 @@ final class CspSummaryTest extends TestCase
     #[Test]
     public function it_counts_overflow_hits_separately(): void
     {
-        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, CSP_OVERFLOW_HOST);
+        // seed แถว overflow ด้วย SQL ตรง ๆ ไม่ใช่ผ่าน recordCspViolation() — code review M2
+        // กันไม่ให้ค่าจาก report กลายเป็นค่าสงวนของแถวนี้แล้ว (คนนอกจะได้ปลอม overflow ไม่ได้)
+        // แถวนี้จึงมาจาก cspFoldIntoOverflow() ทางเดียว ซึ่งเทสนี้ไม่ได้ตรวจกลไกการสร้าง
+        // แต่ตรวจว่า "สรุปแยกมันออกจาก violation จริง" จึง seed แบบตรงที่สุดพอ
+        self::$pdo->prepare(
+            'INSERT INTO csp_violation_daily (day, directive, blocked_host, hits) VALUES (CURDATE(), ?, ?, 1)
+             ON DUPLICATE KEY UPDATE hits = hits + 1'
+        )->execute([CSP_OVERFLOW_DIRECTIVE, CSP_OVERFLOW_HOST]);
 
         $summary = cspSummary(self::$pdo, 7);
 
@@ -149,7 +156,32 @@ final class CspSummaryTest extends TestCase
         $summary = cspSummary(self::$pdo, 30);
 
         $this->assertSame(30, $summary['window_days']);
-        $this->assertSame(date('Y-m-d', time() - 29 * 86400), $summary['since']);
+        // code review M5: เดิม assert เทียบกับ date() ของ PHP แต่ `since` มาจาก MySQL
+        // DATE_SUB(CURDATE(), ...) — repo ไม่ได้ pin timezone ระหว่าง PHP กับ MySQL ที่ไหนเลย
+        // (คอมเมนต์ใน csp_violations.php เขียนไว้เอง) เทสจึง flaky ตอนรันใกล้เที่ยงคืนหรือเมื่อ
+        // container คนละ TZ — วัดระยะห่างด้วยนาฬิกาของ DB ตัวเดียวแทน
+        $stmt = self::$pdo->prepare('SELECT DATEDIFF(CURDATE(), ?)');
+        $stmt->execute([$summary['since']]);
+        $this->assertSame(29, (int) $stmt->fetchColumn(), 'since ต้องห่างจากวันนี้ 29 วันตามนาฬิกาของ DB');
+    }
+
+    #[Test]
+    public function it_reports_when_the_counter_started_so_callers_can_tell_coverage(): void
+    {
+        // code review I3: หลังรัน DDL ตารางว่างแต่ storage='ready' ทันที ถ้าไม่มี counting_since
+        // ผู้บริโภคจะแยก "ไม่มี violation ใน 7 วัน" ออกจาก "ตัวนับเพิ่งเริ่มเมื่อวาน" ไม่ได้เลย
+        $summary = cspSummary(self::$pdo, 7);
+        $this->assertNull($summary['counting_since'], 'ตารางว่าง (setUp ล้างแล้ว) ต้องคืน null ไม่ใช่วันที่มั่ว');
+
+        recordCspViolation(self::$pdo, self::TEST_DIRECTIVE, 'evil.example.invalid');
+
+        $summary = cspSummary(self::$pdo, 7);
+        $stmt = self::$pdo->query('SELECT CAST(CURDATE() AS CHAR)');
+        $this->assertSame(
+            (string) $stmt->fetchColumn(),
+            $summary['counting_since'],
+            'มีแถวแรกของวันนี้แล้ว counting_since ต้องเป็นวันนี้ตามนาฬิกาของ DB'
+        );
     }
 
     #[Test]
