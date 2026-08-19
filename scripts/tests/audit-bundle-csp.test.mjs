@@ -48,12 +48,91 @@ function rulesOf(findings) {
   return findings.map((f) => f.rule).sort();
 }
 
-test('bundle สะอาดต้องไม่มี finding และต้องรายงานว่าตรวจกี่ไฟล์', () => {
+test('bundle สะอาดต้องไม่มี finding และต้องรายงานว่าอ่านเนื้อหากี่ไฟล์', () => {
   const { dir, cleanup } = makeDist(cleanFiles);
   try {
     const result = auditBundle(dir, POLICY);
     assert.deepEqual(result.findings, [], JSON.stringify(result.findings));
-    assert.equal(result.scanned, 3, 'ต้องตรวจครบทุกไฟล์ ไม่ใช่แค่ไฟล์แรก');
+    assert.equal(result.inspected, 3, 'ต้องอ่านเนื้อหาครบทุกไฟล์');
+    assert.equal(result.skipped.length, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('ไฟล์ที่ไม่มีนามสกุล/นามสกุลไม่รู้จัก ต้องถูกอ่าน ไม่ใช่ข้ามเงียบ ๆ (code review C1)', () => {
+  // ของเดิมตรวจเฉพาะนามสกุลที่รู้จักแล้วข้ามที่เหลือ แต่ยังนับรวมในตัวเลข "ตรวจแล้ว N ไฟล์"
+  // ทำให้ `_redirects` (ไม่มีนามสกุล มี URL ของ backend) ไม่เคยถูกเปิดเลยทั้งที่ถูกนับ
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'weird-no-ext': 'fetch("https://evil.example.com/x")',
+    'data.json': '{"api":"https://evil2.example.com"}',
+    'icon.svg': '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+  });
+  try {
+    const { findings, inspected } = auditBundle(dir, POLICY);
+    assert.equal(inspected, 6, 'ทุกไฟล์ที่ไม่ใช่ binary ต้องถูกอ่าน');
+    const detail = findings.map((f) => f.detail).join(' | ');
+    assert.match(detail, /evil\.example\.com/, 'ไฟล์ไม่มีนามสกุลต้องถูกตรวจ');
+    assert.match(detail, /evil2\.example\.com/, 'ไฟล์ .json ต้องถูกตรวจ');
+    assert.ok(findings.some((f) => f.rule === 'inline-script'), 'inline <script> ใน .svg ต้องถูกจับ');
+  } finally {
+    cleanup();
+  }
+});
+
+test('ไฟล์ binary และไฟล์ที่ browser ไม่โหลด ต้องถูกข้ามพร้อมเหตุผทที่อ่านได้', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'sheet.xlsx': 'PK binary',
+    '_redirects': '/api/*  https://smartport-backend.onrender.com/:splat  200',
+  });
+  try {
+    const { findings, skipped, inspected } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+    assert.equal(inspected, 3);
+    assert.equal(skipped.length, 2);
+    for (const s of skipped) {
+      assert.ok(s.reason && s.reason.length >= 20, `ไฟล์ที่ข้ามต้องมีเหตุผล: ${JSON.stringify(s)}`);
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test('directive ที่ซ้ำต้องใช้ตัวแรกเหมือน browser ไม่ใช่ตัวหลัง (code review I2)', () => {
+  // `script-src 'self'; script-src 'unsafe-eval'` → browser ใช้ตัวแรกและยังบล็อก eval
+  // ของเดิมใช้ Map.set ตรง ๆ จึงกลายเป็น last-wins = false PASS
+  const duplicated = POLICY.replace("script-src 'self';", "script-src 'self'; script-src 'unsafe-eval' 'unsafe-inline';");
+  assert.deepEqual(parseCspPolicy(duplicated).get('script-src'), ["'self'"]);
+
+  const { dir, cleanup } = makeDist({ ...cleanFiles, 'assets/bad.js': 'eval("1");' });
+  try {
+    const { findings } = auditBundle(dir, duplicated);
+    assert.ok(findings.some((f) => f.rule === 'dynamic-code'), 'ต้องยังฟ้อง eval เพราะ directive ตัวแรกคือ self');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Function( ที่ไม่มี new ต้องถูกจับด้วย — เป็นสำนวนที่พบบ่อยกว่า (code review I1)', () => {
+  const { dir, cleanup } = makeDist({ ...cleanFiles, 'assets/poly.js': 'const g=Function("return this")();' });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => f.rule === 'dynamic-code'), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('inline event handler ที่ไม่มีเครื่องหมายคำพูดต้องถูกจับ (code review M2)', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'index.html': '<!doctype html><html><body><button onclick=go()>x</button></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => f.rule === 'inline-event-handler'), JSON.stringify(findings));
   } finally {
     cleanup();
   }
@@ -162,8 +241,10 @@ test('url() ภายนอกใน CSS ต้องถูกจับ', () => 
   });
   try {
     const { findings } = auditBundle(dir, POLICY);
-    assert.ok(rulesOf(findings).includes('external-origin'), JSON.stringify(findings));
-    assert.match(findings[0].detail, /cdn\.example\.com/);
+    // ใช้ .find() ไม่ใช่ findings[0] — ลำดับขึ้นกับ readdirSync ซึ่งเปลี่ยนได้เมื่อเปลี่ยนชื่อ fixture
+    const hit = findings.find((f) => /cdn\.example\.com/.test(f.detail));
+    assert.ok(hit, JSON.stringify(findings));
+    assert.equal(hit.rule, 'external-origin');
   } finally {
     cleanup();
   }

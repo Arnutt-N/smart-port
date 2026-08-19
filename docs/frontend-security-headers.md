@@ -193,10 +193,15 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   "log ว่าง" แปลว่า "ยังไม่มีใครลอง" ไม่ใช่ "ปลอดภัย" → ก่อน enforce ให้เดินคลิกครบหน้าหลัก
   (dashboard / personnel / profile ที่มีรูป / import / ocr) โดยเปิด DevTools console ดู
   violation ตรง ๆ อย่างน้อย 1 รอบ — วิธีนี้ไม่ต้องพึ่ง Render log เลย
-- **static audit ของ bundle — ตอนนี้เป็นสคริปต์อัตโนมัติที่ตรวจครบทุกไฟล์แล้ว**
+- **static audit ของ bundle — ตอนนี้เป็นสคริปต์อัตโนมัติแล้ว**
   (`scripts/audit-bundle-csp.mjs` · issue #113 R2) การตรวจรอบ 17 ส.ค. ด้านล่างเป็นการอ่านด้วยตา
   ที่ครอบแค่ **6 จาก ~24 route chunk ตามที่เข้าใจตอนนั้น** — วัดจริงภายหลังพบว่า build ปัจจุบันมี
-  **74 ไฟล์** จึงเหลืออีกมากที่ไม่เคยถูกตรวจเลย และไม่มีอะไรกัน chunk ใหม่ที่พาของต้องห้ามเข้ามา
+  **74 ไฟล์** (65 JS chunk + 4 CSS + 2 HTML + 3 อื่น ๆ) จึงเหลืออีกมากที่ไม่เคยถูกตรวจเลย
+  และไม่มีอะไรกัน chunk ใหม่ที่พาของต้องห้ามเข้ามา · สคริปต์ปัจจุบัน **อ่านเนื้อหา 72 ไฟล์ และข้าม 2
+  พร้อมพิมพ์เหตุผลรายไฟล์ทุกครั้ง** (`import-template.xlsx` = binary · `_redirects` = ไฟล์ตั้งค่าของ
+  Render edge ที่ browser ไม่เคยโหลด) — **ตัวเลข "ข้าม" ถูกพิมพ์เสมอโดยตั้งใจ** เพราะ code review
+  จับได้ว่ารุ่นแรกนับไฟล์ที่ไม่เคยเปิดรวมเข้าไปในคำว่า "ตรวจแล้ว" ซึ่งคือ "ไม่ได้ตรวจ" ที่ถูกรายงาน
+  เป็น "ตรวจแล้วสะอาด"
   · **รอบแรกที่รันสคริปต์จับได้ทันที**: `https://tailwindcss.com` ใน CSS bundle ซึ่งการอ่านด้วยตา
   มองข้ามไป (ตรวจแล้วเป็นคอมเมนต์ลิขสิทธิ์ ไม่ใช่การโหลดจริง จึงอยู่ใน allowlist พร้อมเหตุผล)
   · ตารางด้านล่างคือสิ่งที่วัดได้ตอนนั้น เก็บไว้เป็นบันทึก — **ของจริงที่บังคับใช้คือสคริปต์**:
@@ -248,9 +253,13 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   `scripts/tests/check-csp-violations.test.mjs` · **ตัวสคริปต์ไม่อยู่ใน CI gate** เพราะยิง production จริง
   · ขั้นตอนเปิดใช้บน production: `docs/runbooks/csp-counter-activation.md`
 - `scripts/audit-bundle-csp.mjs` — gate ตรวจ build output ว่ามีอะไรที่ policy จะบล็อกหลัง enforce
-  ไหม (issue #113 R2): อ่าน CSP จาก `render.yaml` แล้วสแกน `frontend/dist` **ทุกไฟล์** (ปัจจุบัน 74)
+  ไหม (issue #113 R2): อ่าน CSP จาก `render.yaml` (path `/*` เท่านั้น รองรับทั้งชื่อ enforce และ
+  report-only) แล้วสแกน `frontend/dist` — **อ่านทุกไฟล์ที่ไม่ใช่ binary รวมถึงไฟล์ที่ไม่มีนามสกุล**
+  และพิมพ์รายชื่อไฟล์ที่ข้ามพร้อมเหตุผลทุกครั้ง
   — กฎผูกกับ directive จริง ไม่ hardcode: inline script/event handler (`script-src`) · `eval(`
-  และ `new Function(` (`script-src`) · absolute URL นอก allowlist (`connect-src`/`img-src`/`font-src`)
+  และ `Function(` (`script-src` — **ข้อจำกัดที่รู้ตัว**: indirect eval แบบ `(0,eval)()` regex
+  จับไม่ได้ gate นี้ลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี) · absolute URL นอก allowlist
+  (`connect-src`/`img-src`/`font-src`)
   · `url()` ภายนอกใน CSS · **ไฟล์ font ใน bundle เมื่อ `font-src` ไม่มี `'self'`** (ความเสี่ยงข้อ 2
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")

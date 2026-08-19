@@ -2,8 +2,9 @@
 // CSP bundle audit — issue #113 (R2): ตรวจ build output ว่าจะชน CSP หลัง enforce ไหม
 //
 // ทำไมต้องมี: การตรวจว่า bundle มีอะไรที่ policy จะบล็อกบ้าง เคยทำด้วยการ "อ่านด้วยตา"
-// แล้วบันทึกเป็นร้อยแก้วใน docs/frontend-security-headers.md — ครอบแค่ 6 chunk จากของจริง 65
-// ไฟล์ ส่วนที่เหลือไม่เคยถูกตรวจเลย และไม่มีอะไรกันไม่ให้ chunk ใหม่พาของต้องห้ามเข้ามา
+// แล้วบันทึกเป็นร้อยแก้วใน docs/frontend-security-headers.md — ครอบแค่ 6 chunk จากของจริง
+// 74 ไฟล์ (65 JS chunk + 4 CSS + 2 HTML + 3 อื่น ๆ) ส่วนที่เหลือไม่เคยถูกตรวจเลย และไม่มี
+// อะไรกันไม่ให้ chunk ใหม่พาของต้องห้ามเข้ามา
 //
 // สคริปต์นี้อ่าน policy จาก render.yaml (single source of truth เดียวกับ verify-live-headers.mjs)
 // แล้วสแกน frontend/dist ทั้งโฟลเดอร์ — กฎทุกข้อผูกกับ directive จริง ไม่ใช่กฎที่ hardcode ไว้
@@ -23,10 +24,31 @@ import { parseRenderHeaders } from './verify-live-headers.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RENDER_YAML = resolve(ROOT, 'render.yaml');
 const DEFAULT_DIST = resolve(ROOT, 'frontend', 'dist');
-const CSP_HEADER = 'Content-Security-Policy-Report-Only';
+// รองรับทั้งสองชื่อ เพราะ gate นี้มีไว้รองรับการย้าย report-only → enforce พอดี
+// ถ้าผูกกับชื่อเดียวแล้ววันกดสวิตช์ gate จะพังทันทีในจังหวะที่คนกำลังรีบที่สุด
+const CSP_HEADERS = ['Content-Security-Policy', 'Content-Security-Policy-Report-Only'];
+const SHELL_PATH = '/*';
 
 const FONT_EXTENSIONS = new Set(['.woff', '.woff2', '.ttf', '.otf', '.eot']);
-const TEXT_EXTENSIONS = new Set(['.js', '.mjs', '.css', '.html']);
+
+/**
+ * นามสกุลที่เป็น binary จริง — ข้ามได้เพราะไม่มีโค้ด/URL ที่ browser จะ execute หรือ fetch ต่อ
+ *
+ * **ทุกอย่างที่ไม่อยู่ในลิสต์นี้จะถูกอ่านและตรวจ** (fail-closed) — ของเดิมทำกลับกันคือ
+ * ตรวจเฉพาะนามสกุลที่รู้จักแล้วข้ามที่เหลือเงียบ ๆ ซึ่งทำให้ `_redirects` (ไม่มีนามสกุล
+ * และมี URL ของ backend อยู่) ไม่เคยถูกเปิดเลยทั้งที่ถูกนับรวมในตัวเลข "ตรวจแล้ว N ไฟล์"
+ * — code review เรียกสิ่งนี้ว่า "ไม่ได้ตรวจ ถูกรายงานเป็น ตรวจแล้วสะอาด" ซึ่งเป็น failure
+ * mode ที่แพงที่สุดของ gate ประเภทนี้
+ */
+const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.xlsx', '.xls', '.pdf', '.zip', '.mp4', '.webm']);
+
+/**
+ * ไฟล์ที่อยู่ใน dist แต่ browser ไม่เคยโหลดเป็น subresource จึงไม่อยู่ใต้ CSP
+ * ต้องมีเหตุผลรายตัวเหมือน NON_FETCHED_ORIGINS (มีเทสบังคับ)
+ */
+const NON_BROWSER_FILES = new Map([
+  ['_redirects', 'ไฟล์ตั้งค่า rewrite ของ Render edge — CDN อ่านฝั่งเซิร์ฟเวอร์ ไม่เคยถูกส่งให้ browser โหลด URL ข้างในจึงไม่ผ่าน CSP'],
+]);
 
 /**
  * origin ที่ปรากฏใน bundle ได้โดยไม่ถูก browser โหลดจริง จึงไม่อยู่ใต้ directive ใด
@@ -59,13 +81,23 @@ function parseArgs(argv) {
   return args;
 }
 
-/** แตก policy string เป็น Map<directive, sources[]> */
+/**
+ * แตก policy string เป็น Map<directive, sources[]>
+ *
+ * **first-wins** ตามที่ browser ทำจริง — ถ้า directive ซ้ำใน policy เดียวกัน browser ใช้ตัวแรก
+ * และ ignore ตัวหลัง ของเดิมใช้ `Map.set` ตรง ๆ จึงกลายเป็น last-wins ซึ่งตรงข้าม ผลคือ
+ * `script-src 'self'; script-src 'unsafe-eval'` จะทำให้ gate เลิกฟ้อง `eval(` ทั้งที่ browser
+ * ยังบล็อกอยู่ = false PASS (code review I2 พิสูจน์ด้วย fixture จริง)
+ * ชื่อ directive ถูกทำเป็นตัวพิมพ์เล็กเพราะ CSP ไม่แยกตัวพิมพ์
+ */
 function parseCspPolicy(value) {
   const policy = new Map();
   for (const part of value.split(';')) {
     const tokens = part.trim().split(/\s+/).filter(Boolean);
     if (tokens.length === 0) continue;
-    policy.set(tokens[0], tokens.slice(1));
+    const name = tokens[0].toLowerCase();
+    if (policy.has(name)) continue;
+    policy.set(name, tokens.slice(1));
   }
   return policy;
 }
@@ -125,36 +157,60 @@ function auditBundle(distDir, cspValue) {
   const allowsDynamicCode = hasSource(policy, 'script-src', "'unsafe-eval'");
   const allowsSelfFont = hasSource(policy, 'font-src', "'self'");
   const findings = [];
+  const skipped = [];
+  let inspected = 0;
   const add = (file, rule, directive, detail) => findings.push({ file: relative(distDir, file).replace(/\\/g, '/'), rule, directive, detail });
 
   for (const file of files) {
     const ext = extname(file).toLowerCase();
+    const base = file.split(/[\\/]/).pop();
+    const rel = relative(distDir, file).replace(/\\/g, '/');
 
     // R5 — font ที่ self-host จะถูกบล็อกถ้า font-src ไม่มี 'self'
-    if (FONT_EXTENSIONS.has(ext) && !allowsSelfFont) {
-      add(file, 'self-hosted-font', 'font-src', `ไฟล์ font ใน bundle แต่ font-src ไม่มี 'self' (${(policy.get('font-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'})`);
+    if (FONT_EXTENSIONS.has(ext)) {
+      if (!allowsSelfFont) {
+        add(file, 'self-hosted-font', 'font-src', `ไฟล์ font ใน bundle แต่ font-src ไม่มี 'self' (${(policy.get('font-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'})`);
+      }
+      skipped.push({ file: rel, reason: 'ไฟล์ font — ตรวจด้วยกฎ self-hosted-font ไม่ต้องอ่านเนื้อหา' });
       continue;
     }
-    if (!TEXT_EXTENSIONS.has(ext)) continue;
+    if (NON_BROWSER_FILES.has(base)) {
+      skipped.push({ file: rel, reason: NON_BROWSER_FILES.get(base) });
+      continue;
+    }
+    if (BINARY_EXTENSIONS.has(ext)) {
+      skipped.push({ file: rel, reason: `นามสกุล ${ext} เป็น binary ไม่มีโค้ดหรือ URL ที่ browser จะใช้ต่อ` });
+      continue;
+    }
 
+    // ทุกอย่างที่เหลือถูกอ่านและตรวจ — รวมถึงนามสกุลที่ยังไม่รู้จักและไฟล์ที่ไม่มีนามสกุล
+    inspected++;
     const content = readFileSync(file, 'utf8');
 
+    // R1/R2 ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ผูกกับนามสกุล — `<script>` ใน .svg และ `eval(` ใน .html
+    // อันตรายเท่ากับใน .js และการผูกกฎกับนามสกุลคือวิธีเดียวกับที่ทำให้ C1 เกิดขึ้น
     // R1 — inline script / inline event handler (script-src ที่ไม่มี 'unsafe-inline')
-    if (ext === '.html' && !allowsInlineScript) {
+    if (!allowsInlineScript) {
       for (const match of content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
         const [, attrs, body] = match;
         if (body.trim() !== '' && !/\bsrc\s*=/i.test(attrs)) {
           add(file, 'inline-script', 'script-src', `พบ <script> ที่มีเนื้อหาในตัว: ${body.trim().slice(0, 60)}`);
         }
       }
-      for (const match of content.matchAll(/\son[a-z]+\s*=\s*["']/gi)) {
+      // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
+      // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
+      for (const match of content.matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
         add(file, 'inline-event-handler', 'script-src', `พบ inline event handler: ${match[0].trim()}`);
       }
     }
 
-    // R2 — eval / new Function (script-src ที่ไม่มี 'unsafe-eval')
-    if ((ext === '.js' || ext === '.mjs') && !allowsDynamicCode) {
-      for (const pattern of [/\beval\s*\(/g, /\bnew\s+Function\s*\(/g]) {
+    // R2 — eval / Function constructor (script-src ที่ไม่มี 'unsafe-eval')
+    // ครอบ `Function(` ที่ไม่มี `new` ด้วย เพราะ `Function("return this")()` เป็นสำนวน
+    // มาตรฐานของ polyfill ที่ bundler ลากติดมาบ่อยกว่า `new Function(` มาก (code review I1)
+    // **ข้อจำกัดที่รู้ตัว**: indirect eval (`(0,eval)(...)`, `window["eval"](...)`) และ
+    // `setTimeout("code")` regex จับไม่ได้โดยธรรมชาติ — gate นี้จึงลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี
+    if (!allowsDynamicCode) {
+      for (const pattern of [/\beval\s*\(/g, /\b(?:new\s+)?Function\s*\(/g]) {
         for (const match of content.matchAll(pattern)) {
           add(file, 'dynamic-code', 'script-src', `พบการสร้างโค้ดตอน runtime: ${match[0].trim()}`);
         }
@@ -174,17 +230,33 @@ function auditBundle(distDir, cspValue) {
     }
   }
 
-  return { findings, scanned: files.length };
+  return { findings, inspected, skipped, scanned: files.length };
 }
 
-/** อ่าน CSP ที่ประกาศไว้จริงใน render.yaml — fail-closed ถ้าหาไม่เจอ */
+/**
+ * อ่าน CSP ที่ประกาศไว้จริงใน render.yaml — fail-closed ถ้าหาไม่เจอ
+ *
+ * กรองด้วย path `/*` เท่านั้น และ throw ถ้าเจอ CSP บน path อื่น — ถ้าวันหน้ามีคนเพิ่ม CSP
+ * เฉพาะ `/assets/*` (ซึ่งคือ path ของเกือบทุกอย่างใน dist) การหยิบ entry แรกมาใช้เงียบ ๆ
+ * จะทำให้ตรวจ bundle เทียบ policy ผิดตัว = false PASS · `verify-live-headers.mjs` ป้องกัน
+ * เรื่องเดียวกันไว้แล้วด้วย buildExpectations() ที่ throw เมื่อเจอ path group ที่ไม่รู้จัก
+ */
 function readPolicyFromRenderYaml() {
   const entries = parseRenderHeaders(readFileSync(RENDER_YAML, 'utf8'));
-  const entry = entries.find((e) => e.name === CSP_HEADER);
-  if (!entry) {
-    throw new Error(`ไม่พบ header ${CSP_HEADER} ใน render.yaml — gate นี้ตรวจเทียบ policy ที่ประกาศจริงเท่านั้น`);
+  const csp = entries.filter((e) => CSP_HEADERS.includes(e.name));
+  const offPath = csp.filter((e) => e.path !== SHELL_PATH);
+  if (offPath.length > 0) {
+    throw new Error(
+      `render.yaml ประกาศ CSP บน path ที่ gate นี้ยังไม่รองรับ: ${[...new Set(offPath.map((e) => e.path))].join(', ')} — ` +
+        `ขยาย readPolicyFromRenderYaml (และเทส) ก่อน ไม่งั้น bundle จะถูกตรวจเทียบ policy ผิดตัว`
+    );
   }
-  return entry.value;
+  // enforce มาก่อน report-only: ถ้ามีทั้งคู่ ตัวที่บังคับใช้จริงคือตัวที่ต้องผ่าน
+  for (const name of CSP_HEADERS) {
+    const entry = csp.find((e) => e.name === name && e.path === SHELL_PATH);
+    if (entry) return entry.value;
+  }
+  throw new Error(`ไม่พบ header ${CSP_HEADERS.join(' หรือ ')} บน path ${SHELL_PATH} ใน render.yaml — gate นี้ตรวจเทียบ policy ที่ประกาศจริงเท่านั้น`);
 }
 
 function main() {
@@ -193,10 +265,13 @@ function main() {
 
   console.log('CSP bundle audit — issue #113');
   console.log(`dist:   ${dist}`);
-  console.log(`policy: ${CSP_HEADER} (จาก render.yaml)`);
+  console.log('policy: จาก render.yaml (path /*)');
 
-  const { findings, scanned } = auditBundle(dist, policyValue);
-  console.log(`ตรวจแล้ว ${scanned} ไฟล์`);
+  const { findings, inspected, skipped, scanned } = auditBundle(dist, policyValue);
+  // แยก "อ่านเนื้อหาจริง" ออกจาก "เดินผ่าน" และพิมพ์รายชื่อที่ข้ามเสมอ — ตัวเลขรวมอย่างเดียว
+  // เคยทำให้เข้าใจผิดว่าตรวจครบทั้งที่ 3 ไฟล์ไม่เคยถูกเปิด (code review C1)
+  console.log(`ตรวจเนื้อหา ${inspected} ไฟล์ · ข้าม ${skipped.length} ไฟล์ (จากทั้งหมด ${scanned})`);
+  for (const s of skipped) console.log(`  – ข้าม ${s.file}: ${s.reason}`);
 
   if (findings.length > 0) {
     console.error('');
