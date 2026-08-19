@@ -125,6 +125,78 @@ test('Function( ที่ไม่มี new ต้องถูกจับด�
   }
 });
 
+test('โค้ด JS ปกติที่ขึ้นต้นด้วย on ต้องไม่ถูกจับเป็น inline handler (code review M-A)', () => {
+  // CSP บล็อก handler ที่เป็น attribute ใน markup เท่านั้น — `el.onclick = fn` ในไฟล์ JS
+  // เป็นการ assign property ซึ่งไม่ถูกบล็อก การยิง regex HTML ใส่ JS จึงผิดทั้งเชิงเสียงรบกวน
+  // และเชิงความหมาย · ` once = true` / ` only = 1` เป็นโค้ดปกติที่เคยถูกจับผิด
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/normal.js': 'let once = true; const only = 1; el.onload = fn; el.onclick = go;',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('HTML fragment ที่ฝังใน JS พร้อม <script> ยังต้องถูกตรวจ (ไม่ผูกกับนามสกุลอย่างเดียว)', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/tpl.js': 'const t = `<div><script>alert(1)<\\/script></div>`;',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => f.rule === 'inline-script'), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('origin เดียวที่โผล่หลายครั้งในไฟล์เดียวต้องรายงานรายการเดียวพร้อมจำนวน (code review M-B)', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/many.js': 'a("https://evil.example.com/1");b("https://evil.example.com/2");c("https://evil.example.com/3");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const external = findings.filter((f) => f.rule === 'external-origin');
+    assert.equal(external.length, 1, 'ต้องยุบเป็นรายการเดียวต่อ (ไฟล์ × origin)');
+    assert.match(external[0].detail, /3 ครั้ง/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('การเทียบ origin ต้องไม่แยกตัวพิมพ์ (CSP host-source เป็น case-insensitive)', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/upper.js': 'const u="HTTPS://FONTS.GSTATIC.COM/s/x.woff2";',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('ไฟล์ชื่อซ้ำกับรายการยกเว้นแต่อยู่ในโฟลเดอร์ย่อย ต้องยังถูกตรวจ', () => {
+  // ยกเว้นด้วย path จากราก ไม่ใช่ชื่อไฟล์ล้วน — ไม่งั้นวางไฟล์ชื่อ _redirects ในโฟลเดอร์ย่อย
+  // แล้วซ่อนอะไรก็ได้
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'nested/_redirects': '/x  https://evil.example.com/y  200',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /evil\.example\.com/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
 test('inline event handler ที่ไม่มีเครื่องหมายคำพูดต้องถูกจับ (code review M2)', () => {
   const { dir, cleanup } = makeDist({
     ...cleanFiles,

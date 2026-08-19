@@ -29,6 +29,7 @@ const DEFAULT_DIST = resolve(ROOT, 'frontend', 'dist');
 const CSP_HEADERS = ['Content-Security-Policy', 'Content-Security-Policy-Report-Only'];
 const SHELL_PATH = '/*';
 
+const HTML_EXTENSIONS = new Set(['.html', '.htm', '.svg']);
 const FONT_EXTENSIONS = new Set(['.woff', '.woff2', '.ttf', '.otf', '.eot']);
 
 /**
@@ -112,7 +113,7 @@ function allowedOriginsFrom(policy) {
     for (const source of sources) {
       if (!/^https?:\/\//.test(source)) continue;
       try {
-        origins.add(new URL(source).origin);
+        origins.add(new URL(source).origin.toLowerCase());
       } catch {
         // source ที่ไม่ใช่ URL เต็ม (เช่น host pattern) — ข้ามไป ไม่ใช่ allowlist ที่เชื่อได้
       }
@@ -163,7 +164,8 @@ function auditBundle(distDir, cspValue) {
 
   for (const file of files) {
     const ext = extname(file).toLowerCase();
-    const base = file.split(/[\\/]/).pop();
+    // เทียบด้วย path จากรากของ dist ไม่ใช่ชื่อไฟล์ล้วน — ไม่งั้นไฟล์ชื่อซ้ำในโฟลเดอร์ย่อย
+    // จะถูกยกเว้นตามไปด้วยโดยไม่ตั้งใจ
     const rel = relative(distDir, file).replace(/\\/g, '/');
 
     // R5 — font ที่ self-host จะถูกบล็อกถ้า font-src ไม่มี 'self'
@@ -174,8 +176,8 @@ function auditBundle(distDir, cspValue) {
       skipped.push({ file: rel, reason: 'ไฟล์ font — ตรวจด้วยกฎ self-hosted-font ไม่ต้องอ่านเนื้อหา' });
       continue;
     }
-    if (NON_BROWSER_FILES.has(base)) {
-      skipped.push({ file: rel, reason: NON_BROWSER_FILES.get(base) });
+    if (NON_BROWSER_FILES.has(rel)) {
+      skipped.push({ file: rel, reason: NON_BROWSER_FILES.get(rel) });
       continue;
     }
     if (BINARY_EXTENSIONS.has(ext)) {
@@ -187,15 +189,28 @@ function auditBundle(distDir, cspValue) {
     inspected++;
     const content = readFileSync(file, 'utf8');
 
-    // R1/R2 ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ผูกกับนามสกุล — `<script>` ใน .svg และ `eval(` ใน .html
-    // อันตรายเท่ากับใน .js และการผูกกฎกับนามสกุลคือวิธีเดียวกับที่ทำให้ C1 เกิดขึ้น
+    // R2 (eval/Function) ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ผูกกับนามสกุล — `eval(` ใน .html หรือ
+    // ไฟล์ไม่มีนามสกุล อันตรายเท่ากับใน .js และการผูกกฎกับนามสกุลคือต้นเหตุของ C1
+    //
+    // R1 (inline script/handler) ต่างออกไป: ใช้เฉพาะเนื้อหาที่เป็น HTML จริง เพราะ CSP บล็อก
+    // handler ที่เขียนเป็น **attribute ใน markup** เท่านั้น ส่วน `el.onclick = fn` ในไฟล์ JS
+    // เป็นการ assign property ซึ่ง **CSP ไม่บล็อก** (สคริปต์ตัวนั้นผ่าน script-src มาแล้ว)
+    // การยิง regex นี้ใส่ JS ล้วนจึงผิดทั้งเชิงเสียงรบกวนและเชิงความหมาย — พิสูจน์แล้วว่า
+    // ` once = true` และ ` only = 1` ซึ่งเป็นโค้ดปกติถูกจับเป็น handler (code review M-A)
+    // **ข้อจำกัดที่รู้ตัว**: HTML fragment ที่ฝังใน JS โดยไม่มี `<script`/`<html` จะไม่ถูกตรวจข้อนี้
+    const looksLikeHtml = HTML_EXTENSIONS.has(ext) || /<!doctype html|<html\b|<script\b/i.test(content);
+
     // R1 — inline script / inline event handler (script-src ที่ไม่มี 'unsafe-inline')
-    if (!allowsInlineScript) {
-      for (const match of content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-        const [, attrs, body] = match;
-        if (body.trim() !== '' && !/\bsrc\s*=/i.test(attrs)) {
-          add(file, 'inline-script', 'script-src', `พบ <script> ที่มีเนื้อหาในตัว: ${body.trim().slice(0, 60)}`);
-        }
+    if (!allowsInlineScript && looksLikeHtml) {
+      // จับที่ **แท็กเปิด** ไม่ใช่คู่เปิด-ปิด เพราะ bundler escape `</script>` เป็น `<\/script>`
+      // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
+      // — พิสูจน์ด้วยเทส `HTML fragment ที่ฝังใน JS พร้อม <script>`
+      // ข้อยกเว้น: type ที่ browser ไม่ execute (data block) ไม่ถูก script-src บล็อก
+      const NON_EXECUTABLE_TYPES = /type\s*=\s*["']?(application\/(ld\+)?json|text\/template)/i;
+      for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
+        const attrs = match[1];
+        if (/\bsrc\s*=/i.test(attrs) || NON_EXECUTABLE_TYPES.test(attrs)) continue;
+        add(file, 'inline-script', 'script-src', `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${match[0].slice(0, 60)}`);
       }
       // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
       // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
@@ -218,14 +233,22 @@ function auditBundle(distDir, cspValue) {
     }
 
     // R3/R4 — absolute URL ที่ไม่ได้อยู่ใน policy และไม่ใช่ URL ที่ไม่ถูก fetch
+    //
+    // นับซ้ำแล้วสรุปเป็นรายการเดียวต่อ (ไฟล์ × origin) — ถ้ามีคนตั้ง VITE_API_URL เป็น absolute
+    // URL (ความเสี่ยงข้อ 1 ในเอกสาร = เคสที่ gate นี้มีไว้จับ) origin เดียวจะโผล่หลายสิบครั้ง
+    // ต่อ chunk การพิมพ์ทีละครั้งทำให้คนอ่านเห็นจอเต็มไปด้วยข้อความเดียวกันแทนที่จะเห็นภาพรวม
+    const originCounts = new Map();
     for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
-      const origin = match[0];
+      const origin = match[0].toLowerCase(); // CSP host-source ไม่แยกตัวพิมพ์
       if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin)) continue;
+      originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
+    }
+    for (const [origin, count] of originCounts) {
       add(
         file,
         'external-origin',
         'connect-src / img-src / font-src',
-        `พบ origin ที่ policy ไม่ได้อนุญาต: ${origin} — ถ้าโค้ดโหลดจากที่นี่จริงจะถูกบล็อกหลัง enforce`
+        `พบ origin ที่ policy ไม่ได้อนุญาต: ${origin}${count > 1 ? ` (${count} ครั้งในไฟล์นี้)` : ''} — ถ้าโค้ดโหลดจากที่นี่จริงจะถูกบล็อกหลัง enforce`
       );
     }
   }
