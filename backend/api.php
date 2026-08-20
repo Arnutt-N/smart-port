@@ -112,6 +112,10 @@ $isPublicReadyz = $path[0] === 'readyz' && $method === 'GET';
 // Issue #113: browser ส่ง CSP violation report เอง — ไม่มี JWT/CSRF แนบมาด้วย
 $isPublicCspReport = $path[0] === 'csp-report' && $method === 'POST';
 
+// Issue #113 (R1): endpoint สรุปตัวนับ — ไม่ใช้ JWT เพราะผู้อ่านคือสคริปต์ที่ไม่มีบัญชี
+// ยืนยันตัวตนด้วย shared secret ใน handler แทน (ดู routes/csp_summary.php)
+$isCspSummary = $path[0] === 'csp-report' && ($path[1] ?? '') === 'summary' && $method === 'GET';
+
 // Issue #122: rate limit เส้นทาง public แบบไม่แตะ DB — กัน unauthenticated
 // amplification (readyz ยิง DB ทุกคำขอ, csp-report เขียน log, uploads อ่าน DB ต่อรูป)
 if ($isPublicPhotoAsset) {
@@ -120,10 +124,16 @@ if ($isPublicPhotoAsset) {
     checkRateLimitPublic('readyz', 30, 60);
 } elseif ($isPublicCspReport) {
     checkRateLimitPublic('csp-report', 60, 60);
+} elseif ($isCspSummary) {
+    // Issue #113 code review I3: เข้มกว่าตัวอื่นเพราะ endpoint นี้มี secret ให้เดา แต่ 10/นาที
+    // นี้เป็นแค่ defence-in-depth ไม่ใช่ตัวกัน brute-force ตัวจริง — publicClientIp() อ่าน XFF
+    // hop แรกที่ client ปลอมได้ (มีเทสยืนยันที่ PublicRateLimitTest) ตัวกันจริงคือ entropy ของ
+    // token เอง (ดู CSP_SUMMARY_TOKEN_MIN_LENGTH ใน routes/csp_summary.php)
+    checkRateLimitPublic('csp-summary', 10, 60);
 }
 
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ
-if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && $method !== 'OPTIONS') {
+if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspReport && !$isCspSummary && $method !== 'OPTIONS') {
     if (!$token || !validateJWT($token)) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -226,7 +236,18 @@ switch ($path[0]) {
         break;
 
     case 'csp-report':
-        // Issue #113: รับ CSP violation report จาก browser (report-only phase) — log แล้วทิ้ง
+        // GET /api/csp-report/summary — อ่านสรุปตัวนับ (issue #113)
+        if (($path[1] ?? '') === 'summary') {
+            include_once __DIR__ . '/routes/csp_summary.php';
+            // Issue #113 code review I1: ไม่เรียก tryGetDB() ตรงนี้แล้ว — ของเดิม evaluate
+            // เป็น argument ก่อนเข้า handleCspSummary() เสมอ ทำให้ request ที่ไม่มี token
+            // ก็จุดชนวน DB connect (ขัด invariant "public path ไม่แตะ DB" ของ rate_limit.php)
+            // และถ้า buildSslOptions() throw จะหลุดไปเป็น 500 แทนคำตอบปกติ — handleCspSummary()
+            // เรียก DB factory เอง "หลัง" token ผ่านแล้ว พร้อม try/catch ภายในตัวมันเอง
+            handleCspSummary($method, $_GET);
+            break;
+        }
+        // POST /api/csp-report — รับ violation report จาก browser (report-only phase)
         if ($method !== 'POST') {
             respondMethodNotAllowed();
             break;
@@ -239,7 +260,30 @@ switch ($path[0]) {
             $blocked = parse_url((string) ($body['blocked-uri'] ?? ''), PHP_URL_HOST) ?: 'self';
             // log เฉพาะ directive + host ของ blocked URI — ไม่มี PII
             // Issue #122: sanitize ก่อนเข้า log — ค่ามาจาก body ที่ attacker คุมได้ (กัน CRLF ปลอม log line)
-            error_log('[csp-report] violation directive=' . sanitizeLogValue($directive) . ' blocked-host=' . sanitizeLogValue($blocked));
+            $safeDirective = sanitizeLogValue($directive);
+            $safeBlocked = sanitizeLogValue($blocked);
+            error_log('[csp-report] violation directive=' . $safeDirective . ' blocked-host=' . $safeBlocked);
+            // Issue #113 (R1): เก็บตัวนับรายวันเพื่อให้เกณฑ์ enforce query ได้ — ไม่แทน error_log()
+            // ข้างบน (หลักฐานสองทาง)
+            include_once __DIR__ . '/csp_violations.php';
+            try {
+                // Issue #113 code review I2: tryGetDB() ถูก evaluate เป็น argument ก่อนเข้า
+                // recordCspViolation() จึงอยู่นอก try/catch ภายในฟังก์ชันนั้น — ถ้า
+                // buildSslOptions() (config.php) throw RuntimeException ตอนอ่าน MYSQL_SSL_CA
+                // ไม่ได้ (MYSQL_SSL=true บน TiDB production) exception จะหลุดไปถึง
+                // set_exception_handler กลายเป็น 500 แทน 204 ต้องครอบอีกชั้นตรงนี้เพิ่ม
+                //
+                // Issue #113 code review I3: การเรียก tryGetDB() ใน public path นี้คือ
+                // trade-off ที่รู้ตัวและเลือกแล้ว — backend/middleware/rate_limit.php:162-164
+                // เขียนไว้ว่า public path "ไม่แตะ DB เลย" เพื่อกัน amplification vector ตอน DB
+                // ล่ม (attemptDbConnection() retry 3 ครั้ง คั่น usleep 200ms = กิน worker
+                // ~0.4s ต่อ request) แต่การเก็บตัวนับลง DB คือสิ่งที่ spec ของ issue นี้สั่งไว้
+                // ตรง ๆ และ negative cache ข้าม request ต้องพึ่ง APCu ที่ไม่การันตีว่ามีใน
+                // image นี้ — ต้นทุนถ้าเลือกผิดคือ endpoint ช้าลงตอน DB ล่ม ไม่ใช่ข้อมูลเสียหาย
+                recordCspViolation(tryGetDB(), $safeDirective, $safeBlocked);
+            } catch (Throwable $e) {
+                error_log('[csp-report] persist skipped: ' . $e->getMessage());
+            }
         }
         http_response_code(204);
         break;

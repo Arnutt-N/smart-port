@@ -134,6 +134,16 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'csp-report-selftest-regression'
 }
 
+# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
+Write-Step 'CSP Violation Gate Regression'
+& node --test (Join-Path $Root 'scripts\tests\check-csp-violations.test.mjs')
+if ($LASTEXITCODE -eq 0) {
+  Write-Ok 'csp violation gate regression'
+} else {
+  Write-Fail 'csp violation gate regression'
+  $failed += 'csp-violation-gate-regression'
+}
+
 # ---- 1) Frontend Build & Test ----------------------------------------------
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'
