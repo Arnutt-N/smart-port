@@ -64,27 +64,14 @@ else
   fail 'schema parity'
 fi
 
-step 'Multiplier Validator Regression'
-if node --test "${ROOT}/scripts/tests/validate-multiplier-phase0.test.mjs"; then
-  ok 'multiplier validator regression'
+# รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push และ ci.yml — ไล่ชื่อทีละไฟล์
+# เคยทำให้เทสที่เพิ่มใหม่หลุดจากทางเข้านี้เงียบ ๆ (ไม่มีใครเห็นว่ามันไม่ถูกรัน)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+step 'Script Regressions'
+if node --test "${ROOT}"/scripts/tests/*.test.mjs; then
+  ok 'script regressions'
 else
-  fail 'multiplier validator regression'
-fi
-
-# mock-server regression — ไม่ยิง production จริง (issue #131 Part 2)
-step 'Live Header Smoke Regression'
-if node --test "${ROOT}/scripts/tests/verify-live-headers.test.mjs"; then
-  ok 'live header smoke regression'
-else
-  fail 'live header smoke regression'
-fi
-
-# mock-server regression ของ CSP self-test — ไม่ยิง production จริง (issue #113 R3)
-step 'CSP Report Self-test Regression'
-if node --test "${ROOT}/scripts/tests/csp-report-selftest.test.mjs"; then
-  ok 'csp report self-test regression'
-else
-  fail 'csp report self-test regression'
+  fail 'script regressions'
 fi
 
 # mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)

@@ -35,15 +35,29 @@ CREATE TABLE login_attempts (
     KEY idx_login_attempts_user_time (username, attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Seed admin คนแรก (กัน lock-out) — รหัสผ่านชั่วคราว 'admin123'
--- ต้องเปลี่ยนทันทีหลัง deploy production (must_change_password = 1)
+-- Seed admin คนแรก (กัน lock-out)
+--
+-- คำเตือนด้านความปลอดภัย: รหัสผ่านเริ่มต้นด้านล่างเป็น credential สำหรับ dev/local
+-- เท่านั้น และถือว่าเป็น "ค่าสาธารณะ" เพราะ hash อยู่ใน repo ที่เปิดสาธารณะ
+-- ระบบ production ต้องเปลี่ยนรหัสผ่านบัญชี admin ทันทีหลัง deploy ครั้งแรก
+-- must_change_password = 1 เป็นเพียงสัญญาณให้ frontend พาไปหน้าเปลี่ยนรหัส
+-- มันไม่ได้บล็อกการออก JWT ที่ backend (ดู loginUser() ใน backend/routes/auth.php)
+--
 -- ใช้ upsert เพราะ dump เก่า (export-tidb.sql / reimport-data.sql) seed แถว
 -- (1,'admin') ไว้แล้วทั้งบน local และ TiDB production
 INSERT INTO users (username, password_hash, full_name, role, is_active, must_change_password)
 VALUES ('admin', '$2y$10$Vrl20xAh4dvfwpDt/pWnTOcMuCzjj8353VKy348pb80StKqkENMcm', 'ผู้ดูแลระบบ', 'admin', 1, 1)
 ON DUPLICATE KEY UPDATE
-    password_hash = VALUES(password_hash),
+    -- ตั้งรหัสผ่านให้เฉพาะแถวที่ "ยังไม่มีรหัสใช้งานได้" (dump เก่าที่ hash เป็น NULL/ว่าง)
+    -- ห้ามเขียนทับรหัสที่ผู้ดูแลตั้งเองแล้ว มิฉะนั้นการรัน migration ซ้ำ = รีเซ็ตรหัสผ่าน
+    -- ของ production กลับไปเป็นค่า bootstrap สาธารณะโดยไม่มีใครรู้ตัว
+    --
+    -- ลำดับสำคัญ: must_change_password ต้องอยู่ "ก่อน" password_hash เพราะ MySQL/TiDB
+    -- ประเมิน assignment เรียงซ้ายไปขวา ถ้าสลับลำดับ users.password_hash จะถูกเขียนทับ
+    -- ไปแล้ว เงื่อนไขจะอ่านค่าใหม่และกลายเป็นเท็จเสมอ
+    must_change_password = IF(users.password_hash IS NULL OR users.password_hash = '', VALUES(must_change_password), users.must_change_password),
+    password_hash = IF(users.password_hash IS NULL OR users.password_hash = '', VALUES(password_hash), users.password_hash),
     full_name = VALUES(full_name),
     -- Do not reset role: migration 27 may promote username=admin → superadmin
-    is_active = VALUES(is_active),
-    must_change_password = VALUES(must_change_password);
+    -- is_active = 1 เสมอโดยตั้งใจ — เป็นตัวกัน lock-out (คงพฤติกรรมเดิม)
+    is_active = VALUES(is_active);
