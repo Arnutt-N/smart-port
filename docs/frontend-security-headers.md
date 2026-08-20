@@ -258,13 +258,19 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   และพิมพ์รายชื่อไฟล์ที่ข้ามพร้อมเหตุผลทุกครั้ง
   — กฎผูกกับ directive จริง ไม่ hardcode: inline script/event handler (`script-src`) · `eval(`
   และ `Function(` (`script-src` — **ข้อจำกัดที่รู้ตัว**: indirect eval แบบ `(0,eval)()` regex
-  จับไม่ได้ gate นี้ลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี) · absolute URL นอก allowlist
-  (`connect-src`/`img-src`/`font-src`)
-  · `url()` ภายนอกใน CSS · **ไฟล์ font ใน bundle เมื่อ `font-src` ไม่มี `'self'`** (ความเสี่ยงข้อ 2
+  จับไม่ได้ gate นี้ลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี)
+  · **URL ที่รู้ว่าถูกเรียกจริง** (argument ของ `fetch()` / `axios` / `XHR.open()` ที่เป็น string
+  literal) เทียบกับ **`connect-src` เท่านั้น** — ไม่ใช่ allowlist รวมทุก directive ไม่งั้น origin
+  ที่ policy อนุญาตไว้เพื่อโหลดฟอนต์จะกลายเป็นใบผ่านให้ยิง API (ความเสี่ยงข้อ 1 ด้านบน คือ
+  `VITE_API_URL` แบบ absolute ซึ่งเป็นเคสที่ gate นี้มีไว้จับโดยตรง) · **ข้อจำกัดที่รู้ตัว**:
+  URL ที่ประกอบจากตัวแปร (`fetch(base + path)`) มองไม่เห็น — allowlist รวมยังคุมสตริงลอยอีกชั้น
+  · absolute URL ที่บอกบริบทไม่ได้ เทียบกับ allowlist รวม และรายงาน directive ที่เทียบตาม
+  policy จริง · `url()` ภายนอกใน CSS **รวมรูป protocol-relative `url(//host/…)`**
+  · **ไฟล์ font ใน bundle เมื่อ `font-src` ไม่มี `'self'`** (ความเสี่ยงข้อ 2
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (18 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (35 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
 - ตรวจจากภายนอกหลัง deploy:
   ```bash

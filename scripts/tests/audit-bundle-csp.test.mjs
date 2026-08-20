@@ -435,3 +435,127 @@ function runCli(args) {
     });
   });
 }
+
+// ── รอบรีวิวสองแกน (2026-08-20) ─────────────────────────────────────────────
+// เทสด้านล่างมาจาก finding ที่พิสูจน์ด้วยการรันจริง ไม่ใช่การอ่านโค้ดอย่างเดียว
+// ทุกตัวต้อง "แดง" บนโค้ดก่อนแก้ ถ้าตัวไหนเขียวตั้งแต่แรกแปลว่าเทสนั้นไม่มีค่า
+
+test('URL ที่ถูก fetch ต้องเทียบกับ connect-src ไม่ใช่ allowlist รวมทุก directive (review C1)', () => {
+  // ของเดิม allowedOriginsFrom() ยุบทุก directive เป็น Set เดียว → origin ที่ policy
+  // อนุญาตไว้เพื่อ "โหลดฟอนต์" กลายเป็นใบผ่านให้ "ยิง API" ด้วย ทั้งที่ connect-src เป็น
+  // 'self' อย่างเดียว นี่คือความเสี่ยงข้อ 1 ในเอกสาร (VITE_API_URL แบบ absolute) ที่ gate
+  // นี้มีไว้จับโดยตรง — pass ตรงนี้คือ false clean ไม่ใช่ bundle สะอาด
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/api.js': 'export const load = () => fetch("https://fonts.gstatic.com/v1/records");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const hit = findings.find((f) => /fonts\.gstatic\.com/.test(f.detail));
+    assert.ok(hit, `ต้องจับได้ เพราะ connect-src ไม่มี gstatic: ${JSON.stringify(findings)}`);
+    assert.equal(hit.directive, 'connect-src', 'ต้องผูกกับ directive ที่บล็อกมันจริง');
+  } finally {
+    cleanup();
+  }
+});
+
+test('URL ที่ policy อนุญาตใน connect-src ต้องผ่านแม้ถูก fetch (กฎมาจาก policy ไม่ใช่รายชื่อ)', () => {
+  // คู่ตรงข้ามของเทสบน — กันไม่ให้แก้ C1 แล้วกลายเป็นฟ้องทุก fetch ที่เป็น absolute
+  const policy = POLICY.replace("connect-src 'self'", "connect-src 'self' https://api.example.com");
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/api.js': 'fetch("https://api.example.com/v1/records");',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('finding ของ origin ต้องระบุ directive ตาม policy จริง ไม่ใช่รายการที่พิมพ์ค้างไว้', () => {
+  // ของเดิม hardcode 'connect-src / img-src / font-src' ซึ่งตกหล่น style-src ที่ policy มีจริง
+  // ขัด Global Constraint ของแผน: "ต้องบอก ไฟล์ + สิ่งที่เจอ + directive ไหนที่จะบล็อกมัน"
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/bg.css': '.hero{background:url(https://cdn.example.com/bg.png)}',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const hit = findings.find((f) => /cdn\.example\.com/.test(f.detail));
+    assert.ok(hit, JSON.stringify(findings));
+    assert.match(hit.directive, /style-src/, `directive ที่รายงานต้องมาจาก policy: ${hit.directive}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('chunk ที่มีทั้ง HTML fragment และโค้ด JS ปกติ ต้องไม่ให้ false positive (review C2)', () => {
+  // c8bc7cc แก้ M-A ด้วย guard ระดับ **ไฟล์** — พอ chunk เดียวมีสตริง `<script` ปนอยู่
+  // ทั้งไฟล์ถูกพลิกเป็นโหมด HTML แล้ว ` once = ` / ` only = ` ก็ถูกจับผิดกลับมาเหมือนเดิม
+  // เทส M-A เดิมใช้ไฟล์ที่ไม่มี `<script` จึงมองไม่เห็นช่องนี้
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/mixed.js': 'const tpl = "<script>window.x=1<\\/script>";\nlet once = true;\nconst only = 1;\nel.onload = fn;\n',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const noise = findings.filter((f) => f.rule === 'inline-event-handler');
+    assert.deepEqual(noise, [], `โค้ด JS ปกติต้องไม่ถูกจับเป็น handler: ${JSON.stringify(noise)}`);
+    assert.ok(
+      findings.some((f) => f.rule === 'inline-script'),
+      'แต่ <script> ที่ฝังอยู่จริงต้องยังถูกจับ'
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('<script></script> ที่ไม่มีเนื้อหาต้องไม่ถูกจับ (review C3)', () => {
+  // spec R1 เขียนว่า "ไม่มี inline <script> **ที่มีเนื้อหา**" — แท็กว่างเปล่า browser ไม่บล็อก
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><head><script></script><script>  </script></head><body></body></html>',
+    'assets/index-abc.js': 'const a=1;export{a};',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('url() แบบ protocol-relative ใน CSS ต้องถูกจับ ไม่ใช่รอดเพราะไม่มี scheme', () => {
+  // regex เดิมบังคับ `https?://` → `url(//cdn.example.com/x)` ซึ่ง browser โหลดจริง
+  // (สืบ scheme จากหน้าเว็บ) รอดไปเงียบ ๆ ทั้งที่เอกสารบอกว่าครอบ url() ภายนอกแล้ว
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/bg.css': '.hero{background:url(//cdn.example.com/bg.png)}',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(
+      findings.some((f) => /cdn\.example\.com/.test(f.detail)),
+      JSON.stringify(findings)
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('ตัวเลขจำนวนเทสในเอกสารต้องตรงกับของจริง (anti-drift — เคยผิดมาแล้วสองรอบ)', () => {
+  // เอกสารเคยอ้างว่าตรวจ "6 จาก ~24 chunk" แล้วผิด · เขียน "18 เทส" แล้วผิดอีก ทั้งที่คอมมิต
+  // ที่ใส่ตัวเลขนั้นชื่อว่า "แก้เอกสารที่อ้างตัวเลขต่ำกว่าจริง" — ตัวเลขที่ต้องพึ่งคนอัปเดตเอง
+  // จะเพี้ยนเสมอ กฎของโปรเจกต์คือ "ไม่รู้" ต้องไม่กลายเป็น "สะอาด" ตัวเลขที่ตรวจไม่ได้ก็เช่นกัน
+  const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const actual = (self.match(/^test\(/gm) ?? []).length;
+  const doc = readFileSync(resolve(ROOT, 'docs', 'frontend-security-headers.md'), 'utf8');
+  const claimed = doc.match(/audit-bundle-csp\.test\.mjs`\s*\((\d+)\s*เทส/);
+  assert.ok(claimed, 'ไม่พบตัวเลขจำนวนเทสในเอกสาร — ถ้าเปลี่ยนรูปประโยคต้องแก้เทสนี้ด้วย');
+  assert.equal(
+    Number(claimed[1]),
+    actual,
+    `docs/frontend-security-headers.md เขียนว่า ${claimed[1]} เทส แต่ไฟล์นี้มีจริง ${actual} เทส`
+  );
+});

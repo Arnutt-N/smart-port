@@ -5,6 +5,7 @@
 # Local gates:
 #   0) Fast gates: schema parity + multiplier validator regression
 #   1) Frontend:  npm ci (optional) + vitest + build
+#   1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
 #   2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
 #   3) Backend:   bash backend/tests/run.sh
 #   4) Docker:    build frontend + backend images (no push)
@@ -32,7 +33,9 @@ FAILED=()
 STARTED=$(date +%s)
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \?//'
+  # อ่านบล็อกคอมเมนต์หัวไฟล์ทั้งก้อนจนถึงบรรทัดแรกที่ไม่ใช่คอมเมนต์ — ไม่ผูกกับเลขบรรทัด
+  # ตายตัว เพราะช่วง '2,18p' เดิมตัดบรรทัด --help หายทันทีที่มีคนเพิ่ม gate ในหัวไฟล์
+  awk 'NR>1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "$0"
   exit 0
 }
 

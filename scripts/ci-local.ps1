@@ -7,6 +7,7 @@
   Local gates:
     0) Fast gates: schema parity + multiplier validator regression
     1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run build
+    1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
     2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
     3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
     4) Docker:    build frontend + backend images (no push)
