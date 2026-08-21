@@ -736,3 +736,93 @@ test('แท็กที่ quote ปิดไม่ครบต้องไม�
     cleanup();
   }
 });
+
+// ── รีวิวรอบที่สี่ (code-reviewer persona) บนคอมมิต c98b9aa ────────────────────
+// critical: guard `quotesBalanced` ที่เพิ่มเข้ามาเพื่อปิดช่องหนึ่ง เปิดอีกช่องหนึ่งแทน
+// เพราะกฎ attribute พึ่งขอบเขตของแท็ก ซึ่ง `>` ในค่า attribute ทำให้ขาดกลางคัน
+
+test('`>` ในค่า attribute ต้องไม่ทำให้ URL หลังจากนั้นหลุด (review critical)', () => {
+  // regex แท็ก `/<[a-zA-Z][^>]*>/` ตัดที่ `>` ตัวแรก — `src` จึงอยู่นอกช่วงที่ถูกตรวจทั้งดุ้น
+  // แล้ว guard quote-ไม่สมดุลก็สั่ง continue ข้ามไปอีก = fail-open สองชั้น
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><img alt="a>b" src="//evil1.example/x.png"></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /evil1\.example/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('การกำหนดค่า .src ในโค้ด JS ก็ทำให้เกิด request จริง ต้องถูกจับ', () => {
+  // เลิกพึ่งขอบเขตแท็กแล้วจับที่คู่ชื่อ-ค่าแทน จึงครอบ `el.src = "//host"` ซึ่งโหลดจริงด้วย
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/img.js': 'const el=new Image();el.src = "//evil2.example/pixel.png";',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /evil2\.example/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('data-src ต้องไม่ถูกอ่านเป็น src (lookbehind ไม่ใช่ \\b) — กันบั๊กเดิมกลับมา', () => {
+  // `\b` ถือว่า `-` เป็นขอบเขตของคำ ถ้าใช้ `\b` แทน lookbehind บั๊ก review #3 จะกลับมาทันที
+  // ในรูปใหม่ · `data-src` ไม่ใช่ attribute ที่ browser โหลดเอง จึงต้องไม่ถูกฟ้อง
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><div data-src="//lazy.example/x.png"></div></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('srcset ที่มี data URI ต้องไม่ถูกแตกจนเกิด origin ปลอม', () => {
+  // data URI มี comma อยู่ในตัว การ split(",") จึงได้ชิ้นส่วน base64 ปนมา
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><img srcset="data:image/png;base64,AA//BB 1x, //cdn9.example/b.png 2x"></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /cdn9\.example/.test(f.detail)), `ตัวจริงต้องถูกจับ: ${JSON.stringify(findings)}`);
+    assert.ok(!findings.some((f) => /AA\/\/BB|https:\/\/aa/i.test(f.detail)), `base64 ต้องไม่กลายเป็น origin: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('URL ที่ scheme ถูกแต่ host หายต้องไม่กลายเป็น origin ปลอม', () => {
+  // guard `///` เดิมเขียนผูกกับ https จึงไม่ครอบ http · ทั้งสองรูปต้องคืน null เงียบ ๆ
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/odd.js': 'fetch("http:///x");fetch("https:///y");fetch("///z");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('href ของ <a> ถูกฟ้องด้วย — เป็นการตัดสินใจ ไม่ใช่ความพลาด', () => {
+  // static analysis แยก `<a href>` (navigate — CSP ไม่คุม) จาก `<link rel=stylesheet href>`
+  // (subresource — style-src คุม) ไม่ได้ · เลือกฟ้องไว้ก่อนตามหลักการของ issue นี้ และมี
+  // ทางออกคือ NON_FETCHED_ORIGINS ที่บังคับให้เขียนเหตุผลกำกับ · เทสนี้ล็อกพฤติกรรมไว้
+  // ให้เป็นสิ่งที่เลือก ไม่ใช่สิ่งที่หลุด — ถ้าวันหนึ่งตัดสินใจกลับ ต้องมาแก้เทสนี้โดยตั้งใจ
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><a href="//docs.example/guide">x</a></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /docs\.example/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});

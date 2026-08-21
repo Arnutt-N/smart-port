@@ -276,7 +276,7 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (45 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (51 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
 - ตรวจจากภายนอกหลัง deploy:
   ```bash

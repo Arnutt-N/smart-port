@@ -162,10 +162,23 @@ const CONNECT_CALL_PATTERNS = [
 const URL_FUNCTION_ARG = /url\(\s*["']?([^"')]+)/gi;
 
 /**
- * attribute ที่ค่าเป็น URL ซึ่ง browser โหลดจริง จึงอยู่ใต้ directive ของ CSP
- * `srcset` แยกด้วย comma และมี descriptor ต่อท้าย จึงถูกแตกก่อนเทียบ
+ * การกำหนดค่าให้ attribute (หรือ property) ที่เป็น URL ซึ่ง browser โหลดจริง
+ *
+ * จับที่ **คู่ชื่อ-ค่า** ไม่ใช่ขอบเขตของแท็ก เพราะ regex ที่อ่านแท็กขาดกลางคันทันทีที่มี `>`
+ * อยู่ในค่า attribute — `<img alt="a>b" src="//host">` ทำให้ `src` อยู่นอกช่วงที่ถูกตรวจทั้งดุ้น
+ * แล้ว guard quote-ไม่-สมดุลก็สั่งข้ามแท็กนั้นซ้ำอีกชั้น (fail-open สองชั้น จาก code review)
+ * รูปนี้ยังครอบ `el.src = "//host"` ในโค้ด JS ซึ่งทำให้เกิด request จริงเหมือนกัน
+ *
+ * ใช้ lookbehind ไม่ใช่ `\b` เพราะ `\b` ถือว่า `-` เป็นขอบเขตของคำ `data-src=` จึงถูกอ่านเป็น
+ * `src=` ซึ่งคือบั๊กเดิมของ review #3 · เรียงชื่อยาวก่อนสั้น เพราะ alternation เลือกตัวแรกที่ match
+ *
+ * **ข้อจำกัดที่รู้ตัว**: `href` ของ `<a>` (การ navigate ซึ่ง CSP ไม่คุม) กับของ
+ * `<link rel="stylesheet">` (subresource ซึ่ง style-src คุม) แยกจากกันไม่ได้ด้วย static
+ * analysis — เลือกฟ้องไว้ก่อนตามหลักการของ issue นี้ ทางออกคือใส่ origin นั้นใน
+ * NON_FETCHED_ORIGINS พร้อมเหตุผล (มีเทสล็อกไว้ว่านี่คือการตัดสินใจ ไม่ใช่ความพลาด)
  */
-const URL_ATTRIBUTES = new Set(['src', 'href', 'srcset', 'poster', 'data', 'action', 'formaction']);
+const URL_ATTRIBUTE_ASSIGNMENT =
+  /(?<![-\w])(?:formaction|srcset|poster|action|href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi;
 
 /**
  * origin ของ URL ที่พบใน bundle — คืน `null` เมื่อเป็น path สัมพัทธ์ (อยู่ใต้ 'self' อยู่แล้ว)
@@ -180,15 +193,18 @@ const URL_ATTRIBUTES = new Set(['src', 'href', 'srcset', 'poster', 'data', 'acti
  * = ไม่มีกฎไหนครอบ ซึ่งเป็นช่องคลาสเดียวกับที่ฟังก์ชันนี้ถูกสร้างมาปิดพอดี
  *
  * **ข้อจำกัดที่รู้ตัว**: จับ `//host` เฉพาะที่มีบริบทบอกว่าเป็น URL (argument ของ fetch/XHR,
- * ใน `url()`, หรือค่าของ attribute ใน URL_ATTRIBUTES) · สตริง `//host` ลอย ๆ ไม่ถูกตรวจ
+ * ใน `url()`, หรือค่าที่ถูกกำหนดให้ attribute/property ตาม URL_ATTRIBUTE_ASSIGNMENT) · สตริง `//host` ลอย ๆ ไม่ถูกตรวจ
  * เพราะการไล่จับทุกที่ให้ false positive กับโค้ดปกติ (วัดกับ build จริงแล้วได้ `//i.test`
  * จาก regex literal ที่ bundler ลากมา)
  */
 function originOf(url) {
   const trimmed = url.trim();
   if (!/^(?:https?:)?\/\//i.test(trimmed)) return null; // path สัมพัทธ์ หรือ scheme อื่น
+  // `///x` มี scheme ถูกแต่ไม่มี host — URL parser **ไม่ throw** แต่ยกส่วนแรกของ path ขึ้นมา
+  // เป็น host แทน (`new URL("https:///z").origin === "https://z"`) จึงต้องตัดทิ้งเองก่อน
+  // ไม่งั้น gate จะฟ้อง origin ที่ไม่มีอยู่จริง · guard เดิมผูกกับ https จึงไม่ครอบรูป http
+  if (/^(?:https?:)?\/{3}/i.test(trimmed)) return null;
   const absolute = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
-  if (/^https:\/\/[/\s]/.test(absolute)) return null; // `///…` ไม่ใช่ host ที่โหลดได้
   try {
     return new URL(absolute).origin.toLowerCase(); // CSP host-source ไม่แยกตัวพิมพ์
   } catch {
@@ -249,6 +265,137 @@ function walk(dir) {
   return out;
 }
 
+// ── กฎแต่ละข้อเป็นฟังก์ชันบริสุทธิ์ ─────────────────────────────────────────────
+// คืน finding ที่ยัง **ไม่มีชื่อไฟล์** ให้ผู้เรียกเติม — แยกออกมาเพราะตอนรวมอยู่ในลูปเดียว
+// ยาว 167 บรรทัด ทิศทางของ `continue` แต่ละตัวตรวจด้วยตาไม่ไหว จน guard ที่เพิ่มเข้าไป
+// เพื่อปิดช่องหนึ่งกลับเปิดอีกช่องโดยไม่มีใครเห็น (code review รอบที่สี่)
+
+/**
+ * R1 — inline `<script>` ที่มีเนื้อหา และ inline event handler ที่เป็น attribute ในแท็ก
+ *
+ * ใช้กับ **ทุกไฟล์ที่อ่าน** แต่ผูกกับ**รูปทรงของ markup ไม่ใช่ชนิดไฟล์** — CSP บล็อก handler
+ * ที่เขียนเป็น attribute ใน tag เท่านั้น ส่วน `el.onclick = fn` ในไฟล์ JS เป็นการ assign
+ * property ซึ่ง **CSP ไม่บล็อก** (สคริปต์ตัวนั้นผ่าน script-src มาแล้ว) การยิง regex ใส่ทั้งไฟล์
+ * จึงผิดทั้งเชิงเสียงรบกวนและเชิงความหมาย — ` once = true` เคยถูกจับเป็น handler (review M-A)
+ *
+ * guard เดิมแก้ด้วยการเดา "ไฟล์นี้เป็น HTML ไหม" ซึ่งพังทันทีที่ chunk เดียวมีทั้ง HTML
+ * fragment และโค้ดปกติ (review C2) ตอนนี้จำกัดขอบเขตไว้ใน **ช่วงแท็กเปิด** ซึ่งเป็นที่เดียว
+ * ที่ inline handler อยู่ได้จริง จึงไม่ต้องเดาชนิดไฟล์อีก
+ */
+function inlineScriptFindings(content) {
+  const found = [];
+  // จับที่ **แท็กเปิด** ไม่ใช่คู่เปิด-ปิด เพราะ bundler escape `</script>` เป็น `<\/script>`
+  // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
+  for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
+    // เชื่อผลการแตก attribute ได้ก็ต่อเมื่อ quote ปิดครบ ไม่งั้นตรวจต่อ (fail-closed)
+    const attrs = quotesBalanced(match[1]) ? parseAttributes(match[1]) : new Map();
+    if (attrs.has('src')) continue;
+    if (isNonExecutableType(attrs.get('type'))) continue;
+    // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
+    // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
+    const after = content.slice(match.index + match[0].length);
+    const closeAt = after.search(/<\\?\/script\s*>/i);
+    if (closeAt !== -1 && after.slice(0, closeAt).trim() === '') continue;
+    found.push({ rule: 'inline-script', directive: 'script-src', detail: `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${match[0].slice(0, 60)}` });
+  }
+  // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
+  // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
+  for (const tag of content.matchAll(/<[a-zA-Z][^>]*>/g)) {
+    for (const match of tag[0].matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
+      found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${match[0].trim()} ใน ${tag[0].slice(0, 40)}` });
+    }
+  }
+  return found;
+}
+
+/**
+ * R2 — eval / Function constructor
+ *
+ * ครอบ `Function(` ที่ไม่มี `new` ด้วย เพราะ `Function("return this")()` เป็นสำนวนมาตรฐาน
+ * ของ polyfill ที่ bundler ลากติดมาบ่อยกว่า `new Function(` มาก (review I1) · ใช้กับทุกไฟล์
+ * ที่อ่าน ไม่ผูกกับนามสกุล — `eval(` ใน .html หรือไฟล์ไม่มีนามสกุลอันตรายเท่ากับใน .js
+ *
+ * **ข้อจำกัดที่รู้ตัว**: indirect eval (`(0,eval)(...)`, `window["eval"](...)`) และ
+ * `setTimeout("code")` regex จับไม่ได้โดยธรรมชาติ — ลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี
+ */
+function dynamicCodeFindings(content) {
+  const found = [];
+  for (const pattern of [/\beval\s*\(/g, /\b(?:new\s+)?Function\s*\(/g]) {
+    for (const match of content.matchAll(pattern)) {
+      found.push({ rule: 'dynamic-code', directive: 'script-src', detail: `พบการสร้างโค้ดตอน runtime: ${match[0].trim()}` });
+    }
+  }
+  return found;
+}
+
+/**
+ * R3/R4 — origin ภายนอกที่ policy ไม่ได้อนุญาต
+ *
+ * แยกสองระดับ: URL ที่ static analysis **รู้บริบทแล้ว** ว่าเป็น request เทียบกับ `connect-src`
+ * อย่างเดียว (review C1 — ถ้าใช้ allowlist รวม origin ที่อนุญาตไว้เพื่อโหลดฟอนต์จะกลายเป็น
+ * ใบผ่านให้ยิง API) ส่วน URL ที่บอกบริบทไม่ได้ใช้ allowlist รวมตามเดิม
+ *
+ * นับซ้ำแล้วสรุปเป็นรายการเดียวต่อ origin — ถ้ามีคนตั้ง VITE_API_URL เป็น absolute URL
+ * (เคสที่ gate นี้มีไว้จับ) origin เดียวจะโผล่หลายสิบครั้งต่อ chunk การพิมพ์ทีละครั้ง
+ * ทำให้คนอ่านเห็นจอเต็มไปด้วยข้อความเดียวกันแทนที่จะเห็นภาพรวม (review M-B)
+ */
+function externalOriginFindings(content, { policy, connectOrigins, allowedOrigins, consultedDirectives }) {
+  const found = [];
+  const reported = new Set(); // origin ที่ฟ้องด้วย connect-src ไปแล้ว — กันฟ้องซ้ำคนละ directive
+  for (const pattern of CONNECT_CALL_PATTERNS) {
+    for (const match of content.matchAll(pattern)) {
+      const origin = originOf(match[1]); // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว
+      if (origin === null) continue;
+      if (connectOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
+      reported.add(origin);
+      found.push({
+        rule: 'external-origin',
+        directive: 'connect-src',
+        detail: `พบการเรียกข้อมูลไป ${origin} แต่ connect-src อนุญาตแค่ ${(policy.get('connect-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'} — จะถูกบล็อกหลัง enforce`,
+      });
+    }
+  }
+
+  const originCounts = new Map();
+  const countOrigin = (origin) => {
+    if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) return;
+    originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
+  };
+  for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
+    countOrigin(match[0].toLowerCase()); // CSP host-source ไม่แยกตัวพิมพ์
+  }
+
+  // สองกฎด้านล่างเก็บ **เฉพาะรูป protocol-relative** เพราะรูปเต็มถูก regex ด้านบนนับไปแล้ว
+  // ถ้าไม่กรอง origin เดียวจะถูกนับสองรอบ แล้วจำนวนครั้งในข้อความ error ผิดเป็นเท่าตัว
+  // (flag `i` ของ URL_FUNCTION_ARG ทำให้ `new URL("https://…")` ในไฟล์ JS เข้าข่ายด้วย)
+  const countIfProtocolRelative = (raw) => {
+    if (!isProtocolRelative(raw)) return;
+    const origin = originOf(raw);
+    if (origin !== null) countOrigin(origin);
+  };
+
+  // `url(…)` ในทุกไฟล์ ไม่ใช่เฉพาะ .css — `<style>` ใน HTML และ CSS-in-JS โหลดจริงเหมือนกัน
+  for (const match of content.matchAll(URL_FUNCTION_ARG)) countIfProtocolRelative(match[1]);
+
+  // attribute/property ที่ค่าเป็น URL — `<img src="//host">` คือบริบทที่บอกว่าเป็น URL
+  // ชัดกว่า url() ด้วยซ้ำ · จับที่คู่ชื่อ-ค่า ไม่พึ่งขอบเขตแท็ก (ดู URL_ATTRIBUTE_ASSIGNMENT)
+  for (const match of content.matchAll(URL_ATTRIBUTE_ASSIGNMENT)) {
+    const value = match[1] ?? match[2] ?? match[3] ?? '';
+    // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว · ชิ้นส่วน base64
+    // ของ data URI ที่ถูกแตกมาด้วยจะตกไปเองเพราะไม่ได้ขึ้นต้นด้วย `//`
+    for (const entry of value.split(',')) countIfProtocolRelative(entry.trim().split(/\s+/)[0] ?? '');
+  }
+
+  for (const [origin, count] of originCounts) {
+    found.push({
+      rule: 'external-origin',
+      directive: consultedDirectives,
+      detail: `พบ origin ที่ policy ไม่ได้อนุญาต: ${origin}${count > 1 ? ` (${count} ครั้งในไฟล์นี้)` : ''} — ถ้าโค้ดโหลดจากที่นี่จริงจะถูกบล็อกหลัง enforce`,
+    });
+  }
+  return found;
+}
+
 /**
  * ตรวจ build output เทียบกับ policy
  *
@@ -273,6 +420,8 @@ function auditBundle(distDir, cspValue) {
   const connectOrigins = policyOrigins(policy.get('connect-src'));
   // directive ที่รายงานต้องสะท้อน policy จริง แก้ policy แล้วข้อความตามเอง
   const consultedDirectives = FETCH_DIRECTIVES.filter((d) => policy.has(d)).join(' / ') || 'default-src';
+  // สี่ค่านี้เดินทางด้วยกันเสมอในกฎ R3/R4 จึงมัดเป็นก้อนเดียว แทนที่จะส่งทีละตัว
+  const originContext = { policy, connectOrigins, allowedOrigins, consultedDirectives };
   const allowsInlineScript = hasSource(policy, 'script-src', "'unsafe-inline'");
   const allowsDynamicCode = hasSource(policy, 'script-src', "'unsafe-eval'");
   const allowsSelfFont = hasSource(policy, 'font-src', "'self'");
@@ -308,121 +457,11 @@ function auditBundle(distDir, cspValue) {
     inspected++;
     const content = readFileSync(file, 'utf8');
 
-    // R2 (eval/Function) ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ผูกกับนามสกุล — `eval(` ใน .html หรือ
-    // ไฟล์ไม่มีนามสกุล อันตรายเท่ากับใน .js และการผูกกฎกับนามสกุลคือต้นเหตุของ C1
-    //
-    // R1 (inline script/handler) ก็ใช้กับทุกไฟล์เช่นกัน แต่**ผูกกับรูปทรงของ markup ไม่ใช่
-    // ชนิดไฟล์** — CSP บล็อก handler ที่เขียนเป็น attribute ใน tag เท่านั้น ส่วน
-    // `el.onclick = fn` ในไฟล์ JS เป็นการ assign property ซึ่ง **CSP ไม่บล็อก**
-    // (สคริปต์ตัวนั้นผ่าน script-src มาแล้ว) การยิง regex ใส่ทั้งไฟล์จึงผิดทั้งเชิงเสียงรบกวน
-    // และเชิงความหมาย — ` once = true` / ` only = 1` เคยถูกจับเป็น handler (code review M-A)
-    //
-    // guard เดิมแก้ด้วยการเดา "ไฟล์นี้เป็น HTML ไหม" ซึ่งพังทันทีที่ chunk เดียวมีทั้ง HTML
-    // fragment และโค้ดปกติ — พอมีสตริง `<script` ปนอยู่ ทั้งไฟล์ถูกพลิกเป็นโหมด HTML แล้ว
-    // false positive เดิมก็กลับมา (review C2) ตอนนี้จำกัดขอบเขตไว้ใน **ช่วงแท็กเปิด**
-    // ซึ่งเป็นที่เดียวที่ inline handler อยู่ได้จริง จึงไม่ต้องเดาชนิดไฟล์อีก
-    if (!allowsInlineScript) {
-      // จับที่ **แท็กเปิด** ไม่ใช่คู่เปิด-ปิด เพราะ bundler escape `</script>` เป็น `<\/script>`
-      // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
-      // — พิสูจน์ด้วยเทส `HTML fragment ที่ฝังใน JS พร้อม <script>`
-      for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
-        // เชื่อผลการแตก attribute ได้ก็ต่อเมื่อ quote ปิดครบ ไม่งั้นตรวจต่อ (fail-closed)
-        const attrs = quotesBalanced(match[1]) ? parseAttributes(match[1]) : new Map();
-        if (attrs.has('src')) continue;
-        if (isNonExecutableType(attrs.get('type'))) continue;
-        // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
-        // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
-        const after = content.slice(match.index + match[0].length);
-        const closeAt = after.search(/<\\?\/script\s*>/i);
-        if (closeAt !== -1 && after.slice(0, closeAt).trim() === '') continue;
-        add(file, 'inline-script', 'script-src', `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${match[0].slice(0, 60)}`);
-      }
-      // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
-      // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
-      for (const tag of content.matchAll(/<[a-zA-Z][^>]*>/g)) {
-        for (const match of tag[0].matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
-          add(file, 'inline-event-handler', 'script-src', `พบ inline event handler: ${match[0].trim()} ใน ${tag[0].slice(0, 40)}`);
-        }
-      }
-    }
-
-    // R2 — eval / Function constructor (script-src ที่ไม่มี 'unsafe-eval')
-    // ครอบ `Function(` ที่ไม่มี `new` ด้วย เพราะ `Function("return this")()` เป็นสำนวน
-    // มาตรฐานของ polyfill ที่ bundler ลากติดมาบ่อยกว่า `new Function(` มาก (code review I1)
-    // **ข้อจำกัดที่รู้ตัว**: indirect eval (`(0,eval)(...)`, `window["eval"](...)`) และ
-    // `setTimeout("code")` regex จับไม่ได้โดยธรรมชาติ — gate นี้จึงลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี
-    if (!allowsDynamicCode) {
-      for (const pattern of [/\beval\s*\(/g, /\b(?:new\s+)?Function\s*\(/g]) {
-        for (const match of content.matchAll(pattern)) {
-          add(file, 'dynamic-code', 'script-src', `พบการสร้างโค้ดตอน runtime: ${match[0].trim()}`);
-        }
-      }
-    }
-
-    // R3/R4 — absolute URL ที่ไม่ได้อยู่ใน policy และไม่ใช่ URL ที่ไม่ถูก fetch
-    //
-    // นับซ้ำแล้วสรุปเป็นรายการเดียวต่อ (ไฟล์ × origin) — ถ้ามีคนตั้ง VITE_API_URL เป็น absolute
-    // URL (ความเสี่ยงข้อ 1 ในเอกสาร = เคสที่ gate นี้มีไว้จับ) origin เดียวจะโผล่หลายสิบครั้ง
-    // ต่อ chunk การพิมพ์ทีละครั้งทำให้คนอ่านเห็นจอเต็มไปด้วยข้อความเดียวกันแทนที่จะเห็นภาพรวม
-    // R3a — URL ที่ static analysis **รู้บริบทแล้ว** ว่าเป็น request ต้องเทียบกับ connect-src
-    // อย่างเดียว ไม่ใช่ allowlist รวมทุก directive (review C1) · ตรวจก่อนกฎรวม แล้วจำไว้ว่า
-    // origin ไหนรายงานไปแล้ว เพื่อไม่ให้ปัญหาเดียวถูกฟ้องสองครั้งด้วยคนละ directive
-    const reported = new Set();
-    for (const pattern of CONNECT_CALL_PATTERNS) {
-      for (const match of content.matchAll(pattern)) {
-        // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว · `//host/…` ไม่นับเป็นสัมพัทธ์
-        const origin = originOf(match[1]);
-        if (origin === null) continue;
-        if (connectOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
-        reported.add(origin);
-        add(
-          file,
-          'external-origin',
-          'connect-src',
-          `พบการเรียกข้อมูลไป ${origin} แต่ connect-src อนุญาตแค่ ${(policy.get('connect-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'} — จะถูกบล็อกหลัง enforce`
-        );
-      }
-    }
-
-    // R3b/R4 — URL ที่เหลือซึ่งบอกบริบทไม่ได้ เทียบกับ allowlist รวมตามเดิม
-    const originCounts = new Map();
-    const countOrigin = (origin) => {
-      if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) return;
-      originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
-    };
-    for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
-      countOrigin(match[0].toLowerCase()); // CSP host-source ไม่แยกตัวพิมพ์
-    }
-    // สองกฎด้านล่างเก็บ **เฉพาะรูป protocol-relative** เพราะรูปเต็มถูก regex ด้านบนนับไปแล้ว
-    // ถ้าไม่กรอง origin เดียวจะถูกนับสองรอบ แล้วจำนวนครั้งในข้อความ error ผิดเป็นเท่าตัว
-    // (flag `i` ของ URL_FUNCTION_ARG ทำให้ `new URL("https://…")` ในไฟล์ JS เข้าข่ายด้วย)
-    const countIfProtocolRelative = (raw) => {
-      if (!isProtocolRelative(raw)) return;
-      const origin = originOf(raw);
-      if (origin !== null) countOrigin(origin);
-    };
-
-    // `url(…)` ในทุกไฟล์ ไม่ใช่เฉพาะ .css — `<style>` ใน HTML และ CSS-in-JS โหลดจริงเหมือนกัน
-    for (const match of content.matchAll(URL_FUNCTION_ARG)) countIfProtocolRelative(match[1]);
-
-    // attribute ที่ค่าเป็น URL — `<img src="//host">` / `<link href="//host">` คือบริบทที่บอกว่า
-    // เป็น URL ชัดกว่า url() ด้วยซ้ำ การไม่ตรวจทำให้ข้อจำกัดที่ประกาศไว้บรรยายของจริงผิด
-    for (const tag of content.matchAll(/<[a-zA-Z][^>]*>/g)) {
-      if (!quotesBalanced(tag[0])) continue; // แยก attribute ไม่ได้ — กฎรวมยังคุมสตริงอยู่
-      for (const [name, value] of parseAttributes(tag[0].replace(/^<[a-zA-Z][a-zA-Z0-9-]*/, ''))) {
-        if (!URL_ATTRIBUTES.has(name)) continue;
-        // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว
-        for (const candidate of value.split(',')) countIfProtocolRelative(candidate.trim().split(/\s+/)[0] ?? '');
-      }
-    }
-    for (const [origin, count] of originCounts) {
-      add(
-        file,
-        'external-origin',
-        consultedDirectives,
-        `พบ origin ที่ policy ไม่ได้อนุญาต: ${origin}${count > 1 ? ` (${count} ครั้งในไฟล์นี้)` : ''} — ถ้าโค้ดโหลดจากที่นี่จริงจะถูกบล็อกหลัง enforce`
-      );
-    }
+    // กฎแต่ละข้ออยู่ในฟังก์ชันของตัวเอง (ดูด้านบน) — ที่นี่เหลือแค่ประกอบผลเข้ากับชื่อไฟล์
+    const push = (list) => { for (const f of list) add(file, f.rule, f.directive, f.detail); };
+    if (!allowsInlineScript) push(inlineScriptFindings(content));
+    if (!allowsDynamicCode) push(dynamicCodeFindings(content));
+    push(externalOriginFindings(content, originContext));
   }
 
   return { findings, inspected, skipped, scanned: files.length };
