@@ -216,12 +216,57 @@ function originOf(url) {
 const isProtocolRelative = (url) => url.trim().startsWith('//');
 
 /**
- * quote ที่ปิดไม่ครบแปลว่าแยก attribute ไม่ได้จริง — `<script data-x=" src=y>` จะถูกอ่านว่ามี
- * `src` ทั้งที่ไม่มี แล้วแท็กถูกข้ามทั้งอัน (fail-open รูปเดียวกับ review #3)
- * กรณีนี้ต้อง **ไม่เชื่อผลการแตก** แล้วตรวจต่อ ไม่ใช่ข้าม
+ * URL รูปเต็มที่อาจอยู่ในไฟล์ — **ไม่ตัดสิน host เอง** แค่คว้าก้อนที่น่าจะเป็น URL แล้วส่งให้
+ * `originOf()` (คือ `new URL()`) เป็นคนตัดสิน
+ *
+ * ของเดิมใช้ `[a-zA-Z0-9.-]+` เป็นตัวตัด host เอง ซึ่งผิดสามทางพร้อมกัน: `_` เป็นอักขระที่
+ * host จริงมีได้ (`fonts.googleapis.com_evil.example` ถูกตัดหัวเหลือ origin ที่ policy อนุญาต
+ * = false PASS) · `@` แยก userinfo ออกจาก host ไม่ได้ (`fonts.gstatic.com@evil.example`
+ * host จริงคือ evil.example) · `[` ของ IPv6 literal ไม่เข้าข่ายเลยจึงไม่มีกฎไหนครอบ
+ *
+ * ตัดที่วงเล็บ/จุลภาค/อัฒภาคด้วย เพราะ `url(a),url(b)` ต้องแยกเป็นสอง origin ไม่ใช่ก้อนเดียว
+ * ที่ทำให้ตัวหลังหายไปเงียบ ๆ · `[` `]` ถูกเก็บไว้เพราะเป็นส่วนหนึ่งของ IPv6 literal
  */
-const quotesBalanced = (attrText) =>
-  (attrText.match(/"/g) ?? []).length % 2 === 0 && (attrText.match(/'/g) ?? []).length % 2 === 0;
+const ABSOLUTE_URL_CANDIDATE = /https?:\/\/[^\s"'`<>\\(),;{}]+/gi;
+
+/**
+ * ความยาวสูงสุดที่ยอมให้แท็กเปิดกินพื้นที่ — แท็กจริงไม่ยาวขนาดนี้ ส่วนในไฟล์ JS `a<b`
+ * เป็นตัวดำเนินการเปรียบเทียบที่หน้าตาเหมือนแท็กเปิด ถ้าไม่จำกัดจะลากยาวไปทั้งไฟล์
+ */
+const OPEN_TAG_SCAN_LIMIT = 4096;
+
+/**
+ * แตกแท็กเปิดโดยเคารพ quote แบบเดียวกับ HTML tokenizer — `>` ที่อยู่ในค่า attribute
+ * ไม่ปิดแท็ก (`<img alt="a>b" onclick="…">` เป็นแท็กเดียว ซึ่งคือสิ่งที่ browser อ่านจริง)
+ *
+ * ของเดิมใช้ `/<[a-zA-Z][^>]*>/` ที่ตัดตรง `>` ตัวแรกเสมอ แล้วชดเชยด้วย guard นับ quote
+ * ให้ครบคู่ · กฎ URL เลิกพึ่งขอบเขตแท็กไปแล้วในรอบที่สี่ แต่กฎ handler ยังพึ่งอยู่ จึงเหลือ
+ * เป็นช่องสุดท้ายของคลาสเดียวกัน — วิธีที่ปิดได้จริงคือแตกแท็กให้ถูกตั้งแต่แรก
+ *
+ * `terminated: false` แปลว่า **แยก attribute ไม่ได้จริง** (ไม่เจอ `>` นอก quote ก่อนชน `<`
+ * ตัวถัดไปหรือชนลิมิต) ผู้เรียกต้องไม่เชื่อ `attrs` ในกรณีนั้น ซึ่งตรงกับ browser ด้วย:
+ * ข้อความที่ quote ยังไม่ปิดคือค่าของ attribute ไม่ใช่ attribute ตัวใหม่
+ */
+function* openTags(content) {
+  for (const start of content.matchAll(/<([a-zA-Z][a-zA-Z0-9:-]*)/g)) {
+    const from = start.index + start[0].length;
+    const limit = Math.min(content.length, from + OPEN_TAG_SCAN_LIMIT);
+    let quote = null;
+    let i = from;
+    let terminated = false;
+    for (; i < limit; i++) {
+      const ch = content[i];
+      if (quote !== null) {
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === '<') break; // แท็กเปิดซ้อนแท็กเปิดไม่ได้ — ตัวแรกไม่ใช่แท็กจริง
+      else if (ch === '>') { terminated = true; break; }
+    }
+    yield { name: start[1].toLowerCase(), attrs: content.slice(from, i), end: i, terminated };
+  }
+}
 
 /** ชื่อ attribute + ค่า — ใช้แตกแท็กเปิดเป็น Map เพื่อเทียบ **ชื่อเต็ม** ไม่ใช่ substring */
 const HTML_ATTRIBUTE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
@@ -284,25 +329,29 @@ function walk(dir) {
  */
 function inlineScriptFindings(content) {
   const found = [];
-  // จับที่ **แท็กเปิด** ไม่ใช่คู่เปิด-ปิด เพราะ bundler escape `</script>` เป็น `<\/script>`
+  // เดินที่ **แท็กเปิด** ไม่ใช่คู่เปิด-ปิด เพราะ bundler escape `</script>` เป็น `<\/script>`
   // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
-  for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
-    // เชื่อผลการแตก attribute ได้ก็ต่อเมื่อ quote ปิดครบ ไม่งั้นตรวจต่อ (fail-closed)
-    const attrs = quotesBalanced(match[1]) ? parseAttributes(match[1]) : new Map();
-    if (attrs.has('src')) continue;
-    if (isNonExecutableType(attrs.get('type'))) continue;
-    // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
-    // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
-    const after = content.slice(match.index + match[0].length);
-    const closeAt = after.search(/<\\?\/script\s*>/i);
-    if (closeAt !== -1 && after.slice(0, closeAt).trim() === '') continue;
-    found.push({ rule: 'inline-script', directive: 'script-src', detail: `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${match[0].slice(0, 60)}` });
-  }
-  // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
-  // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
-  for (const tag of content.matchAll(/<[a-zA-Z][^>]*>/g)) {
-    for (const match of tag[0].matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
-      found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${match[0].trim()} ใน ${tag[0].slice(0, 40)}` });
+  for (const tag of openTags(content)) {
+    if (tag.name === 'script') {
+      // แยก attribute ไม่ได้ = ไม่มีหลักฐานว่ามี src → ตรวจต่อ ไม่ใช่ข้าม (fail-closed)
+      const attrs = tag.terminated ? parseAttributes(tag.attrs) : new Map();
+      const executable = !attrs.has('src') && !isNonExecutableType(attrs.get('type'));
+      // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
+      // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
+      const after = content.slice(tag.end + 1);
+      const closeAt = after.search(/<\\?\/script\s*>/i);
+      const empty = closeAt !== -1 && after.slice(0, closeAt).trim() === '';
+      if (executable && !empty) {
+        found.push({ rule: 'inline-script', directive: 'script-src', detail: `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${`<script${tag.attrs}>`.slice(0, 60)}` });
+      }
+    }
+    // handler ต้องมีหลักฐานว่าเป็นแท็กจริง — ไม่งั้น `a<b && once = true` ในไฟล์ JS ถูกอ่าน
+    // เป็นแท็กแล้ว ` once =` ถูกจับเป็น handler (regression M-A จากอีกทางหนึ่ง)
+    if (!tag.terminated) continue;
+    // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
+    // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
+    for (const match of tag.attrs.matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
+      found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${match[0].trim()} ใน ${`<${tag.name}${tag.attrs}`.slice(0, 40)}` });
     }
   }
   return found;
@@ -361,8 +410,10 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
     if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) return;
     originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
   };
-  for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
-    countOrigin(match[0].toLowerCase()); // CSP host-source ไม่แยกตัวพิมพ์
+  // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู ABSOLUTE_URL_CANDIDATE)
+  for (const match of content.matchAll(ABSOLUTE_URL_CANDIDATE)) {
+    const origin = originOf(match[0]); // lowercase ให้แล้ว — CSP host-source ไม่แยกตัวพิมพ์
+    if (origin !== null) countOrigin(origin);
   }
 
   // สองกฎด้านล่างเก็บ **เฉพาะรูป protocol-relative** เพราะรูปเต็มถูก regex ด้านบนนับไปแล้ว

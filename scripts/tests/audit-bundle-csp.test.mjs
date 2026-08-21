@@ -826,3 +826,109 @@ test('href ของ <a> ถูกฟ้องด้วย — เป็นก�
     cleanup();
   }
 });
+
+// ── รีวิวรอบที่ห้า บนคอมมิต d8482cb ────────────────────────────────────────────
+// สองช่องที่เหลือเป็นคลาสเดียวกับที่ปิดมาแล้วทั้งหมด: **กฎเดาโครงสร้างเอาเองแทนที่จะ parse**
+// กฎ URL เลิกพึ่งขอบเขตแท็กไปแล้วในรอบที่สี่ แต่กฎ handler ยังพึ่งอยู่ · และ origin ของ URL
+// รูปเต็มยังถูกตัดด้วย character class ของตัวเองแทนที่จะให้ URL parser ตัดสิน
+// ทั้งสองยืนยันแล้วว่า gate ตอบ PASS บนโค้ดก่อนแก้ ด้วยการรัน CLI กับ fixture จริง
+
+test('`>` ในค่า attribute ต้องไม่ทำให้ inline event handler หลุด (review จ)', () => {
+  // คู่แฝดของ review critical รอบที่แล้ว — กฎ URL ถูกแก้ให้เลิกพึ่งขอบเขตแท็กไปแล้ว
+  // แต่กฎ handler ยังยิง regex ใส่ `/<[a-zA-Z][^>]*>/` ซึ่งตัดที่ `>` ตัวแรกเหมือนเดิม
+  // `<img alt="a>b" onclick=...>` จึงถูกอ่านเป็น `<img alt="a>` แล้ว handler อยู่นอกช่วงตรวจ
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><img alt="a>b" onclick="alert(document.cookie)"><span>x</span></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => f.rule === 'inline-event-handler'), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('host ที่ยืม origin ที่อนุญาตมาเป็นคำนำหน้า ต้องไม่ถูกอ่านเป็น origin นั้น (review ฉ)', () => {
+  // `[a-zA-Z0-9.-]+` หยุดที่ `_` ซึ่งเป็นอักขระที่ host จริงมีได้ — `fonts.googleapis.com_evil.example`
+  // จึงถูกตัดหัวเหลือ `https://fonts.googleapis.com` ซึ่งอยู่ใน style-src → เงียบสนิท
+  // นี่ไม่ใช่แค่ข้อความ error เพี้ยน แต่เป็น false PASS เต็มรูป: ยิ่ง policy อนุญาต origin ไว้มาก
+  // ช่องนี้ยิ่งกว้าง เพราะทุก origin ที่อนุญาตกลายเป็นคำนำหน้าที่ยืมได้
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/lookalike.js': 'const a="https://fonts.googleapis.com_evil.example/steal";',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(
+      findings.some((f) => /fonts\.googleapis\.com_evil\.example/.test(f.detail)),
+      JSON.stringify(findings)
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('userinfo ใน URL ต้องไม่ถูกอ่านเป็น host (review ช)', () => {
+  // `https://fonts.gstatic.com@evil.example/steal` — host จริงคือ evil.example ตามมาตรฐาน URL
+  // ส่วนที่อยู่หน้า `@` เป็น userinfo · regex ตัดที่ `@` จึงอ่านได้เป็น origin ที่ font-src อนุญาต
+  // สำนวนนี้เป็นวิธีพราง URL ที่ใช้จริงในฟิชชิ่ง ไม่ใช่เคสสมมติ
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/userinfo.js': 'const a="https://fonts.gstatic.com@evil.example/steal";',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /evil\.example/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('IPv6 literal รูปเต็มในสตริงลอย ต้องถูกจับเหมือนรูป protocol-relative', () => {
+  // รูป `//[2001:db8::1]/` ถูกปิดไปแล้วใน review ข ผ่าน originOf() แต่รูปเต็ม `http://[…]`
+  // ยังผ่านกฎรวมที่ใช้ character class ของตัวเอง ซึ่ง `[` ไม่เข้าข่ายเลย = ไม่มีกฎไหนครอบ
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/v6full.js': 'const u = "http://[2001:db8::1]/exfil";',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /2001:db8/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('url() หลายตัวใน declaration เดียว ต้องถูกจับครบทุก origin (กันแก้เกิน)', () => {
+  // คู่ตรงข้ามของสามเทสบน — การขยาย character class ให้กว้างขึ้นต้องไม่กลืน `),` เข้าไป
+  // จนสอง origin กลายเป็นก้อนเดียวแล้วตัวหลังหายไปเงียบ ๆ
+  const { dir, cleanup } = makeDist({
+    'index.html': CLEAN_HTML,
+    'assets/index-abc.js': 'const a=1;export{a};',
+    'assets/multi.css': '.h{background:url(https://cdn1.example/a.png),url(https://cdn2.example/b.png)}',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    for (const origin of [/cdn1\.example/, /cdn2\.example/]) {
+      assert.ok(findings.some((f) => origin.test(f.detail)), `${origin}: ${JSON.stringify(findings)}`);
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test('โค้ด JS ที่มีตัวดำเนินการเปรียบเทียบ ต้องไม่ถูกอ่านเป็นแท็กแล้วจับ handler ผิด (กันแก้เกิน)', () => {
+  // ตัวแตกแท็กที่เคารพ quote ต้องไม่ทำให้ `a<b && once = true` กลายเป็นแท็กที่ลากยาว
+  // จนไปกิน ` once =` มาเป็น handler — regression เดียวกับ M-A แต่มาจากทางตรงข้าม
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/cmp.js': 'const r = a<b && once = true; const s = x<y && only = 2; el.onclick = go;',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const noise = findings.filter((f) => f.rule === 'inline-event-handler');
+    assert.deepEqual(noise, [], JSON.stringify(noise));
+  } finally {
+    cleanup();
+  }
+});

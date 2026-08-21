@@ -265,7 +265,9 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   `VITE_API_URL` แบบ absolute ซึ่งเป็นเคสที่ gate นี้มีไว้จับโดยตรง) · **ข้อจำกัดที่รู้ตัว**:
   URL ที่ประกอบจากตัวแปร (`fetch(base + path)`) มองไม่เห็น — allowlist รวมยังคุมสตริงลอยอีกชั้น
   · absolute URL ที่บอกบริบทไม่ได้ เทียบกับ allowlist รวม และรายงาน directive ที่เทียบตาม
-  policy จริง · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
+  policy จริง โดย **host ถูกตัดสินด้วย URL parser ไม่ใช่ character class** — `_` ในชื่อ host,
+  userinfo (`https://allowed.example@evil.example/`) และ IPv6 literal จึงไม่ทำให้ origin
+  ถูกอ่านผิดเป็นตัวที่ policy อนุญาต · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
   CSS-in-JS ก็โหลดจริง) **รวมรูป protocol-relative `url(//host/…)`** ซึ่ง browser เติม scheme
   ของหน้าเว็บให้ · เช่นเดียวกับ **ค่าของ attribute ที่เป็น URL** (`src` / `href` / `srcset` /
   `poster` / `data` / `action` / `formaction`) — `<img src="//host">` คือบริบทที่บอกว่าเป็น URL
@@ -276,7 +278,7 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (51 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (57 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
