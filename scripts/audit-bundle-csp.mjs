@@ -102,16 +102,18 @@ function parseCspPolicy(value) {
   return policy;
 }
 
-/** origin ที่ source list ชุดหนึ่งอนุญาต — keyword อย่าง 'self'/'none' ไม่ใช่ origin จึงถูกข้าม */
-function originsOf(sources) {
+/**
+ * origin ที่ source list ของ directive หนึ่งอนุญาต
+ *
+ * keyword (`'self'`/`'none'`) และ host pattern ที่มี wildcard ไม่ใช่ origin ที่เทียบตรงตัวได้
+ * จึงถูกข้าม — ไม่ใช่ allowlist ที่เชื่อได้ · ใช้ `originOf` ตัวเดียวกับฝั่ง bundle เพื่อไม่ให้
+ * ตรรกะแปลง URL→origin มีสองสำเนาที่เพี้ยนออกจากกันได้
+ */
+function policyOrigins(sources) {
   const origins = new Set();
   for (const source of sources ?? []) {
-    if (!/^https?:\/\//.test(source)) continue;
-    try {
-      origins.add(new URL(source).origin.toLowerCase());
-    } catch {
-      // source ที่ไม่ใช่ URL เต็ม (เช่น host pattern) — ข้ามไป ไม่ใช่ allowlist ที่เชื่อได้
-    }
+    const origin = originOf(source);
+    if (origin !== null) origins.add(origin);
   }
   return origins;
 }
@@ -128,7 +130,7 @@ function originsOf(sources) {
 function allowedOriginsFrom(policy) {
   const origins = new Set();
   for (const sources of policy.values()) {
-    for (const origin of originsOf(sources)) origins.add(origin);
+    for (const origin of policyOrigins(sources)) origins.add(origin);
   }
   return origins;
 }
@@ -153,37 +155,57 @@ const CONNECT_CALL_PATTERNS = [
 ];
 
 /**
- * `url(…)` ใน stylesheet — ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ใช่เฉพาะนามสกุล `.css`
- * เพราะ `<style>` ใน HTML และ CSS-in-JS ก็ทำให้ browser โหลดจริงเหมือนกัน (หลักการเดียว
- * กับ R1 ที่ผูกกับรูปทรงของ markup ไม่ใช่ชนิดไฟล์ — บทเรียนจาก C2)
+ * argument ของ `url(…)` — ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ใช่เฉพาะนามสกุล `.css` เพราะ `<style>`
+ * ใน HTML และ CSS-in-JS ก็ทำให้ browser โหลดจริงเหมือนกัน (หลักการเดียวกับ R1 ที่ผูกกับ
+ * รูปทรงของ markup ไม่ใช่ชนิดไฟล์ — บทเรียนจาก C2)
  */
-const CSS_URL = /url\(\s*["']?([^"')]+)/gi;
+const URL_FUNCTION_ARG = /url\(\s*["']?([^"')]+)/gi;
+
+/**
+ * attribute ที่ค่าเป็น URL ซึ่ง browser โหลดจริง จึงอยู่ใต้ directive ของ CSP
+ * `srcset` แยกด้วย comma และมี descriptor ต่อท้าย จึงถูกแตกก่อนเทียบ
+ */
+const URL_ATTRIBUTES = new Set(['src', 'href', 'srcset', 'poster', 'data', 'action', 'formaction']);
 
 /**
  * origin ของ URL ที่พบใน bundle — คืน `null` เมื่อเป็น path สัมพัทธ์ (อยู่ใต้ 'self' อยู่แล้ว)
+ * หรือเมื่อไม่ใช่ URL ที่ parse เป็น origin ได้
  *
  * รองรับ **protocol-relative** (`//host/…`) ด้วย ซึ่งไม่ใช่ relative path: browser เติม
  * scheme ของหน้าเว็บให้แล้วโหลดข้าม origin จริง (production เป็น https เสมอ มี HSTS)
- * ของเดิมบังคับ `https?://` ทุกจุด รูปนี้จึงรอดทุกกฎ — ไม่มีอะไรในไฟล์ครอบเลย
  *
- * **ข้อจำกัดที่รู้ตัว**: จับ `//host` เฉพาะที่มีบริบทบอกว่าเป็น URL (argument ของ fetch/XHR
- * หรืออยู่ใน `url()`) · สตริง `//host` ลอย ๆ ไม่ถูกตรวจ เพราะการไล่จับทุกที่ให้ false
- * positive กับโค้ดปกติ (วัดกับ build จริงแล้วได้ `//i.test` จาก regex literal ที่ bundler ลากมา)
+ * เงื่อนไขหลัง `//` เป็น "อะไรก็ได้ที่ไม่ใช่ `/` หรือช่องว่าง" ไม่ใช่ alnum — ของเดิมบังคับ alnum
+ * แล้วตัด IPv6 literal (`//[2001:db8::1]/`) กับ host ที่ขึ้นต้นด้วย `_` ทิ้งเป็น null ทั้งที่
+ * browser resolve และยิงจริง ส่วนกฎรวมก็มองไม่เห็นเพราะบังคับ `https?://` เหมือนกัน
+ * = ไม่มีกฎไหนครอบ ซึ่งเป็นช่องคลาสเดียวกับที่ฟังก์ชันนี้ถูกสร้างมาปิดพอดี
+ *
+ * **ข้อจำกัดที่รู้ตัว**: จับ `//host` เฉพาะที่มีบริบทบอกว่าเป็น URL (argument ของ fetch/XHR,
+ * ใน `url()`, หรือค่าของ attribute ใน URL_ATTRIBUTES) · สตริง `//host` ลอย ๆ ไม่ถูกตรวจ
+ * เพราะการไล่จับทุกที่ให้ false positive กับโค้ดปกติ (วัดกับ build จริงแล้วได้ `//i.test`
+ * จาก regex literal ที่ bundler ลากมา)
  */
 function originOf(url) {
   const trimmed = url.trim();
-  const absolute = /^https?:\/\//i.test(trimmed)
-    ? trimmed
-    : /^\/\/[a-zA-Z0-9]/.test(trimmed)
-      ? `https:${trimmed}`
-      : null;
-  if (absolute === null) return null;
+  if (!/^(?:https?:)?\/\//i.test(trimmed)) return null; // path สัมพัทธ์ หรือ scheme อื่น
+  const absolute = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
+  if (/^https:\/\/[/\s]/.test(absolute)) return null; // `///…` ไม่ใช่ host ที่โหลดได้
   try {
     return new URL(absolute).origin.toLowerCase(); // CSP host-source ไม่แยกตัวพิมพ์
   } catch {
     return null;
   }
 }
+
+/** URL ที่ต้องอาศัย scheme ของหน้าเว็บ — กฎรวมที่บังคับ `https?://` มองไม่เห็นรูปนี้ */
+const isProtocolRelative = (url) => url.trim().startsWith('//');
+
+/**
+ * quote ที่ปิดไม่ครบแปลว่าแยก attribute ไม่ได้จริง — `<script data-x=" src=y>` จะถูกอ่านว่ามี
+ * `src` ทั้งที่ไม่มี แล้วแท็กถูกข้ามทั้งอัน (fail-open รูปเดียวกับ review #3)
+ * กรณีนี้ต้อง **ไม่เชื่อผลการแตก** แล้วตรวจต่อ ไม่ใช่ข้าม
+ */
+const quotesBalanced = (attrText) =>
+  (attrText.match(/"/g) ?? []).length % 2 === 0 && (attrText.match(/'/g) ?? []).length % 2 === 0;
 
 /** ชื่อ attribute + ค่า — ใช้แตกแท็กเปิดเป็น Map เพื่อเทียบ **ชื่อเต็ม** ไม่ใช่ substring */
 const HTML_ATTRIBUTE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
@@ -210,6 +232,9 @@ function parseAttributes(attrs) {
  * เทียบแบบตรงตัวหลังตัด parameter (`; charset=…`) ออก — type ที่ไม่รู้จักถือว่า execute ได้
  */
 const NON_EXECUTABLE_TYPES = new Set(['application/json', 'application/ld+json', 'text/template']);
+
+/** type ของแท็ก `<script>` ที่ browser ไม่ execute — ตัด parameter (`; charset=…`) ก่อนเทียบตรงตัว */
+const isNonExecutableType = (value) => NON_EXECUTABLE_TYPES.has((value ?? '').split(';')[0].trim().toLowerCase());
 
 const hasSource = (policy, directive, source) => (policy.get(directive) ?? []).includes(source);
 
@@ -245,7 +270,7 @@ function auditBundle(distDir, cspValue) {
   const policy = parseCspPolicy(cspValue);
   const allowedOrigins = allowedOriginsFrom(policy);
   // allowlist แยกสำหรับ URL ที่รู้บริบทแล้วว่าเป็น request — ต้องผ่าน connect-src เท่านั้น
-  const connectOrigins = originsOf(policy.get('connect-src'));
+  const connectOrigins = policyOrigins(policy.get('connect-src'));
   // directive ที่รายงานต้องสะท้อน policy จริง แก้ policy แล้วข้อความตามเอง
   const consultedDirectives = FETCH_DIRECTIVES.filter((d) => policy.has(d)).join(' / ') || 'default-src';
   const allowsInlineScript = hasSource(policy, 'script-src', "'unsafe-inline'");
@@ -301,9 +326,10 @@ function auditBundle(distDir, cspValue) {
       // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
       // — พิสูจน์ด้วยเทส `HTML fragment ที่ฝังใน JS พร้อม <script>`
       for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
-        const attrs = parseAttributes(match[1]);
+        // เชื่อผลการแตก attribute ได้ก็ต่อเมื่อ quote ปิดครบ ไม่งั้นตรวจต่อ (fail-closed)
+        const attrs = quotesBalanced(match[1]) ? parseAttributes(match[1]) : new Map();
         if (attrs.has('src')) continue;
-        if (NON_EXECUTABLE_TYPES.has((attrs.get('type') ?? '').split(';')[0].trim().toLowerCase())) continue;
+        if (isNonExecutableType(attrs.get('type'))) continue;
         // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
         // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
         const after = content.slice(match.index + match[0].length);
@@ -367,11 +393,27 @@ function auditBundle(distDir, cspValue) {
     for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
       countOrigin(match[0].toLowerCase()); // CSP host-source ไม่แยกตัวพิมพ์
     }
-    // `url(…)` ในทุกไฟล์ ไม่ใช่เฉพาะ .css — `<style>` ใน HTML และ CSS-in-JS โหลดจริงเหมือนกัน
-    // รูปเต็มถูกกฎด้านบนจับไปแล้ว ตรงนี้จึงเก็บรูป protocol-relative ที่ regex นั้นมองไม่เห็น
-    for (const match of content.matchAll(CSS_URL)) {
-      const origin = originOf(match[1]);
+    // สองกฎด้านล่างเก็บ **เฉพาะรูป protocol-relative** เพราะรูปเต็มถูก regex ด้านบนนับไปแล้ว
+    // ถ้าไม่กรอง origin เดียวจะถูกนับสองรอบ แล้วจำนวนครั้งในข้อความ error ผิดเป็นเท่าตัว
+    // (flag `i` ของ URL_FUNCTION_ARG ทำให้ `new URL("https://…")` ในไฟล์ JS เข้าข่ายด้วย)
+    const countIfProtocolRelative = (raw) => {
+      if (!isProtocolRelative(raw)) return;
+      const origin = originOf(raw);
       if (origin !== null) countOrigin(origin);
+    };
+
+    // `url(…)` ในทุกไฟล์ ไม่ใช่เฉพาะ .css — `<style>` ใน HTML และ CSS-in-JS โหลดจริงเหมือนกัน
+    for (const match of content.matchAll(URL_FUNCTION_ARG)) countIfProtocolRelative(match[1]);
+
+    // attribute ที่ค่าเป็น URL — `<img src="//host">` / `<link href="//host">` คือบริบทที่บอกว่า
+    // เป็น URL ชัดกว่า url() ด้วยซ้ำ การไม่ตรวจทำให้ข้อจำกัดที่ประกาศไว้บรรยายของจริงผิด
+    for (const tag of content.matchAll(/<[a-zA-Z][^>]*>/g)) {
+      if (!quotesBalanced(tag[0])) continue; // แยก attribute ไม่ได้ — กฎรวมยังคุมสตริงอยู่
+      for (const [name, value] of parseAttributes(tag[0].replace(/^<[a-zA-Z][a-zA-Z0-9-]*/, ''))) {
+        if (!URL_ATTRIBUTES.has(name)) continue;
+        // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว
+        for (const candidate of value.split(',')) countIfProtocolRelative(candidate.trim().split(/\s+/)[0] ?? '');
+      }
     }
     for (const [origin, count] of originCounts) {
       add(

