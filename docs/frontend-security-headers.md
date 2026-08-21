@@ -265,12 +265,15 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   `VITE_API_URL` แบบ absolute ซึ่งเป็นเคสที่ gate นี้มีไว้จับโดยตรง) · **ข้อจำกัดที่รู้ตัว**:
   URL ที่ประกอบจากตัวแปร (`fetch(base + path)`) มองไม่เห็น — allowlist รวมยังคุมสตริงลอยอีกชั้น
   · absolute URL ที่บอกบริบทไม่ได้ เทียบกับ allowlist รวม และรายงาน directive ที่เทียบตาม
-  policy จริง · `url()` ภายนอกใน CSS **รวมรูป protocol-relative `url(//host/…)`**
+  policy จริง · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
+  CSS-in-JS ก็โหลดจริง) **รวมรูป protocol-relative `url(//host/…)`** ซึ่ง browser เติม scheme
+  ของหน้าเว็บให้ · **ข้อจำกัดที่รู้ตัว**: `//host` จับเฉพาะที่มีบริบทบอกว่าเป็น URL (ใน `url()` หรือ
+  argument ของ fetch/XHR) สตริงลอย ๆ ไม่ถูกตรวจ เพราะไล่จับทุกที่แล้วชนโค้ดปกติ
   · **ไฟล์ font ใน bundle เมื่อ `font-src` ไม่มี `'self'`** (ความเสี่ยงข้อ 2
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (35 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (39 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
 - ตรวจจากภายนอกหลัง deploy:
   ```bash

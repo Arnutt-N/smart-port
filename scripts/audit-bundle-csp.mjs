@@ -153,13 +153,63 @@ const CONNECT_CALL_PATTERNS = [
 ];
 
 /**
- * `url(//host/…)` ใน CSS — browser สืบ scheme จากหน้าเว็บแล้วโหลดจริง
- * regex หลักบังคับ `https?://` จึงมองไม่เห็นรูปนี้ ทั้งที่เอกสารบอกว่าครอบ url() ภายนอกแล้ว
+ * `url(…)` ใน stylesheet — ใช้กับ **ทุกไฟล์ที่อ่าน** ไม่ใช่เฉพาะนามสกุล `.css`
+ * เพราะ `<style>` ใน HTML และ CSS-in-JS ก็ทำให้ browser โหลดจริงเหมือนกัน (หลักการเดียว
+ * กับ R1 ที่ผูกกับรูปทรงของ markup ไม่ใช่ชนิดไฟล์ — บทเรียนจาก C2)
  */
-const CSS_PROTOCOL_RELATIVE_URL = /url\(\s*["']?\/\/([a-zA-Z0-9.-]+(?::\d+)?)/gi;
+const CSS_URL = /url\(\s*["']?([^"')]+)/gi;
 
-/** type ที่ browser ไม่ execute (data block) จึงไม่ถูก script-src บล็อก */
-const NON_EXECUTABLE_TYPES = /type\s*=\s*["']?(application\/(ld\+)?json|text\/template)/i;
+/**
+ * origin ของ URL ที่พบใน bundle — คืน `null` เมื่อเป็น path สัมพัทธ์ (อยู่ใต้ 'self' อยู่แล้ว)
+ *
+ * รองรับ **protocol-relative** (`//host/…`) ด้วย ซึ่งไม่ใช่ relative path: browser เติม
+ * scheme ของหน้าเว็บให้แล้วโหลดข้าม origin จริง (production เป็น https เสมอ มี HSTS)
+ * ของเดิมบังคับ `https?://` ทุกจุด รูปนี้จึงรอดทุกกฎ — ไม่มีอะไรในไฟล์ครอบเลย
+ *
+ * **ข้อจำกัดที่รู้ตัว**: จับ `//host` เฉพาะที่มีบริบทบอกว่าเป็น URL (argument ของ fetch/XHR
+ * หรืออยู่ใน `url()`) · สตริง `//host` ลอย ๆ ไม่ถูกตรวจ เพราะการไล่จับทุกที่ให้ false
+ * positive กับโค้ดปกติ (วัดกับ build จริงแล้วได้ `//i.test` จาก regex literal ที่ bundler ลากมา)
+ */
+function originOf(url) {
+  const trimmed = url.trim();
+  const absolute = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : /^\/\/[a-zA-Z0-9]/.test(trimmed)
+      ? `https:${trimmed}`
+      : null;
+  if (absolute === null) return null;
+  try {
+    return new URL(absolute).origin.toLowerCase(); // CSP host-source ไม่แยกตัวพิมพ์
+  } catch {
+    return null;
+  }
+}
+
+/** ชื่อ attribute + ค่า — ใช้แตกแท็กเปิดเป็น Map เพื่อเทียบ **ชื่อเต็ม** ไม่ใช่ substring */
+const HTML_ATTRIBUTE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
+
+/**
+ * แตก attribute ของแท็กเปิดเป็น Map<name, value>
+ *
+ * ของเดิมเทียบด้วย `/\bsrc\s*=/` ซึ่งพัง เพราะ `\b` ถือว่า `-` เป็นขอบเขตของคำอยู่แล้ว
+ * `data-src=` จึงถูกอ่านว่า "แท็กนี้มี src" แล้วข้ามการตรวจทั้งแท็ก — `data-src` เป็นสำนวน
+ * ของ deferred-script loader ที่ใช้จริง ไม่ใช่เคสสมมติ (review #3)
+ */
+function parseAttributes(attrs) {
+  const map = new Map();
+  for (const match of attrs.matchAll(HTML_ATTRIBUTE)) {
+    const name = match[1].toLowerCase();
+    if (map.has(name)) continue; // HTML ใช้ค่าแรกเมื่อชื่อซ้ำ
+    map.set(name, match[2] ?? match[3] ?? match[4] ?? '');
+  }
+  return map;
+}
+
+/**
+ * type ที่ browser ไม่ execute (data block) จึงไม่ถูก script-src บล็อก
+ * เทียบแบบตรงตัวหลังตัด parameter (`; charset=…`) ออก — type ที่ไม่รู้จักถือว่า execute ได้
+ */
+const NON_EXECUTABLE_TYPES = new Set(['application/json', 'application/ld+json', 'text/template']);
 
 const hasSource = (policy, directive, source) => (policy.get(directive) ?? []).includes(source);
 
@@ -251,8 +301,9 @@ function auditBundle(distDir, cspValue) {
       // ในสตริง JS เสมอ (กัน HTML parser ตัดจบก่อนเวลา) กฎที่จับเป็นคู่จึงมองไม่เห็นเคสนั้นเลย
       // — พิสูจน์ด้วยเทส `HTML fragment ที่ฝังใน JS พร้อม <script>`
       for (const match of content.matchAll(/<script\b([^>]*)>/gi)) {
-        const attrs = match[1];
-        if (/\bsrc\s*=/i.test(attrs) || NON_EXECUTABLE_TYPES.test(attrs)) continue;
+        const attrs = parseAttributes(match[1]);
+        if (attrs.has('src')) continue;
+        if (NON_EXECUTABLE_TYPES.has((attrs.get('type') ?? '').split(';')[0].trim().toLowerCase())) continue;
         // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
         // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
         const after = content.slice(match.index + match[0].length);
@@ -293,13 +344,9 @@ function auditBundle(distDir, cspValue) {
     const reported = new Set();
     for (const pattern of CONNECT_CALL_PATTERNS) {
       for (const match of content.matchAll(pattern)) {
-        if (!/^https?:\/\//i.test(match[1])) continue; // relative URL อยู่ใต้ 'self' อยู่แล้ว
-        let origin;
-        try {
-          origin = new URL(match[1]).origin.toLowerCase();
-        } catch {
-          continue; // parse ไม่ได้ — กฎรวมด้านล่างยังเห็นสตริงนี้อยู่ ไม่ได้หลุดไปเงียบ ๆ
-        }
+        // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว · `//host/…` ไม่นับเป็นสัมพัทธ์
+        const origin = originOf(match[1]);
+        if (origin === null) continue;
         if (connectOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
         reported.add(origin);
         add(
@@ -320,11 +367,11 @@ function auditBundle(distDir, cspValue) {
     for (const match of content.matchAll(/https?:\/\/[a-zA-Z0-9.-]+(?::\d+)?/g)) {
       countOrigin(match[0].toLowerCase()); // CSP host-source ไม่แยกตัวพิมพ์
     }
-    if (ext === '.css') {
-      // browser สืบ scheme จากหน้าเว็บ ซึ่ง production เป็น https เสมอ (มี HSTS)
-      for (const match of content.matchAll(CSS_PROTOCOL_RELATIVE_URL)) {
-        countOrigin(`https://${match[1].toLowerCase()}`);
-      }
+    // `url(…)` ในทุกไฟล์ ไม่ใช่เฉพาะ .css — `<style>` ใน HTML และ CSS-in-JS โหลดจริงเหมือนกัน
+    // รูปเต็มถูกกฎด้านบนจับไปแล้ว ตรงนี้จึงเก็บรูป protocol-relative ที่ regex นั้นมองไม่เห็น
+    for (const match of content.matchAll(CSS_URL)) {
+      const origin = originOf(match[1]);
+      if (origin !== null) countOrigin(origin);
     }
     for (const [origin, count] of originCounts) {
       add(
