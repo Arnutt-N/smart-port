@@ -108,7 +108,9 @@ if ($LASTEXITCODE -eq 0) {
 
 # รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push, ci.yml และ ci-local.sh
 # PowerShell ไม่ขยาย glob ให้ native command แต่ node --test ขยายเองได้ (ยืนยันแล้ว)
-# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin) — รวมถึง
+# mock-server regression ของ CSP gate (issue #113 R1) ซึ่งเคยมีบล็อกของตัวเองต่อท้ายบล็อกนี้
+# แล้วถูกรันซ้ำสองรอบทุกครั้ง · glob ครอบอยู่แล้ว การไล่ชื่อซ้ำมีแต่ทำให้ CI ช้าลงเปล่า ๆ
 Write-Step 'Script Regressions'
 & node --test (Join-Path $Root 'scripts\tests\*.test.mjs')
 if ($LASTEXITCODE -eq 0) {
@@ -116,16 +118,6 @@ if ($LASTEXITCODE -eq 0) {
 } else {
   Write-Fail 'script regressions'
   $failed += 'script-regressions'
-}
-
-# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
-Write-Step 'CSP Violation Gate Regression'
-& node --test (Join-Path $Root 'scripts\tests\check-csp-violations.test.mjs')
-if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'csp violation gate regression'
-} else {
-  Write-Fail 'csp violation gate regression'
-  $failed += 'csp-violation-gate-regression'
 }
 
 # ---- 1) Frontend Build & Test ----------------------------------------------

@@ -135,8 +135,10 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   "log ว่าง" จะแยกไม่ออกระหว่าง "ไม่มี violation" กับ "report ไม่เคยส่งถึง")
   - **log อยู่ที่ service `smartport-backend` ไม่ใช่ static site `smart-port`** — `error_log()`
     ที่ handler เรียกออก stderr ของ container backend (`Dockerfile:64` ตั้ง `error_log = /dev/stderr`)
-    เปิด log ผิด service จะเห็นว่างเสมอ และ hop สุดท้าย (`error_log` → Render log stream)
-    ยังไม่เคยถูกยืนยันด้วยตา เพราะ session นี้เข้าถึง Render log ไม่ได้
+    เปิด log ผิด service จะเห็นว่างเสมอ · hop สุดท้าย (`error_log` → Render log stream)
+    ตอนบันทึกรอบนี้ยังไม่เคยถูกยืนยันด้วยตา เพราะ session นั้นเข้าถึง Render log ไม่ได้
+    — **ยืนยันแล้วเมื่อ 21 ส.ค. 2026** ด้วย marker `csp-selftest-20260821-2d81.invalid`
+    (ดู Evidence check 2026-08-21 ด้านล่าง)
   - **ข้อควรระวังที่ยังทำให้ "log ว่าง" ตีความไม่ได้ 100%:** POST นัดแรก timeout ที่ 30 วินาที
     ต้อง warm up ด้วย `GET /api/readyz` (ตอบ 200 ใน 1.1s) ก่อนจึงยิงผ่าน — ตอนนั้นสรุปสาเหตุ
     ไม่ได้ระหว่าง network hiccup ของ gateway (เคยเจอ 16 ส.ค.) กับ cold start
@@ -168,7 +170,9 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
       `csp-selftest.invalid` (17 ส.ค. ~14:45 UTC, ยิงด้วยมือ) ·
       `csp-selftest-20260818.invalid` (18 ส.ค. 05:00 UTC) ·
       `csp-selftest-20260818-ecc9.invalid` (18 ส.ค. 05:10 UTC) — สองตัวหลังคือรอบ validate
-      สคริปต์กับ production ทั้งคู่ได้ 204 และ **จะหลุด retention ~7 วันพอดีช่วง 24–25 ส.ค.**
+      สคริปต์กับ production ทั้งคู่ได้ 204 และ **จะหลุด retention ~7 วันพอดีช่วง 24–25 ส.ค.** ·
+      `csp-selftest-20260821-2d81.invalid` (21 ส.ค. 06:08:55 UTC) — ตัวนี้ **เห็นใน Render log
+      ด้วยตาแล้ว** จึงเป็นตัวแรกที่ยืนยัน hop สุดท้ายของ pipeline ได้จริง (ดู Evidence check ด้านล่าง)
 
     **decision rule: เจอ marker สด → pipeline ครบวงจร ตัด marker ทิ้งแล้วดูที่เหลือ;
     ไม่เจอ marker → สรุปไม่ได้ ห้าม enforce**
@@ -212,6 +216,45 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
   | `script-src 'self'` | ไม่มี inline `<script>` / `eval(` / `new Function(` / `new Worker` |
   | `style-src` + `font-src` | external มีแค่ `fonts.googleapis.com` + `fonts.gstatic.com`; CSS bundle ไม่มี `url()` และ build ไม่มีไฟล์ font local |
   | `img-src 'self' data:` | blob URL ตัวเดียวในโค้ดคือ `OcrPage.vue` (`URL.createObjectURL`) ซึ่งใช้กับ `<a download>` = download ไม่ใช่ subresource จึงไม่อยู่ใต้ directive ใดเลย |
+
+### Evidence check 2026-08-21 — ห้าวันหลัง baseline
+
+รอบนี้เก็บหลักฐานที่ baseline ยังทำไม่ได้ (โดยเฉพาะ **hop สุดท้ายของ pipeline ที่ 17 ส.ค.
+ยังไม่เคยถูกยืนยันด้วยตา**) และปิดข้อสงสัยว่า "log ว่าง" แปลว่าอะไรกันแน่
+
+| หลักฐาน | ผล | วิธีได้มา |
+|---|---|---|
+| bundle **ที่ production เสิร์ฟจริง** | **PASS 70 ไฟล์** | ดึง 69 chunk + `index.html` จาก production ลง temp dir แล้วรัน `node scripts/audit-bundle-csp.mjs --dist <tmp>` |
+| pipeline `POST /api/csp-report` | **ทำงานครบสาย** | `csp-report-selftest.mjs` ยิง marker `csp-selftest-20260821-2d81.invalid` เวลา 06:08:55 UTC แล้ว **เห็นบรรทัดนั้นใน Render log จริง** — ปิดช่องว่างของ baseline ที่ยืนยันได้แค่ถึง HTTP 204 |
+| header บน production | **ครบ ยังเป็น report-only** | `node scripts/verify-live-headers.mjs` → PASS |
+| ทราฟฟิกผู้ใช้จริง | **18 จาก 22 เมนู** | Chrome 151 ยิง `/api/*` 25 ครั้ง ช่วง 09:48–09:49 UTC |
+| CSP violation จากผู้ใช้จริง | **ไม่มีเลยสักครั้ง** | ไม่มี `POST /csp-report` ในหน้าต่างเดียวกันนั้น |
+
+**สิ่งที่ยังไม่ยืนยัน และเป็นข้อสำคัญที่สุดที่เหลือ:** ยังไม่มีใครดูว่า **console ของ DevTools
+ขึ้นคำเตือน CSP หรือไม่** ระหว่างไล่เมนู · ข้อนี้สำคัญเพราะ `report-uri` เป็นของที่ browser
+ทยอยเลิกรองรับ — **ถ้า Chrome 151 ไม่ส่ง report แล้ว การที่ log ว่างจะไม่ได้แปลว่าไม่มี violation**
+ซึ่งเป็น false clean รูปแบบเดียวกับที่ gate ของ R2 ถูกไล่ปิดมาห้ารอบ
+console พิมพ์คำเตือนเสมอไม่ว่า `report-uri` จะทำงานหรือไม่ จึงเป็นหลักฐานที่เชื่อได้มากกว่า log
+
+**เมนูที่ยังไม่ได้ทดสอบ 4 หน้า:** Dashboard · การจัดการงาน (`/admin`) · นำเข้าข้อมูล (`/import`)
+· แปลงเอกสาร PDF (`/ocr`) — สองหน้าหลังผู้ใช้ลองแล้ว**ล้มเหลวทั้งคู่** โดย `/ocr` วินิจฉัยแล้วว่า
+ไม่เกี่ยวกับ CSP (ไม่มี OCR service ถูก deploy เลย — ดู issue #147) ส่วน `/import` ยังสรุปสาเหตุไม่ได้
+· **ยังไม่มี POST/PUT/DELETE เลยสักครั้ง** แปลว่ายังไม่ได้ลองเพิ่มหรือแก้ไขข้อมูลจริง
+
+**สามข้อที่ขัดกับความเข้าใจเดิม — เขียนไว้กันคนถัดไปสรุปผิดซ้ำ**
+
+1. **`frontend/dist` ในเครื่องเป็นคนละ build กับที่ production เสิร์ฟ** (hash ต่างกันทั้ง 3 ไฟล์ที่เทียบ)
+   `audit-bundle-csp.mjs` ที่รันใน CI จึงตรวจ build ของเครื่องที่รัน **ไม่ใช่ของที่ deploy** ซึ่งถูกต้อง
+   ตามหน้าที่ของมัน (เป็น pre-merge gate) — การตรวจ bundle ของ production เป็นคนละงานที่ต้องดึงไฟล์
+   จาก production มาก่อนแล้วรันด้วย `--dist` อย่างในตารางข้างบน
+2. **`last-modified` ของ `/` ขยับเป็น 20 ส.ค. แต่หน้าต่างหลักฐาน 7 วันไม่ได้รีเซ็ต** — production
+   ยังเสิร์ฟ `assets/index-B1YyXcfC.js` ซึ่งเป็นแฮชเดียวกับที่บันทึกไว้ 16–17 ส.ค. และไม่มีคอมมิต
+   แตะ `frontend/` เลยหลัง 17 ส.ค. · วันที่ขยับเพราะ backend merge ทำให้ re-deploy ทั้ง site
+   **อย่าด่วนสรุปจาก `last-modified` อย่างเดียว ต้องเทียบแฮชของ asset**
+3. **ตัวนับ CSP ใช้เป็นหลักฐานสำหรับรอบ 24 ส.ค. ไม่ได้** ต่อให้รัน DDL วันนี้ก็ตาม เพราะหน้าต่าง
+   เริ่มนับ 17 ส.ค. แต่ตัวนับเก็บได้เฉพาะตั้งแต่วันที่รัน DDL และ `check-csp-violations.mjs`
+   ถูกออกแบบให้ตอบ ✗ เมื่อตัวนับครอบไม่ถึงต้นหน้าต่าง (finding I3) — **มันจะไม่ยอมให้ผ่านโดยตั้งใจ**
+   หลักฐานสำหรับรอบนั้นต้องมาจาก Render log · ตัวนับมีค่าในฐานะ **ตาข่ายรองรับหลัง enforce** แทน
 
 **ความเสี่ยงที่ต้องกันไว้ก่อน enforce (คนละเรื่องกับจำนวน violation ใน log):**
 

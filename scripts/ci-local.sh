@@ -69,20 +69,14 @@ fi
 
 # รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push และ ci.yml — ไล่ชื่อทีละไฟล์
 # เคยทำให้เทสที่เพิ่มใหม่หลุดจากทางเข้านี้เงียบ ๆ (ไม่มีใครเห็นว่ามันไม่ถูกรัน)
-# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin) — รวมถึง
+# mock-server regression ของ CSP gate (issue #113 R1) ซึ่งเคยมีบล็อกของตัวเองต่อท้ายบล็อกนี้
+# แล้วถูกรันซ้ำสองรอบทุกครั้ง · glob ครอบอยู่แล้ว การไล่ชื่อซ้ำมีแต่ทำให้ CI ช้าลงเปล่า ๆ
 step 'Script Regressions'
 if node --test "${ROOT}"/scripts/tests/*.test.mjs; then
   ok 'script regressions'
 else
   fail 'script regressions'
-fi
-
-# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
-step 'CSP Violation Gate Regression'
-if node --test "${ROOT}/scripts/tests/check-csp-violations.test.mjs"; then
-  ok 'csp violation gate regression'
-else
-  fail 'csp violation gate regression'
 fi
 
 # ---- 1) Frontend -----------------------------------------------------------
