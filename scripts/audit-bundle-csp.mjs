@@ -631,7 +631,10 @@ function main() {
   console.log('\n✓ PASS: ไม่พบสิ่งที่จะชน policy ใน build output');
 }
 
-export { auditBundle, parseCspPolicy, allowedOriginsFrom, NON_FETCHED_ORIGINS };
+// EVENT_HANDLER_ATTRIBUTES ถูก export เพื่อให้ differential test เทียบชุดเดียวกับที่กฎใช้จริง
+// ไม่ใช่สำเนาที่เพี้ยนออกจากกันได้ — เทสนั้นถาม parse5 ว่า markup มี attribute อะไรบ้าง
+// แล้วคาดหวังให้ gate ฟ้องเฉพาะตัวที่อยู่ในชุดนี้
+export { auditBundle, parseCspPolicy, allowedOriginsFrom, NON_FETCHED_ORIGINS, EVENT_HANDLER_ATTRIBUTES };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

@@ -330,6 +330,13 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
   · regression: `scripts/tests/audit-bundle-csp.test.mjs` (62 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
+  · **differential**: `scripts/tests/audit-bundle-csp.differential.test.mjs` — ไม่ระบุคำตอบที่ถูกเอง
+  แต่ถาม **แหล่งความจริงเดียวกับที่ browser ใช้** แล้วเทียบว่า gate เห็นตรงกันไหม: `parse5`
+  (HTML tokenizer ตาม spec) ตอบว่า markup มี attribute อะไรจริง · `new URL()` ตอบว่า URL นั้น
+  browser จะไปที่ origin ไหนจริง · มีไว้เพราะการไล่ปิดทีละรูปแพ้มาหกรอบ — รูปที่ยังไม่มีใคร
+  นึกถึงจึงถูกครอบอัตโนมัติ · ยืม`parse5` จาก `frontend/node_modules` และ **ข้ามตัวเองพร้อม
+  เหตุผลที่บอกวิธีแก้** เมื่อยังไม่ได้ `npm ci` ฝั่ง frontend (มีเทสบังคับว่าข้อความ skip ต้องอ่านออก)
+  — ในทางปฏิบัติได้รันจริงเสมอ เพราะ `pre-push` รัน vitest อยู่แล้วจึงต้องมี node_modules ครบ
 - ตรวจจากภายนอกหลัง deploy:
   ```bash
   curl -sI https://smart-port.onrender.com/ | grep -i "content-security\|x-frame\|referrer\|permissions\|strict-transport"
