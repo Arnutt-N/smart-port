@@ -27,6 +27,9 @@ require_once __DIR__ . '/../SyncTransformService.php';
  *
  * ค่าที่ทางเข้าทุกทางใช้จริง: `db` (docker compose และ default ของฟังก์ชันนี้) ·
  * `host.docker.internal` (`run.sh` ตอน WSL แยกจาก Docker Desktop) · `127.0.0.1` (ci.yml)
+ * บวก `localhost` / `::1` ที่หมายถึง loopback เดียวกันแต่คนพิมพ์เองบ่อย — **allowlist มีเท่านี้
+ * และตรงกับ `$localHosts` ด้านล่างพอดี** ถ้าเติมค่าใหม่ต้องเติมที่นี่ด้วย ไม่งั้นคอมเมนต์
+ * จะเริ่มโกหกเงียบ ๆ ซึ่งเป็นสิ่งที่ code review รอบนี้จับได้ (ของเดิมอธิบาย 3 แต่โค้ดมี 8)
  *
  * **ข้อจำกัดที่รู้ตัว**: ตรวจแค่ชื่อ host ไม่ได้ตรวจปลายทางจริง — SSH tunnel หรือ port-forward
  * ที่ทำให้ `127.0.0.1:4000` ชี้ไป TiDB production ยังผ่าน guard นี้ · static check ปิดเรื่องนี้
@@ -36,7 +39,11 @@ require_once __DIR__ . '/../SyncTransformService.php';
  */
 function assertLocalTestDbHost(string $host): void
 {
-    $localHosts = ['db', 'localhost', '127.0.0.1', '::1', 'host.docker.internal', 'mysql', 'mariadb', 'smartport-db'];
+    // แคบไว้โดยตั้งใจ: มีเฉพาะค่าที่ทางเข้าจริงใช้ (`db` · `host.docker.internal` · `127.0.0.1`)
+    // บวก loopback รูปอื่นที่หมายถึงเครื่องเดียวกันแน่นอน · ของเดิมมี `mysql`/`mariadb`/
+    // `smartport-db` ติดมาด้วยทั้งที่ไม่มี compose หรือ workflow ไหนใช้ และ data provider
+    // ก็ไม่ครอบ — allowlist ของ guard ด้านความปลอดภัยที่กว้างเกินความจำเป็นคือหนี้ล้วน ๆ
+    $localHosts = ['db', 'localhost', '127.0.0.1', '::1', 'host.docker.internal'];
     if (in_array(strtolower(trim($host)), $localHosts, true)) {
         return;
     }

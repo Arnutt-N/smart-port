@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -53,7 +54,7 @@ final class TestDbHostGuardTest extends TestCase
     }
 
     #[Test]
-    #[\PHPUnit\Framework\Attributes\DataProvider('localHostProvider')]
+    #[DataProvider('localHostProvider')]
     public function accepts_local_hosts(string $host): void
     {
         assertLocalTestDbHost($host);
