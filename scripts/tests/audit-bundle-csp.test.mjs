@@ -491,6 +491,52 @@ test('finding ของ origin ต้องระบุ directive ตาม poli
   }
 });
 
+test('policy ที่ไม่ประกาศ connect-src ต้อง fallback ไป default-src เหมือน browser (ไม่ใช่ฟ้องทุกปลายทาง)', () => {
+  // ของเดิมอ่าน connect-src ตรง ๆ ได้เซ็ตว่าง แล้วฟ้อง fetch ทุกที่ทั้งที่ default-src อนุญาต
+  // = false positive · กฎ attribute ข้าง ๆ fallback ถูกอยู่แล้ว ความไม่สอดคล้องจึงซ่อนอยู่
+  const policy = "default-src 'self' https://api.example.com; script-src 'self'";
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/api.js': 'fetch("https://api.example.com/v1/records");',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    assert.deepEqual(findings, [], `default-src อนุญาตไว้ จึงต้องไม่ฟ้อง: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('directive ที่รายงานต้องครอบ directive ที่ไม่ใช่ fetch-directive แต่ยืม origin ให้ allowlist รวมได้', () => {
+  // regression ของคลาส "รายการที่พิมพ์ค้างไว้": ของเดิมเป็น array 6 ตัวที่ตกหล่น frame-src /
+  // object-src / form-action ซึ่ง TAG_ATTRIBUTE_DIRECTIVES ใช้จริง — คนอ่านจึงถูกบอกว่า
+  // finding เทียบกับ directive ชุดหนึ่ง ทั้งที่ origin ที่ปล่อยผ่านมาจากอีกชุดหนึ่ง
+  const policy =
+    "default-src 'self'; script-src 'self'; connect-src 'self'; " +
+    'frame-src https://frames.example.com; object-src https://objects.example.com; ' +
+    'form-action https://forms.example.com';
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/loose.js': 'const s = "https://unknown.example.com/x";',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    const hit = findings.find((f) => /unknown\.example\.com/.test(f.detail));
+    assert.ok(hit, JSON.stringify(findings));
+    for (const directive of ['frame-src', 'object-src', 'form-action']) {
+      assert.match(
+        hit.directive,
+        new RegExp(directive),
+        `${directive} ประกาศ origin ไว้จริง จึงต้องอยู่ในรายการที่รายงาน: ${hit.directive}`,
+      );
+    }
+    // directive ที่ไม่มี origin ภายนอกไม่ได้ยืมอะไรให้ใคร จึงไม่ควรถูกนับว่า "ปรึกษาแล้ว"
+    assert.doesNotMatch(hit.directive, /connect-src/, `connect-src 'self' ไม่มี origin: ${hit.directive}`);
+  } finally {
+    cleanup();
+  }
+});
+
 test('chunk ที่มีทั้ง HTML fragment และโค้ด JS ปกติ ต้องไม่ให้ false positive (review C2)', () => {
   // c8bc7cc แก้ M-A ด้วย guard ระดับ **ไฟล์** — พอ chunk เดียวมีสตริง `<script` ปนอยู่
   // ทั้งไฟล์ถูกพลิกเป็นโหมด HTML แล้ว ` once = ` / ` only = ` ก็ถูกจับผิดกลับมาเหมือนเดิม

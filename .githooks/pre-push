@@ -31,6 +31,19 @@ fi
 echo "[pre-push] script regressions (node --test scripts/tests) ..."
 node --test "${ROOT}"/scripts/tests/*.test.mjs
 
+# CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ
+# ให้ใครรัน · Actions ปิด auto-trigger อยู่ hook นี้จึงเป็นที่เดียวที่บังคับได้จริง
+#
+# ตรวจเฉพาะเมื่อมี dist อยู่แล้ว — hook ตัวนี้ตั้งใจให้เบา จึงไม่ build ให้เอง (npm run build
+# ทุกครั้งที่ push แพงเกินไป) · การไม่มี dist ที่นี่ไม่ใช่ "ผ่าน" แต่เป็น "ยังไม่ได้ตรวจ"
+# จึงต้องพิมพ์บอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่เงียบ (หลักการเดียวกับ differential test)
+if [[ -d "${FRONTEND}/dist" ]]; then
+  echo "[pre-push] CSP bundle audit (frontend/dist) ..."
+  node "${ROOT}/scripts/audit-bundle-csp.mjs"
+else
+  echo "[pre-push] SKIP CSP bundle audit: ไม่มี frontend/dist — build ก่อน (cd frontend && npm run build) แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ"
+fi
+
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
 cd "${FRONTEND}"
 npx vitest run --reporter=dot

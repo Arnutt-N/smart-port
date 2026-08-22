@@ -126,8 +126,8 @@ function policyOrigins(sources) {
  *
  * มีไว้เพราะการเทียบกับ allowlist รวมทุก directive ทำให้ origin ที่ policy อนุญาตไว้เพื่อ
  * **โหลดฟอนต์** กลายเป็นใบผ่านให้ **โหลดสคริปต์** — `<script src="//fonts.gstatic.com/x.js">`
- * เคยผ่านฉลุยทั้งที่ `script-src 'self'` บล็อกจริง (review ฐ) · เป็นความผิดพลาดเดียวกับ
- * review C1 ของรอบที่สอง ซึ่งตอนนั้นแก้เฉพาะเส้นทาง `fetch()` ส่วนเส้นทาง attribute ยังค้าง
+ * เคยผ่านฉลุยทั้งที่ `script-src 'self'` บล็อกจริง · เป็นความผิดพลาดเดียวกับที่เคยแก้ให้
+ * เส้นทาง `fetch()` ไปแล้ว (ดู `CONNECT_CALL_PATTERNS`) ส่วนเส้นทาง attribute ค้างอยู่นานกว่า
  *
  * **ใส่เฉพาะคู่ที่ไม่กำกวม** — `<source src>` เป็น `img-src` เมื่ออยู่ใน `<picture>` แต่เป็น
  * `media-src` เมื่ออยู่ใน `<video>` ซึ่ง static analysis แยกไม่ได้ จึงไม่อยู่ในตารางนี้และตกไป
@@ -180,6 +180,23 @@ function originsForDirective(policy, directive) {
 }
 
 /**
+ * source list ของ directive เป็นข้อความสำหรับ finding — fallback ไป `default-src` เหมือน
+ * `originsForDirective()` เพื่อให้ข้อความตรงกับชุดที่ใช้ตัดสินจริง ไม่ใช่คนละชุดกัน
+ */
+function sourcesText(policy, directive) {
+  return (policy.get(directive) ?? policy.get('default-src') ?? []).join(' ') || 'ไม่ได้ประกาศ';
+}
+
+/**
+ * URL ของแต่ละรายการในค่าที่อาจเป็น `srcset` — คั่นด้วย comma และมี descriptor (`2x`, `640w`)
+ * ต่อท้ายได้ · ค่าที่ไม่ใช่ srcset ผ่านฟังก์ชันนี้ได้เหมือนกัน เพราะจะได้ลิสต์ตัวเดียว
+ * (เดิมตรรกะนี้ถูกคัดลอกไว้สองที่พร้อมคอมเมนต์คำต่อคำเดียวกัน)
+ */
+function srcsetUrls(value) {
+  return value.split(',').map((entry) => entry.trim().split(/\s+/)[0] ?? '');
+}
+
+/**
  * origin ที่ policy อนุญาต **รวมทุก directive** — ใช้ได้เฉพาะกับ URL ที่บอกบริบทไม่ได้
  * (สตริงลอย ๆ ใน bundle ที่ static analysis ไม่รู้ว่าจะถูกใช้โหลดอะไร)
  *
@@ -197,10 +214,23 @@ function allowedOriginsFrom(policy) {
 }
 
 /**
- * directive ที่ควบคุมการโหลด subresource — ใช้บอกผู้อ่านว่า finding เทียบกับอะไรจริง ๆ
- * คำนวณจาก policy ที่ parse มา ไม่ใช่รายการที่พิมพ์ค้างไว้ ซึ่งเคยตกหล่น `style-src`
+ * directive ที่ผลักดัน origin เข้า allowlist รวม — ใช้บอกผู้อ่านว่า finding เทียบกับอะไรจริง ๆ
+ *
+ * **คำนวณจาก policy ที่ parse มา ไม่ใช่รายการที่พิมพ์ค้างไว้** — รายการที่พิมพ์ค้างเคยตกหล่น
+ * `style-src` (review C3) แล้วตกหล่นซ้ำรอบที่สอง (`frame-src` · `object-src` · `form-action`
+ * ที่ `TAG_ATTRIBUTE_DIRECTIVES` เพิ่มเข้ามาแต่ไม่มีใครเติมในรายการ) · คลาสเดียวกับที่ไล่ปิด
+ * มาทั้ง PR: กฎที่เก็บสำเนาความรู้ไว้เองย่อมเพี้ยนจากแหล่งจริง จึงอ่านจาก `policy` ตรง ๆ
+ *
+ * นับเฉพาะ directive ที่ประกาศ **origin ภายนอกจริง** เพราะนั่นคือสิ่งเดียวที่ทำให้
+ * `allowedOriginsFrom()` ยอมให้ origin ผ่าน — `connect-src 'self'` ไม่ได้ยืม origin ให้ใคร
  */
-const FETCH_DIRECTIVES = ['connect-src', 'img-src', 'font-src', 'style-src', 'script-src', 'media-src'];
+function directivesWithOrigins(policy) {
+  const names = [];
+  for (const [directive, sources] of policy) {
+    if (policyOrigins(sources).size > 0) names.push(directive);
+  }
+  return names;
+}
 
 /**
  * รูปแบบการเรียกที่ทำให้เกิด request ใต้ `connect-src` — capture group 1 คือ URL
@@ -305,7 +335,7 @@ const stripTrailingPunctuation = (url) => url.replace(/[.,;:{}!?'"]+$/, '');
  * **ไม่มีอักขระตัวไหนถูกใช้เป็น "ตัวปิด URL" อีกต่อไป** — สามรอบติดที่ผ่านมาพิสูจน์ว่าทุกตัว
  * ที่เคยเลือกมาเป็นตัวคั่น (`_` → `@` → `, ; ( { }` → `)`) ล้วน**อยู่ในส่วน userinfo ได้
  * ตามมาตรฐาน URL** และ host จริงถูกตัดสินด้วย `@` ตัวสุดท้าย ผลคือ origin ที่ policy อนุญาต
- * ถูกยืมมาเป็นคำนำหน้าแล้วผ่านฉลุยทุกครั้ง (review ฉ · ซ · ฑ — คำอธิบายเดียวกันสามรอบ)
+ * ถูกยืมมาเป็นคำนำหน้าแล้วผ่านฉลุยทุกครั้ง — อาการเดียวกันซ้ำสามรอบ ต่างแค่อักขระที่เลือก
  *
  * เหตุผลเดิมที่ต้องมีตัวคั่นคือ `url(a),url(b)` ต้องแยกเป็นสอง origin ไม่ใช่ก้อนเดียว
  * วิธีนี้ได้ผลเดียวกันโดยไม่ต้องเดา: **b มีจุดเริ่มของตัวเอง** จึงถูก parse แยกอยู่แล้ว
@@ -329,8 +359,8 @@ const OPEN_TAG_SCAN_LIMIT = 4096;
  * ไม่ปิดแท็ก (`<img alt="a>b" onclick="…">` เป็นแท็กเดียว ซึ่งคือสิ่งที่ browser อ่านจริง)
  *
  * ของเดิมใช้ `/<[a-zA-Z][^>]*>/` ที่ตัดตรง `>` ตัวแรกเสมอ แล้วชดเชยด้วย guard นับ quote
- * ให้ครบคู่ · กฎ URL เลิกพึ่งขอบเขตแท็กไปแล้วในรอบที่สี่ แต่กฎ handler ยังพึ่งอยู่ จึงเหลือ
- * เป็นช่องสุดท้ายของคลาสเดียวกัน — วิธีที่ปิดได้จริงคือแตกแท็กให้ถูกตั้งแต่แรก
+ * ให้ครบคู่ · กฎ URL เลิกพึ่งขอบเขตแท็กไปก่อน ส่วนกฎ handler ยังพึ่งอยู่ จึงเหลือเป็นช่อง
+ * สุดท้ายของคลาสเดียวกัน — วิธีที่ปิดได้จริงคือแตกแท็กให้ถูกตั้งแต่แรก
  *
  * `terminated: false` แปลว่า **แยก attribute ไม่ได้จริง** (ไม่เจอ `>` นอก quote ก่อนชน `<`
  * ตัวถัดไปหรือชนลิมิต) ผู้เรียกต้องไม่เชื่อ `attrs` ในกรณีนั้น ซึ่งตรงกับ browser ด้วย:
@@ -438,7 +468,7 @@ function walk(dir) {
 // ── กฎแต่ละข้อเป็นฟังก์ชันบริสุทธิ์ ─────────────────────────────────────────────
 // คืน finding ที่ยัง **ไม่มีชื่อไฟล์** ให้ผู้เรียกเติม — แยกออกมาเพราะตอนรวมอยู่ในลูปเดียว
 // ยาว 167 บรรทัด ทิศทางของ `continue` แต่ละตัวตรวจด้วยตาไม่ไหว จน guard ที่เพิ่มเข้าไป
-// เพื่อปิดช่องหนึ่งกลับเปิดอีกช่องโดยไม่มีใครเห็น (code review รอบที่สี่)
+// เพื่อปิดช่องหนึ่งกลับเปิดอีกช่องโดยไม่มีใครเห็น
 
 /**
  * R1 — inline `<script>` ที่มีเนื้อหา และ inline event handler ที่เป็น attribute ในแท็ก
@@ -484,7 +514,7 @@ function inlineScriptFindings(content) {
     if (!tag.terminated) continue;
     // แตก attribute ด้วยตัวเดียวกับที่ branch <script> ใช้ แทนการยิง regex ดิบทับ attrs
     // ของเดิมบังคับ whitespace นำหน้า (`/\son[a-z]+/`) ซึ่ง HTML ไม่ได้บังคับ — `<img/onerror=…>`
-    // และ `<a href="x"onclick=…>` จึงหลุดทั้งคู่ ทั้งที่เป็นสำนวน bypass ที่ใช้กันจริง (review ฌ)
+    // และ `<a href="x"onclick=…>` จึงหลุดทั้งคู่ ทั้งที่เป็นสำนวน bypass ตัวกรอง XSS ที่ใช้กันจริง
     for (const name of parseAttributes(tag.attrs).keys()) {
       if (!EVENT_HANDLER_ATTRIBUTES.has(name)) continue;
       found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${name}= ใน ${`<${tag.name}${tag.attrs}`.slice(0, 40)}` });
@@ -528,6 +558,10 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
   const found = [];
   const reported = new Set(); // origin ที่ฟ้องไปแล้ว — กันฟ้องซ้ำจากกฎอื่นในไฟล์เดียวกัน
 
+  // เงื่อนไข "ไม่ต้องฟ้อง" เดิมถูกคัดลอกไว้สามที่ ซึ่งเพี้ยนออกจากกันได้เงียบ ๆ เมื่อมีคนแก้ที่เดียว
+  const isCovered = (origin, allowed) =>
+    allowed.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin);
+
   // แท็กที่บอก directive ได้แน่นอน ตรวจก่อนกฎอื่น เพราะให้คำตอบที่แม่นกว่า:
   // เทียบกับ directive ที่บล็อกจริง ไม่ใช่ allowlist รวมที่ยืม origin ข้าม directive ได้
   for (const tag of openTags(content)) {
@@ -537,16 +571,15 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
       const directive = directiveFor(tag.name, attr, attrs);
       if (directive === null) continue;
       const allowed = originsForDirective(policy, directive);
-      // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว
-      for (const entry of value.split(',')) {
-        const origin = originOf(entry.trim().split(/\s+/)[0] ?? '');
+      for (const url of srcsetUrls(value)) {
+        const origin = originOf(url);
         if (origin === null) continue; // relative/data: — อยู่ใต้ 'self' หรือไม่ใช่ URL
-        if (allowed.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
+        if (isCovered(origin, allowed)) continue;
         reported.add(origin);
         found.push({
           rule: 'external-origin',
           directive,
-          detail: `<${tag.name} ${attr}> โหลดจาก ${origin} แต่ ${directive} อนุญาตแค่ ${(policy.get(directive) ?? policy.get('default-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'} — จะถูกบล็อกหลัง enforce`,
+          detail: `<${tag.name} ${attr}> โหลดจาก ${origin} แต่ ${directive} อนุญาตแค่ ${sourcesText(policy, directive)} — จะถูกบล็อกหลัง enforce`,
         });
       }
     }
@@ -556,19 +589,19 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
     for (const match of content.matchAll(pattern)) {
       const origin = originOf(match[1]); // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว
       if (origin === null) continue;
-      if (connectOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
+      if (isCovered(origin, connectOrigins)) continue;
       reported.add(origin);
       found.push({
         rule: 'external-origin',
         directive: 'connect-src',
-        detail: `พบการเรียกข้อมูลไป ${origin} แต่ connect-src อนุญาตแค่ ${(policy.get('connect-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'} — จะถูกบล็อกหลัง enforce`,
+        detail: `พบการเรียกข้อมูลไป ${origin} แต่ connect-src อนุญาตแค่ ${sourcesText(policy, 'connect-src')} — จะถูกบล็อกหลัง enforce`,
       });
     }
   }
 
   const originCounts = new Map();
   const countOrigin = (origin) => {
-    if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) return;
+    if (isCovered(origin, allowedOrigins)) return;
     originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
   };
   // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู absoluteUrlCandidates)
@@ -593,9 +626,8 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
   // ชัดกว่า url() ด้วยซ้ำ · จับที่คู่ชื่อ-ค่า ไม่พึ่งขอบเขตแท็ก (ดู URL_ATTRIBUTE_ASSIGNMENT)
   for (const match of content.matchAll(URL_ATTRIBUTE_ASSIGNMENT)) {
     const value = match[1] ?? match[2] ?? match[3] ?? '';
-    // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว · ชิ้นส่วน base64
-    // ของ data URI ที่ถูกแตกมาด้วยจะตกไปเองเพราะไม่ได้ขึ้นต้นด้วย `//`
-    for (const entry of value.split(',')) countIfProtocolRelative(entry.trim().split(/\s+/)[0] ?? '');
+    // ชิ้นส่วน base64 ของ data URI ที่ถูก srcsetUrls แตกมาด้วยจะตกไปเอง เพราะไม่ขึ้นต้นด้วย `//`
+    for (const url of srcsetUrls(value)) countIfProtocolRelative(url);
   }
 
   for (const [origin, count] of originCounts) {
@@ -629,9 +661,14 @@ function auditBundle(distDir, cspValue) {
   const policy = parseCspPolicy(cspValue);
   const allowedOrigins = allowedOriginsFrom(policy);
   // allowlist แยกสำหรับ URL ที่รู้บริบทแล้วว่าเป็น request — ต้องผ่าน connect-src เท่านั้น
-  const connectOrigins = policyOrigins(policy.get('connect-src'));
+  //
+  // ใช้ `originsForDirective` เพื่อให้ **fallback ไป `default-src` เหมือนที่ browser ทำ** —
+  // ของเดิมอ่าน `policy.get('connect-src')` ตรง ๆ ซึ่งเมื่อ policy ไม่ได้ประกาศ connect-src
+  // จะได้เซ็ตว่างแล้วฟ้อง fetch ทุกปลายทางทั้งที่ `default-src` อนุญาตไว้ = false positive
+  // (กฎ attribute ข้าง ๆ fallback ถูกอยู่แล้ว ความไม่สอดคล้องนี้จึงซ่อนอยู่จนมาเทียบกัน)
+  const connectOrigins = originsForDirective(policy, 'connect-src');
   // directive ที่รายงานต้องสะท้อน policy จริง แก้ policy แล้วข้อความตามเอง
-  const consultedDirectives = FETCH_DIRECTIVES.filter((d) => policy.has(d)).join(' / ') || 'default-src';
+  const consultedDirectives = directivesWithOrigins(policy).join(' / ') || 'default-src';
   // สี่ค่านี้เดินทางด้วยกันเสมอในกฎ R3/R4 จึงมัดเป็นก้อนเดียว แทนที่จะส่งทีละตัว
   const originContext = { policy, connectOrigins, allowedOrigins, consultedDirectives };
   const allowsInlineScript = hasSource(policy, 'script-src', "'unsafe-inline'");
@@ -670,10 +707,10 @@ function auditBundle(distDir, cspValue) {
     const content = readFileSync(file, 'utf8');
 
     // กฎแต่ละข้ออยู่ในฟังก์ชันของตัวเอง (ดูด้านบน) — ที่นี่เหลือแค่ประกอบผลเข้ากับชื่อไฟล์
-    const push = (list) => { for (const f of list) add(file, f.rule, f.directive, f.detail); };
-    if (!allowsInlineScript) push(inlineScriptFindings(content));
-    if (!allowsDynamicCode) push(dynamicCodeFindings(content));
-    push(externalOriginFindings(content, originContext));
+    const recordAll = (list) => { for (const f of list) add(file, f.rule, f.directive, f.detail); };
+    if (!allowsInlineScript) recordAll(inlineScriptFindings(content));
+    if (!allowsDynamicCode) recordAll(dynamicCodeFindings(content));
+    recordAll(externalOriginFindings(content, originContext));
   }
 
   return { findings, inspected, skipped, scanned: files.length };
