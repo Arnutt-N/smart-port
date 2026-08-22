@@ -28,6 +28,10 @@ require_once __DIR__ . '/../SyncTransformService.php';
  * ค่าที่ทางเข้าทุกทางใช้จริง: `db` (docker compose และ default ของฟังก์ชันนี้) ·
  * `host.docker.internal` (`run.sh` ตอน WSL แยกจาก Docker Desktop) · `127.0.0.1` (ci.yml)
  *
+ * **ข้อจำกัดที่รู้ตัว**: ตรวจแค่ชื่อ host ไม่ได้ตรวจปลายทางจริง — SSH tunnel หรือ port-forward
+ * ที่ทำให้ `127.0.0.1:4000` ชี้ไป TiDB production ยังผ่าน guard นี้ · static check ปิดเรื่องนี้
+ * ไม่ได้โดยธรรมชาติ guard นี้จึงลดความเสี่ยงจาก env ที่หลงเหลือ ไม่ใช่พิสูจน์ว่าปลายทางปลอดภัย
+ *
  * @throws RuntimeException เมื่อ host ไม่ใช่ของในเครื่องและไม่ได้ตั้ง ALLOW_REMOTE_TEST_DB=1
  */
 function assertLocalTestDbHost(string $host): void

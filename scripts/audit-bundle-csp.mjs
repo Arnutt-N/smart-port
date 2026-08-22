@@ -178,7 +178,7 @@ const URL_FUNCTION_ARG = /url\(\s*["']?([^"')]+)/gi;
  * NON_FETCHED_ORIGINS พร้อมเหตุผล (มีเทสล็อกไว้ว่านี่คือการตัดสินใจ ไม่ใช่ความพลาด)
  */
 const URL_ATTRIBUTE_ASSIGNMENT =
-  /(?<![-\w])(?:formaction|srcset|poster|action|href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi;
+  /(?<![-\w])(?:formaction|srcset|poster|action|href|data|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi;
 
 /**
  * origin ของ URL ที่พบใน bundle — คืน `null` เมื่อเป็น path สัมพัทธ์ (อยู่ใต้ 'self' อยู่แล้ว)
@@ -227,7 +227,18 @@ const isProtocolRelative = (url) => url.trim().startsWith('//');
  * ตัดที่วงเล็บ/จุลภาค/อัฒภาคด้วย เพราะ `url(a),url(b)` ต้องแยกเป็นสอง origin ไม่ใช่ก้อนเดียว
  * ที่ทำให้ตัวหลังหายไปเงียบ ๆ · `[` `]` ถูกเก็บไว้เพราะเป็นส่วนหนึ่งของ IPv6 literal
  */
-const ABSOLUTE_URL_CANDIDATE = /https?:\/\/[^\s"'`<>\\(),;{}]+/gi;
+const ABSOLUTE_URL_CANDIDATE = /https?:\/\/[^\s"'`<>\\)]+/gi;
+
+/**
+ * เครื่องหมายวรรคตอนท้ายก้อนที่ไม่ใช่ส่วนหนึ่งของ URL — ตัดทิ้งก่อนส่งให้ URL parser
+ *
+ * ทำแบบนี้แทนการใส่อักขระเหล่านี้ใน character class ด้านบน เพราะ `, ; { }` **อยู่ในส่วน
+ * userinfo ได้ตามมาตรฐาน URL** และ host จริงถูกตัดสินด้วย `@` ตัวสุดท้าย — การใช้มันเป็น
+ * ตัวตัดจึงเปิดช่องเดียวกับที่ review ฉ ปิดไป: `https://fonts.gstatic.com,x@evil.example/`
+ * ถูกอ่านเป็น origin ที่ policy อนุญาต ทั้งที่ browser โหลดไป evil.example (review ซ)
+ * `)` ยังตัดอยู่ในตัว regex เพราะมันปิด `url(…)` จริง และ `url(a),url(b)` ต้องแยกเป็นสอง origin
+ */
+const stripTrailingPunctuation = (url) => url.replace(/[.,;:{}!?'"]+$/, '');
 
 /**
  * ความยาวสูงสุดที่ยอมให้แท็กเปิดกินพื้นที่ — แท็กจริงไม่ยาวขนาดนี้ ส่วนในไฟล์ JS `a<b`
@@ -254,6 +265,7 @@ function* openTags(content) {
     let quote = null;
     let i = from;
     let terminated = false;
+    let truncated = false;
     for (; i < limit; i++) {
       const ch = content[i];
       if (quote !== null) {
@@ -264,9 +276,44 @@ function* openTags(content) {
       else if (ch === '<') break; // แท็กเปิดซ้อนแท็กเปิดไม่ได้ — ตัวแรกไม่ใช่แท็กจริง
       else if (ch === '>') { terminated = true; break; }
     }
-    yield { name: start[1].toLowerCase(), attrs: content.slice(from, i), end: i, terminated };
+    // ชนลิมิตทั้งที่ยังไม่จบแท็ก = **อ่านไม่ครบ** ซึ่งต่างจากการเจอ `<` (แปลว่าไม่ใช่แท็กจริง)
+    // สองกรณีนี้ต้องแยกกัน เพราะกรณีแรกคือ "ไม่รู้" ที่ห้ามกลายเป็น "สะอาด"
+    if (!terminated && i === limit && limit < content.length) truncated = true;
+    yield { name: start[1].toLowerCase(), attrs: content.slice(from, i), end: i, terminated, truncated };
   }
 }
+
+/**
+ * ชื่อ attribute ที่ browser ถือว่าเป็น **event handler content attribute** จริง
+ *
+ * ใช้ชุดปิดแทนรูป `on` + ตัวอักษรอะไรก็ได้ เพราะ **นี่คือความหมายของ CSP จริง ไม่ใช่ heuristic**:
+ * attribute ชื่อ `onfoo` ที่ไม่มีในรายการนี้ browser ไม่ compile เป็นโค้ดตั้งแต่แรก จึงไม่มีอะไร
+ * ให้ `script-src` บล็อก · ผลพลอยได้คือปิด regression M-A ที่ยั้งไม่อยู่มาสามรอบ — ` once = `
+ * และ ` only = ` ในโค้ด JS ที่ถูกอ่านเป็น pseudo-tag จะตกไปเองเพราะไม่ใช่ชื่อ event
+ *
+ * **ข้อจำกัดที่รู้ตัว**: event ที่ browser เพิ่มในอนาคตจะหลุดจนกว่าจะมีคนเติมที่นี่ — เป็นการ
+ * แลกที่ตั้งใจ เพราะทางเลือกเดิม (รับทุกคำที่ขึ้นต้นด้วย on) ให้ false positive กับโค้ดปกติ
+ * ซึ่งทำให้คนเลิกเชื่อ gate ทั้งตัว · รายการนี้มาจาก event handler content attributes ของ
+ * HTML spec รวมกับกลุ่ม pointer/touch/animation/transition ที่ browser รองรับจริง
+ */
+const EVENT_HANDLER_ATTRIBUTES = new Set([
+  'onabort', 'onafterprint', 'onanimationcancel', 'onanimationend', 'onanimationiteration', 'onanimationstart',
+  'onauxclick', 'onbeforeinput', 'onbeforematch', 'onbeforeprint', 'onbeforetoggle', 'onbeforeunload', 'onblur',
+  'oncancel', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'onclose', 'oncontextlost', 'oncontextmenu',
+  'oncontextrestored', 'oncopy', 'oncuechange', 'oncut', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter',
+  'ondragleave', 'ondragover', 'ondragstart', 'ondrop', 'ondurationchange', 'onemptied', 'onended', 'onerror',
+  'onfocus', 'onfocusin', 'onfocusout', 'onformdata', 'ongotpointercapture', 'onhashchange', 'oninput', 'oninvalid',
+  'onkeydown', 'onkeypress', 'onkeyup', 'onlanguagechange', 'onload', 'onloadeddata', 'onloadedmetadata',
+  'onloadstart', 'onlostpointercapture', 'onmessage', 'onmessageerror', 'onmousedown', 'onmouseenter',
+  'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onoffline', 'ononline', 'onpagehide',
+  'onpageshow', 'onpaste', 'onpause', 'onplay', 'onplaying', 'onpointercancel', 'onpointerdown', 'onpointerenter',
+  'onpointerleave', 'onpointermove', 'onpointerout', 'onpointerover', 'onpointerup', 'onpopstate', 'onprogress',
+  'onratechange', 'onrejectionhandled', 'onreset', 'onresize', 'onscroll', 'onscrollend', 'onsecuritypolicyviolation',
+  'onseeked', 'onseeking', 'onselect', 'onselectionchange', 'onselectstart', 'onslotchange', 'onstalled',
+  'onstorage', 'onsubmit', 'onsuspend', 'ontimeupdate', 'ontoggle', 'ontouchcancel', 'ontouchend', 'ontouchmove',
+  'ontouchstart', 'ontransitioncancel', 'ontransitionend', 'ontransitionrun', 'ontransitionstart',
+  'onunhandledrejection', 'onunload', 'onvolumechange', 'onwaiting', 'onwheel',
+]);
 
 /** ชื่อ attribute + ค่า — ใช้แตกแท็กเปิดเป็น Map เพื่อเทียบ **ชื่อเต็ม** ไม่ใช่ substring */
 const HTML_ATTRIBUTE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/g;
@@ -338,20 +385,31 @@ function inlineScriptFindings(content) {
       const executable = !attrs.has('src') && !isNonExecutableType(attrs.get('type'));
       // spec R1 พูดถึง inline script "ที่มีเนื้อหา" — แท็กว่างเปล่า browser ไม่บล็อก
       // รับแท็กปิดทั้งรูปปกติและรูปที่ถูก escape · หาไม่เจอ = ถือว่ามีเนื้อหา (fail-closed)
-      const after = content.slice(tag.end + 1);
+      // `end` ชี้ที่ `>` เฉพาะตอน terminated — ตอนอื่นชี้ที่ `<` ตัวถัดไปหรือที่ลิมิต
+      const after = content.slice(tag.terminated ? tag.end + 1 : tag.end);
       const closeAt = after.search(/<\\?\/script\s*>/i);
       const empty = closeAt !== -1 && after.slice(0, closeAt).trim() === '';
       if (executable && !empty) {
         found.push({ rule: 'inline-script', directive: 'script-src', detail: `พบ <script> ที่ไม่มี src (โค้ดฝังในตัว): ${`<script${tag.attrs}>`.slice(0, 60)}` });
       }
     }
-    // handler ต้องมีหลักฐานว่าเป็นแท็กจริง — ไม่งั้น `a<b && once = true` ในไฟล์ JS ถูกอ่าน
-    // เป็นแท็กแล้ว ` once =` ถูกจับเป็น handler (regression M-A จากอีกทางหนึ่ง)
+    // อ่านแท็กไม่จบเพราะชนลิมิต = ตรวจไม่ได้ ต้องฟ้อง ไม่ใช่เงียบ ("ไม่รู้" ห้ามเป็น "สะอาด")
+    // ต่างจากการเจอ `<` ตัวถัดไป ซึ่งแปลว่านี่ไม่ใช่แท็กจริงตั้งแต่แรก จึงข้ามได้อย่างมีเหตุผล
+    if (tag.truncated) {
+      found.push({
+        rule: 'unparsable-tag',
+        directive: 'script-src',
+        detail: `แท็ก <${tag.name}> ยาวเกิน ${OPEN_TAG_SCAN_LIMIT} ตัวอักษรจนอ่าน attribute ไม่ครบ — ตรวจ inline handler ในแท็กนี้ไม่ได้`,
+      });
+      continue;
+    }
     if (!tag.terminated) continue;
-    // `["']?` เพราะ HTML ยอมให้ค่า attribute ไม่มีเครื่องหมายคำพูด (`<button onclick=go()>`)
-    // ซึ่งของเดิมหลุด — `frontend/public/50x.html` เป็นไฟล์ที่คนแก้ด้วยมือ จึงเกิดได้จริง
-    for (const match of tag.attrs.matchAll(/\son[a-z]+\s*=\s*["']?/gi)) {
-      found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${match[0].trim()} ใน ${`<${tag.name}${tag.attrs}`.slice(0, 40)}` });
+    // แตก attribute ด้วยตัวเดียวกับที่ branch <script> ใช้ แทนการยิง regex ดิบทับ attrs
+    // ของเดิมบังคับ whitespace นำหน้า (`/\son[a-z]+/`) ซึ่ง HTML ไม่ได้บังคับ — `<img/onerror=…>`
+    // และ `<a href="x"onclick=…>` จึงหลุดทั้งคู่ ทั้งที่เป็นสำนวน bypass ที่ใช้กันจริง (review ฌ)
+    for (const name of parseAttributes(tag.attrs).keys()) {
+      if (!EVENT_HANDLER_ATTRIBUTES.has(name)) continue;
+      found.push({ rule: 'inline-event-handler', directive: 'script-src', detail: `พบ inline event handler: ${name}= ใน ${`<${tag.name}${tag.attrs}`.slice(0, 40)}` });
     }
   }
   return found;
@@ -412,7 +470,7 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
   };
   // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู ABSOLUTE_URL_CANDIDATE)
   for (const match of content.matchAll(ABSOLUTE_URL_CANDIDATE)) {
-    const origin = originOf(match[0]); // lowercase ให้แล้ว — CSP host-source ไม่แยกตัวพิมพ์
+    const origin = originOf(stripTrailingPunctuation(match[0])); // lowercase ให้แล้ว
     if (origin !== null) countOrigin(origin);
   }
 

@@ -302,6 +302,12 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   — กฎผูกกับ directive จริง ไม่ hardcode: inline script/event handler (`script-src`) · `eval(`
   และ `Function(` (`script-src` — **ข้อจำกัดที่รู้ตัว**: indirect eval แบบ `(0,eval)()` regex
   จับไม่ได้ gate นี้ลดความเสี่ยง ไม่ใช่พิสูจน์ว่าไม่มี)
+  · แท็กถูกแตกด้วยตัวสแกนที่**เคารพ quote แบบ HTML tokenizer** — `>` ในค่า attribute ไม่ปิดแท็ก
+  และชื่อ handler เทียบกับ **ชุดปิดของ event handler content attribute จริง** ไม่ใช่รูป `on`
+  ตามด้วยอะไรก็ได้ เพราะ attribute ชื่อ `onfoo` ที่ไม่ใช่ event จริง browser ไม่ compile
+  เป็นโค้ดตั้งแต่แรก (**ข้อจำกัดที่รู้ตัว**: event ที่ browser เพิ่มในอนาคตจะหลุดจนกว่าจะมีคนเติม
+  — แลกกับการไม่ฟ้อง ` once = true` ในโค้ด JS ปกติ ซึ่งเคยเกิดสามรอบ)
+  · แท็กที่ยาวเกินลิมิตจนอ่าน attribute ไม่ครบ ถูกฟ้องเป็น `unparsable-tag` **ไม่ใช่ข้ามเงียบ ๆ**
   · **URL ที่รู้ว่าถูกเรียกจริง** (argument ของ `fetch()` / `axios` / `XHR.open()` ที่เป็น string
   literal) เทียบกับ **`connect-src` เท่านั้น** — ไม่ใช่ allowlist รวมทุก directive ไม่งั้น origin
   ที่ policy อนุญาตไว้เพื่อโหลดฟอนต์จะกลายเป็นใบผ่านให้ยิง API (ความเสี่ยงข้อ 1 ด้านบน คือ
@@ -309,8 +315,9 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   URL ที่ประกอบจากตัวแปร (`fetch(base + path)`) มองไม่เห็น — allowlist รวมยังคุมสตริงลอยอีกชั้น
   · absolute URL ที่บอกบริบทไม่ได้ เทียบกับ allowlist รวม และรายงาน directive ที่เทียบตาม
   policy จริง โดย **host ถูกตัดสินด้วย URL parser ไม่ใช่ character class** — `_` ในชื่อ host,
-  userinfo (`https://allowed.example@evil.example/`) และ IPv6 literal จึงไม่ทำให้ origin
-  ถูกอ่านผิดเป็นตัวที่ policy อนุญาต · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
+  userinfo ทุกรูป (`https://allowed.example@evil.example/` และรูปที่มี `, ; ( ) { }` คั่น
+  ซึ่งเป็นอักขระที่อยู่ในส่วน userinfo ได้) และ IPv6 literal จึงไม่ทำให้ origin ถูกอ่านผิด
+  เป็นตัวที่ policy อนุญาต · regex ทำหน้าที่แค่คว้าก้อนที่น่าจะเป็น URL เท่านั้น · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
   CSS-in-JS ก็โหลดจริง) **รวมรูป protocol-relative `url(//host/…)`** ซึ่ง browser เติม scheme
   ของหน้าเว็บให้ · เช่นเดียวกับ **ค่าของ attribute ที่เป็น URL** (`src` / `href` / `srcset` /
   `poster` / `data` / `action` / `formaction`) — `<img src="//host">` คือบริบทที่บอกว่าเป็น URL
@@ -321,7 +328,7 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (57 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (62 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
 - ตรวจจากภายนอกหลัง deploy:
   ```bash

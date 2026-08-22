@@ -932,3 +932,103 @@ test('โค้ด JS ที่มีตัวดำเนินการเป�
     cleanup();
   }
 });
+
+// ── รีวิวรอบที่หก บนคอมมิต 6fd2b58 (reviewer subagent) ────────────────────────
+// คลาสเดิมยังไม่ปิด — ทั้งสามข้อล้วนเป็น "กฎเดาขอบเขตเอง แทนที่จะให้ตัว parse ตัดสิน"
+// อีกครั้ง แต่คนละที่กับรอบที่ห้า · ทุกข้อยืนยันแล้วว่า gate ตอบ PASS บนโค้ดก่อนแก้
+
+test('userinfo ที่มีอักขระซึ่ง regex เคยใช้เป็นตัวตัด ต้องไม่ทำให้ host ถูกอ่านผิด (review ซ)', () => {
+  // รอบที่ห้าปิดเฉพาะ `@` ที่ติดกับ origin — แต่ตัวตัด `, ; ( ) { }` ที่เพิ่มเข้ามาเพื่อแยก
+  // `url(a),url(b)` กลายเป็นช่องใหม่ทันที เพราะอักขระเหล่านี้อยู่ในส่วน userinfo ได้ตามมาตรฐาน
+  // URL และ host จริงถูกตัดสินด้วย `@` ตัวสุดท้าย — ยิ่ง policy อนุญาต origin ไว้มาก
+  // ช่องยิ่งกว้าง เพราะทุก origin ที่อนุญาตกลายเป็นคำนำหน้าที่ยืมได้ (คำอธิบายเดียวกับ review ฉ)
+  for (const separator of [',', ';', '(', '{', '}']) {
+    const { dir, cleanup } = makeDist({
+      ...cleanFiles,
+      'assets/userinfo.js': `const u = "https://fonts.gstatic.com${separator}x@evil.example/steal";`,
+    });
+    try {
+      const { findings } = auditBundle(dir, POLICY);
+      assert.ok(
+        findings.some((f) => /evil\.example/.test(f.detail)),
+        `ตัวคั่น "${separator}": ${JSON.stringify(findings)}`
+      );
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('inline event handler ที่ไม่มีช่องว่างนำหน้าต้องถูกจับ (review ฌ)', () => {
+  // `/\son[a-z]+/` บังคับ whitespace นำหน้า แต่ HTML ไม่ได้บังคับ — `<img/onerror=…>` เป็น
+  // สำนวน bypass ตัวกรอง XSS ที่ใช้กันมานาน · ไฟล์นี้มีตัวแตก attribute ของตัวเองอยู่แล้ว
+  // (parseAttributes ที่ branch <script> ใช้) การยิง regex ดิบทับ attrs จึงเป็นการเดาซ้ำซ้อน
+  const cases = {
+    'slash.html': '<!doctype html><html><body><img/onerror="alert(1)"></body></html>',
+    'selfclose.html': '<!doctype html><html><body><img src=x /onerror="alert(1)"></body></html>',
+    'afterquote.html': '<!doctype html><html><body><a href="x"onclick="alert(1)">t</a></body></html>',
+  };
+  for (const [name, content] of Object.entries(cases)) {
+    const { dir, cleanup } = makeDist({ ...cleanFiles, [name]: content });
+    try {
+      const { findings } = auditBundle(dir, POLICY);
+      assert.ok(
+        findings.some((f) => f.rule === 'inline-event-handler'),
+        `${name}: ${JSON.stringify(findings)}`
+      );
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('แท็กที่ยาวเกินลิมิตต้องถูกฟ้องว่าตรวจไม่ได้ ไม่ใช่ข้ามเงียบ ๆ (review ญ)', () => {
+  // "ไม่รู้" ต้องไม่กลายเป็น "สะอาด" — attribute ที่ยาวเกิน OPEN_TAG_SCAN_LIMIT ทำให้อ่าน
+  // แท็กไม่ครบ แล้วกฎ handler เลือกเงียบ · เส้นแบ่งอยู่ใกล้ของจริงกว่าที่คิด: assetsInlineLimit
+  // ของ Vite เป็น 4096 ไบต์ = ~5,461 ตัวอักษรเมื่อ base64 ซึ่งเกินลิมิตนี้ทันที
+  const long = 'A'.repeat(4200);
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'huge.html': `<!doctype html><html><body><img src="data:image/png;base64,${long}" onerror="alert(1)"></body></html>`,
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.length > 0, `ต้องมี finding สักอย่าง: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('โค้ด JS ที่มีตัวดำเนินการเปรียบเทียบ **และมี `>` อยู่ในไฟล์** ต้องไม่ถูกจับ (review ฎ)', () => {
+  // เทส "กันแก้เกิน" ของรอบที่ห้าใช้ fixture ที่ไม่มี `>` เลยสักตัว ทุก pseudo-tag จึง
+  // terminated:false แล้ว guard ก็ข้ามให้ = เทสเขียวด้วยเหตุผลคนละอย่างกับที่มันอ้างว่าปกป้อง
+  // arrow function ตัวเดียว (มีในทุก bundle สมัยใหม่) ทำให้ \` once = \` ถูกจับเป็น handler ทันที
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/cmp.js': 'const r = a<b && once = true; const s = x<y && only = 2; el.onclick = go; const f = x=>x;',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    const noise = findings.filter((f) => f.rule === 'inline-event-handler');
+    assert.deepEqual(noise, [], JSON.stringify(noise));
+  } finally {
+    cleanup();
+  }
+});
+
+test('attribute ที่เอกสารบอกว่าตรวจ ต้องถูกตรวจจริง (review ฏ — อ้างว่าครอบ ทั้งที่ไม่ครอบ)', () => {
+  // เอกสารระบุ `data` อยู่ในรายการ attribute ที่ตรวจ แต่กฎไม่เคยมี — `<object data="//host">`
+  // จึงผ่านฉลุยขณะที่ `<embed src="//host">` ในไฟล์เดียวกันถูกจับ · ผลกระทบจริงต่ำเพราะ
+  // policy ตั้ง object-src 'none' แต่ "อ้างว่าครอบ ทั้งที่ไม่ครอบ" คือ failure mode
+  // เดียวกับตัวเลขที่เพี้ยนในเอกสาร ซึ่ง issue นี้มีเทส anti-drift กันไว้แล้วสองที่
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'obj.html': '<!doctype html><html><body><object data="//evil.example/x.swf"></object></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.ok(findings.some((f) => /evil\.example/.test(f.detail)), JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
