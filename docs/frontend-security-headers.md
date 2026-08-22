@@ -270,6 +270,79 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
 2. `font-src https://fonts.gstatic.com` ไม่มี `'self'` — วันนี้ไม่พังเพราะไม่มี font ใน
    bundle แต่ถ้าย้ายมา self-host font เมื่อไร จะพังทันทีทั้งที่ดูเหมือนแค่เปลี่ยน asset
 
+### Evidence check 2026-08-22 — console ถูกดูแล้ว และมี write path เป็นครั้งแรก
+
+รอบนี้ปิดสองช่องว่างที่ 21 ส.ค. ระบุว่าเหลืออยู่: **ไม่มีใครเคยดู console** และ
+**ไม่เคยมี POST/PUT/DELETE เลยสักครั้ง**
+
+| หลักฐาน | ผล | วิธีได้มา |
+|---|---|---|
+| console ของ DevTools ระหว่างไล่เมนู | **เงียบทุกหน้า — ไม่มี CSP warning สักครั้ง** | Chrome **151** ขับผ่าน DevTools protocol ไล่ 18 route หลังล็อกอิน + หน้า login (19 หน้า) อ่าน console ทุกหน้า |
+| ทราฟฟิกที่เขียนข้อมูลจริง | **POST/PUT ที่เขียนข้อมูล 5 นัด ผ่านทั้งหมด** (ไม่นับ login · ดูตารางล่าง) | สร้าง/แก้/ปิดใช้งานรายการทดสอบผ่าน UI จริง |
+| CSP report ที่ browser ยิงเอง | **0 ครั้ง** — ไม่มี request ชนิด `cspviolationreport` ในทุกหน้า | filter network ตาม resource type |
+| build ที่ production เสิร์ฟ | `assets/index-B1YyXcfC.js` — **แฮชเดิม** ตั้งแต่ 16–17 ส.ค. | network log ของหน้าแรก |
+| header สด | CSP ตรงกับ `render.yaml` ทุก directive · **ยังเป็น report-only ไม่มี enforce header** | `HEAD /` |
+
+**19 หน้าที่ไล่ครบ (18 route หลังล็อกอิน + หน้า login)** — `/login` · `/dashboard` · `/personnel` · `/profile` · `/profile/{id}` ·
+`/probation-end` · `/candidates/general` · `/time-counting` · `/time-multiplier` ·
+`/royal-decorations` · `/retirement-report` · `/admin` · `/work-results` · `/awards` ·
+`/import` · `/ocr` · `/users` · `/audit` · `/settings/special-areas`
+(รวมสี่หน้าที่ 21 ส.ค. ระบุว่ายังไม่เคยทดสอบ: Dashboard · `/admin` · `/import` · `/ocr`)
+
+**write path ที่ทดสอบจริง**
+
+| # | request | ผล |
+|---|---|---|
+| 1 | `POST /api/auth/login` | 200 |
+| 2 | `POST /api/personnel` | **201** — สร้างรายการทดสอบ |
+| 3 | `PUT /api/personnel/{id}` | 200 — แก้ field แล้วเห็นผลในตาราง |
+| 4 | `PUT /api/personnel/{id}` | 200 — ปิดใช้งาน (soft delete) |
+| 5 | `POST /api/multiplier/areas` | **201** — สร้าง master data ทดสอบ |
+| 6 | `PUT /api/multiplier/areas/{id}/status` | 200 — ปิดใช้งาน |
+
+**ทำไม console สำคัญกว่าการอ่าน log** — browser ที่ใช้คือ Chrome 151 ซึ่งเป็นเวอร์ชันเดียวกับที่
+รอบ 21 ส.ค. กังวลว่าอาจเลิกส่ง `report-uri` แล้ว · ถ้าเป็นเช่นนั้นจริง "log ว่าง" จะไม่ได้แปลว่า
+ไม่มี violation แต่ console พิมพ์คำเตือนเสมอไม่ว่ากลไก report จะทำงานหรือไม่ — **รอบนี้จึงเป็น
+หลักฐานตรงที่ไม่ต้องพึ่ง pipeline ของ report เลย**
+
+**ยังไม่ยืนยัน — เขียนไว้ให้เด่นเท่ากับสิ่งที่ยืนยันแล้ว**
+
+1. **`img-src` ยังไม่เคยถูกใช้งานจริงสักครั้ง** — ทั้งระบบไม่มีรูปข้าราชการแม้แต่ใบเดียว
+   (โปรไฟล์แสดง placeholder icon เป็น inline SVG) และฟอร์มเพิ่มบุคลากรไม่มีช่องอัปโหลดรูป
+   จึงยังไม่มีทางทดสอบเส้นทาง `apiAssetUrl()` ได้จาก UI · directive นี้คือครึ่งหนึ่งของความเสี่ยง
+   ข้อ 1 ข้างบน — **"ไม่รู้" ไม่ใช่ "สะอาด"**
+2. **`/import` และ `/ocr` ทดสอบแค่การเปิดหน้า** ทั้งคู่รอผู้ใช้เลือกไฟล์ก่อนจึงยิง request
+   จึงยังไม่มีหลักฐานของเส้นทาง upload · หน้า `/ocr` render ปกติ ยืนยันว่าอาการพังของมัน
+   ไม่ได้มาจาก CSP (ตรงกับที่ issue #147 วินิจฉัยไว้)
+
+**ข้อค้นพบที่ขัดกับรอบ 21 ส.ค.: `verify-live-headers.mjs` วันนี้ FAIL**
+
+hashed asset ตอบ `public, max-age=31536000, immutable` แต่ `render.yaml` ประกาศ `no-cache`
+กฎเดียวทั้ง site มาตั้งแต่ `c168000` (17 ส.ค.) ซึ่ง**ลบกฎ `path: /assets/*` ทิ้งไปแล้ว**
+
+วัดซ้ำเพื่อแยกว่าเป็นค่าแกว่ง (ที่คอมเมนต์ใน `render.yaml` บันทึกไว้ว่า ~90/10) หรือของค้าง:
+
+```
+GET /assets/index-B1YyXcfC.js  → 12/12  public, max-age=31536000, immutable
+GET /                          →  8/8   no-cache
+```
+
+**deterministic ทั้งคู่ ไม่แกว่งเลย** — อ่านตรง ๆ ได้ว่า live service ยังถือกฎที่ถูกลบออกจาก
+`render.yaml` ไปแล้ว ขณะที่การ**แก้ค่า** CSP (เพิ่ม `object-src 'none'` เมื่อ 16 ส.ค.) propagate
+เรียบร้อย · สมมติฐานที่ตรงกับข้อมูลคือ **การลบ header rule ไม่ propagate ส่วนการแก้ค่า propagate**
+แต่ยังฟันธงกลไกของ Render ไม่ได้จากการวัดครั้งเดียว
+
+**ผลต่อวันตัดสินใจ enforce:** การ enforce คือการเปลี่ยนชื่อ header
+(`Content-Security-Policy-Report-Only` → `Content-Security-Policy`) = **ลบ rule เก่า + เพิ่ม rule ใหม่**
+ถ้าครึ่งแรกไม่เกิดขึ้นจริง หลัง deploy จะได้ทั้งสอง header พร้อมกัน และในกรณีที่แย่กว่านั้นคือ
+enforce ไม่ติดเลยทั้งที่ทุกคนเชื่อว่าติดแล้ว — **หลัง deploy ต้องรัน `verify-live-headers.mjs`
+แล้วดู header จริงทุกครั้ง ห้ามถือว่า merge แล้วจบ** และถ้า blueprint ไม่ตาม ต้อง Sync จาก
+Render dashboard ก่อน
+
+**ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)** — ทั้งสองรายการ **ปิดใช้งานแล้ว** แต่เป็น
+soft delete จึงยังอยู่ใน DB และมีร่องรอยใน audit log:
+`personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `multiplier_areas` จังหวัดขึ้นต้น `ทดสอบCSP-`
+
 ## การทดสอบ
 
 - `frontend/src/__tests__/securityHeaders.test.js` — assert header set ข้างต้นในทั้ง
@@ -279,6 +352,10 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   source of truth — แก้ render.yaml แล้ว gate ตามอัตโนมัติ) exit 1 เมื่อพบ drift;
   regression อยู่ที่ `scripts/tests/verify-live-headers.test.mjs` (mock origin บน
   127.0.0.1 ไม่พึ่งเครือข่าย) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
+  **ตัวสคริปต์เองไม่ได้อยู่ใน gate อัตโนมัติใด ๆ** เพราะยิง production จริง — เรียกมือเท่านั้น
+  (เช่นเดียวกับ `csp-report-selftest.mjs` ด้านล่าง) · **ผลตามมาที่วัดได้จริง 22 ส.ค.:** drift ของ
+  `Cache-Control` เกิดขึ้นโดยไม่มีอะไรแดงเลยระหว่าง 21→22 ส.ค. เพราะไม่มีใครรันมันในช่วงนั้น —
+  ถ้าจะพึ่ง gate นี้เป็นตาข่ายจริง ต้องมีคนรันตามรอบ ไม่ใช่รันตอนนึกได้
 - `scripts/csp-report-selftest.mjs` — ยิง CSP report marker สดเข้า pipeline จริง (issue #113):
   warm up `/api/readyz` ก่อน แล้ว POST `/api/csp-report` ผ่าน rewrite เส้นเดียวกับที่ browser ใช้
   exit 0 เมื่อได้ 204 พร้อมพิมพ์บรรทัด log ที่ต้องไปค้นหา (ผูกกับข้อความ `error_log()` จริงใน
@@ -333,7 +410,7 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (67 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (69 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
   · **differential**: `scripts/tests/audit-bundle-csp.differential.test.mjs` — ไม่ระบุคำตอบที่ถูกเอง
   แต่ถาม **แหล่งความจริงเดียวกับที่ browser ใช้** แล้วเทียบว่า gate เห็นตรงกันไหม: `parse5`

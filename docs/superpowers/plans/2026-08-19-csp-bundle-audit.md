@@ -14,6 +14,10 @@
 
 - **fail-closed ทุกกรณีที่ไม่รู้**: ไม่มี `frontend/dist` = fail (ไม่ใช่ skip) · parse policy ไม่ได้ = fail · เจอ origin ที่ไม่รู้จัก = fail
 - **allowlist ต้องมาจาก policy เป็นหลัก** — origin ที่ policy อนุญาตอยู่แล้ว (`fonts.googleapis.com`, `fonts.gstatic.com`) มาจากการ parse ไม่ใช่ hardcode · ข้อยกเว้นที่ hardcode ได้มีเฉพาะ URL ที่ **ไม่เคยถูก fetch** และต้องมีคอมเมนต์อธิบายเหตุผลรายตัว
+  - **ข้อยกเว้นชั้นที่สองที่เกิดขึ้นจริงระหว่างทาง**: `NON_BROWSER_FILES` ยกเว้นทั้ง**ไฟล์** ไม่ใช่แค่ URL
+    (`_redirects` = ไฟล์ตั้งค่าของ Render edge ที่ browser ไม่เคยโหลด แม้ข้างในจะมี URL ของ backend)
+    แผนเดิมไม่ได้เปิดช่องนี้ไว้ · อยู่ใต้กฎเดียวกับ `NON_FETCHED_ORIGINS` คือ **ต้องมีเหตุผลรายตัว
+    และถูกพิมพ์ออกทุกครั้งที่รัน** เพื่อไม่ให้ "ไม่ได้ตรวจ" ถูกนับเป็น "ตรวจแล้วสะอาด"
 - ไม่ยิงเครือข่าย ไม่ใช้ Docker — ต้องรันได้บนเครื่องเปล่าที่มีแค่ `frontend/dist`
 - โค้ดคอมเมนต์ภาษาไทย ตามแบบ `scripts/verify-live-headers.mjs` / `scripts/csp-report-selftest.mjs`
 - ข้อความ error ต้องบอก **ไฟล์ + สิ่งที่เจอ + directive ไหนที่จะบล็อกมัน** ไม่ใช่แค่ "พบปัญหา"
@@ -39,7 +43,11 @@ allowlist จึงเล็กและอธิบายได้ครบ —
 
 **Interfaces:**
 - Consumes: `parseRenderHeaders(yaml)` ที่ `scripts/verify-live-headers.mjs` export ไว้แล้ว
-- Produces: `auditBundle(distDir, policy) -> {findings: Array<{file, rule, detail, directive}>}` · `parseCspPolicy(policyValue) -> Map<directive, string[]>` · CLI exit 0/1
+- Produces: `auditBundle(distDir, cspValue) -> {findings: Array<{file, rule, detail, directive}>, inspected, skipped}` · `parseCspPolicy(policyValue) -> Map<directive, string[]>` · CLI exit 0/1
+  - รับ **CSP string ดิบ** แล้ว `parseCspPolicy` ข้างในเอง (แผนเดิมเขียน `policy` ที่ parse แล้ว) —
+    ผู้เรียกทุกทางมี string อยู่ในมือพอดี การให้ parse ข้างในทำให้ไม่มีสองสำเนาของ policy ที่เพี้ยนกันได้
+  - คืน `inspected` / `skipped` ด้วย เพราะ "ตรวจแล้วกี่ไฟล์ ข้ามกี่ไฟล์ เพราะอะไร" ต้องพิมพ์ทุกครั้ง
+    ไม่งั้นไฟล์ที่ไม่เคยถูกเปิดจะถูกนับรวมในคำว่า "ตรวจแล้วสะอาด"
 
 **กฎที่ต้องตรวจ (แต่ละข้อผูกกับ directive จริงใน policy):**
 
@@ -62,6 +70,10 @@ allowlist จึงเล็กและอธิบายได้ครบ —
 
 **Files:**
 - Modify: `scripts/ci-local.sh` · `scripts/ci-local.ps1` (ต่อจากขั้น frontend build เพราะต้องมี `dist`)
+- Modify: `.githooks/pre-push` — **เสียบเพิ่มหลังรีวิว**: ci-local ไม่มีอะไรบังคับให้ใครรัน และ
+  GitHub Actions ปิด auto-trigger อยู่ (quota) hook นี้จึงเป็นที่เดียวที่ gate ถูกบังคับจริงทุกครั้ง ·
+  ตรวจเฉพาะเมื่อมี `dist` อยู่แล้ว เพราะ hook ตั้งใจให้เบา (ไม่ build ให้เอง) และเมื่อไม่มีต้อง
+  **พิมพ์บอกว่ายังไม่ได้ตรวจพร้อมวิธีแก้** ไม่ใช่เงียบ
 - Modify: `docs/frontend-security-headers.md` (§การทดสอบ + แทนที่ตาราง static audit แบบร้อยแก้ว)
 
 - [ ] **Step 1: เสียบเข้า ci-local ทั้งสองไฟล์** หลังบล็อก frontend build (ต้องรันหลัง `npm run build` เพราะอ่าน `dist`)
