@@ -121,6 +121,9 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
 3. วิธี enforce: ใน `render.yaml` เปลี่ยน key `Content-Security-Policy-Report-Only`
    เป็น `Content-Security-Policy` (ค่าเดิม ตัด `report-uri` หรือไว้ต่อก็ได้)
    แล้วอัปเดตเทส `securityHeaders.test.js`
+   · **ขั้นตอนเต็มของวันกดสวิตช์อยู่ที่ [`docs/runbooks/csp-enforce-switch.md`](./runbooks/csp-enforce-switch.md)**
+   — รวมตารางเช็คว่าหลักฐานครบหรือยัง, การยืนยันว่า header เปลี่ยนจริงบน live (blueprint ของ
+   Render เคยตามหลัง repo มาแล้ว ดู Evidence check 2026-08-22) และขั้นตอนย้อนกลับ
 
 ### Baseline check 2026-08-17 (~14:24–14:45 UTC) — วันที่ headers live วันแรก
 
