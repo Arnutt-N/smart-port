@@ -321,14 +321,19 @@ console พิมพ์คำเตือนเสมอไม่ว่า `repo
   CSS-in-JS ก็โหลดจริง) **รวมรูป protocol-relative `url(//host/…)`** ซึ่ง browser เติม scheme
   ของหน้าเว็บให้ · เช่นเดียวกับ **ค่าของ attribute ที่เป็น URL** (`src` / `href` / `srcset` /
   `poster` / `data` / `action` / `formaction`) — `<img src="//host">` คือบริบทที่บอกว่าเป็น URL
-  ชัดกว่า `url()` ด้วยซ้ำ · **ข้อจำกัดที่รู้ตัว**: `//host` จับเฉพาะสามบริบทนี้เท่านั้น
+  ชัดกว่า `url()` ด้วยซ้ำ · **คู่แท็ก+attribute ที่ CSP รู้ directive แน่นอน เทียบกับ directive
+  นั้นโดยตรง ไม่ใช่ allowlist รวม** (`<script src>` → `script-src` · `<img src>` → `img-src` ฯลฯ
+  พร้อม fallback ไป `default-src` ตามที่ browser ทำ) ไม่งั้น origin ที่อนุญาตไว้โหลดฟอนต์
+  จะกลายเป็นใบผ่านให้โหลดสคริปต์ · คู่ที่กำกวม (`<source src>` ซึ่งเป็น `img-src` ใน `<picture>`
+  แต่ `media-src` ใน `<video>`) ไม่อยู่ในตาราง map และใช้ allowlist รวมตามเดิม
+  · **ข้อจำกัดที่รู้ตัว**: `//host` จับเฉพาะสามบริบทนี้เท่านั้น
   สตริงลอย ๆ ไม่ถูกตรวจ เพราะไล่จับทุกที่แล้วชนโค้ดปกติ (วัดกับ build จริงแล้วได้ `//i.test`
   จาก regex literal ที่ bundler ลากมา)
   · **ไฟล์ font ใน bundle เมื่อ `font-src` ไม่มี `'self'`** (ความเสี่ยงข้อ 2
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (62 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (67 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
   · **differential**: `scripts/tests/audit-bundle-csp.differential.test.mjs` — ไม่ระบุคำตอบที่ถูกเอง
   แต่ถาม **แหล่งความจริงเดียวกับที่ browser ใช้** แล้วเทียบว่า gate เห็นตรงกันไหม: `parse5`

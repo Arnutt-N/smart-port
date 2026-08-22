@@ -120,3 +120,5 @@ docs/project-documents/*.docx
 # document-ocr: block sensitive data only (HR documents), allow code
 document-ocr/input/
 document-ocr/output/
+# worktree ของ agent ภายนอก (delegate-cli-agents) — ไม่ใช่ส่วนหนึ่งของ repo
+.worktrees/

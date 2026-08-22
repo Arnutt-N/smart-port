@@ -1032,3 +1032,109 @@ test('attribute ที่เอกสารบอกว่าตรวจ ต้
     cleanup();
   }
 });
+
+// ── รีวิวรอบที่เจ็ด บนคอมมิต 22c84b7 (codex — reviewer คนละค่ายกับรอบที่หก) ─────
+// สองข้อ ทั้งคู่เป็น false clean ที่ยืนยันด้วยการรันแล้ว
+// ข้อแรกเป็นความผิดพลาดเดียวกับ review C1 ของรอบที่สอง แต่คนละเส้นทาง
+// ข้อหลังเป็นสมาชิกตัวที่สามของคลาส "ตัวคั่นที่อยู่ใน userinfo ได้"
+
+test('URL ใน attribute ที่บริบทบอก directive ได้ ต้องเทียบกับ directive นั้น ไม่ใช่ allowlist รวม (review ฐ)', () => {
+  // `fonts.gstatic.com` อยู่ใน font-src เท่านั้น — browser จะบล็อกทั้งสองเคสนี้จริง
+  // แต่ gate เทียบกับ allowlist รวมทุก directive จึงปล่อยผ่าน ซึ่งเป็นความผิดพลาดเดียวกับ
+  // review C1 ของรอบที่สอง (origin ที่อนุญาตไว้โหลดฟอนต์กลายเป็นใบผ่านให้โหลดอย่างอื่น)
+  // ต่างกันแค่รอบนั้นแก้เฉพาะเส้นทาง fetch() ส่วนเส้นทาง attribute ยังค้างอยู่
+  const cases = [
+    ['img.html', '<img src="//fonts.gstatic.com/x.png">', 'img-src'],
+    ['script.html', '<script src="//fonts.gstatic.com/x.js"></script>', 'script-src'],
+    ['obj.html', '<object data="//fonts.gstatic.com/x.swf"></object>', 'object-src'],
+  ];
+  for (const [name, markup, directive] of cases) {
+    const { dir, cleanup } = makeDist({
+      ...cleanFiles,
+      [name]: `<!doctype html><html><body>${markup}</body></html>`,
+    });
+    try {
+      const { findings } = auditBundle(dir, POLICY);
+      const hit = findings.find((f) => /fonts\.gstatic\.com/.test(f.detail));
+      assert.ok(hit, `${markup}: ${JSON.stringify(findings)}`);
+      assert.equal(hit.directive, directive, `${markup} ต้องรายงาน directive ที่บล็อกจริง`);
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('`)` ก็อยู่ในส่วน userinfo ได้เหมือนตัวคั่นอื่น (review ฑ)', () => {
+  // รอบที่หกเอา `, ; ( { }` ออกจากตัวคั่นเพราะอยู่ใน userinfo ได้ แต่ **เก็บ `)` ไว้**
+  // เพราะมันปิด url() — โดยไม่ได้ตรวจว่า `)` ก็อยู่ใน userinfo ได้เหมือนกัน
+  // เป็นครั้งที่สามที่การแก้ของรอบก่อนหน้าเป็นตัวเปิดช่องใหม่
+  for (const allowed of ['fonts.gstatic.com', 'fonts.googleapis.com']) {
+    const { dir, cleanup } = makeDist({
+      ...cleanFiles,
+      'assets/paren.js': `const u = "https://${allowed})x@evil.example/steal";`,
+    });
+    try {
+      const { findings } = auditBundle(dir, POLICY);
+      assert.ok(
+        findings.some((f) => /evil\.example/.test(f.detail)),
+        `${allowed}: ${JSON.stringify(findings)}`
+      );
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('url() หลายตัวยังต้องแยกครบ แม้เลิกใช้ `)` เป็นตัวคั่น (กันแก้เกิน)', () => {
+  // เหตุผลเดิมที่ `)` เป็นตัวคั่นคือกัน `url(a),url(b)` กลายเป็นก้อนเดียว
+  // การเลิกใช้มันจึงต้องไม่ทำให้ origin ตัวหลังหายไป
+  const { dir, cleanup } = makeDist({
+    'index.html': CLEAN_HTML,
+    'assets/index-abc.js': 'const a=1;export{a};',
+    'assets/multi.css': '.h{background:url(https://cdn1.example/a.png),url(https://cdn2.example/b.png)}',
+    'assets/three.css': '.i{background:url(https://cdn3.example/c.png),url(https://cdn4.example/d.png),url(https://cdn5.example/e.png)}',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    for (const origin of [/cdn1\./, /cdn2\./, /cdn3\./, /cdn4\./, /cdn5\./]) {
+      assert.ok(findings.some((f) => origin.test(f.detail)), `${origin}: ${JSON.stringify(findings)}`);
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test('attribute ที่ไม่ใช่ subresource หรือ directive ไม่ชัด ต้องไม่ถูกฟ้องเกินจริง (กันแก้เกิน)', () => {
+  // `<a href>` เป็นการ navigate ซึ่ง CSP ไม่คุมด้วย fetch directive · `<link rel=preconnect>`
+  // ไม่ได้โหลด subresource · `<link rel=stylesheet>` ไปที่ googleapis ซึ่ง style-src อนุญาตจริง
+  // ทั้งสามต้องเงียบ ไม่งั้นการปิดช่อง review ฐ จะกลายเป็นการฟ้องทุกอย่างแทน
+  const { dir, cleanup } = makeDist({
+    'index.html':
+      '<!doctype html><html><head>' +
+      '<link rel="stylesheet" href="//fonts.googleapis.com/css2?family=Inter">' +
+      '<link rel="preconnect" href="//fonts.gstatic.com">' +
+      '</head><body><a href="//fonts.gstatic.com/page">t</a></body></html>',
+    'assets/index-abc.js': 'const a=1;export{a};',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('font ที่โหลดจาก origin ที่ font-src อนุญาต ต้องไม่ถูกฟ้อง (กันแก้เกิน)', () => {
+  // คู่ตรงข้ามของ review ฐ: mapping ต้องอนุญาตของที่ policy อนุญาตจริงด้วย
+  const { dir, cleanup } = makeDist({
+    'index.html':
+      '<!doctype html><html><head><style>@font-face{src:url(https://fonts.gstatic.com/s/inter/v13/x.woff2)}</style></head><body></body></html>',
+    'assets/index-abc.js': 'const a=1;export{a};',
+  });
+  try {
+    const { findings } = auditBundle(dir, POLICY);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});

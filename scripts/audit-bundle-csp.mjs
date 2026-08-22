@@ -119,6 +119,67 @@ function policyOrigins(sources) {
 }
 
 /**
+ * แท็ก + attribute ที่ CSP รู้แน่นอนว่า directive ไหนคุม
+ *
+ * mapping นี้เป็น **ข้อเท็จจริงจาก spec** ไม่ใช่การเดาโครงสร้างเหมือนคลาสบั๊กที่ไล่ปิดกันมา
+ * — `<img src>` อยู่ใต้ `img-src` เสมอ ไม่ขึ้นกับว่าไฟล์หน้าตาอย่างไร
+ *
+ * มีไว้เพราะการเทียบกับ allowlist รวมทุก directive ทำให้ origin ที่ policy อนุญาตไว้เพื่อ
+ * **โหลดฟอนต์** กลายเป็นใบผ่านให้ **โหลดสคริปต์** — `<script src="//fonts.gstatic.com/x.js">`
+ * เคยผ่านฉลุยทั้งที่ `script-src 'self'` บล็อกจริง (review ฐ) · เป็นความผิดพลาดเดียวกับ
+ * review C1 ของรอบที่สอง ซึ่งตอนนั้นแก้เฉพาะเส้นทาง `fetch()` ส่วนเส้นทาง attribute ยังค้าง
+ *
+ * **ใส่เฉพาะคู่ที่ไม่กำกวม** — `<source src>` เป็น `img-src` เมื่ออยู่ใน `<picture>` แต่เป็น
+ * `media-src` เมื่ออยู่ใน `<video>` ซึ่ง static analysis แยกไม่ได้ จึงไม่อยู่ในตารางนี้และตกไป
+ * ใช้ allowlist รวมตามเดิม · การเดา directive ผิดแล้วฟ้องผิดจะทำให้คนเลิกเชื่อ gate
+ */
+const TAG_ATTRIBUTE_DIRECTIVES = new Map([
+  ['img|src', 'img-src'],
+  ['img|srcset', 'img-src'],
+  ['image|href', 'img-src'], // SVG <image>
+  ['video|poster', 'img-src'],
+  ['script|src', 'script-src'],
+  ['iframe|src', 'frame-src'],
+  ['frame|src', 'frame-src'],
+  ['audio|src', 'media-src'],
+  ['video|src', 'media-src'],
+  ['track|src', 'media-src'],
+  ['object|data', 'object-src'],
+  ['embed|src', 'object-src'],
+  ['form|action', 'form-action'],
+  ['button|formaction', 'form-action'],
+]);
+
+/**
+ * directive ที่คุม attribute นี้ของแท็กนี้ — คืน `null` เมื่อไม่ชัดเจนพอจะตัดสิน
+ *
+ * สองแท็กที่ต้องดู attribute อื่นประกอบ: `<link>` ขึ้นกับ `rel` (ทำเฉพาะ `stylesheet`
+ * ที่ชัดเจน · `preload` ขึ้นกับ `as` และ `preconnect` ไม่ได้โหลดอะไรเลย) และ `<input>`
+ * โหลดรูปเฉพาะเมื่อ `type="image"` · `<a href>` เป็นการ navigate ซึ่ง fetch directive ไม่คุม
+ */
+function directiveFor(tagName, attr, attrs) {
+  if (tagName === 'link') {
+    if (attr !== 'href') return null;
+    const rel = (attrs.get('rel') ?? '').toLowerCase().split(/\s+/);
+    return rel.includes('stylesheet') ? 'style-src' : null;
+  }
+  if (tagName === 'input') {
+    if (attr === 'formaction') return 'form-action';
+    if (attr !== 'src') return null;
+    return (attrs.get('type') ?? '').toLowerCase() === 'image' ? 'img-src' : null;
+  }
+  return TAG_ATTRIBUTE_DIRECTIVES.get(`${tagName}|${attr}`) ?? null;
+}
+
+/**
+ * origin ที่ directive หนึ่งอนุญาต โดยเคารพ fallback ไป `default-src` ตามที่ browser ทำ
+ * ไม่ประกาศทั้งคู่ = ไม่อนุญาต origin ภายนอกเลย (fail-closed)
+ */
+function originsForDirective(policy, directive) {
+  return policyOrigins(policy.get(directive) ?? policy.get('default-src'));
+}
+
+/**
  * origin ที่ policy อนุญาต **รวมทุก directive** — ใช้ได้เฉพาะกับ URL ที่บอกบริบทไม่ได้
  * (สตริงลอย ๆ ใน bundle ที่ static analysis ไม่รู้ว่าจะถูกใช้โหลดอะไร)
  *
@@ -227,18 +288,35 @@ const isProtocolRelative = (url) => url.trim().startsWith('//');
  * ตัดที่วงเล็บ/จุลภาค/อัฒภาคด้วย เพราะ `url(a),url(b)` ต้องแยกเป็นสอง origin ไม่ใช่ก้อนเดียว
  * ที่ทำให้ตัวหลังหายไปเงียบ ๆ · `[` `]` ถูกเก็บไว้เพราะเป็นส่วนหนึ่งของ IPv6 literal
  */
-const ABSOLUTE_URL_CANDIDATE = /https?:\/\/[^\s"'`<>\\)]+/gi;
+const ABSOLUTE_URL_START = /https?:\/\//gi;
+
+/** ก้อนที่ต่อจากจุดเริ่ม URL — หยุดเฉพาะอักขระที่อยู่ใน URL ไม่ได้เลย */
+const URL_CHUNK_FROM_START = /^[^\s"'`<>\\]+/;
 
 /**
  * เครื่องหมายวรรคตอนท้ายก้อนที่ไม่ใช่ส่วนหนึ่งของ URL — ตัดทิ้งก่อนส่งให้ URL parser
- *
- * ทำแบบนี้แทนการใส่อักขระเหล่านี้ใน character class ด้านบน เพราะ `, ; { }` **อยู่ในส่วน
- * userinfo ได้ตามมาตรฐาน URL** และ host จริงถูกตัดสินด้วย `@` ตัวสุดท้าย — การใช้มันเป็น
- * ตัวตัดจึงเปิดช่องเดียวกับที่ review ฉ ปิดไป: `https://fonts.gstatic.com,x@evil.example/`
- * ถูกอ่านเป็น origin ที่ policy อนุญาต ทั้งที่ browser โหลดไป evil.example (review ซ)
- * `)` ยังตัดอยู่ในตัว regex เพราะมันปิด `url(…)` จริง และ `url(a),url(b)` ต้องแยกเป็นสอง origin
+ * (จบประโยคในคอมเมนต์ เช่น `ดูที่ https://example.com/docs,`)
  */
 const stripTrailingPunctuation = (url) => url.replace(/[.,;:{}!?'"]+$/, '');
+
+/**
+ * ทุกตำแหน่งในไฟล์ที่ขึ้นต้นด้วย `https://` หรือ `http://` แล้วอ่านต่อไปให้ยาวที่สุด
+ *
+ * **ไม่มีอักขระตัวไหนถูกใช้เป็น "ตัวปิด URL" อีกต่อไป** — สามรอบติดที่ผ่านมาพิสูจน์ว่าทุกตัว
+ * ที่เคยเลือกมาเป็นตัวคั่น (`_` → `@` → `, ; ( { }` → `)`) ล้วน**อยู่ในส่วน userinfo ได้
+ * ตามมาตรฐาน URL** และ host จริงถูกตัดสินด้วย `@` ตัวสุดท้าย ผลคือ origin ที่ policy อนุญาต
+ * ถูกยืมมาเป็นคำนำหน้าแล้วผ่านฉลุยทุกครั้ง (review ฉ · ซ · ฑ — คำอธิบายเดียวกันสามรอบ)
+ *
+ * เหตุผลเดิมที่ต้องมีตัวคั่นคือ `url(a),url(b)` ต้องแยกเป็นสอง origin ไม่ใช่ก้อนเดียว
+ * วิธีนี้ได้ผลเดียวกันโดยไม่ต้องเดา: **b มีจุดเริ่มของตัวเอง** จึงถูก parse แยกอยู่แล้ว
+ * ส่วนก้อนของ a ที่ลากยาวเกินไปก็ไม่เป็นไร เพราะ `new URL()` ตัด authority ที่ `/` แรกเอง
+ */
+function* absoluteUrlCandidates(content) {
+  for (const start of content.matchAll(ABSOLUTE_URL_START)) {
+    const chunk = content.slice(start.index).match(URL_CHUNK_FROM_START)?.[0];
+    if (chunk) yield chunk;
+  }
+}
 
 /**
  * ความยาวสูงสุดที่ยอมให้แท็กเปิดกินพื้นที่ — แท็กจริงไม่ยาวขนาดนี้ ส่วนในไฟล์ JS `a<b`
@@ -448,7 +526,32 @@ function dynamicCodeFindings(content) {
  */
 function externalOriginFindings(content, { policy, connectOrigins, allowedOrigins, consultedDirectives }) {
   const found = [];
-  const reported = new Set(); // origin ที่ฟ้องด้วย connect-src ไปแล้ว — กันฟ้องซ้ำคนละ directive
+  const reported = new Set(); // origin ที่ฟ้องไปแล้ว — กันฟ้องซ้ำจากกฎอื่นในไฟล์เดียวกัน
+
+  // แท็กที่บอก directive ได้แน่นอน ตรวจก่อนกฎอื่น เพราะให้คำตอบที่แม่นกว่า:
+  // เทียบกับ directive ที่บล็อกจริง ไม่ใช่ allowlist รวมที่ยืม origin ข้าม directive ได้
+  for (const tag of openTags(content)) {
+    if (!tag.terminated) continue;
+    const attrs = parseAttributes(tag.attrs);
+    for (const [attr, value] of attrs) {
+      const directive = directiveFor(tag.name, attr, attrs);
+      if (directive === null) continue;
+      const allowed = originsForDirective(policy, directive);
+      // srcset เป็นรายการคั่นด้วย comma และมี descriptor ต่อท้ายแต่ละตัว
+      for (const entry of value.split(',')) {
+        const origin = originOf(entry.trim().split(/\s+/)[0] ?? '');
+        if (origin === null) continue; // relative/data: — อยู่ใต้ 'self' หรือไม่ใช่ URL
+        if (allowed.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) continue;
+        reported.add(origin);
+        found.push({
+          rule: 'external-origin',
+          directive,
+          detail: `<${tag.name} ${attr}> โหลดจาก ${origin} แต่ ${directive} อนุญาตแค่ ${(policy.get(directive) ?? policy.get('default-src') ?? []).join(' ') || 'ไม่ได้ประกาศ'} — จะถูกบล็อกหลัง enforce`,
+        });
+      }
+    }
+  }
+
   for (const pattern of CONNECT_CALL_PATTERNS) {
     for (const match of content.matchAll(pattern)) {
       const origin = originOf(match[1]); // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว
@@ -468,9 +571,9 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
     if (allowedOrigins.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin)) return;
     originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
   };
-  // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู ABSOLUTE_URL_CANDIDATE)
-  for (const match of content.matchAll(ABSOLUTE_URL_CANDIDATE)) {
-    const origin = originOf(stripTrailingPunctuation(match[0])); // lowercase ให้แล้ว
+  // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู absoluteUrlCandidates)
+  for (const chunk of absoluteUrlCandidates(content)) {
+    const origin = originOf(stripTrailingPunctuation(chunk)); // lowercase ให้แล้ว
     if (origin !== null) countOrigin(origin);
   }
 
