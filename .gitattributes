@@ -1,3 +1,7 @@
 # Shell scripts ต้องคง LF เสมอ — รันผ่าน Docker/Git Bash, CRLF ทำให้ \r พัง
 *.sh text eol=lf
 Dockerfile* text eol=lf
+# git hooks ไม่มีนามสกุลจึงหลุดกฎ *.sh ข้างบน แล้ว core.autocrlf=true แปลงเป็น CRLF ทั้งไฟล์
+# — bash ที่มากับ git ทนได้ แต่ bash ของ WSL ปฏิเสธ (`syntax error: unexpected end of file`)
+# ซึ่งเป็นสภาพแวดล้อมที่ backend/tests/run.sh ใช้จริงบนเครื่องนี้
+.githooks/* text eol=lf

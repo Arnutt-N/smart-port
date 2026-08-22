@@ -7,6 +7,7 @@
   Local gates:
     0) Fast gates: schema parity + multiplier validator regression
     1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run build
+    1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
     2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
     3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
     4) Docker:    build frontend + backend images (no push)
@@ -107,7 +108,9 @@ if ($LASTEXITCODE -eq 0) {
 
 # รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push, ci.yml และ ci-local.sh
 # PowerShell ไม่ขยาย glob ให้ native command แต่ node --test ขยายเองได้ (ยืนยันแล้ว)
-# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin) — รวมถึง
+# mock-server regression ของ CSP gate (issue #113 R1) ซึ่งเคยมีบล็อกของตัวเองต่อท้ายบล็อกนี้
+# แล้วถูกรันซ้ำสองรอบทุกครั้ง · glob ครอบอยู่แล้ว การไล่ชื่อซ้ำมีแต่ทำให้ CI ช้าลงเปล่า ๆ
 Write-Step 'Script Regressions'
 & node --test (Join-Path $Root 'scripts\tests\*.test.mjs')
 if ($LASTEXITCODE -eq 0) {
@@ -115,16 +118,6 @@ if ($LASTEXITCODE -eq 0) {
 } else {
   Write-Fail 'script regressions'
   $failed += 'script-regressions'
-}
-
-# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
-Write-Step 'CSP Violation Gate Regression'
-& node --test (Join-Path $Root 'scripts\tests\check-csp-violations.test.mjs')
-if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'csp violation gate regression'
-} else {
-  Write-Fail 'csp violation gate regression'
-  $failed += 'csp-violation-gate-regression'
 }
 
 # ---- 1) Frontend Build & Test ----------------------------------------------
@@ -164,6 +157,29 @@ if (-not $SkipFrontend) {
   }
 } else {
   Write-Host 'skip frontend (-SkipFrontend)'
+}
+
+# ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
+# เงื่อนไขผูกกับ **การมีอยู่ของ dist** ไม่ใช่ flag -SkipFrontend — ของเดิมข้าม audit ทุกครั้ง
+# ที่สั่งข้าม build ทั้งที่ dist จากรอบก่อนยังอยู่และตรวจได้ = "ไม่รู้" กลายเป็น "สะอาด"
+# ซึ่งเป็น failure mode เดียวกับที่ gate นี้มีไว้กัน (Global Constraint ของแผน R2)
+$distPath = Join-Path $Root 'frontend\dist'
+if (Test-Path -LiteralPath $distPath) {
+  Write-Step 'CSP Bundle Audit'
+  & node (Join-Path $Root 'scripts\audit-bundle-csp.mjs')
+  if ($LASTEXITCODE -eq 0) {
+    Write-Ok 'csp bundle audit'
+  } else {
+    Write-Fail 'csp bundle audit'
+    $failed += 'csp-bundle-audit'
+  }
+} elseif ($SkipFrontend) {
+  # ข้ามได้เฉพาะเมื่อผู้ใช้สั่งข้าม build เอง **และ** ไม่มี dist ให้ตรวจจริง ๆ
+  # ข้อความต้องบอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่ข้ามเงียบ
+  Write-Host 'skip CSP bundle audit: ไม่มี frontend/dist และสั่ง -SkipFrontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ -SkipFrontend'
+} else {
+  Write-Fail 'csp bundle audit (build เพิ่งรันแต่ไม่มี frontend/dist)'
+  $failed += 'csp-bundle-audit'
 }
 
 # ---- 2) Playwright E2E: all sidebar menus ---------------------------------

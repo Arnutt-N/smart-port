@@ -219,10 +219,15 @@ final class CspSummaryTest extends TestCase
      * สร้าง PDO ที่ต่อ MySQL จริงตามปกติ (เหมือน testPdo()) แต่ prepare() ครั้งที่เกิน
      * $succeedCalls จะ throw PDOException — ใช้จำลอง "query ล้มเหลวกลางฟังก์ชัน" แบบปลอดภัย
      * โดยไม่ต้องแตะ schema จริง (ไม่ DROP/RENAME ตาราง — วิธีที่ brief เตือนว่าอันตราย)
+     *
+     * เรียก assertLocalTestDbHost() เองแม้ setUpBeforeClass() จะเรียก testPdo() ไปแล้ว —
+     * ฟังก์ชันนี้ทำสำเนาการอ่าน env ทั้งชุด ความปลอดภัยที่ได้จากลำดับการเรียกจึงเป็นเรื่องบังเอิญ
+     * ที่พังทันทีถ้ามีคนย้าย/เพิ่มทางเข้า (code review M-2)
      */
     private static function buildFlakyPdo(int $succeedCalls): FlakyPreparePdo
     {
         $host   = getenv('MYSQL_HOST') ?: 'db';
+        assertLocalTestDbHost($host);
         $port   = getenv('MYSQL_PORT') ?: '3306';
         $dbname = getenv('MYSQL_DATABASE') ?: 'civil_service_mgmt';
         $user   = getenv('MYSQL_USER') ?: 'root';

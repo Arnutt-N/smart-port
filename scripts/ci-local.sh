@@ -5,6 +5,7 @@
 # Local gates:
 #   0) Fast gates: schema parity + multiplier validator regression
 #   1) Frontend:  npm ci (optional) + vitest + build
+#   1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
 #   2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
 #   3) Backend:   bash backend/tests/run.sh
 #   4) Docker:    build frontend + backend images (no push)
@@ -32,7 +33,9 @@ FAILED=()
 STARTED=$(date +%s)
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \?//'
+  # อ่านบล็อกคอมเมนต์หัวไฟล์ทั้งก้อนจนถึงบรรทัดแรกที่ไม่ใช่คอมเมนต์ — ไม่ผูกกับเลขบรรทัด
+  # ตายตัว เพราะช่วง '2,18p' เดิมตัดบรรทัด --help หายทันทีที่มีคนเพิ่ม gate ในหัวไฟล์
+  awk 'NR>1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "$0"
   exit 0
 }
 
@@ -66,20 +69,14 @@ fi
 
 # รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push และ ci.yml — ไล่ชื่อทีละไฟล์
 # เคยทำให้เทสที่เพิ่มใหม่หลุดจากทางเข้านี้เงียบ ๆ (ไม่มีใครเห็นว่ามันไม่ถูกรัน)
-# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin) — รวมถึง
+# mock-server regression ของ CSP gate (issue #113 R1) ซึ่งเคยมีบล็อกของตัวเองต่อท้ายบล็อกนี้
+# แล้วถูกรันซ้ำสองรอบทุกครั้ง · glob ครอบอยู่แล้ว การไล่ชื่อซ้ำมีแต่ทำให้ CI ช้าลงเปล่า ๆ
 step 'Script Regressions'
 if node --test "${ROOT}"/scripts/tests/*.test.mjs; then
   ok 'script regressions'
 else
   fail 'script regressions'
-fi
-
-# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
-step 'CSP Violation Gate Regression'
-if node --test "${ROOT}/scripts/tests/check-csp-violations.test.mjs"; then
-  ok 'csp violation gate regression'
-else
-  fail 'csp violation gate regression'
 fi
 
 # ---- 1) Frontend -----------------------------------------------------------
@@ -104,6 +101,25 @@ if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   ) && ok 'frontend test + build' || fail 'frontend'
 else
   echo 'skip frontend (--skip-frontend)'
+fi
+
+# ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
+# เงื่อนไขผูกกับ **การมีอยู่ของ dist** ไม่ใช่ flag --skip-frontend — ของเดิมข้าม audit ทุกครั้ง
+# ที่สั่งข้าม build ทั้งที่ dist จากรอบก่อนยังอยู่และตรวจได้ = "ไม่รู้" กลายเป็น "สะอาด"
+# ซึ่งเป็น failure mode เดียวกับที่ gate นี้มีไว้กัน (Global Constraint ของแผน R2)
+if [[ -d "${ROOT}/frontend/dist" ]]; then
+  step 'CSP Bundle Audit'
+  if node "${ROOT}/scripts/audit-bundle-csp.mjs"; then
+    ok 'csp bundle audit'
+  else
+    fail 'csp bundle audit'
+  fi
+elif [[ "${SKIP_FRONTEND}" -eq 1 ]]; then
+  # ข้ามได้เฉพาะเมื่อผู้ใช้สั่งข้าม build เอง **และ** ไม่มี dist ให้ตรวจจริง ๆ
+  # ข้อความต้องบอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่ข้ามเงียบ
+  echo 'skip CSP bundle audit: ไม่มี frontend/dist และสั่ง --skip-frontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ --skip-frontend'
+else
+  fail 'csp bundle audit (build เพิ่งรันแต่ไม่มี frontend/dist)'
 fi
 
 # ---- 2) Playwright E2E: all sidebar menus ---------------------------------
