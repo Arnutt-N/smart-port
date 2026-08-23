@@ -55,6 +55,11 @@ done
 step() { printf '\n=== %s ===\n' "$1"; }
 ok()   { printf 'OK  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; FAILED+=("$1"); }
+# สองตัวนี้ไม่แตะ FAILED — บอกว่า "ตรวจแล้วแต่เชื่อได้ไม่เต็มร้อย" กับ "ไม่ได้ตรวจ" ซึ่งไม่ใช่
+# ความล้มเหลว แต่ก็ไม่ใช่ผ่าน · รูปแบบ prefix อยู่ที่เดียวกับ ok/fail เพื่อให้เทสที่จับ marker
+# เหล่านี้ (scripts/tests/ci-local-csp-gate.test.mjs) ไม่ผูกกับสตริงที่กระจายอยู่หลายที่
+warn() { printf 'WARN  %s\n' "$1"; }
+skip() { printf 'SKIP  %s\n' "$1"; }
 
 echo "smart-port local CI  (root: ${ROOT})"
 echo "flags: skip-install=${SKIP_INSTALL} skip-frontend=${SKIP_FRONTEND} skip-e2e=${SKIP_E2E} skip-backend=${SKIP_BACKEND} skip-docker=${SKIP_DOCKER}"
@@ -80,35 +85,63 @@ else
 fi
 
 # ---- 1) Frontend -----------------------------------------------------------
+# เช็กสถานะทีละคำสั่งเอง **ไม่พึ่ง `set -e`** — bash ปิด errexit ให้ทุกคำสั่งที่เป็นเงื่อนไขของ
+# `if` / `&&` / `||` และการปิดนั้นทะลุเข้าไปใน subshell ด้วย แม้จะสั่ง `set -e` ซ้ำข้างในก็ตาม
+# วัดแล้ว: vitest ตกกลางทางแต่ยังได้ `OK  frontend test + build` เพราะสถานะที่ได้คือของคำสั่ง
+# สุดท้าย (`npm run build`) เท่านั้น · ทั้งรูป `( … ) && ok || fail` เดิมและรูป `if ( … )` มีปัญหา
+# เดียวกัน ต่างกันแค่ตอนนี้ flag ตัวนี้ไปตัดสิน CSP gate ต่อ ผลจึงกลายเป็น "เทสตก แต่ gate เขียว"
+# ฝั่ง ci-local.ps1 เช็ก $LASTEXITCODE ทีละคำสั่งอยู่แล้ว จึงไม่เคยมีอาการนี้
+frontend_gate() {
+  cd "${ROOT}/frontend" || return 1
+  if [[ "${SKIP_INSTALL}" -eq 0 ]]; then
+    echo 'npm ci ...'
+    npm ci || return 1
+  else
+    # ตัวพิมพ์เล็กโดยตั้งใจ — บรรทัดนี้อยู่ระดับเดียวกับ `npm ci ...` / `npm test (vitest) ...`
+    # คือรายงานความคืบหน้า *ภายใน* gate ไม่ใช่การตัดสินระดับ gate ที่ summary สนใจ จึงไม่ใช้ skip()
+    echo 'skip npm ci (--skip-install)'
+  fi
+
+  # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
+  echo 'npm test (vitest) ...'
+  npx vitest run --reporter=dot || return 1
+
+  echo 'npm run build ...'
+  npm run build || return 1
+}
+
+# FRONTEND_BUILT บันทึกว่า dist ที่จะตรวจในบล็อกถัดไปมาจาก build ของ **โค้ดรอบนี้** หรือไม่
+# — "มี dist" กับ "dist ตรงกับโค้ดปัจจุบัน" เป็นคนละเรื่อง และ gate นี้สนใจอย่างหลัง
+FRONTEND_BUILT=0
 if [[ "${SKIP_FRONTEND}" -eq 0 ]]; then
   step 'Frontend Build & Test'
-  (
-    set -e
-    cd "${ROOT}/frontend"
-    if [[ "${SKIP_INSTALL}" -eq 0 ]]; then
-      echo 'npm ci ...'
-      npm ci
-    else
-      echo 'skip npm ci (--skip-install)'
-    fi
-
-    # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
-    echo 'npm test (vitest) ...'
-    npx vitest run --reporter=dot
-
-    echo 'npm run build ...'
-    npm run build
-  ) && ok 'frontend test + build' || fail 'frontend'
+  # ห่อด้วย subshell เพื่อไม่ให้ `cd` ข้างในรั่วไปถึง gate ถัดไป
+  if ( frontend_gate ); then
+    ok 'frontend test + build'
+    FRONTEND_BUILT=1
+  else
+    fail 'frontend'
+  fi
 else
-  echo 'skip frontend (--skip-frontend)'
+  skip 'frontend (--skip-frontend)'
 fi
 
 # ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
-# เงื่อนไขผูกกับ **การมีอยู่ของ dist** ไม่ใช่ flag --skip-frontend — ของเดิมข้าม audit ทุกครั้ง
-# ที่สั่งข้าม build ทั้งที่ dist จากรอบก่อนยังอยู่และตรวจได้ = "ไม่รู้" กลายเป็น "สะอาด"
-# ซึ่งเป็น failure mode เดียวกับที่ gate นี้มีไว้กัน (Global Constraint ของแผน R2)
-if [[ -d "${ROOT}/frontend/dist" ]]; then
+# แยกสามสถานะ ไม่ใช่ผูกกับ **การมีอยู่ของ dist** อย่างเดียว (review รอบที่ 9 — M1):
+#   ขั้น frontend ล้ม     → fail · dist ที่เหลืออยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้ (vitest ตก
+#                          ก็นับด้วย ไม่ใช่เฉพาะ build — dist ที่ build จากโค้ดที่เทสไม่ผ่านก็เชื่อไม่ได้)
+#   ไม่ได้ build แต่มี dist → ตรวจ แต่เตือนว่าอาจเป็นของเก่า ("ไม่รู้" ต้องไม่กลายเป็น "สะอาด")
+#   ผ่านทั้งขั้น           → ตรวจตามปกติ
+# ของเดิมรัน audit กับ dist เก่าเมื่อ build ล้มแล้วขึ้น OK ซึ่งคือ failure mode ที่ gate นี้มีไว้กัน
+if [[ "${SKIP_FRONTEND}" -eq 0 && "${FRONTEND_BUILT}" -eq 0 ]]; then
+  fail 'csp bundle audit (ขั้น frontend ล้ม — dist ที่มีอยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้)'
+elif [[ -d "${ROOT}/frontend/dist" ]]; then
   step 'CSP Bundle Audit'
+  if [[ "${FRONTEND_BUILT}" -eq 0 ]]; then
+    # ตรวจดีกว่าไม่ตรวจ แต่ต้องบอกว่าผลนี้อ้างถึง build ไหน ไม่งั้น OK จะถูกอ่านว่า
+    # "โค้ดปัจจุบันสะอาด" ทั้งที่ dist อาจเก่ากว่านั้นหลายคอมมิต
+    warn 'csp bundle audit: ตรวจ frontend/dist ที่มีอยู่เดิม (--skip-frontend) — อาจไม่ตรงกับโค้ดปัจจุบัน'
+  fi
   if node "${ROOT}/scripts/audit-bundle-csp.mjs"; then
     ok 'csp bundle audit'
   else
@@ -117,7 +150,7 @@ if [[ -d "${ROOT}/frontend/dist" ]]; then
 elif [[ "${SKIP_FRONTEND}" -eq 1 ]]; then
   # ข้ามได้เฉพาะเมื่อผู้ใช้สั่งข้าม build เอง **และ** ไม่มี dist ให้ตรวจจริง ๆ
   # ข้อความต้องบอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่ข้ามเงียบ
-  echo 'skip CSP bundle audit: ไม่มี frontend/dist และสั่ง --skip-frontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ --skip-frontend'
+  skip 'csp bundle audit: ไม่มี frontend/dist และสั่ง --skip-frontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ --skip-frontend'
 else
   fail 'csp bundle audit (build เพิ่งรันแต่ไม่มี frontend/dist)'
 fi
@@ -155,7 +188,7 @@ if [[ "${SKIP_E2E}" -eq 0 ]]; then
     fail 'e2e'
   fi
 else
-  echo 'skip E2E (--skip-e2e)'
+  skip 'E2E (--skip-e2e)'
 fi
 
 # ---- 3) Backend ------------------------------------------------------------
@@ -167,7 +200,7 @@ if [[ "${SKIP_BACKEND}" -eq 0 ]]; then
     fail 'backend'
   fi
 else
-  echo 'skip backend (--skip-backend)'
+  skip 'backend (--skip-backend)'
 fi
 
 # ---- 4) Docker -------------------------------------------------------------
@@ -185,7 +218,7 @@ if [[ "${SKIP_DOCKER}" -eq 0 ]]; then
     ) && ok 'docker images built' || fail 'docker'
   fi
 else
-  echo 'skip docker (--skip-docker)'
+  skip 'docker (--skip-docker)'
 fi
 
 # ---- Summary ---------------------------------------------------------------

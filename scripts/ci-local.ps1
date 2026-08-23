@@ -53,6 +53,17 @@ function Write-Fail([string]$Msg) {
   Write-Host "FAIL  $Msg" -ForegroundColor Red
 }
 
+# สองตัวนี้ไม่แตะ $failed — บอกว่า "ตรวจแล้วแต่เชื่อได้ไม่เต็มร้อย" กับ "ไม่ได้ตรวจ" ซึ่งไม่ใช่
+# ความล้มเหลว แต่ก็ไม่ใช่ผ่าน · รูปแบบ prefix อยู่ที่เดียวกับ Write-Ok/Write-Fail เพื่อให้เทสที่
+# จับ marker เหล่านี้ (scripts/tests/ci-local-csp-gate.test.mjs) ไม่ผูกกับสตริงที่กระจายหลายที่
+function Write-Warn([string]$Msg) {
+  Write-Host "WARN  $Msg" -ForegroundColor Yellow
+}
+
+function Write-Skip([string]$Msg) {
+  Write-Host "SKIP  $Msg"
+}
+
 if ($Help) {
   @"
 Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBackend] [-SkipDocker] [-Help]
@@ -121,6 +132,9 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 # ---- 1) Frontend Build & Test ----------------------------------------------
+# $frontendBuilt บันทึกว่า dist ที่จะตรวจในบล็อกถัดไปมาจาก build ของ **โค้ดรอบนี้** หรือไม่
+# — "มี dist" กับ "dist ตรงกับโค้ดปัจจุบัน" เป็นคนละเรื่อง และ gate นี้สนใจอย่างหลัง
+$frontendBuilt = $false
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'
   Push-Location (Join-Path $Root 'frontend')
@@ -130,6 +144,8 @@ if (-not $SkipFrontend) {
       npm ci
       if ($LASTEXITCODE -ne 0) { throw "npm ci exited $LASTEXITCODE" }
     } else {
+      # ตัวพิมพ์เล็กโดยตั้งใจ — บรรทัดนี้อยู่ระดับเดียวกับ 'npm ci ...' / 'npm test (vitest) ...'
+      # คือรายงานความคืบหน้า *ภายใน* gate ไม่ใช่การตัดสินระดับ gate จึงไม่ใช้ Write-Skip
       Write-Host 'skip npm ci (-SkipInstall)'
     }
 
@@ -149,6 +165,7 @@ if (-not $SkipFrontend) {
     if ($LASTEXITCODE -ne 0) { throw "vite build exited $LASTEXITCODE" }
 
     Write-Ok 'frontend test + build'
+    $frontendBuilt = $true
   } catch {
     Write-Fail $_.Exception.Message
     $failed += 'frontend'
@@ -156,16 +173,27 @@ if (-not $SkipFrontend) {
     Pop-Location
   }
 } else {
-  Write-Host 'skip frontend (-SkipFrontend)'
+  Write-Skip 'frontend (-SkipFrontend)'
 }
 
 # ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
-# เงื่อนไขผูกกับ **การมีอยู่ของ dist** ไม่ใช่ flag -SkipFrontend — ของเดิมข้าม audit ทุกครั้ง
-# ที่สั่งข้าม build ทั้งที่ dist จากรอบก่อนยังอยู่และตรวจได้ = "ไม่รู้" กลายเป็น "สะอาด"
-# ซึ่งเป็น failure mode เดียวกับที่ gate นี้มีไว้กัน (Global Constraint ของแผน R2)
+# แยกสามสถานะ ไม่ใช่ผูกกับ **การมีอยู่ของ dist** อย่างเดียว (review รอบที่ 9 — M1):
+#   ขั้น frontend ล้ม     → fail · dist ที่เหลืออยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้ (vitest ตก
+#                          ก็นับด้วย ไม่ใช่เฉพาะ build — dist ที่ build จากโค้ดที่เทสไม่ผ่านก็เชื่อไม่ได้)
+#   ไม่ได้ build แต่มี dist → ตรวจ แต่เตือนว่าอาจเป็นของเก่า ("ไม่รู้" ต้องไม่กลายเป็น "สะอาด")
+#   ผ่านทั้งขั้น           → ตรวจตามปกติ
+# ของเดิมรัน audit กับ dist เก่าเมื่อ build ล้มแล้วขึ้น OK ซึ่งคือ failure mode ที่ gate นี้มีไว้กัน
 $distPath = Join-Path $Root 'frontend\dist'
-if (Test-Path -LiteralPath $distPath) {
+if ((-not $SkipFrontend) -and (-not $frontendBuilt)) {
+  Write-Fail 'csp bundle audit (ขั้น frontend ล้ม — dist ที่มีอยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้)'
+  $failed += 'csp-bundle-audit'
+} elseif (Test-Path -LiteralPath $distPath) {
   Write-Step 'CSP Bundle Audit'
+  if (-not $frontendBuilt) {
+    # ตรวจดีกว่าไม่ตรวจ แต่ต้องบอกว่าผลนี้อ้างถึง build ไหน ไม่งั้น OK จะถูกอ่านว่า
+    # "โค้ดปัจจุบันสะอาด" ทั้งที่ dist อาจเก่ากว่านั้นหลายคอมมิต
+    Write-Warn 'csp bundle audit: ตรวจ frontend/dist ที่มีอยู่เดิม (-SkipFrontend) — อาจไม่ตรงกับโค้ดปัจจุบัน'
+  }
   & node (Join-Path $Root 'scripts\audit-bundle-csp.mjs')
   if ($LASTEXITCODE -eq 0) {
     Write-Ok 'csp bundle audit'
@@ -176,7 +204,7 @@ if (Test-Path -LiteralPath $distPath) {
 } elseif ($SkipFrontend) {
   # ข้ามได้เฉพาะเมื่อผู้ใช้สั่งข้าม build เอง **และ** ไม่มี dist ให้ตรวจจริง ๆ
   # ข้อความต้องบอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่ข้ามเงียบ
-  Write-Host 'skip CSP bundle audit: ไม่มี frontend/dist และสั่ง -SkipFrontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ -SkipFrontend'
+  Write-Skip 'csp bundle audit: ไม่มี frontend/dist และสั่ง -SkipFrontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ -SkipFrontend'
 } else {
   Write-Fail 'csp bundle audit (build เพิ่งรันแต่ไม่มี frontend/dist)'
   $failed += 'csp-bundle-audit'
@@ -222,7 +250,7 @@ if (-not $SkipE2E) {
     }
   }
 } else {
-  Write-Host 'skip E2E (-SkipE2E)'
+  Write-Skip 'E2E (-SkipE2E)'
 }
 
 # ---- 3) Backend PHPUnit ----------------------------------------------------
@@ -246,7 +274,7 @@ if (-not $SkipBackend) {
     }
   }
 } else {
-  Write-Host 'skip backend (-SkipBackend)'
+  Write-Skip 'backend (-SkipBackend)'
 }
 
 # ---- 4) Docker Build Check -------------------------------------------------
@@ -273,7 +301,7 @@ if (-not $SkipDocker) {
     }
   }
 } else {
-  Write-Host 'skip docker (-SkipDocker)'
+  Write-Skip 'docker (-SkipDocker)'
 }
 
 # ---- Summary ---------------------------------------------------------------
