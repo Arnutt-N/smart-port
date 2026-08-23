@@ -172,19 +172,40 @@ function directiveFor(tagName, attr, attrs) {
 }
 
 /**
- * origin ที่ directive หนึ่งอนุญาต โดยเคารพ fallback ไป `default-src` ตามที่ browser ทำ
- * ไม่ประกาศทั้งคู่ = ไม่อนุญาต origin ภายนอกเลย (fail-closed)
+ * source list ที่ browser ใช้ตัดสิน directive หนึ่ง — **จุดเดียว** ที่เดินกฎ fallback
+ *
+ * ประกาศไว้ = ใช้ลิสต์ของตัวเอง (`declared: true`) · ไม่ประกาศและเป็น non-fetch =
+ * `declared: false` เพราะ `default-src` เป็น fallback ของ **fetch directive เท่านั้น** ตาม
+ * spec — `form-action` ที่ไม่ได้ประกาศแปลว่า "ไม่จำกัดปลายทางการ submit" ไม่ใช่
+ * "จำกัดเท่า default-src" ของเดิม fallback ให้ทุก directive จึงฟ้อง `<form action>` ที่
+ * browser ปล่อยผ่าน · ไม่ประกาศและเป็น fetch directive = fallback ไป `default-src` เหมือน browser
+ *
+ * ทั้งตัวตัดสิน (`originsForDirective`) และตัวรายงาน (`sourcesText`) เรียกผ่านตัวนี้เท่านั้น —
+ * กฎ fallback ที่คัดลอกไว้สองที่เพี้ยนออกจากกันได้เงียบ ๆ เมื่อมีคนแก้ที่เดียว
  */
-function originsForDirective(policy, directive) {
-  return policyOrigins(policy.get(directive) ?? policy.get('default-src'));
+function resolveDirectiveSources(policy, directive) {
+  if (policy.has(directive)) return { sources: policy.get(directive), declared: true };
+  if (NON_FETCH_DIRECTIVES.has(directive)) return { sources: [], declared: false };
+  return { sources: policy.get('default-src') ?? [], declared: true };
 }
 
 /**
- * source list ของ directive เป็นข้อความสำหรับ finding — fallback ไป `default-src` เหมือน
- * `originsForDirective()` เพื่อให้ข้อความตรงกับชุดที่ใช้ตัดสินจริง ไม่ใช่คนละชุดกัน
+ * origin ที่ directive หนึ่งอนุญาต โดยเคารพ fallback ตาม `resolveDirectiveSources()`
+ * ไม่ประกาศทั้งคู่ = ไม่อนุญาต origin ภายนอกเลย (fail-closed)
+ *
+ * คืน **`null` = ไม่มีข้อจำกัด** (กรณี `declared: false` ด้านบน)
  */
+function originsForDirective(policy, directive) {
+  const { sources, declared } = resolveDirectiveSources(policy, directive);
+  if (!declared) return null;
+  return policyOrigins(sources);
+}
+
+/** source list ของ directive เป็นข้อความสำหรับ finding — ตรงกับชุดที่ใช้ตัดสินจริงเสมอ */
 function sourcesText(policy, directive) {
-  return (policy.get(directive) ?? policy.get('default-src') ?? []).join(' ') || 'ไม่ได้ประกาศ';
+  const { sources, declared } = resolveDirectiveSources(policy, directive);
+  if (!declared) return 'ไม่ได้ประกาศ (จึงไม่จำกัดตาม spec)';
+  return sources.join(' ') || 'ไม่ได้ประกาศ';
 }
 
 /**
@@ -193,21 +214,61 @@ function sourcesText(policy, directive) {
  * (เดิมตรรกะนี้ถูกคัดลอกไว้สองที่พร้อมคอมเมนต์คำต่อคำเดียวกัน)
  */
 function srcsetUrls(value) {
-  return value.split(',').map((entry) => entry.trim().split(/\s+/)[0] ?? '');
+  // `split()` คืนอย่างน้อยหนึ่งสมาชิกเสมอ (สตริงว่างได้ `['']`) จึงไม่ต้องมี fallback ต่อท้าย
+  return value.split(',').map((entry) => entry.trim().split(/\s+/)[0]);
 }
 
 /**
- * origin ที่ policy อนุญาต **รวมทุก directive** — ใช้ได้เฉพาะกับ URL ที่บอกบริบทไม่ได้
+ * directive ที่ **ไม่ได้คุมการโหลด resource** — ประกาศ origin ไว้ที่นี่ไม่ได้แปลว่า bundle
+ * โหลดจากที่นั่นได้ จึงต้องไม่ยืม origin ให้ `allowedOriginsFrom()`
+ *
+ * ทำเป็น **blocklist ชุดปิดตาม spec** ไม่ใช่ allowlist รายชื่อ fetch directive เพราะฝั่ง
+ * fetch งอกใหม่ได้ (`prefetch-src`, `script-src-elem`, …) แล้วรายการที่พิมพ์ค้างไว้จะตกหล่น
+ * เงียบ ๆ — บทเรียนเดียวกับที่เพิ่งแก้ `directivesWithOrigins()` ให้อ่านจาก policy ตรง ๆ
+ * ส่วนฝั่ง non-fetch ปิดเท่าที่ spec ปัจจุบันมี (กลุ่มนี้ไม่ค่อยมี directive ใหม่) และการตกหล่นที่นี่
+ * ทำให้ gate **ฟ้องเกิน** (เห็นได้ทันที) ไม่ใช่ **เงียบ** (ไม่มีใครเห็น)
+ *
+ * **ห้ามเติมโดยไม่เขียนเหตุผล** — มีเทสบังคับเหมือน NON_FETCHED_ORIGINS
+ */
+const NON_FETCH_DIRECTIVES = new Map([
+  ['base-uri', 'คุมค่าที่ <base href> ตั้งได้ ไม่ได้ทำให้เกิด request ไปยัง origin นั้น'],
+  ['form-action', 'คุมปลายทางที่ฟอร์ม submit ไป — เส้นทางนี้ตรวจตรงผ่าน TAG_ATTRIBUTE_DIRECTIVES อยู่แล้ว'],
+  ['frame-ancestors', 'คุมว่าใคร embed *เรา* ได้ ไม่ใช่ว่าเราโหลดอะไรจากที่นั่นได้'],
+  ['navigate-to', 'คุมปลายทางของการ navigate (ร่างเดิมของ spec) ซึ่งไม่ใช่การโหลด subresource'],
+  ['report-to', 'ชื่อ reporting group ไม่ใช่ source list ของ origin'],
+  ['report-uri', 'ปลายทางรายงาน — browser ส่งเอง ไม่ผ่าน fetch directive ใด'],
+  ['sandbox', 'ค่าเป็น token ของ sandbox flag ไม่ใช่ origin'],
+  ['referrer', 'ค่าเป็นนโยบาย referrer (no-referrer ฯลฯ) ไม่ใช่ origin — เลิกใช้แล้วแต่ยังเจอใน policy เก่า'],
+  ['plugin-types', 'ค่าเป็น MIME type ที่อนุญาตให้ปลั๊กอินโหลด ไม่ใช่ origin — เลิกใช้แล้ว'],
+  ['webrtc', "ค่าเป็น 'allow'/'block' คุมการเปิด RTCPeerConnection ไม่ใช่ origin"],
+  ['reflected-xss', "ค่าเป็น 'allow'/'filter'/'block' สั่ง XSS auditor ไม่ใช่ origin — เลิกใช้แล้วแต่ยังเจอใน policy เก่า"],
+  ['require-sri-for', 'ค่าเป็นชนิด resource ที่บังคับ SRI (script/style) ไม่ใช่ origin'],
+  ['require-trusted-types-for', 'ค่าเป็น sink group ไม่ใช่ origin'],
+  ['trusted-types', 'ค่าเป็นชื่อ policy ของ Trusted Types ไม่ใช่ origin'],
+  ['upgrade-insecure-requests', 'ไม่มีค่า เป็นสวิตช์ล้วน'],
+  ['block-all-mixed-content', 'ไม่มีค่า เป็นสวิตช์ล้วน (เลิกใช้แล้วแต่ยังเจอใน policy เก่า)'],
+]);
+
+/** เฉพาะ directive ที่คุมการโหลด resource จริง — คู่ [directive, sources] ตามลำดับใน policy */
+function fetchDirectiveEntries(policy) {
+  return [...policy].filter(([directive]) => !NON_FETCH_DIRECTIVES.has(directive));
+}
+
+/**
+ * origin ที่ policy อนุญาต **รวมทุก fetch directive** — ใช้ได้เฉพาะกับ URL ที่บอกบริบทไม่ได้
  * (สตริงลอย ๆ ใน bundle ที่ static analysis ไม่รู้ว่าจะถูกใช้โหลดอะไร)
  *
  * **ห้ามใช้กับ URL ที่รู้บริบทแล้ว** — origin ที่ policy อนุญาตไว้เพื่อโหลดฟอนต์จะกลายเป็น
  * ใบผ่านให้ยิง API ทั้งที่ `connect-src` ไม่ได้อนุญาต ซึ่งคือความเสี่ยงข้อ 1 ในเอกสาร
  * (`VITE_API_URL` แบบ absolute) ที่ gate นี้มีไว้จับโดยตรง — review C1 พิสูจน์ว่า
  * `fetch("https://fonts.gstatic.com/…")` เคยผ่านฉลุยเพราะ gstatic อยู่ใน `font-src`
+ *
+ * รอบที่ 9 (M2) ปิดอีกรูของคลาสเดียวกัน: ของเดิมวน `policy.values()` ทุก directive จึงยืม
+ * origin จาก `frame-ancestors` / `form-action` / `base-uri` ซึ่งไม่ได้อนุญาตให้โหลดอะไรเลย
  */
 function allowedOriginsFrom(policy) {
   const origins = new Set();
-  for (const sources of policy.values()) {
+  for (const [, sources] of fetchDirectiveEntries(policy)) {
     for (const origin of policyOrigins(sources)) origins.add(origin);
   }
   return origins;
@@ -226,7 +287,7 @@ function allowedOriginsFrom(policy) {
  */
 function directivesWithOrigins(policy) {
   const names = [];
-  for (const [directive, sources] of policy) {
+  for (const [directive, sources] of fetchDirectiveEntries(policy)) {
     if (policyOrigins(sources).size > 0) names.push(directive);
   }
   return names;
@@ -557,10 +618,24 @@ function dynamicCodeFindings(content) {
 function externalOriginFindings(content, { policy, connectOrigins, allowedOrigins, consultedDirectives }) {
   const found = [];
   const reported = new Set(); // origin ที่ฟ้องไปแล้ว — กันฟ้องซ้ำจากกฎอื่นในไฟล์เดียวกัน
+  // origin ที่กฎซึ่ง **รู้บริบท** ตัดสินแล้วว่า directive ที่คุมมันอนุญาตไว้จริง
+  //
+  // จำเป็นตั้งแต่ M2 ถอด directive ที่ไม่ใช่ fetch ออกจาก allowlist รวม: `<form action>`
+  // ที่ `form-action` อนุญาตไว้ผ่านเส้นทางที่รู้บริบทแล้ว แต่กฎสตริงลอยซึ่งมองไม่เห็นบริบท
+  // จะฟ้องมันซ้ำ = false positive ที่เกิดจากการปิด false negative · "ผ่านแล้ว" ต้องเดินทาง
+  // ต่อได้เหมือน "ฟ้องแล้ว" ไม่ใช่หายไปเฉย ๆ
+  //
+  // **ข้อแลกเปลี่ยนที่รู้ตัว**: เคลียร์ทั้ง origin ไม่ใช่ทีละ URL — สตริงอื่นของ origin เดียวกัน
+  // ในไฟล์นั้นจึงเงียบตาม · ยอมได้เพราะกฎสตริงลอยเป็น heuristic ("ถ้าโค้ดโหลดจากที่นี่จริง")
+  // และ URL ที่บริบทบอก directive ได้ยังถูกตรวจกับ directive ของมันเองทีละตัวอยู่แล้ว
+  const cleared = new Set();
 
-  // เงื่อนไข "ไม่ต้องฟ้อง" เดิมถูกคัดลอกไว้สามที่ ซึ่งเพี้ยนออกจากกันได้เงียบ ๆ เมื่อมีคนแก้ที่เดียว
-  const isCovered = (origin, allowed) =>
-    allowed.has(origin) || NON_FETCHED_ORIGINS.has(origin) || reported.has(origin);
+  // สถานะ "จัดการไปแล้วในไฟล์นี้" — คนละคำถามกับ "policy อนุญาตไหม" ซึ่งต้องเทียบกับชุด
+  // ของ directive ที่บล็อกจริงทีละเส้นทาง · ของเดิมรวมสองคำถามไว้ใน isCovered(origin,
+  // allowed) ทำให้เทอม `allowed.has()` ตายตั้งแต่รอบที่ 11 — เส้นทางที่มันจะเป็นจริงถูก
+  // `continue` ไปก่อนหน้าหมดแล้ว แต่ตัวเทอมยังตามมาอยู่ใน helper จนรีวิวรอบที่ 12 ไล่
+  // reachability เจอ ("แก้แล้ว" ต้องพิสูจน์ ไม่ใช่ประกาศ)
+  const alreadyHandled = (origin) => NON_FETCHED_ORIGINS.has(origin) || reported.has(origin);
 
   // แท็กที่บอก directive ได้แน่นอน ตรวจก่อนกฎอื่น เพราะให้คำตอบที่แม่นกว่า:
   // เทียบกับ directive ที่บล็อกจริง ไม่ใช่ allowlist รวมที่ยืม origin ข้าม directive ได้
@@ -574,7 +649,12 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
       for (const url of srcsetUrls(value)) {
         const origin = originOf(url);
         if (origin === null) continue; // relative/data: — อยู่ใต้ 'self' หรือไม่ใช่ URL
-        if (isCovered(origin, allowed)) continue;
+        if (alreadyHandled(origin)) continue; // ฟ้องไปแล้ว / ข้อยกเว้นที่บันทึกเหตุผลไว้
+        // `allowed === null` = directive นั้นไม่ได้ประกาศและไม่มี fallback ตาม spec = ไม่จำกัด
+        if (allowed === null || allowed.has(origin)) {
+          cleared.add(origin);
+          continue;
+        }
         reported.add(origin);
         found.push({
           rule: 'external-origin',
@@ -589,7 +669,9 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
     for (const match of content.matchAll(pattern)) {
       const origin = originOf(match[1]); // null = path สัมพัทธ์ ซึ่งอยู่ใต้ 'self' อยู่แล้ว
       if (origin === null) continue;
-      if (isCovered(origin, connectOrigins)) continue;
+      // กฎ fetch ตัดสินด้วยชุดของตัวเองเท่านั้น — ไม่สน `cleared` เพราะหลักฐานบริบทของ
+      // directive อื่นไม่ใช่หลักฐานให้ connect-src · ฟ้องไปแล้ว/ข้อยกเว้นยังต้องตัดซ้ำ
+      if (alreadyHandled(origin) || connectOrigins.has(origin)) continue;
       reported.add(origin);
       found.push({
         rule: 'external-origin',
@@ -601,7 +683,7 @@ function externalOriginFindings(content, { policy, connectOrigins, allowedOrigin
 
   const originCounts = new Map();
   const countOrigin = (origin) => {
-    if (isCovered(origin, allowedOrigins)) return;
+    if (cleared.has(origin) || alreadyHandled(origin) || allowedOrigins.has(origin)) return;
     originCounts.set(origin, (originCounts.get(origin) ?? 0) + 1);
   };
   // ให้ URL parser เป็นคนบอกว่า host คืออะไร ไม่ใช่ character class (ดู absoluteUrlCandidates)
@@ -774,7 +856,14 @@ function main() {
 // EVENT_HANDLER_ATTRIBUTES ถูก export เพื่อให้ differential test เทียบชุดเดียวกับที่กฎใช้จริง
 // ไม่ใช่สำเนาที่เพี้ยนออกจากกันได้ — เทสนั้นถาม parse5 ว่า markup มี attribute อะไรบ้าง
 // แล้วคาดหวังให้ gate ฟ้องเฉพาะตัวที่อยู่ในชุดนี้
-export { auditBundle, parseCspPolicy, allowedOriginsFrom, NON_FETCHED_ORIGINS, EVENT_HANDLER_ATTRIBUTES };
+export {
+  auditBundle,
+  parseCspPolicy,
+  allowedOriginsFrom,
+  NON_FETCHED_ORIGINS,
+  NON_FETCH_DIRECTIVES,
+  EVENT_HANDLER_ATTRIBUTES,
+};
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

@@ -394,7 +394,11 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
   `VITE_API_URL` แบบ absolute ซึ่งเป็นเคสที่ gate นี้มีไว้จับโดยตรง) · **ข้อจำกัดที่รู้ตัว**:
   URL ที่ประกอบจากตัวแปร (`fetch(base + path)`) มองไม่เห็น — allowlist รวมยังคุมสตริงลอยอีกชั้น
   · absolute URL ที่บอกบริบทไม่ได้ เทียบกับ allowlist รวม และรายงาน directive ที่เทียบตาม
-  policy จริง โดย **host ถูกตัดสินด้วย URL parser ไม่ใช่ character class** — `_` ในชื่อ host,
+  policy จริง — **allowlist รวมนับเฉพาะ directive ที่คุมการโหลด resource** เท่านั้น
+  (`frame-ancestors` คุมว่าใคร embed *เรา* ได้ · `form-action` คุมปลายทาง submit · `base-uri`
+  คุมค่า `<base href>` — ทั้งสามไม่ได้อนุญาตให้ bundle โหลดอะไร จึงไม่ยืม origin ให้ใคร
+  ดู `NON_FETCH_DIRECTIVES` ซึ่งเป็น blocklist ชุดปิดตาม spec ไม่ใช่รายชื่อ fetch directive
+  ที่งอกใหม่ได้) · โดย **host ถูกตัดสินด้วย URL parser ไม่ใช่ character class** — `_` ในชื่อ host,
   userinfo ทุกรูป (`https://allowed.example@evil.example/` และรูปที่มี `, ; ( ) { }` คั่น
   ซึ่งเป็นอักขระที่อยู่ในส่วน userinfo ได้) และ IPv6 literal จึงไม่ทำให้ origin ถูกอ่านผิด
   เป็นตัวที่ policy อนุญาต · regex ทำหน้าที่แค่คว้าก้อนที่น่าจะเป็น URL เท่านั้น · `url()` ภายนอกใน stylesheet **ทุกที่ที่เจอ ไม่ใช่เฉพาะไฟล์ `.css`** (`<style>` ใน HTML และ
@@ -403,7 +407,8 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
   `poster` / `data` / `action` / `formaction`) — `<img src="//host">` คือบริบทที่บอกว่าเป็น URL
   ชัดกว่า `url()` ด้วยซ้ำ · **คู่แท็ก+attribute ที่ CSP รู้ directive แน่นอน เทียบกับ directive
   นั้นโดยตรง ไม่ใช่ allowlist รวม** (`<script src>` → `script-src` · `<img src>` → `img-src` ฯลฯ
-  พร้อม fallback ไป `default-src` ตามที่ browser ทำ) ไม่งั้น origin ที่อนุญาตไว้โหลดฟอนต์
+  พร้อม fallback ไป `default-src` ตามที่ browser ทำ — **เฉพาะ fetch directive**: `form-action`
+  ที่ไม่ได้ประกาศแปลว่า "ไม่จำกัดปลายทางการ submit" ไม่ใช่ "จำกัดเท่า `default-src`") ไม่งั้น origin ที่อนุญาตไว้โหลดฟอนต์
   จะกลายเป็นใบผ่านให้โหลดสคริปต์ · คู่ที่กำกวม (`<source src>` ซึ่งเป็น `img-src` ใน `<picture>`
   แต่ `media-src` ใน `<video>`) ไม่อยู่ในตาราง map และใช้ allowlist รวมตามเดิม
   · **ข้อจำกัดที่รู้ตัว**: `//host` จับเฉพาะสามบริบทนี้เท่านั้น
@@ -413,7 +418,19 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
   ด้านบน — ตอนนี้มี gate จับแล้ว ไม่ต้องพึ่งความจำ) · ผ่อน policy แล้วกฎผ่อนตามเอง
   · **fail-closed**: ไม่มี `dist` หรือ `dist` ว่าง = fail ("ยังไม่ได้ตรวจ" ห้ามอ่านเป็น "ตรวจแล้วสะอาด")
   · ไม่ยิงเน็ต ไม่ใช้ Docker · เสียบใน `scripts/ci-local.sh` / `.ps1` หลังขั้น frontend build
-  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (69 เทส ใช้ fixture ใน temp dir ไม่แตะ
+  โดย wrapper แยก **สามสถานะ** ไม่ใช่ดูแค่ว่ามี `dist` ไหม: ขั้น frontend ล้ม = **fail** (dist ที่
+  เหลืออยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้ — ของเดิมรัน audit กับมันแล้วขึ้น `OK`) โดยนับ
+  **vitest ตกด้วย ไม่ใช่เฉพาะ build ล้ม**: `ci-local.sh` เช็กสถานะทีละคำสั่งเอง เพราะ bash ปิด
+  `errexit` ให้ทุกคำสั่งที่เป็นเงื่อนไขของ `if`/`&&`/`||` และปิดทะลุเข้า subshell แม้สั่ง `set -e`
+  ซ้ำข้างใน (เคยทำให้ vitest ตกแล้ว gate ยังเขียว) · สั่ง
+  `--skip-frontend` แต่มี `dist` = ตรวจพร้อมพิมพ์ `WARN` ว่าอาจไม่ตรงกับโค้ดปัจจุบัน ·
+  build สำเร็จ = ตรวจตามปกติ · ทั้งสอง wrapper มี regression ของตัวเองใน workspace จำลอง
+  (`scripts/tests/ci-local-csp-gate.test.mjs`) — เคสฝั่ง bash รันได้ทุกแพลตฟอร์ม แต่เคส
+  ฝั่ง PowerShell รันจริง**เฉพาะ Windows**: `ci-local.ps1` ใช้ path แบบ `\` ทั้งไฟล์ ซึ่ง
+  บน Linux เป็นตัวอักษรในชื่อไฟล์ ไม่ใช่ตัวคั่น เทสจึงข้ามตัวเองเมื่อ
+  `process.platform !== 'win32'` (ยังไม่เคยวัดฝั่ง pwsh บน Linux จริง) — สรุปเทสเขียวบน
+  เครื่อง non-Windows จึงหมายถึง "ฝั่ง bash ถูกตรวจ" ไม่ใช่ "สอง wrapper ถูกตรวจ"
+  · regression: `scripts/tests/audit-bundle-csp.test.mjs` (79 เทส ใช้ fixture ใน temp dir ไม่แตะ
   `frontend/dist` จริง) ซึ่ง `.githooks/pre-push` รันให้อยู่แล้วผ่าน glob
   · **differential**: `scripts/tests/audit-bundle-csp.differential.test.mjs` — ไม่ระบุคำตอบที่ถูกเอง
   แต่ถาม **แหล่งความจริงเดียวกับที่ browser ใช้** แล้วเทียบว่า gate เห็นตรงกันไหม: `parse5`

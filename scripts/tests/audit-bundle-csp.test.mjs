@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { auditBundle, parseCspPolicy, NON_FETCHED_ORIGINS } from '../audit-bundle-csp.mjs';
+import { auditBundle, parseCspPolicy, NON_FETCHED_ORIGINS, NON_FETCH_DIRECTIVES } from '../audit-bundle-csp.mjs';
 import { parseRenderHeaders } from '../verify-live-headers.mjs';
 
 // Issue #113 (R2) — regression ของ gate ที่ตรวจ build output ว่าจะชน CSP หลัง enforce ไหม
@@ -46,6 +46,15 @@ const cleanFiles = {
 
 function rulesOf(findings) {
   return findings.map((f) => f.rule).sort();
+}
+
+/**
+ * ชื่อ directive ที่ finding อ้างถึง — ช่อง `directive` เก็บได้ทั้งชื่อเดียวและรายการที่ต่อกัน
+ * ด้วย ` / ` · เทียบเป็น **ชื่อเต็ม** ไม่ใช่ substring เพราะ `style-src` เป็นคำนำหน้าของ
+ * `style-src-elem` — เทสที่ถามด้วย substring จะเขียวทั้งที่ gate ตอบคนละ directive
+ */
+function directivesOf(finding) {
+  return finding.directive.split(' / ');
 }
 
 test('bundle สะอาดต้องไม่มี finding และต้องรายงานว่าอ่านเนื้อหากี่ไฟล์', () => {
@@ -485,7 +494,10 @@ test('finding ของ origin ต้องระบุ directive ตาม poli
     const { findings } = auditBundle(dir, POLICY);
     const hit = findings.find((f) => /cdn\.example\.com/.test(f.detail));
     assert.ok(hit, JSON.stringify(findings));
-    assert.match(hit.directive, /style-src/, `directive ที่รายงานต้องมาจาก policy: ${hit.directive}`);
+    assert.ok(
+      directivesOf(hit).includes('style-src'),
+      `directive ที่รายงานต้องมาจาก policy: ${hit.directive}`,
+    );
   } finally {
     cleanup();
   }
@@ -507,10 +519,10 @@ test('policy ที่ไม่ประกาศ connect-src ต้อง fallb
   }
 });
 
-test('directive ที่รายงานต้องครอบ directive ที่ไม่ใช่ fetch-directive แต่ยืม origin ให้ allowlist รวมได้', () => {
+test('directive ที่รายงานต้องครอบ fetch-directive ทุกตัวที่ยืม origin ให้ allowlist รวมได้', () => {
   // regression ของคลาส "รายการที่พิมพ์ค้างไว้": ของเดิมเป็น array 6 ตัวที่ตกหล่น frame-src /
-  // object-src / form-action ซึ่ง TAG_ATTRIBUTE_DIRECTIVES ใช้จริง — คนอ่านจึงถูกบอกว่า
-  // finding เทียบกับ directive ชุดหนึ่ง ทั้งที่ origin ที่ปล่อยผ่านมาจากอีกชุดหนึ่ง
+  // object-src ซึ่ง TAG_ATTRIBUTE_DIRECTIVES ใช้จริง — คนอ่านจึงถูกบอกว่า finding เทียบกับ
+  // directive ชุดหนึ่ง ทั้งที่ origin ที่ปล่อยผ่านมาจากอีกชุดหนึ่ง
   const policy =
     "default-src 'self'; script-src 'self'; connect-src 'self'; " +
     'frame-src https://frames.example.com; object-src https://objects.example.com; ' +
@@ -523,17 +535,182 @@ test('directive ที่รายงานต้องครอบ directive �
     const { findings } = auditBundle(dir, policy);
     const hit = findings.find((f) => /unknown\.example\.com/.test(f.detail));
     assert.ok(hit, JSON.stringify(findings));
-    for (const directive of ['frame-src', 'object-src', 'form-action']) {
-      assert.match(
-        hit.directive,
-        new RegExp(directive),
+    const reported = directivesOf(hit);
+    for (const directive of ['frame-src', 'object-src']) {
+      assert.ok(
+        reported.includes(directive),
         `${directive} ประกาศ origin ไว้จริง จึงต้องอยู่ในรายการที่รายงาน: ${hit.directive}`,
       );
     }
     // directive ที่ไม่มี origin ภายนอกไม่ได้ยืมอะไรให้ใคร จึงไม่ควรถูกนับว่า "ปรึกษาแล้ว"
-    assert.doesNotMatch(hit.directive, /connect-src/, `connect-src 'self' ไม่มี origin: ${hit.directive}`);
+    assert.ok(!reported.includes('connect-src'), `connect-src 'self' ไม่มี origin: ${hit.directive}`);
+    // form-action คุม "ปลายทางที่ฟอร์ม submit ไป" ไม่ได้อนุญาตให้ bundle โหลดอะไรจากที่นั่น
+    // จึงไม่ใช่ทั้งตัวที่ปล่อยผ่านและตัวที่ควรถูกรายงาน (review รอบที่ 9 — M2)
+    assert.ok(!reported.includes('form-action'), `form-action ไม่ได้คุมการโหลด: ${hit.directive}`);
   } finally {
     cleanup();
+  }
+});
+
+// review รอบที่ 9 — M2: `allowedOriginsFrom()` วน `policy.values()` **ทุก** directive จึงยืม
+// origin จากตัวที่ไม่ได้คุมการโหลด resource เลยมาเป็นใบผ่านให้สตริงใน bundle · คลาสเดียวกับ
+// review C1 (ฟอนต์ยืมให้ fetch) แต่หนักกว่า เพราะ directive พวกนี้ไม่คุม "การโหลด" อะไรเลย
+//
+// เขียนเป็นเทสแยกตัวต่อ directive (ไม่ใช่ลูป) เพราะเทส anti-drift ท้ายไฟล์นับจำนวนเทสจาก
+// จำนวนบรรทัด `test(` — ลูปทำให้ตัวเลขในเอกสารต่ำกว่าจริงเงียบ ๆ ซึ่งคือสิ่งที่เทสนั้นกันอยู่
+function assertDirectiveDoesNotLendOrigin(directive, origin) {
+  const policy = `default-src 'self'; script-src 'self'; connect-src 'self'; ${directive} ${origin}`;
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/loose.js': `const s = "${origin}/x.js";`,
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    const hit = findings.find((f) => f.detail.includes(origin));
+    assert.ok(hit, `${directive} ไม่ได้อนุญาตให้โหลดจาก ${origin} จึงต้องถูกฟ้อง: ${JSON.stringify(findings)}`);
+    assert.ok(!directivesOf(hit).includes(directive), `ห้ามอ้าง ${directive}: ${hit.directive}`);
+  } finally {
+    cleanup();
+  }
+}
+
+test('frame-ancestors ต้องไม่ยืม origin ให้ allowlist รวม (review รอบที่ 9 — M2)', () => {
+  // คุมว่าใคร embed *เรา* ได้ — ไม่ได้อนุญาตให้เราโหลดอะไรจากที่นั่น
+  assertDirectiveDoesNotLendOrigin('frame-ancestors', 'https://portal.example.com');
+});
+
+test('form-action ต้องไม่ยืม origin ให้ allowlist รวม (review รอบที่ 9 — M2)', () => {
+  // คุมปลายทางที่ฟอร์ม submit ไป ซึ่งเป็นคนละเรื่องกับการโหลด subresource
+  assertDirectiveDoesNotLendOrigin('form-action', 'https://forms.example.com');
+});
+
+test('base-uri ต้องไม่ยืม origin ให้ allowlist รวม (review รอบที่ 9 — M2)', () => {
+  // คุมค่าที่ <base href> ตั้งได้ ไม่ได้ทำให้เกิด request ไปยัง origin นั้น
+  assertDirectiveDoesNotLendOrigin('base-uri', 'https://cdn.example.com');
+});
+
+test('form-action ที่ policy อนุญาตไว้ ต้องยังปล่อย <form action> ปลายทางนั้นผ่าน', () => {
+  // คู่ตรงข้ามของเทสบน — การถอด form-action ออกจาก allowlist **รวม** ต้องไม่ไปแตะเส้นทางที่
+  // บริบทบอก directive ได้เอง (`TAG_ATTRIBUTE_DIRECTIVES`) ซึ่งเทียบกับ form-action ตรง ๆ อยู่แล้ว
+  const policy = "default-src 'self'; script-src 'self'; form-action https://forms.example.com";
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><form action="https://forms.example.com/submit"></form></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    assert.deepEqual(findings, [], `form-action อนุญาตปลายทางนี้ไว้จริง: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('directive ที่ไม่ใช่ fetch และไม่ได้ประกาศ ต้องไม่ยืม default-src มาจำกัด (ไม่ประกาศ = ไม่จำกัด)', () => {
+  // `default-src` เป็น fallback ของ **fetch directive** เท่านั้น — `form-action` / `frame-ancestors`
+  // / `base-uri` ไม่มี fallback ตาม spec · policy ที่ไม่ประกาศ form-action จึงไม่ได้จำกัดการ submit
+  // เลย แต่ของเดิม `originsForDirective()` fallback ให้ทุก directive ทำให้ gate ฟ้อง <form action>
+  // ที่ browser ปล่อยผ่าน = false positive ที่หลับอยู่จนกว่าจะมีคนถอด form-action ออกจาก policy
+  const policy = "default-src 'self'; script-src 'self'";
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><form action="https://forms.example.com/submit"></form></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    assert.deepEqual(findings, [], `ไม่ประกาศ form-action = ไม่จำกัดการ submit: ${JSON.stringify(findings)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('directive ที่ไม่ใช่ fetch ซึ่งประกาศไว้ ต้องยังจำกัดตามที่ประกาศ (กันแก้เกิน)', () => {
+  // คู่ตรงข้ามของเทสบน — "ไม่ประกาศ = ไม่จำกัด" ต้องไม่กลายเป็น "ประกาศแล้วก็ไม่จำกัด"
+  const policy = "default-src 'self'; script-src 'self'; form-action 'self'";
+  const { dir, cleanup } = makeDist({
+    'index.html': '<!doctype html><html><body><form action="https://forms.example.com/submit"></form></body></html>',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    const hit = findings.find((f) => f.detail.includes('forms.example.com'));
+    assert.ok(hit, `form-action 'self' ไม่อนุญาตปลายทางนี้: ${JSON.stringify(findings)}`);
+    assert.ok(directivesOf(hit).includes('form-action'), `ต้องผูกกับ directive ที่บล็อกจริง: ${hit.directive}`);
+  } finally {
+    cleanup();
+  }
+});
+
+// ── สามสถานะของ `cleared` ในกฎ R3/R4 (review รอบที่ 12) ───────────────────────
+// `cleared` เก็บ origin ที่ **หลักฐานบริบทในไฟล์** ตัดสินแล้วว่า directive ที่คุมจริงอนุญาต
+// กฎสตริงลอยจึงต้องเงียบกับ origin เหล่านั้น — M2 ถอด directive ที่ไม่ใช่ fetch ออกจาก
+// allowlist รวมแล้ว ถ้าไม่มี cleared สตริงลอยของ origin ที่ <form action> ผ่านไปแล้วจะโดน
+// ฟ้องซ้ำเป็น false positive · ขอบเขตของการเงียบคือสิ่งที่สามเทสนี้ตรึง: เงียบได้ต้องมี
+// หลักฐานจริงในไฟล์ และเงียบไม่ลามไปถึงกฎ connect-src ซึ่งรู้บริบทดีกว่า
+
+test('มี <form> ที่ policy อนุญาตจริง → สตริงลอย origin เดียวกันต้องเงียบ (cleared)', () => {
+  // <form action> ผ่าน form-action ตรง ๆ แล้ว origin นั้นถูกเคลียร์ — สตริงลอยที่เหลือใน
+  // ไฟล์เดียวกันต้องไม่โดนฟ้องซ้ำ ถ้าถอดการเช็ค cleared ออก เทสนี้ต้องแดงทันที
+  const policy = "default-src 'self'; script-src 'self'; connect-src 'self'; form-action https://forms.example.com";
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/forms.js': `document.body.innerHTML += "<form action='https://forms.example.com/submit'></form>";const fallback="https://forms.example.com/other";`,
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    assert.deepEqual(findings, [], JSON.stringify(findings));
+  } finally {
+    cleanup();
+  }
+});
+
+test('ไม่มี <form> ในไฟล์ → สตริงลอย origin เดียวกันต้องถูกฟ้อง (cleared ต้องมีหลักฐานในไฟล์)', () => {
+  // policy ประกาศ form-action ไว้อย่างเดียวไม่พอ — การเคลียร์ต้องมาจาก markup จริงในไฟล์
+  // ถ้าเคลียร์จาก policy โดยตรง (ยืม origin ของ directive ที่ไม่ใช่ fetch กลับมาอีกครั้ง)
+  // สตริงลอยจะเงียบทั้งที่ไม่มีอะไรพิสูจน์ว่าโค้ดใช้ปลายทางนี้จริง
+  const policy = "default-src 'self'; script-src 'self'; connect-src 'self'; form-action https://forms.example.com";
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/loose.js': 'const fallback="https://forms.example.com/other";',
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    const hit = findings.find((f) => /forms\.example\.com/.test(f.detail));
+    assert.ok(hit, `ต้องยังฟ้องสตริงลอย: ${JSON.stringify(findings)}`);
+    assert.ok(
+      !directivesOf(hit).includes('form-action'),
+      `finding ต้องไม่อ้าง form-action เพราะมันไม่ใช่ตัวยืม origin: ${hit.directive}`,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('มี <form> + fetch() ไป origin เดียวกัน → fetch ต้องยังถูกจับ (กฎ connect ต้องไม่สน cleared)', () => {
+  // cleared ครอบเฉพาะกฎสตริงลอย — connect-src ตัดสินด้วยชุดของตัวเอง ถ้า isCovered ยอมรับ
+  // cleared ด้วย การมีฟอร์มในไฟล์จะกลายเป็นใบผ่านให้ยิง API ไปที่เดียวกันทั้งที่ connect-src บล็อกจริง
+  const policy = "default-src 'self'; script-src 'self'; connect-src 'self'; form-action https://forms.example.com";
+  const { dir, cleanup } = makeDist({
+    ...cleanFiles,
+    'assets/mixed.js': `document.body.innerHTML += "<form action='https://forms.example.com/submit'></form>";fetch("https://forms.example.com/api");`,
+  });
+  try {
+    const { findings } = auditBundle(dir, policy);
+    const hit = findings.find((f) => directivesOf(f).includes('connect-src'));
+    assert.ok(hit, `fetch ไป origin ที่ connect-src ไม่อนุญาตต้องถูกฟ้อง: ${JSON.stringify(findings)}`);
+    assert.match(hit.detail, /forms\.example\.com/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('ข้อยกเว้นทุกตัวใน NON_FETCH_DIRECTIVES ต้องมีเหตุผลเขียนกำกับ', () => {
+  // เหตุผลเดียวกับเทสของ NON_FETCHED_ORIGINS: รายการที่ทำให้ gate "มองข้าม" ของได้ ต้องเป็น
+  // การตัดสินใจที่เขียนไว้ ไม่ใช่ชื่อที่ใครสักคนเติมเข้ามาเงียบ ๆ
+  assert.ok(NON_FETCH_DIRECTIVES.size > 0);
+  for (const [directive, reason] of NON_FETCH_DIRECTIVES) {
+    assert.equal(typeof reason, 'string', `${directive} ต้องมีเหตุผล`);
+    assert.ok(reason.length >= 20, `เหตุผลของ ${directive} สั้นเกินกว่าจะอธิบายอะไรได้: "${reason}"`);
+  }
+  // fetch directive ที่ gate ใช้จริงต้องไม่หลุดเข้าไปในรายการนี้ — ถ้าหลุด gate จะเงียบทั้งเส้นทาง
+  for (const directive of ['script-src', 'connect-src', 'img-src', 'style-src', 'font-src', 'default-src']) {
+    assert.ok(!NON_FETCH_DIRECTIVES.has(directive), `${directive} คุมการโหลดจริง ห้ามอยู่ในรายการนี้`);
   }
 });
 
