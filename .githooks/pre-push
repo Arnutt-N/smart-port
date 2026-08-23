@@ -29,6 +29,8 @@ fi
 # รันก่อนเพื่อ fail เร็ว และเพราะ Actions ปิด auto-trigger อยู่ hook นี้คือที่เดียวที่
 # gate พวกนี้ถูกบังคับจริงทุกครั้ง (schema parity validator / live header / CSP self-test)
 echo "[pre-push] script regressions (node --test scripts/tests) ..."
+# quote ปิดก่อน `/scripts` โดยตั้งใจ — คลุม `*` ไว้ในเครื่องหมายคำพูดเมื่อไร glob ก็ไม่ขยาย
+# แล้ว node จะได้ path ที่มีดาวจริง ๆ ต่างจากบรรทัด audit ข้างล่างที่ไม่มี glob จึงคลุมทั้ง path ได้
 node --test "${ROOT}"/scripts/tests/*.test.mjs
 
 # CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ
@@ -37,11 +39,46 @@ node --test "${ROOT}"/scripts/tests/*.test.mjs
 # ตรวจเฉพาะเมื่อมี dist อยู่แล้ว — hook ตัวนี้ตั้งใจให้เบา จึงไม่ build ให้เอง (npm run build
 # ทุกครั้งที่ push แพงเกินไป) · การไม่มี dist ที่นี่ไม่ใช่ "ผ่าน" แต่เป็น "ยังไม่ได้ตรวจ"
 # จึงต้องพิมพ์บอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่เงียบ (หลักการเดียวกับ differential test)
-if [[ -d "${FRONTEND}/dist" ]]; then
-  echo "[pre-push] CSP bundle audit (frontend/dist) ..."
-  node "${ROOT}/scripts/audit-bundle-csp.mjs"
+DIST_STAMP="${FRONTEND}/dist/index.html"
+# เช็ก stamp ก่อนเส้นทางอื่น — ของเดิมปล่อย find วิ่งก่อนแล้วค่อยเช็ก [[ -f ]] ซึ่งไม่มีผล
+# กับ find ที่พึ่งรันไปแล้ว (error ของ find ถูกกลืนด้วย 2>/dev/null || true) guard จึงเป็น
+# ของประดับ · ไม่มี dist/index.html คือ "ยังไม่ได้ตรวจ" พิมพ์บอกพร้อมวิธีแก้ ไม่ใช่เงียบ
+if [[ ! -f "${DIST_STAMP}" ]]; then
+  echo "[pre-push] SKIP  csp bundle audit: ไม่มี frontend/dist/index.html — build ก่อน (cd frontend && npm run build) แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ"
 else
-  echo "[pre-push] SKIP CSP bundle audit: ไม่มี frontend/dist — build ก่อน (cd frontend && npm run build) แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ"
+  # hook ไม่ build ให้เอง (npm run build ทุกครั้งที่ push แพงเกินไป) dist จึงอาจเก่ากว่าโค้ด
+  # — แต่เตือนเฉพาะเมื่อ **วัดได้ว่าเก่าจริง** ไม่ใช่เตือนทุกครั้ง · คำเตือนที่ดังตลอดเวลาไม่ใช่
+  # สัญญาณ มันสอนให้คนเลิกอ่าน WARN ซึ่งย้อนแย้งกับ gate ที่สร้างมาให้คนเชื่อ
+  # เทียบ mtime ของ source กับ index.html ของ build (ยืนยันแล้วว่าให้ผลสองทางทั้ง Git Bash และ WSL)
+  # ไม่นับไฟล์เทส — vite ไม่เอาเข้า bundle การแก้เทสจึงไม่ทำให้ dist เพี้ยน (วัดแล้ว: ก่อนกรอง
+  # repo นี้เตือนเพราะไฟล์ `__tests__/securityHeaders.test.js` ไฟล์เดียว ซึ่งไม่เกี่ยวกับ bundle เลย)
+  STALE_SRC=""
+  # ไฟล์เดี่ยวที่มีผลกับ bundle โดยตรง เทียบด้วย -nt ตรง ๆ ไม่ต้องปลุก find — index.html
+  # คือ entry ของ vite และ vite.config.js กำหนดตัว build เอง ทั้งคู่ไม่ได้อยู่ใต้ src/ จึง
+  # หลุดจาก find เดิมทั้งที่แก้แล้ว bundle เปลี่ยน
+  for f in index.html vite.config.js; do
+    if [[ "${FRONTEND}/${f}" -nt "${DIST_STAMP}" ]]; then
+      STALE_SRC="frontend/${f}"
+      break
+    fi
+  done
+  # src/ มีอยู่แน่ใน repo นี้ ส่วน public/ เป็นโฟลเดอร์ทางเลือกของ vite (static asset
+  # คัดลอกเข้า dist ตรง ๆ) อาจไม่ถูกสร้าง — find กับโฟลเดอร์ที่ไม่มีคือ error อีกชุดที่ต้อง
+  # กลืนเงียบ ๆ จึงเช็ก -d ก่อน
+  if [[ -z "${STALE_SRC}" ]]; then
+    STALE_SRC="$(find "${FRONTEND}/src" -type f \
+      -not -path '*/__tests__/*' -not -name '*.test.*' -not -name '*.spec.*' \
+      -newer "${DIST_STAMP}" -print -quit 2>/dev/null || true)"
+  fi
+  if [[ -z "${STALE_SRC}" && -d "${FRONTEND}/public" ]]; then
+    STALE_SRC="$(find "${FRONTEND}/public" -type f \
+      -newer "${DIST_STAMP}" -print -quit 2>/dev/null || true)"
+  fi
+  if [[ -n "${STALE_SRC}" ]]; then
+    echo "[pre-push] WARN  csp bundle audit: ${STALE_SRC} ใหม่กว่า dist — ผลนี้เป็นของ build เก่า (cd frontend && npm run build)"
+  fi
+  echo "[pre-push] csp bundle audit (frontend/dist) ..."
+  node "${ROOT}/scripts/audit-bundle-csp.mjs"
 fi
 
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
