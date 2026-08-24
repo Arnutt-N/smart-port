@@ -7,6 +7,7 @@
   Local gates:
     0) Fast gates: schema parity + multiplier validator regression
     1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run build
+    1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
     2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
     3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
     4) Docker:    build frontend + backend images (no push)
@@ -50,6 +51,17 @@ function Write-Ok([string]$Msg) {
 
 function Write-Fail([string]$Msg) {
   Write-Host "FAIL  $Msg" -ForegroundColor Red
+}
+
+# สองตัวนี้ไม่แตะ $failed — บอกว่า "ตรวจแล้วแต่เชื่อได้ไม่เต็มร้อย" กับ "ไม่ได้ตรวจ" ซึ่งไม่ใช่
+# ความล้มเหลว แต่ก็ไม่ใช่ผ่าน · รูปแบบ prefix อยู่ที่เดียวกับ Write-Ok/Write-Fail เพื่อให้เทสที่
+# จับ marker เหล่านี้ (scripts/tests/ci-local-csp-gate.test.mjs) ไม่ผูกกับสตริงที่กระจายหลายที่
+function Write-Warn([string]$Msg) {
+  Write-Host "WARN  $Msg" -ForegroundColor Yellow
+}
+
+function Write-Skip([string]$Msg) {
+  Write-Host "SKIP  $Msg"
 }
 
 if ($Help) {
@@ -107,7 +119,9 @@ if ($LASTEXITCODE -eq 0) {
 
 # รันทั้งโฟลเดอร์ด้วย glob แบบเดียวกับ .githooks/pre-push, ci.yml และ ci-local.sh
 # PowerShell ไม่ขยาย glob ให้ native command แต่ node --test ขยายเองได้ (ยืนยันแล้ว)
-# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin)
+# ทุกไฟล์ในโฟลเดอร์นี้เป็น regression ที่ไม่ยิง production จริง (ใช้ mock origin) — รวมถึง
+# mock-server regression ของ CSP gate (issue #113 R1) ซึ่งเคยมีบล็อกของตัวเองต่อท้ายบล็อกนี้
+# แล้วถูกรันซ้ำสองรอบทุกครั้ง · glob ครอบอยู่แล้ว การไล่ชื่อซ้ำมีแต่ทำให้ CI ช้าลงเปล่า ๆ
 Write-Step 'Script Regressions'
 & node --test (Join-Path $Root 'scripts\tests\*.test.mjs')
 if ($LASTEXITCODE -eq 0) {
@@ -117,17 +131,10 @@ if ($LASTEXITCODE -eq 0) {
   $failed += 'script-regressions'
 }
 
-# mock-server regression ของ CSP gate — ไม่ยิง production จริง (issue #113 R1)
-Write-Step 'CSP Violation Gate Regression'
-& node --test (Join-Path $Root 'scripts\tests\check-csp-violations.test.mjs')
-if ($LASTEXITCODE -eq 0) {
-  Write-Ok 'csp violation gate regression'
-} else {
-  Write-Fail 'csp violation gate regression'
-  $failed += 'csp-violation-gate-regression'
-}
-
 # ---- 1) Frontend Build & Test ----------------------------------------------
+# $frontendBuilt บันทึกว่า dist ที่จะตรวจในบล็อกถัดไปมาจาก build ของ **โค้ดรอบนี้** หรือไม่
+# — "มี dist" กับ "dist ตรงกับโค้ดปัจจุบัน" เป็นคนละเรื่อง และ gate นี้สนใจอย่างหลัง
+$frontendBuilt = $false
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'
   Push-Location (Join-Path $Root 'frontend')
@@ -137,6 +144,8 @@ if (-not $SkipFrontend) {
       npm ci
       if ($LASTEXITCODE -ne 0) { throw "npm ci exited $LASTEXITCODE" }
     } else {
+      # ตัวพิมพ์เล็กโดยตั้งใจ — บรรทัดนี้อยู่ระดับเดียวกับ 'npm ci ...' / 'npm test (vitest) ...'
+      # คือรายงานความคืบหน้า *ภายใน* gate ไม่ใช่การตัดสินระดับ gate จึงไม่ใช้ Write-Skip
       Write-Host 'skip npm ci (-SkipInstall)'
     }
 
@@ -156,6 +165,7 @@ if (-not $SkipFrontend) {
     if ($LASTEXITCODE -ne 0) { throw "vite build exited $LASTEXITCODE" }
 
     Write-Ok 'frontend test + build'
+    $frontendBuilt = $true
   } catch {
     Write-Fail $_.Exception.Message
     $failed += 'frontend'
@@ -163,7 +173,41 @@ if (-not $SkipFrontend) {
     Pop-Location
   }
 } else {
-  Write-Host 'skip frontend (-SkipFrontend)'
+  Write-Skip 'frontend (-SkipFrontend)'
+}
+
+# ---- 1.5) CSP bundle audit (ต้องรันหลัง build เพราะอ่าน frontend/dist) -------
+# แยกสามสถานะ ไม่ใช่ผูกกับ **การมีอยู่ของ dist** อย่างเดียว (review รอบที่ 9 — M1):
+#   ขั้น frontend ล้ม     → fail · dist ที่เหลืออยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้ (vitest ตก
+#                          ก็นับด้วย ไม่ใช่เฉพาะ build — dist ที่ build จากโค้ดที่เทสไม่ผ่านก็เชื่อไม่ได้)
+#   ไม่ได้ build แต่มี dist → ตรวจ แต่เตือนว่าอาจเป็นของเก่า ("ไม่รู้" ต้องไม่กลายเป็น "สะอาด")
+#   ผ่านทั้งขั้น           → ตรวจตามปกติ
+# ของเดิมรัน audit กับ dist เก่าเมื่อ build ล้มแล้วขึ้น OK ซึ่งคือ failure mode ที่ gate นี้มีไว้กัน
+$distPath = Join-Path $Root 'frontend\dist'
+if ((-not $SkipFrontend) -and (-not $frontendBuilt)) {
+  Write-Fail 'csp bundle audit (ขั้น frontend ล้ม — dist ที่มีอยู่เป็นของรอบก่อน ตรวจแทนกันไม่ได้)'
+  $failed += 'csp-bundle-audit'
+} elseif (Test-Path -LiteralPath $distPath) {
+  Write-Step 'CSP Bundle Audit'
+  if (-not $frontendBuilt) {
+    # ตรวจดีกว่าไม่ตรวจ แต่ต้องบอกว่าผลนี้อ้างถึง build ไหน ไม่งั้น OK จะถูกอ่านว่า
+    # "โค้ดปัจจุบันสะอาด" ทั้งที่ dist อาจเก่ากว่านั้นหลายคอมมิต
+    Write-Warn 'csp bundle audit: ตรวจ frontend/dist ที่มีอยู่เดิม (-SkipFrontend) — อาจไม่ตรงกับโค้ดปัจจุบัน'
+  }
+  & node (Join-Path $Root 'scripts\audit-bundle-csp.mjs')
+  if ($LASTEXITCODE -eq 0) {
+    Write-Ok 'csp bundle audit'
+  } else {
+    Write-Fail 'csp bundle audit'
+    $failed += 'csp-bundle-audit'
+  }
+} elseif ($SkipFrontend) {
+  # ข้ามได้เฉพาะเมื่อผู้ใช้สั่งข้าม build เอง **และ** ไม่มี dist ให้ตรวจจริง ๆ
+  # ข้อความต้องบอกทั้งสิ่งที่ขาดและวิธีแก้ ไม่ใช่ข้ามเงียบ
+  Write-Skip 'csp bundle audit: ไม่มี frontend/dist และสั่ง -SkipFrontend ไว้ — รัน npm run build ใน frontend/ ก่อน หรือเลิกใช้ -SkipFrontend'
+} else {
+  Write-Fail 'csp bundle audit (build เพิ่งรันแต่ไม่มี frontend/dist)'
+  $failed += 'csp-bundle-audit'
 }
 
 # ---- 2) Playwright E2E: all sidebar menus ---------------------------------
@@ -206,7 +250,7 @@ if (-not $SkipE2E) {
     }
   }
 } else {
-  Write-Host 'skip E2E (-SkipE2E)'
+  Write-Skip 'E2E (-SkipE2E)'
 }
 
 # ---- 3) Backend PHPUnit ----------------------------------------------------
@@ -230,7 +274,7 @@ if (-not $SkipBackend) {
     }
   }
 } else {
-  Write-Host 'skip backend (-SkipBackend)'
+  Write-Skip 'backend (-SkipBackend)'
 }
 
 # ---- 4) Docker Build Check -------------------------------------------------
@@ -257,7 +301,7 @@ if (-not $SkipDocker) {
     }
   }
 } else {
-  Write-Host 'skip docker (-SkipDocker)'
+  Write-Skip 'docker (-SkipDocker)'
 }
 
 # ---- Summary ---------------------------------------------------------------

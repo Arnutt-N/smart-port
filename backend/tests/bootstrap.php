@@ -17,15 +17,61 @@ require_once __DIR__ . '/../ImportService.php';
 require_once __DIR__ . '/../SyncTransformService.php';
 
 /**
+ * ตรวจว่า host ที่ integration test จะต่อเป็น DB ในเครื่อง/ใน CI จริง
+ *
+ * ทำไมต้องมี: เทสใน `tests/Integration/` **เขียนข้อมูลจริง** (INSERT/UPDATE/DELETE เช่น
+ * `AdminSeedUpsertTest` ที่ upsert แถว admin แล้วลบทิ้ง) และ `testPdo()` อ่าน `MYSQL_HOST`
+ * จาก env ตรง ๆ — ถ้าใครมี env ชี้ production ค้างอยู่ในเชลล์เดียวกันแล้วรัน phpunit
+ * เทสจะเขียนลง production **โดยไม่มีสัญญาณเตือนใด ๆ** ซึ่งเป็นความเสี่ยงที่ code review
+ * บันทึกไว้ (M-2) · ต่อไม่ได้ = skip ได้ แต่ต่อ**ผิดที่**ต้องหยุด ไม่ใช่ปล่อยผ่าน
+ *
+ * ค่าที่ทางเข้าทุกทางใช้จริง: `db` (docker compose และ default ของฟังก์ชันนี้) ·
+ * `host.docker.internal` (`run.sh` ตอน WSL แยกจาก Docker Desktop) · `127.0.0.1` (ci.yml)
+ * บวก `localhost` / `::1` ที่หมายถึง loopback เดียวกันแต่คนพิมพ์เองบ่อย — **allowlist มีเท่านี้
+ * และตรงกับ `$localHosts` ด้านล่างพอดี** ถ้าเติมค่าใหม่ต้องเติมที่นี่ด้วย ไม่งั้นคอมเมนต์
+ * จะเริ่มโกหกเงียบ ๆ ซึ่งเป็นสิ่งที่ code review รอบนี้จับได้ (ของเดิมอธิบาย 3 แต่โค้ดมี 8)
+ *
+ * **ข้อจำกัดที่รู้ตัว**: ตรวจแค่ชื่อ host ไม่ได้ตรวจปลายทางจริง — SSH tunnel หรือ port-forward
+ * ที่ทำให้ `127.0.0.1:4000` ชี้ไป TiDB production ยังผ่าน guard นี้ · static check ปิดเรื่องนี้
+ * ไม่ได้โดยธรรมชาติ guard นี้จึงลดความเสี่ยงจาก env ที่หลงเหลือ ไม่ใช่พิสูจน์ว่าปลายทางปลอดภัย
+ *
+ * @throws RuntimeException เมื่อ host ไม่ใช่ของในเครื่องและไม่ได้ตั้ง ALLOW_REMOTE_TEST_DB=1
+ */
+function assertLocalTestDbHost(string $host): void
+{
+    // แคบไว้โดยตั้งใจ: มีเฉพาะค่าที่ทางเข้าจริงใช้ (`db` · `host.docker.internal` · `127.0.0.1`)
+    // บวก loopback รูปอื่นที่หมายถึงเครื่องเดียวกันแน่นอน · ของเดิมมี `mysql`/`mariadb`/
+    // `smartport-db` ติดมาด้วยทั้งที่ไม่มี compose หรือ workflow ไหนใช้ และ data provider
+    // ก็ไม่ครอบ — allowlist ของ guard ด้านความปลอดภัยที่กว้างเกินความจำเป็นคือหนี้ล้วน ๆ
+    $localHosts = ['db', 'localhost', '127.0.0.1', '::1', 'host.docker.internal'];
+    if (in_array(strtolower(trim($host)), $localHosts, true)) {
+        return;
+    }
+    if (getenv('ALLOW_REMOTE_TEST_DB') === '1') {
+        return;
+    }
+
+    throw new RuntimeException(
+        "ปฏิเสธการต่อ MYSQL_HOST=\"{$host}\" — integration test เขียนข้อมูลจริง จึงต่อได้เฉพาะ DB "
+        . 'ในเครื่องหรือใน CI เท่านั้น (' . implode(', ', $localHosts) . ') '
+        . 'ถ้าตั้งใจชี้ไป host อื่นจริง ๆ ให้ตั้ง ALLOW_REMOTE_TEST_DB=1 เพื่อให้เห็นชัดว่าเป็นการตัดสินใจ'
+    );
+}
+
+/**
  * สร้าง PDO สำหรับ integration test — อ่าน env เดียวกับ config.php::getDB()
  * แต่ "คืน null แทนการ exit" เมื่อต่อไม่ได้ เพื่อให้ integration test markTestSkipped ได้
  * (unit suite ไม่เรียกฟังก์ชันนี้ → รันได้แม้ไม่มี DB)
+ *
+ * **การต่อไม่ได้กับการต่อผิดที่ถูกแยกกันโดยตั้งใจ**: ต่อไม่ได้คืน null (เทส skip)
+ * ส่วน host ที่ไม่ใช่ของในเครื่อง throw ทันทีตั้งแต่ก่อนเปิด connection
  *
  * @return PDO|null connection หรือ null ถ้าต่อ database ไม่ได้
  */
 function testPdo(): ?PDO
 {
     $host   = getenv('MYSQL_HOST') ?: 'db';
+    assertLocalTestDbHost($host);
     $port   = getenv('MYSQL_PORT') ?: '3306';
     $dbname = getenv('MYSQL_DATABASE') ?: 'civil_service_mgmt';
     $user   = getenv('MYSQL_USER') ?: 'root';
