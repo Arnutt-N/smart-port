@@ -4,17 +4,46 @@ declare(strict_types=1);
 include_once __DIR__ . '/../authz.php';
 
 /**
+ * Issue #147 — คืน null เมื่อไม่ได้ตั้ง OCR_SERVER_URL
+ * ห้าม fallback เป็น 127.0.0.1:8100 เพราะทำให้ "ยังไม่ได้ติดตั้ง" กับ "ติดตั้งแล้วพัง"
+ * ให้ผลหน้าจอเหมือนกัน (curl ชน localhost ของ container เอง) — "ไม่รู้" ต้องไม่กลายเป็น "สะอาด"
+ */
+function ocrServerBaseUrl(): ?string
+{
+    $raw = getenv('OCR_SERVER_URL');
+    if ($raw === false || trim($raw) === '') {
+        return null;
+    }
+    return rtrim(trim($raw), '/');
+}
+
+/** 503 พร้อมข้อความที่ผู้ใช้อ่านรู้เรื่อง — ใช้ร่วมทั้ง /health และ /convert */
+function respondOcrNotConfigured(): void
+{
+    http_response_code(503);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'ยังไม่ได้ติดตั้งบริการแปลงเอกสาร (OCR)',
+        'message' => 'ฟีเจอร์นี้ยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+        'code' => 'OCR_NOT_CONFIGURED',
+    ]);
+}
+
+/**
  * POST /ocr/convert — upload PDF, forward to document-ocr FastAPI server.
  * GET  /ocr/health  — check OCR server availability.
  */
 function handleOcr(PDO $pdo, string $method, array $path): void
 {
-    $ocrBase = rtrim(getenv('OCR_SERVER_URL') ?: 'http://127.0.0.1:8100', '/');
-
     $sub = $path[1] ?? '';
 
     if ($method === 'GET' && $sub === 'health') {
         requirePermission('read', 'ocr');
+        $ocrBase = ocrServerBaseUrl();
+        if ($ocrBase === null) {
+            respondOcrNotConfigured();
+            return;
+        }
         $ch = curl_init("$ocrBase/health");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -31,6 +60,11 @@ function handleOcr(PDO $pdo, string $method, array $path): void
 
     if ($method === 'POST' && $sub === 'convert') {
         requirePermission('create', 'ocr');
+        $ocrBase = ocrServerBaseUrl();
+        if ($ocrBase === null) {
+            respondOcrNotConfigured();
+            return;
+        }
         if (!isset($_FILES['file'])) {
             http_response_code(422);
             echo json_encode(['error' => 'Missing file upload (field: file)']);
