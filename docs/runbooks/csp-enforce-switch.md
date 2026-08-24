@@ -50,12 +50,21 @@ node scripts/csp-report-selftest.mjs   # exit 1 = ยังไม่มี marke
 
 ## ข้อ 2 — แก้เทสที่ผูกกับชื่อ header
 
-`frontend/src/__tests__/securityHeaders.test.js:34` assert ว่า `render.yaml` มีคำว่า
-`Content-Security-Policy-Report-Only` — ต้องเปลี่ยนเป็นชื่อใหม่ ไม่งั้น vitest แดงตั้งแต่ pre-push
-(บรรทัด 68–69 และ 140 เป็นของ `nginx.conf` ซึ่ง**ไม่ต้องแตะ** เพราะ nginx ใช้ enforce อยู่แล้ว)
+สามไฟล์ผูกกับชื่อ header — ต้องแก้ทั้งหมด ไม่งั้น pre-push แดง:
+
+1. `frontend/src/__tests__/securityHeaders.test.js:34` assert ว่า `render.yaml` มีคำว่า
+   `Content-Security-Policy-Report-Only` — เปลี่ยนเป็นชื่อใหม่ (assert ของ `nginx.conf`
+   **ไม่ต้องแตะ** เพราะ nginx ใช้ enforce อยู่แล้ว)
+2. `scripts/tests/audit-bundle-csp.test.mjs` เทส anti-drift "POLICY ที่เทสใช้ต้องตรงกับ
+   render.yaml จริง" ค้น header ด้วยชื่อ — ต้องค้นทั้งสองชื่อ (enforce ก่อน แล้ว fallback
+   report-only) เพื่อให้ gate ยังครอบทั้งสองเฟส
+3. `scripts/tests/verify-live-headers.test.mjs` สามจุด: เทส parser (expected list),
+   เทส CSP ถูกผ่อน (lookup ด้วยชื่อเดิม), เทส Render defaults (substring ใน output)
 
 ```bash
 cd frontend && npx vitest run src/__tests__/securityHeaders.test.js
+node --test scripts/tests/audit-bundle-csp.test.mjs        # รันผ่าน Git Bash
+node --test scripts/tests/verify-live-headers.test.mjs
 ```
 
 ## ข้อ 3 — Deploy **แล้วยืนยันว่า header เปลี่ยนจริง** (ข้อสำคัญที่สุด)

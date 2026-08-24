@@ -17,10 +17,11 @@ services:
         sync: false
     # Issue #113: Render static site ไม่ได้ใช้ frontend/nginx.conf — ต้องประกาศ headers ที่นี่
     # นโยบายเต็ม + cache decision อยู่ใน docs/frontend-security-headers.md
-    # CSP เริ่มแบบ report-only เพื่อ inventory ก่อน enforce (report ไปที่ backend /api/csp-report)
+    # Issue #113: CSP enforce ตาม runbook docs/runbooks/csp-enforce-switch.md
+    # (คง report-uri ไว้เพื่อเก็บ violation ต่อ — report ยังส่งเข้า backend /api/csp-report)
     headers:
       - path: /*
-        name: Content-Security-Policy-Report-Only
+        name: Content-Security-Policy
         value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report"
       - path: /*
         name: X-Frame-Options

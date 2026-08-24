@@ -395,7 +395,9 @@ test('parseCspPolicy แตก directive ได้ถูกต้อง', () => 
 test('POLICY ที่เทสใช้ต้องตรงกับ render.yaml จริง (anti-drift)', () => {
   // ถ้า production policy เปลี่ยนแล้วเทสยังใช้ค่าเก่า เทสจะเขียวบนกฎที่ไม่มีอยู่จริง
   const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
-  const live = entries.find((e) => e.name === 'Content-Security-Policy-Report-Only');
+  // ค้นทั้งสองเฟส — enforce มาก่อน (หลังสวิตช์ csp-enforce-switch) แล้ว fallback report-only
+  const live = entries.find((e) => e.name === 'Content-Security-Policy')
+    ?? entries.find((e) => e.name === 'Content-Security-Policy-Report-Only');
   assert.ok(live, 'ไม่พบ CSP ใน render.yaml');
   assert.equal(
     live.value,
