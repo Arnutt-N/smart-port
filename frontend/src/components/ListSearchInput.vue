@@ -7,9 +7,11 @@
       <Search class="w-4 h-4 text-gray-400" aria-hidden="true" />
     </div>
     <input
+      :id="inputId"
       :value="modelValue"
       type="text"
       :placeholder="placeholder"
+      :aria-label="ariaLabel"
       class="w-full border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       :class="showIcon ? 'pl-10 pr-4 py-2' : 'px-4 py-2'"
       @input="onInput"
@@ -20,7 +22,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { Search } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -29,7 +31,14 @@ const props = defineProps({
   showIcon: { type: Boolean, default: true },
   /** When true, suppress input emit during IME composition */
   imeGuard: { type: Boolean, default: false },
+  /** id ของ input — ปล่อยว่าไว้จะสร้างค่าไม่ซ้ำอัตโนมัติ (issue #148) */
+  id: { type: String, default: '' },
+  /** accessible name เมื่อไม่มี label ภายนอกผูกกับ input */
+  ariaLabel: { type: String, default: 'ค้นหา' },
 })
+
+const autoId = useId()
+const inputId = computed(() => props.id || `list-search-${autoId}`)
 
 const emit = defineEmits(['update:modelValue', 'search'])
 

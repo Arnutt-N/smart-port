@@ -29,12 +29,13 @@
         <!-- Login Form -->
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="login-username">ชื่อผู้ใช้</label>
             <div class="relative">
               <div class="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3">
                 <User class="h-5 w-5 text-gray-400" aria-hidden="true" />
               </div>
               <input
+                id="login-username"
                 v-model="form.username"
                 type="text"
                 class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-3 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
@@ -45,12 +46,13 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">รหัสผ่าน</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2" for="login-password">รหัสผ่าน</label>
             <div class="relative">
               <div class="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3">
                 <Lock class="h-5 w-5 text-gray-400" aria-hidden="true" />
               </div>
               <input
+                id="login-password"
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-10 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
@@ -71,7 +73,7 @@
           <!-- spacing like jsk-app: space-y-5 (20px) + submit mt-4 (16px) => 36px to button -->
           <div class="flex items-center justify-between gap-3 px-1">
             <label class="flex cursor-pointer items-center gap-2.5">
-              <input type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <input id="login-remember-me" type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
               <span class="text-sm text-gray-600">จดจำฉัน</span>
             </label>
             <button

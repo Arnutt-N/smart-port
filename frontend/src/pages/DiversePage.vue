@@ -139,7 +139,7 @@
         <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
           <!-- Personnel Autocomplete -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <label for="diverse-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
             <div class="relative">
               <input
                 v-model="personnelSearch"
@@ -147,6 +147,7 @@
                 @compositionstart="isComposingPersonnel = true"
                 @compositionend="onPersonnelCompositionEnd"
                 type="text"
+                id="diverse-personnel-search"
                 placeholder="พิมพ์ชื่อเพื่อค้นหา..."
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 :class="{ 'border-red-500': validationErrors.personnel_id }"
@@ -194,31 +195,34 @@
             <div class="space-y-3">
               <h4 class="font-medium text-gray-700 border-b pb-1">จาก (เดิม)</h4>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">สายงาน <span class="text-red-500">*</span></label>
+                <label for="diverse-from-job-series" class="block text-sm font-medium text-gray-700 mb-1">สายงาน <span class="text-red-500">*</span></label>
                 <input
                   v-model="formData.from_job_series"
                   type="text"
+                  id="diverse-from-job-series"
                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   :class="{ 'border-red-500': validationErrors.from_job_series }"
                 />
                 <p v-if="validationErrors.from_job_series" class="text-red-500 text-xs mt-1">{{ validationErrors.from_job_series }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
-                <input v-model="formData.from_work_group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-from-work-group" class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
+                <input v-model="formData.from_work_group" id="diverse-from-work-group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
-                <input v-model="formData.from_division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-from-division" class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
+                <input v-model="formData.from_division" id="diverse-from-division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
-                <input v-model="formData.from_province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-from-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                <input v-model="formData.from_province" id="diverse-from-province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.from_start_date"
+                  id="diverse-from-start-date"
+                  label="วันเริ่มต้น (จาก)"
                   :error="validationErrors.from_start_date || ''"
                 />
               </div>
@@ -226,6 +230,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.from_end_date"
+                  id="diverse-from-end-date"
+                  label="วันสิ้นสุด (จาก)"
                   :error="validationErrors.from_end_date || ''"
                 />
               </div>
@@ -235,31 +241,34 @@
             <div class="space-y-3">
               <h4 class="font-medium text-gray-700 border-b pb-1">ไป (ใหม่)</h4>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">สายงาน <span class="text-red-500">*</span></label>
+                <label for="diverse-to-job-series" class="block text-sm font-medium text-gray-700 mb-1">สายงาน <span class="text-red-500">*</span></label>
                 <input
                   v-model="formData.to_job_series"
                   type="text"
+                  id="diverse-to-job-series"
                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   :class="{ 'border-red-500': validationErrors.to_job_series }"
                 />
                 <p v-if="validationErrors.to_job_series" class="text-red-500 text-xs mt-1">{{ validationErrors.to_job_series }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
-                <input v-model="formData.to_work_group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-to-work-group" class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
+                <input v-model="formData.to_work_group" id="diverse-to-work-group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
-                <input v-model="formData.to_division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-to-division" class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
+                <input v-model="formData.to_division" id="diverse-to-division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
-                <input v-model="formData.to_province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <label for="diverse-to-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
+                <input v-model="formData.to_province" id="diverse-to-province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.to_start_date"
+                  id="diverse-to-start-date"
+                  label="วันเริ่มต้น (ไป)"
                   :error="validationErrors.to_start_date || ''"
                 />
               </div>
@@ -267,6 +276,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.to_end_date"
+                  id="diverse-to-end-date"
+                  label="วันสิ้นสุด (ไป)"
                   :error="validationErrors.to_end_date || ''"
                 />
               </div>
@@ -278,19 +289,19 @@
             <h4 class="font-medium text-gray-700 mb-3">ความแตกต่าง 4 มิติ</h4>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex items-center gap-2">
-                <input type="checkbox" v-model="formData.is_diff_job_series" class="rounded text-blue-500">
+                <input id="diverse-diff-job-series" type="checkbox" v-model="formData.is_diff_job_series" class="rounded text-blue-500">
                 <span>สายงานต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input type="checkbox" v-model="formData.is_diff_org" class="rounded text-blue-500">
+                <input id="diverse-diff-org" type="checkbox" v-model="formData.is_diff_org" class="rounded text-blue-500">
                 <span>หน่วยงานต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input type="checkbox" v-model="formData.is_diff_location" class="rounded text-blue-500">
+                <input id="diverse-diff-location" type="checkbox" v-model="formData.is_diff_location" class="rounded text-blue-500">
                 <span>พื้นที่ต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input type="checkbox" v-model="formData.is_diff_work_nature" class="rounded text-blue-500">
+                <input id="diverse-diff-work-nature" type="checkbox" v-model="formData.is_diff_work_nature" class="rounded text-blue-500">
                 <span>ลักษณะงานต่างกัน</span>
               </label>
             </div>

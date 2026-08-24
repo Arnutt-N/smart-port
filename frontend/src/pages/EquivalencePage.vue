@@ -155,13 +155,14 @@
           <div class="px-6 py-4 space-y-4">
             <!-- Personnel autocomplete -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+              <label for="equivalence-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
               <div class="relative">
                 <input
                   v-model="personnelSearch"
                   @input="onPersonnelSearch"
                   :disabled="!!editingRecord"
                   type="text"
+                  id="equivalence-personnel-search"
                   placeholder="พิมพ์ชื่อเพื่อค้นหา..."
                   class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   :class="[
@@ -204,10 +205,11 @@
 
             <!-- actual_position -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งจริง <span class="text-red-500">*</span></label>
+              <label for="equivalence-actual-position" class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งจริง <span class="text-red-500">*</span></label>
               <input
                 v-model="formData.actual_position"
                 type="text"
+                id="equivalence-actual-position"
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 :class="formErrors.actual_position ? 'border-red-300' : 'border-gray-300'"
               />
@@ -216,10 +218,11 @@
 
             <!-- equivalent_type -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">เทียบเป็นตำแหน่ง <span class="text-red-500">*</span></label>
+              <label for="equivalence-equivalent-type" class="block text-sm font-medium text-gray-700 mb-1">เทียบเป็นตำแหน่ง <span class="text-red-500">*</span></label>
               <input
                 v-model="formData.equivalent_type"
                 type="text"
+                id="equivalence-equivalent-type"
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 :class="formErrors.equivalent_type ? 'border-red-300' : 'border-gray-300'"
               />
@@ -231,6 +234,8 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น (คำขอ) <span class="text-red-500">*</span></label>
               <ThaiDatePicker
                 v-model="formData.request_start_date"
+                id="equivalence-request-start-date"
+                label="วันเริ่มต้น (คำขอ)"
                 :error="formErrors.request_start_date || ''"
               />
             </div>
@@ -240,16 +245,19 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด (คำขอ) <span class="text-red-500">*</span></label>
               <ThaiDatePicker
                 v-model="formData.request_end_date"
+                id="equivalence-request-end-date"
+                label="วันสิ้นสุด (คำขอ)"
                 :error="formErrors.request_end_date || ''"
               />
             </div>
 
             <!-- approval_order_ref -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงคำสั่ง</label>
+              <label for="equivalence-approval-order-ref" class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงคำสั่ง</label>
               <input
                 v-model="formData.approval_order_ref"
                 type="text"
+                id="equivalence-approval-order-ref"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -292,13 +300,13 @@
             <!-- approved_start_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้นที่อนุมัติ <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="approveForm.approved_start_date" />
+              <ThaiDatePicker v-model="approveForm.approved_start_date" id="equivalence-approved-start-date" label="วันเริ่มต้นที่อนุมัติ" />
             </div>
 
             <!-- approved_end_date -->
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุดที่อนุมัติ <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="approveForm.approved_end_date" />
+              <ThaiDatePicker v-model="approveForm.approved_end_date" id="equivalence-approved-end-date" label="วันสิ้นสุดที่อนุมัติ" />
             </div>
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">

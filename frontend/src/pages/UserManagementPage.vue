@@ -117,8 +117,9 @@
 
         <div class="space-y-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
+            <label for="user-username" class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
             <input
+              id="user-username"
               v-model="formData.username"
               type="text"
               :disabled="!!editingUser"
@@ -130,8 +131,9 @@
 
           <template v-if="!editingUser">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
+              <label for="user-password" class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
               <input
+                id="user-password"
                 v-model="formData.password"
                 type="password"
                 autocomplete="new-password"
@@ -140,8 +142,9 @@
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
+              <label for="user-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
               <input
+                id="user-password-confirm"
                 v-model="formData.passwordConfirm"
                 type="password"
                 autocomplete="new-password"
@@ -151,8 +154,9 @@
           </template>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-สกุล <span class="text-red-500">*</span></label>
+            <label for="user-full-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-สกุล <span class="text-red-500">*</span></label>
             <input
+              id="user-full-name"
               v-model="formData.fullName"
               type="text"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -161,8 +165,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+            <label for="user-email" class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
             <input
+              id="user-email"
               v-model="formData.email"
               type="email"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -171,8 +176,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">สิทธิ์ <span class="text-red-500">*</span></label>
+            <label for="user-role" class="block text-sm font-medium text-gray-700 mb-1">สิทธิ์ <span class="text-red-500">*</span></label>
             <select
+              id="user-role"
               v-model="formData.role"
               :disabled="isSelfEditing"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
@@ -213,8 +219,9 @@
 
         <div class="space-y-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label for="user-reset-password" class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
+              id="user-reset-password"
               v-model="resetForm.password"
               type="password"
               autocomplete="new-password"
@@ -223,8 +230,9 @@
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label for="user-reset-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
+              id="user-reset-password-confirm"
               v-model="resetForm.passwordConfirm"
               type="password"
               autocomplete="new-password"

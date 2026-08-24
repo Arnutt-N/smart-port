@@ -39,7 +39,9 @@
         @search="onSearchInput"
       />
       <select
+        id="retirement-report-within-filter"
         v-model="within"
+        aria-label="กรองข้าราชการตามช่วงเวลาก่อนเกษียณ"
         @change="onFilterChange"
         class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       >

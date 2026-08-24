@@ -168,8 +168,9 @@
         <form class="p-6 space-y-4" @submit.prevent="handleSubmit">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">จังหวัด <span class="text-red-500">*</span></label>
+              <label for="multiplier-areas-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด <span class="text-red-500">*</span></label>
               <input
+                id="multiplier-areas-province"
                 v-model="formData.province"
                 type="text"
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -178,8 +179,9 @@
               <p v-if="formErrors.province" class="text-xs text-red-500 mt-1">กรุณาระบุจังหวัด</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">อำเภอ</label>
+              <label for="multiplier-areas-district" class="block text-sm font-medium text-gray-700 mb-1">อำเภอ</label>
               <input
+                id="multiplier-areas-district"
                 v-model="formData.district"
                 type="text"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -190,8 +192,9 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">ฐานประกาศ <span class="text-red-500">*</span></label>
+              <label for="multiplier-areas-basis-type" class="block text-sm font-medium text-gray-700 mb-1">ฐานประกาศ <span class="text-red-500">*</span></label>
               <input
+                id="multiplier-areas-basis-type"
                 v-model="formData.basis_type"
                 type="text"
                 list="basis-type-options"
@@ -205,8 +208,9 @@
               <p v-if="formErrors.basis_type" class="text-xs text-red-500 mt-1">กรุณาระบุฐานประกาศ</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">อัตราทวีคูณ (%) <span class="text-red-500">*</span></label>
+              <label for="multiplier-areas-ratio" class="block text-sm font-medium text-gray-700 mb-1">อัตราทวีคูณ (%) <span class="text-red-500">*</span></label>
               <input
+                id="multiplier-areas-ratio"
                 v-model="formData.multiplier_ratio"
                 type="number"
                 min="100"
@@ -235,15 +239,19 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มมีผล <span class="text-red-500">*</span></label>
+              <label for="multiplier-areas-start" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มมีผล <span class="text-red-500">*</span></label>
               <ThaiDatePicker
+                id="multiplier-areas-start"
+                label="วันเริ่มมีผล"
                 v-model="formData.effective_start_date"
                 :error="formErrors.effective_start_date ? 'กรุณาระบุวันเริ่มมีผล' : ''"
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด (เว้นว่าง = ไม่กำหนด)</label>
+              <label for="multiplier-areas-end" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด (เว้นว่าง = ไม่กำหนด)</label>
               <ThaiDatePicker
+                id="multiplier-areas-end"
+                label="วันสิ้นสุด"
                 v-model="formData.effective_end_date"
                 :error="formErrors.effective_end_date ? 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่ม' : ''"
               />
@@ -251,8 +259,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงกฎหมาย</label>
+            <label for="multiplier-areas-legal-reference" class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงกฎหมาย</label>
             <input
+              id="multiplier-areas-legal-reference"
               v-model="formData.legal_reference"
               type="text"
               maxlength="300"
@@ -262,8 +271,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">แหล่งที่มา</label>
+            <label for="multiplier-areas-source-reference" class="block text-sm font-medium text-gray-700 mb-1">แหล่งที่มา</label>
             <input
+              id="multiplier-areas-source-reference"
               v-model="formData.source_reference"
               type="text"
               maxlength="500"

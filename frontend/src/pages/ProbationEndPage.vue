@@ -198,6 +198,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มทดลอง <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.start_date"
+                  id="probation-start-date"
+                  label="วันเริ่มทดลอง"
                   :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.start_date }"
                 />
               </div>
@@ -205,13 +207,16 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันครบกำหนด <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.end_date"
+                  id="probation-end-date"
+                  label="วันครบกำหนด"
                   :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.end_date }"
                 />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <label for="probation-overall-status" class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
               <select
+                id="probation-overall-status"
                 v-model="formData.overall_status"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
@@ -222,8 +227,9 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+              <label for="probation-remarks" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
               <textarea
+                id="probation-remarks"
                 v-model="formData.remarks"
                 rows="3"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

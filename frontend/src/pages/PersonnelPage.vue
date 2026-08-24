@@ -28,6 +28,7 @@
         </div>
         <label v-if="isAdmin" class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
           <input
+            id="personnel-include-inactive"
             v-model="includeInactive"
             type="checkbox"
             class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -122,8 +123,9 @@
 
         <div class="space-y-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
+            <label for="personnel-prefix" class="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
             <select
+              id="personnel-prefix"
               v-model="formData.prefixId"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
@@ -135,8 +137,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>
+            <label for="personnel-first-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>
             <input
+              id="personnel-first-name"
               v-model="formData.firstName"
               type="text"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -144,8 +147,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล <span class="text-red-500">*</span></label>
+            <label for="personnel-last-name" class="block text-sm font-medium text-gray-700 mb-1">นามสกุล <span class="text-red-500">*</span></label>
             <input
+              id="personnel-last-name"
               v-model="formData.lastName"
               type="text"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -153,10 +157,11 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="personnel-citizen-id" class="block text-sm font-medium text-gray-700 mb-1">
               เลขบัตรประชาชน <span v-if="!editingRow" class="text-red-500">*</span>
             </label>
             <input
+              id="personnel-citizen-id"
               v-model="formData.citizenId"
               type="text"
               maxlength="13"
@@ -169,8 +174,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน</label>
+            <label for="personnel-employee-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน</label>
             <input
+              id="personnel-employee-id"
               v-model="formData.employeeId"
               type="text"
               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

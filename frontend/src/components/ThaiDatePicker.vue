@@ -2,7 +2,7 @@
 // ThaiDatePicker — drop-in แทน <input type="date">
 // แสดง/รับวันที่เป็น พ.ศ. (พิมพ์เอง วว/ดด/ปปปป + ปฏิทินไทย + decade grid)
 // v-model in/out = 'Y-m-d' (ค.ศ.) เหมือน native date input ทุกประการ
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, useId } from 'vue'
 import { Calendar, ChevronLeft, ChevronRight, X, Check } from 'lucide-vue-next'
 import {
   toBE, toCE, daysInMonth, thaiDow, toYMD, ymdToDate,
@@ -14,8 +14,19 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   error: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  /** id ฐานของช่องวว/ดด/ปปปป — ปล่อยว่าไว้จะสร้างค่าไม่ซ้ำอัตโนมัติ (issue #148) */
+  id: { type: String, default: '' },
+  /** ชื่อฟิลด์สำหรับ screen reader เมื่อ label ภายนอกไม่ได้ผูกกับ id นี้ */
+  label: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
+
+const autoId = useId()
+const baseId = computed(() => props.id || `tdp-${autoId}`)
+// ช่องย่อยแต่ละช่องประกาศ accessible name เอง — ต่อท้ายด้วย "วัน/เดือน/ปี" ให้อ่านรู้เรื่อง
+const dayAriaLabel = computed(() => (props.label ? `${props.label} (วัน)` : 'วัน'))
+const monthAriaLabel = computed(() => (props.label ? `${props.label} (เดือน)` : 'เดือน'))
+const yearAriaLabel = computed(() => (props.label ? `${props.label} (ปี พ.ศ.)` : 'ปี พ.ศ.'))
 
 // --- ช่องพิมพ์ วว/ดด/ปปปป(พ.ศ.) ---
 const day = ref('')
@@ -229,22 +240,22 @@ onBeforeUnmount(() => {
       :class="displayError ? 'border-red-300' : 'border-gray-300'"
     >
       <input
-        ref="dayRef" :value="day" type="text" inputmode="numeric" maxlength="2"
-        placeholder="วว" aria-label="วัน" :disabled="disabled"
+        :id="`${baseId}-day`" ref="dayRef" :value="day" type="text" inputmode="numeric" maxlength="2"
+        placeholder="วว" :aria-label="dayAriaLabel" :disabled="disabled"
         class="w-9 text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
         @input="onInput('day', $event)" @blur="onBlur" @focus="isEditing = true"
       />
       <span class="text-gray-300 select-none" aria-hidden="true">/</span>
       <input
-        ref="monthRef" :value="month" type="text" inputmode="numeric" maxlength="2"
-        placeholder="ดด" aria-label="เดือน" :disabled="disabled"
+        :id="`${baseId}-month`" ref="monthRef" :value="month" type="text" inputmode="numeric" maxlength="2"
+        placeholder="ดด" :aria-label="monthAriaLabel" :disabled="disabled"
         class="w-9 text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
         @input="onInput('month', $event)" @blur="onBlur" @focus="isEditing = true"
       />
       <span class="text-gray-300 select-none" aria-hidden="true">/</span>
       <input
-        ref="yearRef" :value="year" type="text" inputmode="numeric" maxlength="4"
-        placeholder="ปปปป" aria-label="ปี พ.ศ." :disabled="disabled"
+        :id="`${baseId}-year`" ref="yearRef" :value="year" type="text" inputmode="numeric" maxlength="4"
+        placeholder="ปปปป" :aria-label="yearAriaLabel" :disabled="disabled"
         class="flex-1 min-w-[3rem] text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
         @input="onInput('year', $event)" @blur="onBlur" @focus="isEditing = true"
       />

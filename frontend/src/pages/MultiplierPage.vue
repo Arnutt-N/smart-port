@@ -66,6 +66,8 @@
         <input
           v-model="areaSearchQuery"
           type="text"
+          id="multiplier-area-search"
+          aria-label="ค้นหาพื้นที่พิเศษ จังหวัด อำเภอ หรือฐานประกาศ"
           placeholder="ค้นหา master data จากจังหวัด อำเภอ หรือฐานประกาศ..."
           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
@@ -238,9 +240,10 @@
 
         <form class="p-6 space-y-4" @submit.prevent="handleSubmit">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <label for="multiplier-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
             <div class="relative">
               <input
+                id="multiplier-personnel-search"
                 v-model="personnelSearch"
                 type="text"
                 placeholder="พิมพ์ชื่อเพื่อค้นหา..."
@@ -287,8 +290,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">พื้นที่พิเศษ <span class="text-red-500">*</span></label>
+            <label for="multiplier-area-select" class="block text-sm font-medium text-gray-700 mb-1">พื้นที่พิเศษ <span class="text-red-500">*</span></label>
             <select
+              id="multiplier-area-select"
               v-model="formData.area_multiplier_id"
               class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               :class="formErrors.area_multiplier_id ? 'border-red-500' : 'border-gray-300'"
@@ -307,18 +311,19 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มปฏิบัติงาน <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="formData.start_date" :error="formErrors.start_date ? 'กรุณาระบุวันเริ่ม' : ''" />
+              <label for="multiplier-form-start" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มปฏิบัติงาน <span class="text-red-500">*</span></label>
+              <ThaiDatePicker v-model="formData.start_date" id="multiplier-form-start" label="วันเริ่มปฏิบัติงาน" :error="formErrors.start_date ? 'กรุณาระบุวันเริ่ม' : ''" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุดปฏิบัติงาน <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="formData.end_date" :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''" />
+              <label for="multiplier-form-end" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุดปฏิบัติงาน <span class="text-red-500">*</span></label>
+              <ThaiDatePicker v-model="formData.end_date" id="multiplier-form-end" label="วันสิ้นสุดปฏิบัติงาน" :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''" />
             </div>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">เอกสารอ้างอิง</label>
+            <label for="multiplier-proof-reference" class="block text-sm font-medium text-gray-700 mb-1">เอกสารอ้างอิง</label>
             <input
+              id="multiplier-proof-reference"
               v-model="formData.proof_reference"
               type="text"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -327,8 +332,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+            <label for="multiplier-description" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
             <textarea
+              id="multiplier-description"
               v-model="formData.description"
               rows="3"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
