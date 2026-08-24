@@ -27,10 +27,12 @@
         @drop.prevent="onDrop"
       >
         <input
+          id="ocr-file-input"
           ref="inputEl"
           type="file"
           accept=".pdf"
           class="hidden"
+          aria-label="เลือกไฟล์ PDF สำหรับแปลงเป็น Markdown"
           @change="onPick"
         />
         <FileText class="w-10 h-10 mx-auto text-gray-400" />

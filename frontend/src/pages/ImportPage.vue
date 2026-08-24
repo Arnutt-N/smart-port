@@ -52,10 +52,12 @@
         @drop.prevent="onDrop"
       >
         <input
+          id="import-file-input"
           ref="inputEl"
           type="file"
           accept=".xlsx"
           class="hidden"
+          aria-label="เลือกไฟล์ Excel (.xlsx) สำหรับนำเข้าข้อมูลบุคลากร"
           @change="onPick"
         />
         <FileSpreadsheet class="w-10 h-10 mx-auto text-gray-400" />

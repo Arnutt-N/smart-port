@@ -101,28 +101,28 @@
 
         <div class="space-y-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (servant_id) <span class="text-red-500">*</span></label>
-            <input v-model.number="form.servantId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="royal-decorations-servant-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (servant_id) <span class="text-red-500">*</span></label>
+            <input id="royal-decorations-servant-id" v-model.number="form.servantId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อเครื่องราชอิสริยาภรณ์ <span class="text-red-500">*</span></label>
-            <input v-model="form.decorationName" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="royal-decorations-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อเครื่องราชอิสริยาภรณ์ <span class="text-red-500">*</span></label>
+            <input id="royal-decorations-name" v-model="form.decorationName" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
-            <input v-model="form.decorationClass" type="text" placeholder="เช่น ชั้นที่ 1, ทวีติยาภรณ์ช้างเผือก" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="royal-decorations-class" class="block text-sm font-medium text-gray-700 mb-1">ชั้น</label>
+            <input id="royal-decorations-class" v-model="form.decorationClass" type="text" placeholder="เช่น ชั้นที่ 1, ทวีติยาภรณ์ช้างเผือก" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ปีที่ได้รับ (พ.ศ.)</label>
-            <input v-model.number="form.receivedYear" type="number" min="2400" max="2700" placeholder="เช่น 2566" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="royal-decorations-received-year" class="block text-sm font-medium text-gray-700 mb-1">ปีที่ได้รับ (พ.ศ.)</label>
+            <input id="royal-decorations-received-year" v-model.number="form.receivedYear" type="number" min="2400" max="2700" placeholder="เช่น 2566" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงราชกิจจานุเบกษา</label>
-            <input v-model="form.gazetteRef" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="royal-decorations-gazette-ref" class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงราชกิจจานุเบกษา</label>
+            <input id="royal-decorations-gazette-ref" v-model="form.gazetteRef" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
-            <textarea v-model="form.description" rows="3" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            <label for="royal-decorations-description" class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+            <textarea id="royal-decorations-description" v-model="form.description" rows="3" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
           </div>
         </div>
 

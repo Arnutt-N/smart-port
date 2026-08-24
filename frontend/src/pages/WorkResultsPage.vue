@@ -14,7 +14,9 @@
         @search="onSearchInput"
       />
       <select
+        id="work-results-status-filter"
         v-model="statusFilter"
+        aria-label="กรองผลงานตามสถานะ"
         @change="onFilterChange"
         class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       >

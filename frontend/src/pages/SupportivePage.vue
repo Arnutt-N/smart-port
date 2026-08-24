@@ -137,12 +137,13 @@
         <form @submit.prevent="handleSave" class="space-y-4">
           <!-- บุคลากร -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">บุคลากร</label>
+            <label for="supportive-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร</label>
             <div v-if="editingRecord" class="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700">
               {{ editingRecord.fullName }}
             </div>
             <div v-else class="relative">
               <input
+                id="supportive-personnel-search"
                 v-model="personnelSearch"
                 @input="onPersonnelInput"
                 type="text"
@@ -187,8 +188,9 @@
 
           <!-- สายงานหลัก -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">สายงานหลัก</label>
+            <label for="supportive-primary-series" class="block text-sm font-medium text-gray-700 mb-1">สายงานหลัก</label>
             <input
+              id="supportive-primary-series"
               v-model="formData.primary_series_name"
               type="text"
               placeholder="ระบุสายงานหลัก"
@@ -200,8 +202,9 @@
 
           <!-- สายงานที่เกื้อกูล -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">สายงานที่เกื้อกูล</label>
+            <label for="supportive-job-series" class="block text-sm font-medium text-gray-700 mb-1">สายงานที่เกื้อกูล</label>
             <input
+              id="supportive-job-series"
               v-model="formData.job_series_name"
               type="text"
               placeholder="ระบุสายงานที่เกื้อกูล"
@@ -213,8 +216,10 @@
 
           <!-- วันเริ่มต้น -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น</label>
+            <label for="supportive-start-date" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น</label>
             <ThaiDatePicker
+              id="supportive-start-date"
+              label="วันเริ่มต้น"
               v-model="formData.start_date"
               :error="formErrors.start_date ? 'กรุณาระบุวันเริ่มต้น' : ''"
             />
@@ -222,8 +227,10 @@
 
           <!-- วันสิ้นสุด -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด</label>
+            <label for="supportive-end-date" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด</label>
             <ThaiDatePicker
+              id="supportive-end-date"
+              label="วันสิ้นสุด"
               v-model="formData.end_date"
               :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''"
             />
@@ -231,8 +238,9 @@
 
           <!-- หมายเหตุ -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ (ไม่บังคับ)</label>
+            <label for="supportive-description" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ (ไม่บังคับ)</label>
             <textarea
+              id="supportive-description"
               v-model="formData.description"
               rows="3"
               placeholder="ระบุหมายเหตุ (ถ้ามี)"

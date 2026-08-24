@@ -103,16 +103,16 @@
 
         <div class="space-y-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (servant_id) <span class="text-red-500">*</span></label>
-            <input v-model.number="form.servantId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="awards-servant-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (servant_id) <span class="text-red-500">*</span></label>
+            <input id="awards-servant-id" v-model.number="form.servantId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อรางวัล <span class="text-red-500">*</span></label>
-            <input v-model="form.awardName" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="awards-award-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อรางวัล <span class="text-red-500">*</span></label>
+            <input id="awards-award-name" v-model="form.awardName" type="text" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
-            <select v-model="form.awardType" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label for="awards-type" class="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
+            <select id="awards-type" v-model="form.awardType" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="general">ทั่วไป</option>
               <option value="performance">ผลการปฏิบัติงาน</option>
               <option value="service">การบริการ</option>
@@ -121,8 +121,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">ระดับ</label>
-            <select v-model="form.awardLevel" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label for="awards-level" class="block text-sm font-medium text-gray-700 mb-1">ระดับ</label>
+            <select id="awards-level" v-model="form.awardLevel" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">-</option>
               <option value="department">ระดับกรม</option>
               <option value="ministry">ระดับกระทรวง</option>
@@ -131,12 +131,12 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">วันที่ได้รับ</label>
-            <ThaiDatePicker v-model="form.awardedDate" />
+            <label for="awards-awarded-date" class="block text-sm font-medium text-gray-700 mb-1">วันที่ได้รับ</label>
+            <ThaiDatePicker v-model="form.awardedDate" id="awards-awarded-date" label="วันที่ได้รับรางวัล" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
-            <textarea v-model="form.description" rows="3" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            <label for="awards-description" class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+            <textarea id="awards-description" v-model="form.description" rows="3" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
           </div>
         </div>
 

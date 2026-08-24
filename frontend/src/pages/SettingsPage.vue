@@ -143,7 +143,9 @@
           </div>
           <div class="flex gap-2">
             <select
+              id="settings-role-select"
               v-model="selectedRole"
+              aria-label="เลือกบทบาทเพื่อดูเมทริกซ์สิทธิ์"
               class="rounded-lg border border-gray-300 px-3 py-2 text-sm"
             >
               <option v-for="role in matrixRoles" :key="role" :value="role">{{ role }}</option>
@@ -174,19 +176,21 @@
             </thead>
             <tbody>
               <tr
-                v-for="resource in matrixResources"
+                v-for="(resource, resourceIdx) in matrixResources"
                 :key="resource"
                 class="border-b border-gray-100"
               >
                 <td class="py-2 pr-4 font-medium text-gray-800">{{ resource }}</td>
                 <td
-                  v-for="action in matrixActions"
+                  v-for="(action, actionIdx) in matrixActions"
                   :key="`${resource}-${action}`"
                   class="py-2 px-2 text-center"
                 >
                   <input
+                    :id="`settings-perm-${resourceIdx}-${actionIdx}`"
                     type="checkbox"
                     class="h-4 w-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                    :aria-label="`สิทธิ์ ${action} ของบทบาท ${selectedRole} ในส่วน ${resource}`"
                     :checked="cellAllowed(selectedRole, action, resource)"
                     @change="toggleCell(selectedRole, action, resource, $event.target.checked)"
                   />
