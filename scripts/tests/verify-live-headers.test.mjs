@@ -80,9 +80,12 @@ test('ผ่านเมื่อ origin ส่ง header ครบตามท�
 test('parser แกะได้เฉพาะ block headers: ของ static site (ไม่ชบักไป service อื่น)', () => {
   const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
   const shellNames = entries.filter((e) => e.path === '/*').map((e) => e.name).sort();
+  // CSP มีได้ชื่อเดียวแล้วแต่เฟส: enforce = Content-Security-Policy · report-only = ...-Report-Only
+  const cspName = shellNames.find((n) => n.startsWith('Content-Security-Policy'));
+  assert.ok(cspName, 'render.yaml ต้องประกาศ CSP header หนึ่งตัว');
   assert.deepEqual(shellNames, [
     'Cache-Control',
-    'Content-Security-Policy-Report-Only',
+    cspName,
     'Permissions-Policy',
     'Referrer-Policy',
     'Strict-Transport-Security',
@@ -130,7 +133,9 @@ test('CSP ถูกผ่อนหรือ HSTS อ่อนกว่าต้�
     headers.shell[e.name] = e.value;
   }
   headers.asset = { ...headers.shell };
-  headers.shell['Content-Security-Policy-Report-Only'] = headers.shell['Content-Security-Policy-Report-Only'].replace(
+  // ค้นชื่อจริงจาก render.yaml — เฟส enforce/report-only ต่างกันที่ชื่อ ไม่ใช่ค่า
+  const cspKey = Object.keys(headers.shell).find((k) => k.startsWith('Content-Security-Policy'));
+  headers.shell[cspKey] = headers.shell[cspKey].replace(
     "script-src 'self'",
     "script-src 'self' 'unsafe-eval'"
   );
@@ -173,7 +178,8 @@ test('ต้อง fail เมื่อเจอ Render/Cloudflare defaults (dri
     // header ที่ drift จริงใน production ต้องถูกจับและระบุชื่อครบ
     for (const name of [
       'Cache-Control',
-      'Content-Security-Policy-Report-Only',
+      // substring ครอบทั้งสองเฟส: enforce "Content-Security-Policy" · report-only "...-Report-Only"
+      'Content-Security-Policy',
       'X-Frame-Options',
       'Referrer-Policy',
       'Permissions-Policy',

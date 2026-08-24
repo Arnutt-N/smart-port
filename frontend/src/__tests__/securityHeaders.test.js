@@ -30,8 +30,9 @@ const CSP_CORE = [
 ]
 
 describe('render.yaml security headers (Render static-site path)', () => {
-  it('declares CSP report-only with the agreed directives and report collector', () => {
-    expect(renderYaml).toContain('Content-Security-Policy-Report-Only')
+  it('enforces CSP with the agreed directives and keeps the report collector', () => {
+    expect(renderYaml).toContain('name: Content-Security-Policy')
+    expect(renderYaml).not.toContain('-Report-Only')
     for (const directive of CSP_CORE) {
       expect(renderYaml).toContain(directive)
     }
