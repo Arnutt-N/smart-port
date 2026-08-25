@@ -114,6 +114,10 @@ truth และ fail-closed เมื่อโครงสร้างเปล�
 
 ## CSP monitoring ก่อน enforce
 
+> **สถานะปัจจุบัน: enforce live ตั้งแต่ 25 ส.ค. 2026** — ดู `### Enforce switch 2026-08-25`
+> ด้านล่าง · `report-uri` เก็บไว้ต่อ จึงยังใช้การอ่าน violation จาก Render log เหมือนเดิม
+> (ตอนนี้คือสัญญาณของสิ่งที่ถูกบล็อกจริง ไม่ใช่ dry-run)
+
 1. report-only phase: browser ส่ง violation ไป `POST /api/csp-report` (public, ไม่เก็บ body —
    log เฉพาะ directive + host ของ blocked URI ผ่าน `error_log`) ดูได้จาก Render log
 2. เกณฑ์ promote เป็น enforce: Render log ไม่มี violation จากระบบจริง ≥ 7 วัน
@@ -345,6 +349,66 @@ Render dashboard ก่อน
 **ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)** — ทั้งสองรายการ **ปิดใช้งานแล้ว** แต่เป็น
 soft delete จึงยังอยู่ใน DB และมีร่องรอยใน audit log:
 `personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `multiplier_areas` จังหวัดขึ้นต้น `ทดสอบCSP-`
+
+### Enforce switch 2026-08-25 — enforce ขึ้น live และเดินเมนูผ่านทั้งระบบ
+
+ไทม์ไลน์ของการกดสวิตช์ (ตาม runbook `csp-enforce-switch.md`):
+
+1. **24 ส.ค. 06:41:08Z** — merge PR #153 (`8e528b5`): เปลี่ยนชื่อ header ใน `render.yaml`
+   เป็น `Content-Security-Policy` + แก้เทสที่ผูกชื่อ 3 ไฟล์ · pre-flight ผ่านก่อนหน้านั้นครบ
+   (marker 3 นัดเห็นใน Render log ด้วยตา)
+2. watcher ที่ poll `verify-live-headers.mjs` ทุก 30 วินาที **fail 12 ครั้งติด** แล้วถูก cancel
+   (06:48:20Z) — สาเหตุตามที่วิเคราะห์ภายหลัง: blueprint ยังไม่ sync
+3. **25 ส.ค.** — เจ้าของระบบกด **Blueprint → Sync** บน Render dashboard → deploy live
+   **10:00:41Z** (asset hash ไม่เปลี่ยน: `index-CByuy7Fh.js` เพราะเนื้อโค้ดเดิม)
+4. `verify-live-headers.mjs` **PASS ทุกข้อ** — รวม `Cache-Control` ของ hashed asset ที่เคย
+   FAIL ตั้งแต่รอบ 22 ส.ค. (กฎ `immutable` เก่าที่ค้างใน blueprint ถูกล้างด้วยการ sync ครั้งนี้)
+5. **แต่ curl ยังเห็นสอง header พร้อมกัน** — การวินิจฉัยแยกสาเหตุ:
+   - cache-buster (`cf-cache-status: MISS`) ยังได้ทั้งคู่ → **มาจาก origin ไม่ใช่ cache ของ Cloudflare**
+   - `smartport-backend.onrender.com` โดยตรงไม่ส่ง CSP เลย → ไม่ใช่ backend
+   - `render.yaml` ประกาศ header เดียว → **สาเหตุจริง: rule `Content-Security-Policy-Report-Only`
+     ตั้งค้างไว้ที่ custom headers ระดับ service ใน Render dashboard** (อยู่นอก `render.yaml`
+     จึงรอดจากการ sync)
+6. เจ้าของระบบลบ rule นั้นออกจาก dashboard → origin ส่ง **enforce อันเดียว** สะอาด
+
+| หลักฐาน | ผล | วิธีได้มา |
+|---|---|---|
+| header สดจาก origin | `content-security-policy:` (enforce) **อันเดียว ไม่มี `-report-only`** | `curl -I` โดยยืนยัน `cf-cache-status: MISS` ทั้ง root และ cache-buster |
+| smoke gate | `verify-live-headers.mjs` **PASS ทุกข้อ** (ทั้ง app shell และ hashed asset) | รันหลังลบ header ค้าง |
+| เดินเมนูใต้ enforce | **22/22 route render เต็ม** — มากกว่ารอบ 22 ส.ค. (19 หน้า) เพราะครอบ candidate sub-routes ครบ 5 เส้นทาง | Playwright chromium headless ล็อกอินจริงบน production แล้วไล่ตาม `nav a[href]` ทั้งหมด |
+| console ระหว่างเดินเมนู | **เงียบสนิท — 0 CSP violation · 0 console error · 0 page error** | listener `console` + `pageerror` เก็บทุกหน้า |
+| write path ใต้ enforce | `POST /api/auth/login` ตอบ 200 (อย่างน้อยหนึ่ง write path ผ่าน) | response listener ระหว่าง login |
+
+**22 route ที่เดินครบ** — `/dashboard` · `/personnel` · `/probation-end` · `/candidates/overview` ·
+`/candidates/general` · `/candidates/academic` · `/candidates/support` · `/candidates/management` ·
+`/time-counting` · `/time-multiplier` · `/time-difference` · `/position-compare` ·
+`/royal-decorations` · `/retirement-report` · `/admin` · `/work-results` · `/awards` ·
+`/import` · `/ocr` · `/users` · `/audit` · `/settings/special-areas`
+
+**การทำนายของรอบ 22 ส.ค. เป็นจริงทุกตัวอักษร** — "ถ้าครึ่งการลบ rule ไม่ propagate จะได้
+ทั้งสอง header พร้อมกัน" เกิดขึ้นจริงหลัง deploy และบทเรียนยกระดับขึ้นอีกขั้น: **สิ่งที่ค้างไม่ใช่
+แค่ blueprint ที่ตามหลัง repo แต่รวมถึง custom headers ที่ตั้งบน dashboard ซึ่ง `render.yaml`
+ และการ sync แตะไม่ถึงเลย** — การตรวจด้วย `curl` จริงหลังทุกขั้นตอน (ไม่ใช่แค่ gate script)
+คือสิ่งเดียวที่จับคู่นี้ได้ เพราะ `verify-live-headers.mjs` เช็คเฉพาะ header ที่คาดหวัง
+**ไม่ได้ fail เมื่อเจอ header ซ้ำซ้อน**
+
+**ยังไม่ยืนยัน — เขียนไว้ให้เด่นเท่ากับสิ่งที่ยืนยันแล้ว**
+
+1. **`img-src` ยังไม่เคยถูกใช้จริง** — สถานะเดิมทุกประการจากรอบก่อน (ไม่มีรูปข้าราชการใน
+   ระบบ) · วันแรกที่มีรูปจริงคือวันทดสอบจริงของ directive นี้
+2. **`/import` · `/ocr` เปิดหน้าผ่านเท่านั้น** — ไม่ได้เลือกไฟล์จริง จึงยังไม่มีหลักฐานเส้นทาง
+   upload ใต้ enforce
+3. **write path เต็มรูปแบบไม่ได้รีเทสใต้ enforce** — 5 นัดของ 22 ส.ค. ทดสอบใต้ report-only
+   รอบนี้มีเพียง login POST · `connect-src 'self'` คุมทุก API call อยู่ แต่การ render 22 หน้า
+   ครบมี GET ผ่าน `useApi()` จำนวนมากอยู่แล้ว
+4. **เดินเมนูด้วย chromium headless ของ Playwright** ไม่ใช่ Chrome จริงของผู้ใช้ · console
+   listener เก็บทุก message อยู่แล้ว แต่ความหลากหลายของ browser จริงยังไม่มี
+5. **ไม่ได้ยิง selftest marker ใหม่ใต้ enforce** — marker 3 นัดของ 24 ส.ค. พิสูจน์ pipeline
+   ใต้ report-only · กลไก `report-uri` เดียวกันทำงานต่อใต้ enforce (รายงานสิ่งที่ถูกบล็อกจริง)
+   แต่ยังไม่มี marker สดที่พิสูจน์ hop สุดท้ายในโหมด enforce โดยตรง
+
+**ข้อมูลทดสอบที่ยังค้างเพิ่ม** — นอกจาก 2 รายการเดิมด้านบน ยังมี selftest marker ของ
+24 ส.ค. ใน log (ไม่เก็บใน DB) · การเก็บกวาดรวมเป็น pending เดียวกัน
 
 ## การทดสอบ
 
