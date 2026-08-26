@@ -32,6 +32,7 @@ param(
   [switch]$SkipE2E,
   [switch]$SkipBackend,
   [switch]$SkipDocker,
+  [switch]$SkipTidbBootstrap,
   [switch]$Help
 )
 
@@ -66,10 +67,11 @@ function Write-Skip([string]$Msg) {
 
 if ($Help) {
   @"
-Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBackend] [-SkipDocker] [-Help]
+Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBackend] [-SkipDocker] [-SkipTidbBootstrap] [-Help]
 
 Mirrors .github/workflows/ci.yml locally (no GitHub Actions minutes):
   0) Fast gates schema parity + multiplier validator regression
+  0.5) tidb-init.sql bootstrap smoke (Docker MySQL 8, skippable -SkipTidbBootstrap)
   1) Frontend   npm ci + npm audit (prod, high+) + vitest (forks/2) + build
   2) E2E        Docker db/backend + Playwright Chromium (all sidebar menus)
   3) Backend    bash backend/tests/run.sh
@@ -89,7 +91,7 @@ Examples:
 }
 
 Write-Host "smart-port local CI  (root: $Root)"
-Write-Host "flags: SkipInstall=$SkipInstall SkipFrontend=$SkipFrontend SkipE2E=$SkipE2E SkipBackend=$SkipBackend SkipDocker=$SkipDocker"
+Write-Host "flags: SkipInstall=$SkipInstall SkipFrontend=$SkipFrontend SkipE2E=$SkipE2E SkipBackend=$SkipBackend SkipDocker=$SkipDocker SkipTidbBootstrap=$SkipTidbBootstrap"
 
 function Resolve-GitBash {
   $candidates = @(
@@ -129,6 +131,59 @@ if ($LASTEXITCODE -eq 0) {
 } else {
   Write-Fail 'script regressions'
   $failed += 'script-regressions'
+}
+
+# ---- 0.5) tidb-init bootstrap (A2 — กัน "เขียวลอย") ---------------------------
+# tidb-init.sql คือ bootstrap ตัวจริงของ production (Render ตั้ง RUN_MIGRATIONS=0) —
+# พิสูจน์ว่า import ลง MySQL เปล่าแล้ว seed/view ใช้งานได้จริง (ดู ci.yml job เดียวกัน)
+# ข้ามได้ด้วย -SkipTidbBootstrap (เช่น sandbox เทสของ ci-local-csp-gate.test.mjs)
+if (-not $SkipTidbBootstrap) {
+  Write-Step 'tidb-init.sql Bootstrap Smoke'
+  # $ErrorActionPreference='Stop' + mysql client เขียน warning ลง stderr = PowerShell
+  # ตีเป็น terminating error ได้ ตั้ง Continue เฉพาะบล็อกนี้ (การตัดสินใจอยู่ที่
+  # $LASTEXITCODE เราเองอยู่แล้ว) · ใช้ -prootpassword ตรง ๆ เพราะ docker exec
+  # ไม่ส่ง env ของ host process เข้า container (MYSQL_PWD จึงใช้ไม่ได้)
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    # container ชื่อเดียวกับรอบก่อนอาจค้าง (เช่น engine หลุดกลางทางจน rm ไม่ทัน) —
+    # ลบของเก่าทิ้งก่อนเสมอ ไม่งั้น docker run --name ชนและ step แดงทั้งที่ bootstrap ดี
+    docker rm -f tidb-init-smoke 2>&1 | Out-Null
+    $mysql = docker run -d --name tidb-init-smoke `
+      -e MYSQL_ROOT_PASSWORD=rootpassword `
+      -e MYSQL_DATABASE=civil_service_mgmt `
+      -v "$(Join-Path $Root 'database/tidb-init.sql'):/docker-entrypoint-initdb.d/tidb-init.sql" `
+      mysql:8.0 2>&1
+    $container = ($mysql -join "`n") -replace '^([0-9a-f]{12}).*', '$1'
+    $bootstrapOk = $false
+    for ($i = 0; $i -lt 60; $i++) {
+      Start-Sleep -Seconds 5
+      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword --silent `
+        -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt *> $null
+      if ($LASTEXITCODE -eq 0) { $bootstrapOk = $true; break }
+    }
+    if ($bootstrapOk) {
+      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt `
+        -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel UNION ALL SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'organization', COUNT(*) FROM organization UNION ALL SELECT 'position', COUNT(*) FROM position UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program"
+      if ($LASTEXITCODE -ne 0) { $bootstrapOk = $false }
+    }
+    if ($bootstrapOk) {
+      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt `
+        -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' *> $null
+      if ($LASTEXITCODE -ne 0) { $bootstrapOk = $false }
+    }
+    docker rm -f $container *> $null
+  } finally {
+    $ErrorActionPreference = $prevEap
+  }
+  if ($bootstrapOk) {
+    Write-Ok 'tidb-init.sql bootstrap'
+  } else {
+    Write-Fail 'tidb-init.sql bootstrap (ดู docker logs tidb-init-smoke ก่อนลบ container)'
+    $failed += 'tidb-init-bootstrap'
+  }
+} else {
+  Write-Skip 'tidb-init.sql bootstrap (-SkipTidbBootstrap)'
 }
 
 # ---- 1) Frontend Build & Test ----------------------------------------------

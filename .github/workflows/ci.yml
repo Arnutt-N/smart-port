@@ -141,6 +141,60 @@ jobs:
       - name: Script regressions (offline mock servers)
         run: node --test scripts/tests/*.test.mjs
 
+  # A2 (review finding 2026-08-20): tidb-init.sql คือ bootstrap ตัวจริงของ production
+  # (Render ตั้ง RUN_MIGRATIONS=0) แต่ไม่เคยถูก execute จริง — validator เทียบชื่อเป็น
+  # สตริงเท่านั้น จับ syntax error / FK ลำดับ / INSERT seed พัง / view compile ไม่ได้
+  # job นี้ import ไฟล์เข้า MySQL 8 เปล่า (common subset เดียวกับ TiDB) แล้ว assert ตาราง seed
+  # + view query — จบที่ A2
+  tidb-init-bootstrap:
+    name: tidb-init.sql Bootstrap Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # mount เฉพาะ tidb-init.sql — ห้ามปน migration mounts ของ backend-tests
+      # (จุดประสงค์คือพิสูจน์ว่า "สร้างจากไฟล์เดียว" ได้จริง ไม่ใช่ทดสอบ migration chain)
+      - name: Start MySQL with tidb-init.sql as the only init script
+        run: |
+          # ไม่ publish port — wait/assert ใช้ docker exec ล้วน (host port 3306 อาจถูก
+          # e2e-menus/backend-tests ครอบได้ถ้ารัน parallel ในเครื่องเดียวกัน)
+          # ลบ container ชื่อเดียวกันจากรอบก่อน (retry/run ซ้ำ) ก่อนเสมอ
+          docker rm -f tidb-init-smoke >/dev/null 2>&1 || true
+          docker run -d --name tidb-init-smoke \
+            -e MYSQL_ROOT_PASSWORD=rootpassword \
+            -e MYSQL_DATABASE=civil_service_mgmt \
+            -v "$PWD/database/tidb-init.sql:/docker-entrypoint-initdb.d/tidb-init.sql" \
+            mysql:8.0
+
+      - name: Wait for bootstrap + assert seeded tables and views
+        run: |
+          # -h 127.0.0.1 สำคัญ: ระหว่าง init mysql:8.0 รัน temporary server แบบ
+          # socket-only (--skip-networking) — probe ผ่าน socket จะผ่านก่อน init จบ (Issue #129)
+          for i in $(seq 1 60); do
+            if docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword --silent \
+              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+              echo "bootstrap ready"; break
+            fi
+            sleep 5
+          done
+          # init SQL ล้ม = entrypoint abort -> container ไม่ถึง ready จน timeout
+          if ! docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword --silent \
+              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+            echo "tidb-init.sql bootstrap timed out"; docker logs tidb-init-smoke; exit 1
+          fi
+          # ตารางที่ seed ไว้ต้องมีแถว (พิสูจน์ว่า INSERT ในไฟล์รันจริง ไม่ใช่แค่ DDL ผ่าน)
+          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+            -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel \
+                UNION ALL SELECT 'users', COUNT(*) FROM users \
+                UNION ALL SELECT 'organization', COUNT(*) FROM organization \
+                UNION ALL SELECT 'position', COUNT(*) FROM position \
+                UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria \
+                UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program"
+          # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
+          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+            -e "SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;" >/dev/null
+          echo "tidb-init.sql bootstrap OK"
+
   backend-tests:
     name: Backend PHPUnit (Unit + Integration)
     runs-on: ubuntu-latest
