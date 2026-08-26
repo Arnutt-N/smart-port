@@ -10,12 +10,18 @@
 //   --base-url  ใช้ตอนเทสกับ mock server (default = production)
 // Exit 0 = header set ครบตาม render.yaml, Exit 1 = ขาด/ค่าผิด/network fail
 //
+// hashed asset ถูกยิง ASSET_PROBES นัด (default 5) ด้วย cache-buster เฉพาะตัวต่อนัด
+// — response เดียวพิสูจน์อะไรไม่ได้เพราะกฎ header ที่ path ทับกันของ Render ตอบค่าสลับ
+// กัน non-deterministic ต่อ request (วัดจริง 26 ส.ค.: 8 นัดได้ 6 immutable / 2 no-cache
+// จน gate รุ่นยิง-1-นัดเคย PASS โดยบังเอิญ — issue #155) นัดเดียวผิด = fail ทั้งชุด
+//
 // หมายเหตุ edge layer: production อยู่หลัง Cloudflare ซึ่งอาจเติม header ของตัวเอง
 // (cf-*, และ HSTS ค่าที่แรงกว่า เช่น preload) — เรา assert เฉพาะชุดที่ประกาศใน render.yaml
 // ส่วน HSTS ถ้าค่าจริง "แรงกว่าหรือเท่ากัน" ที่ประกาศ (max-age ≥ และครอบทุก directive)
 // จะเป็นแค่ warning — อ่อนกว่าถือว่า drift และ fail ตัวอย่างจริง: platform default ส่ง
 // max-age=315360000; preload ซึ่งแรงกว่าจึงผ่านเป็น warning
 
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -25,6 +31,7 @@ const RENDER_YAML = resolve(ROOT, 'render.yaml');
 const DEFAULT_BASE = 'https://smart-port.onrender.com';
 const FETCH_TIMEOUT_MS = 30_000;
 const FETCH_ATTEMPTS = 2; // gateway DNS เคยหน่วง/ตายเป็นพัก ๆ (handoff 2026-08-16) — retry หนึ่งครั้ง
+const ASSET_PROBES = 5; // จำนวนนัดที่ยิง hashed asset — ทำไมหลายนัด ดูหัวไฟล์ (issue #155)
 
 function parseArgs(argv) {
   const args = { baseUrl: DEFAULT_BASE };
@@ -110,7 +117,7 @@ async function fetchWithRetry(url, method) {
   let lastError;
   for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt++) {
     try {
-      return await fetch(url, { method, redirect: 'follow', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      return await fetch(url, { method, redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     } catch (err) {
       lastError = err;
       if (attempt < FETCH_ATTEMPTS) console.error(`  (retry ${attempt}/${FETCH_ATTEMPTS - 1} หลังจาก: ${err.message})`);
@@ -244,20 +251,32 @@ async function main() {
   let shellFailures = printResults(`— App shell (/) —`, checkHeaders(expectations.shell, shellRes.headers, { url: baseUrl + '/' }));
 
   // 2) hashed asset: ดึงชื่อจาก <script src> ของ shell แล้วตรวจ cache header
+  //    ยิงหลายนัด แต่ละนัดใส่ cache-buster เฉพาะตัว (กัน CDN ตอบของเก่า + บังคับวัด origin)
+  //    และนัดเดียวผิด = fail ทั้งชุด — ไม่โหวตเสียงข้างมาก เพราะค่าที่ถูกต้องต้อง deterministic
   const assetMatch = /assets\/[\w.-]+\.js/.exec(body);
   if (!assetMatch) {
     console.error(`\n✗ หาชื่อ hashed asset (assets/*.js) ใน HTML ไม่ได้ — ตรวจว่า build ยัง emit Vite chunk ปกติ`);
     process.exitCode = 1;
     return;
   }
-  const assetUrl = `${baseUrl}/${assetMatch[0]}`;
-  const assetRes = await fetchWithRetry(assetUrl, 'HEAD');
-  if (!assetRes.ok) {
-    console.error(`✗ HEAD ${assetMatch[0]} ได้ status ${assetRes.status}`);
-    process.exitCode = 1;
-    return;
+  let assetFailures = 0;
+  for (let probe = 1; probe <= ASSET_PROBES; probe++) {
+    const probeUrl = `${baseUrl}/${assetMatch[0]}?probe=${probe}-${randomUUID()}`;
+    const assetRes = await fetchWithRetry(probeUrl, 'HEAD');
+    if (!assetRes.ok) {
+      console.error(`✗ HEAD ${assetMatch[0]} (probe ${probe}/${ASSET_PROBES}) ได้ status ${assetRes.status}`);
+      process.exitCode = 1;
+      return;
+    }
+    const probeResults = checkHeaders(expectations.asset, assetRes.headers, { url: probeUrl });
+    for (const r of probeResults) {
+      // ชี้ชื่อโรคให้ทันที: immutable บน asset คือลายเซ็นของกฎเก่าที่ค้างระดับ service บน Render
+      if (!r.ok && r.name === 'Cache-Control' && /immutable/i.test(r.detail)) {
+        r.detail += ' — ลายเซ็นกฎ immutable เก่าที่ค้างระดับ service บน Render (issue #155)';
+      }
+    }
+    assetFailures += printResults(`— Hashed asset probe ${probe}/${ASSET_PROBES} (${assetMatch[0]}) —`, probeResults);
   }
-  const assetFailures = printResults(`— Hashed asset (${assetMatch[0]}) —`, checkHeaders(expectations.asset, assetRes.headers, { url: assetUrl }));
 
   const failures = shellFailures + assetFailures;
   if (failures > 0) {

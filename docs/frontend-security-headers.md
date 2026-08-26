@@ -361,8 +361,10 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
    (06:48:20Z) — สาเหตุตามที่วิเคราะห์ภายหลัง: blueprint ยังไม่ sync
 3. **25 ส.ค.** — เจ้าของระบบกด **Blueprint → Sync** บน Render dashboard → deploy live
    **10:00:41Z** (asset hash ไม่เปลี่ยน: `index-CByuy7Fh.js` เพราะเนื้อโค้ดเดิม)
-4. `verify-live-headers.mjs` **PASS ทุกข้อ** — รวม `Cache-Control` ของ hashed asset ที่เคย
-   FAIL ตั้งแต่รอบ 22 ส.ค. (กฎ `immutable` เก่าที่ค้างใน blueprint ถูกล้างด้วยการ sync ครั้งนี้)
+4. `verify-live-headers.mjs` **PASS** — แต่ตีความใหม่หลัง #155: gate รุ่นนั้นยิง asset URL ละ
+   **1 นัด** จับการแกว่งค่าไม่ได้ · `Cache-Control` ของ hashed asset ที่เคย FAIL ตั้งแต่รอบ 22 ส.ค.
+   กลับมาแกว่ง `immutable`/`no-cache` อีกในวันที่ 26 ส.ค. — แปลว่ากฎ `immutable` เก่า**ไม่เคยถูกล้าง
+   จริง** รอบนั้น PASS เพราะสุ่มโดน `no-cache` พอดี (ดู `### Cache-Control แกว่งอีกครั้ง 26 ส.ค.` ด้านล่าง)
 5. **แต่ curl ยังเห็นสอง header พร้อมกัน** — การวินิจฉัยแยกสาเหตุ:
    - cache-buster (`cf-cache-status: MISS`) ยังได้ทั้งคู่ → **มาจาก origin ไม่ใช่ cache ของ Cloudflare**
    - `smartport-backend.onrender.com` โดยตรงไม่ส่ง CSP เลย → ไม่ใช่ backend
@@ -374,7 +376,7 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
 | หลักฐาน | ผล | วิธีได้มา |
 |---|---|---|
 | header สดจาก origin | `content-security-policy:` (enforce) **อันเดียว ไม่มี `-report-only`** | `curl -I` โดยยืนยัน `cf-cache-status: MISS` ทั้ง root และ cache-buster |
-| smoke gate | `verify-live-headers.mjs` **PASS ทุกข้อ** (ทั้ง app shell และ hashed asset) | รันหลังลบ header ค้าง |
+| smoke gate | `verify-live-headers.mjs` **PASS** — จุดอ่อนที่ทราบทีหลัง (#155): gate รุ่นนั้นยิง asset ละ 1 นัด จับค่าที่แกว่งไม่ได้ (แก้เป็น multi-probe แล้วในรอบ #155) | รันหลังลบ header ค้าง |
 | เดินเมนูใต้ enforce | **22/22 route render เต็ม** — มากกว่ารอบ 22 ส.ค. (19 หน้า) เพราะครอบ candidate sub-routes ครบ 5 เส้นทาง | Playwright chromium headless ล็อกอินจริงบน production แล้วไล่ตาม `nav a[href]` ทั้งหมด |
 | console ระหว่างเดินเมนู | **เงียบสนิท — 0 CSP violation · 0 console error · 0 page error** | listener `console` + `pageerror` เก็บทุกหน้า |
 | write path ใต้ enforce | `POST /api/auth/login` ตอบ 200 (อย่างน้อยหนึ่ง write path ผ่าน) | response listener ระหว่าง login |
@@ -410,13 +412,30 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
 **ข้อมูลทดสอบที่ยังค้างเพิ่ม** — นอกจาก 2 รายการเดิมด้านบน ยังมี selftest marker ของ
 24 ส.ค. ใน log (ไม่เก็บใน DB) · การเก็บกวาดรวมเป็น pending เดียวกัน
 
+### Cache-Control แกว่งอีกครั้ง 26 ส.ค. — gate เดิมจับไม่ได้ (#155)
+
+หลัง merge PR #154 (docs-only) แล้ว auto-deploy วิ่ง ปุ่บ `verify-live-headers.mjs` FAIL:
+hashed asset ได้ `public, max-age=31536000, immutable` ทั้งที่ render.yaml ประกาศ `no-cache`
+กฎเดียวทั้ง site วินิจฉัยด้วย cache-buster (`cf-cache-status: MISS` ยังเห็น `immutable`
+→ ค่ามาจาก origin ไม่ใช่ cache ของ Cloudflare) แล้ว probe 8 นัดได้ **6 immutable /
+2 no-cache** — คือการแกว่ง non-deterministic ของกฎซ้อนทับที่เคยวัดไว้รอบ 17 ส.ค. ·
+app shell `/` นิ่ง `no-cache` 4/4 นัด · CSP enforce อันเดียวสม่ำเสมอทุกนัด — **ไม่ใช่ช่องโหว่
+เรื่อง security** กระทบแค่ความน่าเชื่อถือของ gate และพฤติกรรม cache ของ asset
+
+สรุป: กฎ `immutable` เก่ายังค้างระดับ service บน Render dashboard (อยู่นอก `render.yaml`)
+การแก้คือ **owner ลบ rule + Blueprint Sync + ยืนยัน probe ≥8 นัดได้ `no-cache` 100%**
+· ฝั่ง repo แก้ gate แล้ว: asset ถูกยิง **5 นัด** ด้วย cache-buster เฉพาะตัวต่อนัด
+**นัดเดียวผิด = fail** — รายละเอียดเต็มและขั้นตอนของ owner อยู่ที่ issue #155
+
 ## การทดสอบ
 
 - `frontend/src/__tests__/securityHeaders.test.js` — assert header set ข้างต้นในทั้ง
   render.yaml และ nginx.conf กัน drift/regression
 - `scripts/verify-live-headers.mjs` — external smoke gate (issue #131): curl
   production จริงแล้ว assert กับ header set ที่ parse จาก render.yaml ตรง ๆ (single
-  source of truth — แก้ render.yaml แล้ว gate ตามอัตโนมัติ) exit 1 เมื่อพบ drift;
+  source of truth — แก้ render.yaml แล้ว gate ตามอัตโนมัติ) · hashed asset ถูกยิง **5 นัด**
+  ด้วย cache-buster เฉพาะตัวต่อนัด และ **นัดเดียวผิด = fail** (#155 — กฎ header ที่ path
+  ทับกันของ Render ตอบค่าสลับกันต่อ request response เดียวพิสูจน์อะไรไม่ได้) exit 1 เมื่อพบ drift;
   regression อยู่ที่ `scripts/tests/verify-live-headers.test.mjs` (mock origin บน
   127.0.0.1 ไม่พึ่งเครือข่าย) เสียบใน `scripts/ci-local.sh` / `.ps1` แล้ว
   **ตัวสคริปต์เองไม่ได้อยู่ใน gate อัตโนมัติใด ๆ** เพราะยิง production จริง — เรียกมือเท่านั้น
