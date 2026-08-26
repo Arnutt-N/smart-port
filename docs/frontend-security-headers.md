@@ -387,6 +387,10 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
 `/royal-decorations` · `/retirement-report` · `/admin` · `/work-results` · `/awards` ·
 `/import` · `/ocr` · `/users` · `/audit` · `/settings/special-areas`
 
+> หมายเหตุ (26 ส.ค.): ตัวเลข 22/22 เป็น historical — หลังจากนี้ `/ocr` ถูกซ่อนจากเมนู
+> จนกว่า document-ocr service จะ deploy จริง (#147) menu walk ปกติจึงครอบ 21 route
+> (route `/ocr` ยังอยู่และตรวจได้ด้วย direct URL)
+
 **การทำนายของรอบ 22 ส.ค. เป็นจริงทุกตัวอักษร** — "ถ้าครึ่งการลบ rule ไม่ propagate จะได้
 ทั้งสอง header พร้อมกัน" เกิดขึ้นจริงหลัง deploy และบทเรียนยกระดับขึ้นอีกขั้น: **สิ่งที่ค้างไม่ใช่
 แค่ blueprint ที่ตามหลัง repo แต่รวมถึง custom headers ที่ตั้งบน dashboard ซึ่ง `render.yaml`
