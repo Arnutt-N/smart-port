@@ -29,6 +29,7 @@ SKIP_FRONTEND=0
 SKIP_E2E=0
 SKIP_BACKEND=0
 SKIP_DOCKER=0
+SKIP_TIDB_BOOTSTRAP=0
 FAILED=()
 STARTED=$(date +%s)
 
@@ -46,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --skip-e2e)      SKIP_E2E=1 ;;
     --skip-backend)  SKIP_BACKEND=1 ;;
     --skip-docker)   SKIP_DOCKER=1 ;;
+    --skip-tidb-bootstrap) SKIP_TIDB_BOOTSTRAP=1 ;;
     -h|--help)       usage ;;
     *) echo "Unknown flag: $1 (try --help)"; exit 2 ;;
   esac
@@ -62,7 +64,7 @@ warn() { printf 'WARN  %s\n' "$1"; }
 skip() { printf 'SKIP  %s\n' "$1"; }
 
 echo "smart-port local CI  (root: ${ROOT})"
-echo "flags: skip-install=${SKIP_INSTALL} skip-frontend=${SKIP_FRONTEND} skip-e2e=${SKIP_E2E} skip-backend=${SKIP_BACKEND} skip-docker=${SKIP_DOCKER}"
+echo "flags: skip-install=${SKIP_INSTALL} skip-frontend=${SKIP_FRONTEND} skip-e2e=${SKIP_E2E} skip-backend=${SKIP_BACKEND} skip-docker=${SKIP_DOCKER} skip-tidb-bootstrap=${SKIP_TIDB_BOOTSTRAP}"
 
 # ---- 0) Schema parity (เร็ว รันก่อนเสมอ — fail เร็วดีกว่ารอ docker build) -----
 step 'Schema Parity Gate'
@@ -82,6 +84,54 @@ if node --test "${ROOT}"/scripts/tests/*.test.mjs; then
   ok 'script regressions'
 else
   fail 'script regressions'
+fi
+
+# ---- 0.5) tidb-init bootstrap (A2 — กัน "เขียวลอย") ---------------------------
+# tidb-init.sql คือ bootstrap ตัวจริงของ production (Render ตั้ง RUN_MIGRATIONS=0) —
+# พิสูจน์ว่า import ลง MySQL เปล่าแล้ว seed/view ใช้งานได้จริง (ดู ci.yml job เดียวกัน)
+# ข้ามได้ด้วย --skip-tidb-bootstrap (เช่น sandbox เทสของ ci-local-csp-gate.test.mjs)
+if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
+  step 'tidb-init.sql Bootstrap Smoke'
+  # MSYS (Git Bash บน Windows) แปลง arg ที่มี `:` เป็น path Windows — mount spec
+  # กลายเป็นเพี้ยน (source โดนแยกที่ `;`) แล้ว entrypoint ไม่เห็นไฟล์ init เลย
+  # ต้องใช้ Windows path จาก cygpath + ปิด path conversion; บน Linux รันแบบปกติ
+  if command -v cygpath >/dev/null 2>&1; then
+    TIDB_SRC="$(cygpath -w "${ROOT}/database/tidb-init.sql")"
+    export MSYS_NO_PATHCONV=1
+  else
+    TIDB_SRC="${ROOT}/database/tidb-init.sql"
+  fi
+  # container ชื่อเดียวกับรอบก่อนอาจค้าง (เช่น engine หลุดกลางทางจน rm ไม่ทัน) —
+  # ลบของเก่าทิ้งก่อนเสมอ ไม่งั้น docker run --name ชนและ step แดงทั้งที่ bootstrap ดี
+  docker rm -f tidb-init-smoke >/dev/null 2>&1 || true
+  CONTAINER=$(docker run -d --name tidb-init-smoke \
+    -e MYSQL_ROOT_PASSWORD=rootpassword \
+    -e MYSQL_DATABASE=civil_service_mgmt \
+    -v "${TIDB_SRC}:/docker-entrypoint-initdb.d/tidb-init.sql" \
+    mysql:8.0)
+  BOOTSTRAP_OK=0
+  for _ in $(seq 1 60); do
+    sleep 5
+    if docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword --silent \
+        -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt >/dev/null 2>&1; then
+      BOOTSTRAP_OK=1
+      break
+    fi
+  done
+  # init SQL ล้ม = entrypoint abort -> container ไม่ถึง ready จน timeout
+  if [[ "${BOOTSTRAP_OK}" -eq 1 ]] && \
+      docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+        -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel UNION ALL SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'organization', COUNT(*) FROM organization UNION ALL SELECT 'position', COUNT(*) FROM position UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program" \
+        && docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+        -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' >/dev/null 2>&1; then
+    ok 'tidb-init.sql bootstrap'
+  else
+    docker logs "${CONTAINER}" >/dev/null 2>&1 || true
+    fail 'tidb-init.sql bootstrap (ดู docker logs tidb-init-smoke)'
+  fi
+  docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+else
+  skip 'tidb-init.sql bootstrap (--skip-tidb-bootstrap)'
 fi
 
 # ---- 1) Frontend -----------------------------------------------------------

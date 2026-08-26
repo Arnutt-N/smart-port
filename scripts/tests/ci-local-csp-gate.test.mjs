@@ -84,6 +84,8 @@ const WRAPPERS = {
       '--skip-e2e',
       '--skip-backend',
       '--skip-docker',
+      // sandbox มีเฉพาะ scripts/ ไม่มี database/tidb-init.sql — ข้าม step bootstrap
+      '--skip-tidb-bootstrap',
       ...(skipFrontend ? ['--skip-frontend'] : []),
     ],
   },
@@ -103,6 +105,8 @@ const WRAPPERS = {
       '-SkipE2E',
       '-SkipBackend',
       '-SkipDocker',
+      // sandbox มีเฉพาะ scripts/ ไม่มี database/tidb-init.sql — ข้าม step bootstrap
+      '-SkipTidbBootstrap',
       ...(skipFrontend ? ['-SkipFrontend'] : []),
     ],
   },
