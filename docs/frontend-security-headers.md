@@ -348,7 +348,10 @@ Render dashboard ก่อน
 
 **ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)** — ทั้งสองรายการ **ปิดใช้งานแล้ว** แต่เป็น
 soft delete จึงยังอยู่ใน DB และมีร่องรอยใน audit log:
-`personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `multiplier_areas` จังหวัดขึ้นต้น `ทดสอบCSP-`
+`personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `special_area_multiplier` (API `/multiplier/areas`) จังหวัด
+ขึ้นต้น `ทดสอบCSP-` · **ขั้นตอน export backup + ลบ + ยืนยัน 0 แถว อยู่ที่
+runbook `docs/runbooks/csp-test-data-cleanup.md`** (owner รันเองผ่าน TiDB Cloud console —
+DELETE ต้องมี owner ยืนยัน scope ก่อนเสมอ)
 
 ### Enforce switch 2026-08-25 — enforce ขึ้น live และเดินเมนูผ่านทั้งระบบ
 
@@ -413,8 +416,10 @@ soft delete จึงยังอยู่ใน DB และมีร่อง�
    ใต้ report-only · กลไก `report-uri` เดียวกันทำงานต่อใต้ enforce (รายงานสิ่งที่ถูกบล็อกจริง)
    แต่ยังไม่มี marker สดที่พิสูจน์ hop สุดท้ายในโหมด enforce โดยตรง
 
-**ข้อมูลทดสอบที่ยังค้างเพิ่ม** — นอกจาก 2 รายการเดิมด้านบน ยังมี selftest marker ของ
-24 ส.ค. ใน log (ไม่เก็บใน DB) · การเก็บกวาดรวมเป็น pending เดียวกัน
+**ข้อมูลทดสอบที่ยังค้างเพิ่ม** — นอกจาก 2 รายการเดิมด้านบน (ดู runbook
+`docs/runbooks/csp-test-data-cleanup.md`) ยังมี selftest marker ของ
+24 ส.ค. ใน log (ไม่เก็บใน DB — ตกไปเองตาม retention ของ Render log) · การเก็บกวาดรวมเป็น
+pending เดียวกัน
 
 ### Cache-Control แกว่งอีกครั้ง 26 ส.ค. — gate เดิมจับไม่ได้ (#155)
 
