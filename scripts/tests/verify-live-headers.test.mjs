@@ -40,9 +40,19 @@ function run(baseUrl) {
   });
 }
 
-function startServer({ shell, asset }) {
+function startServer({ shell, asset, onAssetRequest }) {
+  let assetHits = 0;
   const server = createServer((req, res) => {
-    const headers = req.url === '/' ? shell : req.url === ASSET ? asset : null;
+    // จับด้วย pathname ไม่ใช่ URL เต็ม — gate เติม cache-buster (?probe=...) ต่อนัด
+    // ทำให้ URL เต็มไม่ซ้ำกัน (issue #155) ถ้าจับแบบตรง ๆ ทุกนัดจะกลายเป็น 404
+    const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
+    if (pathname === ASSET) {
+      assetHits += 1;
+      if (onAssetRequest) onAssetRequest(req.url, assetHits);
+    }
+    // asset ให้เป็น object (ค่าเดียวทุกนัด) หรือ function ของเลขนัด (เลียนแบบค่าที่แกว่ง)
+    const assetHeaders = typeof asset === 'function' ? asset(assetHits) : asset;
+    const headers = pathname === '/' ? shell : pathname === ASSET ? assetHeaders : null;
     if (!headers) {
       res.statusCode = 404;
       res.end('not found');
@@ -189,6 +199,62 @@ test('ต้อง fail เมื่อเจอ Render/Cloudflare defaults (dri
     // X-Content-Type-Options มีค่าถูกอยู่แล้วจึงผ่าน — และ HSTS ค่าที่แรงกว่า (preload)
     // ต้องเป็นแค่ warning [~] ไม่ใช่สาเหตุของการ fail
     assert.match(output, /~\] Strict-Transport-Security/);
+  } finally {
+    server.close();
+  }
+});
+
+test('asset ที่แกว่งค่าระหว่างนัด (บางนัด immutable) ต้อง fail — โหมด production จริง 26 ส.ค. (#155)', async () => {
+  // เหตุการณ์จริง: กฎ immutable เก่าค้างระดับ service บน Render ทำให้ asset ตอบสลับ
+  // immutable/no-cache ต่อ request (probe จริง 8 นัด = 6 immutable / 2 no-cache) —
+  // gate รุ่นยิง-1-นัดเคย PASS โดยบังเอิญเพราะสุ่มโดน no-cache พอดี รุ่น multi-probe ต้องจับได้
+  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const good = {};
+  for (const e of entries) good[e.name] = e.value;
+  const flapping = { ...good, 'Cache-Control': 'public, max-age=31536000, immutable' };
+  // นัดที่ 3 ของ 5 ตอบผิด — เสียงข้างมากยังถูกอยู่ แต่ gate ต้อง fail (นัดเดียวผิด = fail)
+  const asset = (hit) => (hit === 3 ? flapping : good);
+  const { server, baseUrl } = await startServer({ shell: good, asset });
+  try {
+    const { status, output } = await run(baseUrl);
+    assert.equal(status, 1, output);
+    assert.match(output, /probe 3\/5/);
+    assert.match(output, /✗\] Cache-Control/);
+    // ต้องชี้ชื่อโรค: คำว่า immutable + การอ้าง issue #155 อยู่ในข้อความ fail
+    assert.ok(output.includes('immutable'), `output ต้องระบุ immutable:\n${output}`);
+    assert.ok(output.includes('#155'), `output ต้องอ้าง issue #155:\n${output}`);
+  } finally {
+    server.close();
+  }
+});
+
+test('ยิง asset ครบทุกนัดด้วย cache-buster เฉพาะตัว — URL ไม่ซ้ำกัน และทุกนัดสะอาดต้อง PASS', async () => {
+  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const headers = { shell: {}, asset: {} };
+  for (const e of entries) {
+    headers.shell[e.name] = e.value;
+  }
+  headers.asset = { ...headers.shell };
+  const seenUrls = [];
+  const { server, baseUrl } = await startServer({
+    ...headers,
+    onAssetRequest: (url) => seenUrls.push(url),
+  });
+  try {
+    const { status, output } = await run(baseUrl);
+    assert.equal(status, 0, output);
+    assert.match(output, /PASS/);
+    assert.match(output, /probe 5\/5/);
+    // ครบ 5 นัด และ buster ต้องไม่ซ้ำกันแม้แต่คู่เดียว (ซ้ำ = CDN/origin อาจตอบของเก่าได้)
+    assert.equal(seenUrls.length, 5, `ต้องยิง asset 5 นัด ได้ยิง ${seenUrls.length} นัด`);
+    assert.equal(new Set(seenUrls).size, 5, `cache-buster ต้องไม่ซ้ำกัน: ${seenUrls.join(', ')}`);
+    for (const url of seenUrls) {
+      assert.match(
+        url,
+        /^\/assets\/index-TEST1234\.js\?probe=\d+-[0-9a-f-]{36}$/,
+        `รูปแบบ buster ผิด: ${url}`
+      );
+    }
   } finally {
     server.close();
   }

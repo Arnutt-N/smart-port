@@ -80,7 +80,7 @@ node --test scripts/tests/verify-live-headers.test.mjs
 > แต่สับสน) หรือแย่กว่านั้นคือ enforce ไม่ติดเลยทั้งที่ทุกคนเชื่อว่าติดแล้ว
 
 ```bash
-node scripts/verify-live-headers.mjs        # ต้อง exit 0
+node scripts/verify-live-headers.mjs        # ต้อง exit 0 (asset ถูกยิง 5 นัด — นัดเดียวผิดคือ fail)
 curl -sI https://smart-port.onrender.com/ | grep -i content-security-policy
 ```
 
