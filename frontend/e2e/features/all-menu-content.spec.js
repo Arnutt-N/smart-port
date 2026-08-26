@@ -20,7 +20,7 @@ const expectedMenuPaths = [
   '/work-results',
   '/awards',
   '/import',
-  '/ocr',
+  // '/ocr' ถูกซ่อนจากเมนูจนกว่า document-ocr service จะ deploy จริง (#147) — route ยังอยู่สำหรับ direct URL
   '/users',
   '/audit',
   '/settings/special-areas',

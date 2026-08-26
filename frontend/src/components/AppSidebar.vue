@@ -111,7 +111,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { roleLabel } from '@/utils/roleLabels.js'
 import {
   X, BookOpen, LayoutDashboard, UserCheck, Users, Clock, Award, UserMinus,
-  Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp, FileSearch, Shield, ScanText,
+  Briefcase, FileText, Trophy, ChevronRight, UserCog, FileUp, FileSearch, Shield,
   Contact,
 } from 'lucide-vue-next'
 
@@ -168,7 +168,8 @@ const menuSections = computed(() => [
         label: 'ADMIN',
         items: [
           { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
-          { id: 'ocr', label: 'แปลงเอกสาร PDF', icon: ScanText, to: '/ocr' },
+          // OCR ซ่อนจากเมนูชั่วคราวจนกว่า document-ocr service จะ deploy จริง (#147)
+          // route /ocr กับ OcrPage เก็บไว้ — admin พิมพ์ URL ตรงยังเข้าได้ (backend ตอบ 503 OCR_NOT_CONFIGURED)
           { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
           { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
           { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', icon: Shield, to: '/settings/special-areas' },

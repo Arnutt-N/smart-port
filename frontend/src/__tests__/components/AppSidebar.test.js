@@ -77,6 +77,19 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).not.toContain('จัดการพื้นที่พิเศษ')
   })
 
+  it('hides OCR menu entry until document-ocr service deploys (#147)', () => {
+    // ซ่อนทั้ง admin และ superadmin — เหตุผลคือ service ยังไม่ deploy ไม่ใช่เรื่องสิทธิ์
+    // กลับมาเปิด: คืน entry ใน AppSidebar + '/ocr' ใน e2e all-menu-content.spec.js
+    userVal = { name: 'admin', role: 'admin' }
+    let wrapper = mountSidebar()
+    expect(wrapper.text()).not.toContain('แปลงเอกสาร PDF')
+    wrapper.unmount()
+
+    userVal = { name: 'sa', role: 'superadmin' }
+    wrapper = mountSidebar()
+    expect(wrapper.text()).not.toContain('แปลงเอกสาร PDF')
+  })
+
   it('renders Dashboard under ภาพรวม section', () => {
     const wrapper = mountSidebar()
     expect(wrapper.text()).toContain('Dashboard')
