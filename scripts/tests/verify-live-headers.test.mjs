@@ -16,6 +16,11 @@ import { parseRenderHeaders, buildExpectations } from '../verify-live-headers.mj
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = resolve(ROOT, 'scripts', 'verify-live-headers.mjs');
+
+// render.yaml คือ expected set ของทุกเทสในไฟล์นี้ — อ่าน/parse ที่เดียว (เดิม derive ซ้ำ 5 จุด)
+function renderHeaderEntries() {
+  return parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+}
 const ASSET = '/assets/index-TEST1234.js';
 const SHELL_HTML = `<!doctype html><html><head><script type="module" src="${ASSET}"></script></head><body>ok</body></html>`;
 
@@ -71,7 +76,7 @@ function startServer({ shell, asset, onAssetRequest }) {
 test('ผ่านเมื่อ origin ส่ง header ครบตามที่ render.yaml ประกาศ', async () => {
   // mock origin ที่ "ถูกต้อง" = ส่งทุก header ตาม entries ที่ parse ได้จาก render.yaml จริง
   // (กฎเดียว /* ครอบทั้ง site — asset จึงได้ชุดเดียวกับ shell ตาม fallback ของ buildExpectations)
-  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const entries = renderHeaderEntries();
   const headers = { shell: {}, asset: {} };
   for (const e of entries) {
     headers.shell[e.name] = e.value;
@@ -88,7 +93,7 @@ test('ผ่านเมื่อ origin ส่ง header ครบตามท�
 });
 
 test('parser แกะได้เฉพาะ block headers: ของ static site (ไม่ชบักไป service อื่น)', () => {
-  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const entries = renderHeaderEntries();
   const shellNames = entries.filter((e) => e.path === '/*').map((e) => e.name).sort();
   // CSP มีได้ชื่อเดียวแล้วแต่เฟส: enforce = Content-Security-Policy · report-only = ...-Report-Only
   const cspName = shellNames.find((n) => n.startsWith('Content-Security-Policy'));
@@ -137,7 +142,7 @@ test('buildExpectations ต้อง fail-closed เมื่อเจอ path g
 test('CSP ถูกผ่อนหรือ HSTS อ่อนกว่าต้อง fail แม้จะมี header ครบทุกตัว', async () => {
   // reviewer round: substring-match จะมองไม่เห็น directive ที่ถูกเติม source อ่อนกว่า
   // และ HSTS warn-only ต้องยอมเฉพาะค่าที่แรงกว่า — เคสนี้ต้อง fail ทั้งคู่
-  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const entries = renderHeaderEntries();
   const headers = { shell: {}, asset: {} };
   for (const e of entries) {
     headers.shell[e.name] = e.value;
@@ -208,7 +213,7 @@ test('asset ที่แกว่งค่าระหว่างนัด (บ
   // เหตุการณ์จริง: กฎ immutable เก่าค้างระดับ service บน Render ทำให้ asset ตอบสลับ
   // immutable/no-cache ต่อ request (probe จริง 8 นัด = 6 immutable / 2 no-cache) —
   // gate รุ่นยิง-1-นัดเคย PASS โดยบังเอิญเพราะสุ่มโดน no-cache พอดี รุ่น multi-probe ต้องจับได้
-  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const entries = renderHeaderEntries();
   const good = {};
   for (const e of entries) good[e.name] = e.value;
   const flapping = { ...good, 'Cache-Control': 'public, max-age=31536000, immutable' };
@@ -229,7 +234,7 @@ test('asset ที่แกว่งค่าระหว่างนัด (บ
 });
 
 test('ยิง asset ครบทุกนัดด้วย cache-buster เฉพาะตัว — URL ไม่ซ้ำกัน และทุกนัดสะอาดต้อง PASS', async () => {
-  const entries = parseRenderHeaders(readFileSync(resolve(ROOT, 'render.yaml'), 'utf8'));
+  const entries = renderHeaderEntries();
   const headers = { shell: {}, asset: {} };
   for (const e of entries) {
     headers.shell[e.name] = e.value;
