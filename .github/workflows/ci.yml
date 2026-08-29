@@ -182,14 +182,16 @@ jobs:
               -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
             echo "tidb-init.sql bootstrap timed out"; docker logs tidb-init-smoke; exit 1
           fi
-          # ตารางที่ seed ไว้ต้องมีแถว (พิสูจน์ว่า INSERT ในไฟล์รันจริง ไม่ใช่แค่ DDL ผ่าน)
-          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
-            -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel \
-                UNION ALL SELECT 'users', COUNT(*) FROM users \
-                UNION ALL SELECT 'organization', COUNT(*) FROM organization \
-                UNION ALL SELECT 'position', COUNT(*) FROM position \
-                UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria \
-                UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program"
+          # ตาราง seed ต้องมีแถวจริง — assert fail-closed จากไฟล์เดียวกับ ci-local
+          # (รุ่นก่อนหน้าแค่ print COUNT ตารางว่างก็เขียว = "เขียวลอย" ตาม review 4 PR)
+          EMPTY_TABLES=$(docker exec -i tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword \
+            --batch --skip-column-names civil_service_mgmt \
+            < scripts/sql/tidb-init-smoke-assert.sql | tail -n 1)
+          echo "seed tables with 0 rows: ${EMPTY_TABLES}"
+          if [ "${EMPTY_TABLES}" != "0" ]; then
+            echo "tidb-init.sql bootstrap: seed rows missing (empty_tables=${EMPTY_TABLES})"
+            docker logs tidb-init-smoke; exit 1
+          fi
           # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
           docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
             -e "SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;" >/dev/null
