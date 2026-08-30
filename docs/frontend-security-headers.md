@@ -346,12 +346,10 @@ enforce ไม่ติดเลยทั้งที่ทุกคนเชื
 แล้วดู header จริงทุกครั้ง ห้ามถือว่า merge แล้วจบ** และถ้า blueprint ไม่ตาม ต้อง Sync จาก
 Render dashboard ก่อน
 
-**ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)** — ทั้งสองรายการ **ปิดใช้งานแล้ว** แต่เป็น
-soft delete จึงยังอยู่ใน DB และมีร่องรอยใน audit log:
-`personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `special_area_multiplier` (API `/multiplier/areas`) จังหวัด
-ขึ้นต้น `ทดสอบCSP-` · **ขั้นตอน export backup + ลบ + ยืนยัน 0 แถว อยู่ที่
-runbook `docs/runbooks/csp-test-data-cleanup.md`** (owner รันเองผ่าน TiDB Cloud console —
-DELETE ต้องมี owner ยืนยัน scope ก่อนเสมอ)
+**ข้อมูลทดสอบ CSP เคลียร์จาก production แล้ว (2026-08-30)** — ลบตามขอบเขตที่ owner ยืนยัน
+(`personnel` 1 แถว · `special_area_multiplier` 1 แถว — ทั้งหมดเป็น soft-deleted rows) หลัง export
+backup และยืนยัน 0 แถวหลังลบ · audit log เก็บ history ของรายการไว้ตาม design (4 แถว) ·
+backup และบันทึกผลเต็มที่ runbook `docs/runbooks/csp-test-data-cleanup.md`
 
 ### Enforce switch 2026-08-25 — enforce ขึ้น live และเดินเมนูผ่านทั้งระบบ
 
