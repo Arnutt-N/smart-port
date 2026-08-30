@@ -4,6 +4,7 @@
 - **ขอบเขตที่ owner ยืนยัน (owner decisions 2026-08-24 ข้อ 4):** `personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `special_area_multiplier` จังหวัดขึ้นต้น `ทดสอบCSP-`
 - **ระดับ:** ⚠️ **DESTRUCTIVE** — ต้องทำตามลำดับใน runbook นี้ทุกขั้น ไม่ข้าม
 - **สิทธิ์:** production DB = TiDB Cloud (เชื่อมผ่าน Render env `MYSQL_PORT=4000` + SSL) — repo ไม่มี credential → **owner รันเองผ่าน TiDB Cloud console**
+  · *(อัปเดต 30 ส.ค. 2026: agent รันแทนตามอนุมัติของ owner — ดูหัวข้อ "ผลการดำเนินการ" ท้ายไฟล์)*
 - **สคริปต์:** `scripts/sql/cleanup-csp-test-data.sql` (SELECT → DELETE → SELECT ยืนยัน)
 
 ## ข้อตกลงสำคัญ
@@ -44,7 +45,7 @@ mysqldump --default-character-set=utf8mb4 --set-charset \
 - ✅ owner ยืนยันยอมรับ scope นี้ (จำนวนแถว + คอลัมน์ที่แสดง)
 - ถ้าไม่ตรงตามที่คาด → **หยุด** แล้วตรวจสอบก่อน (อย่าเดา)
 
-### 3) DELETE (owner เท่านั้น)
+### 3) DELETE (ต้องมี owner ยืนยัน scope ก่อนเสมอ — ครั้งจริง 30 ส.ค. 2026 agent รันแทนตามอนุมัติ ดู "ผลการดำเนินการ")
 
 รัน **เฉพาะบล็อก 2** ของสคริปต์ (DELETE สองตารางตาม WHERE เดียวกับ SELECT)
 
@@ -57,7 +58,8 @@ mysqldump --default-character-set=utf8mb4 --set-charset \
 
 ### 5) บันทึกผล
 
-- Comment ผล (จำนวนแถวที่ลบ, path backup ไฟล์) ลง issue ที่ติดตามงานนี้
+- Comment ผล (จำนวนแถวที่ลบ, path backup ไฟล์) ลง issue ที่ติดตามงานนี้ — *(ครั้งจริง 30 ส.ค. 2026 ไม่มี
+  issue แยก จึงบันทึกในหัวข้อ "ผลการดำเนินการ" ท้ายไฟล์แทน)*
 - อัปเดต `docs/frontend-security-headers.md` — ลบข้อความ "ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)" เมื่อเคลียร์จริง
 
 ## ข้อมูลอ้างอิง
