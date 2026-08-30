@@ -3,6 +3,8 @@
 --         04 career path, 05 probation, 06 seed, 07 education, 08 v11, 09 auth
 -- Import: mysql --default-character-set=utf8mb4 <db_name> < tidb-init.sql
 -- TiDB: ไม่ใช้ ENUM/TRIGGER/DEFINER (ENUM ต้นฉบับแปลงเป็น VARCHAR แล้ว validate ฝั่ง PHP)
+-- NOTE: เพิ่ม/ลบ "ตาราง seed" ที่ต้องมีแถว → ต้องเติมรายชื่อใน scripts/sql/tidb-init-smoke-assert.sql
+--       ด้วย ไม่งั้น smoke (ci.yml `tidb-init-bootstrap` + ci-local) จะไม่ cover ตารางนั้นเงียบ ๆ
 
 SET FOREIGN_KEY_CHECKS = 0;
 

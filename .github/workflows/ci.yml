@@ -184,10 +184,13 @@ jobs:
           fi
           # ตาราง seed ต้องมีแถวจริง — assert fail-closed จากไฟล์เดียวกับ ci-local
           # (รุ่นก่อนหน้าแค่ print COUNT ตารางว่างก็เขียว = "เขียวลอย" ตาม review 4 PR)
-          EMPTY_TABLES=$(docker exec -i tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword \
+          # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+          ASSERT_OUT=$(docker exec -i tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword \
             --batch --skip-column-names civil_service_mgmt \
-            < scripts/sql/tidb-init-smoke-assert.sql | tail -n 1)
-          echo "seed tables with 0 rows: ${EMPTY_TABLES}"
+            < scripts/sql/tidb-init-smoke-assert.sql)
+          echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
+          echo "${ASSERT_OUT:-<empty — assert exec failed>}"
+          EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)
           if [ "${EMPTY_TABLES}" != "0" ]; then
             echo "tidb-init.sql bootstrap: seed rows missing (empty_tables=${EMPTY_TABLES})"
             docker logs tidb-init-smoke; exit 1

@@ -125,9 +125,12 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
   # seed ต้องมีแถวจริง — assert จากไฟล์เดียวกับ ci.yml (แถวสุดท้ายของ output =
   # จำนวนตาราง seed ที่ว่าง ต้องเป็น 0; รุ่นก่อนหน้าแค่ print COUNT = "เขียวลอย")
   if [[ "${BOOTSTRAP_OK}" -eq 1 ]]; then
-    EMPTY_TABLES=$(docker exec -i "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword \
-      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}" | tail -n 1)
-    echo "seed tables with 0 rows: ${EMPTY_TABLES:-?}"
+    # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+    ASSERT_OUT=$(docker exec -i "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword \
+      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}")
+    echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
+    echo "${ASSERT_OUT:-<empty — assert exec failed>}"
+    EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)
     # exec ล้ม/ตารางหาย → stdout ว่าง → ไม่ใช่ "0" → fail (fail-closed ทั้งกรณี)
     [[ "${EMPTY_TABLES:-x}" == "0" ]] || BOOTSTRAP_OK=0
   fi
