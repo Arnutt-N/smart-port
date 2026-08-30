@@ -53,3 +53,10 @@ WHERE first_name LIKE 'ทดสอบCSP%'
 SELECT COUNT(*) AS areas_left
 FROM special_area_multiplier
 WHERE province LIKE 'ทดสอบCSP-%';
+
+-- audit history ต้องอยู่รอดตาม design (ลบข้อมูล แต่ไม่ลบ trail) — ค่าจริงครั้ง 30 ส.ค. 2026 = 4
+-- (audit_log ไม่มีคอลัมน์ action_detail — ค้นจาก before_value/after_value)
+SELECT COUNT(*) AS audit_rows_csp
+FROM audit_log
+WHERE before_value LIKE '%ทดสอบCSP%'
+   OR after_value LIKE '%ทดสอบCSP%';

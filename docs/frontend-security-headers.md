@@ -346,12 +346,10 @@ enforce ไม่ติดเลยทั้งที่ทุกคนเชื
 แล้วดู header จริงทุกครั้ง ห้ามถือว่า merge แล้วจบ** และถ้า blueprint ไม่ตาม ต้อง Sync จาก
 Render dashboard ก่อน
 
-**ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)** — ทั้งสองรายการ **ปิดใช้งานแล้ว** แต่เป็น
-soft delete จึงยังอยู่ใน DB และมีร่องรอยใน audit log:
-`personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `special_area_multiplier` (API `/multiplier/areas`) จังหวัด
-ขึ้นต้น `ทดสอบCSP-` · **ขั้นตอน export backup + ลบ + ยืนยัน 0 แถว อยู่ที่
-runbook `docs/runbooks/csp-test-data-cleanup.md`** (owner รันเองผ่าน TiDB Cloud console —
-DELETE ต้องมี owner ยืนยัน scope ก่อนเสมอ)
+**ข้อมูลทดสอบ CSP เคลียร์จาก production แล้ว (2026-08-30)** — ลบตามขอบเขตที่ owner ยืนยัน
+(`personnel` 1 แถว · `special_area_multiplier` 1 แถว — ทั้งหมดเป็น soft-deleted rows) หลัง export
+backup และยืนยัน 0 แถวหลังลบ · audit log เก็บ history ของรายการไว้ตาม design (4 แถว) ·
+backup และบันทึกผลเต็ม ที่ runbook `docs/runbooks/csp-test-data-cleanup.md`
 
 ### Enforce switch 2026-08-25 — enforce ขึ้น live และเดินเมนูผ่านทั้งระบบ
 
@@ -416,10 +414,10 @@ DELETE ต้องมี owner ยืนยัน scope ก่อนเสม�
    ใต้ report-only · กลไก `report-uri` เดียวกันทำงานต่อใต้ enforce (รายงานสิ่งที่ถูกบล็อกจริง)
    แต่ยังไม่มี marker สดที่พิสูจน์ hop สุดท้ายในโหมด enforce โดยตรง
 
-**ข้อมูลทดสอบที่ยังค้างเพิ่ม** — นอกจาก 2 รายการเดิมด้านบน (ดู runbook
-`docs/runbooks/csp-test-data-cleanup.md`) ยังมี selftest marker ของ
-24 ส.ค. ใน log (ไม่เก็บใน DB — ตกไปเองตาม retention ของ Render log) · การเก็บกวาดรวมเป็น
-pending เดียวกัน
+**สถานะการเก็บกวาดข้อมูลทดสอบ** — 2 รายการใน DB (ดูบันทึก "เคลียร์จาก production แล้ว
+(2026-08-30)" ด้านบน + runbook `docs/runbooks/csp-test-data-cleanup.md`) เก็บกวาดเสร็จแล้ว
+2026-08-30 · สิ่งที่เหลืออยู่ตามธรรมชาติและไม่ต้องดำเนินการ: selftest marker ของ 24 ส.ค. ยังอยู่
+ใน Render log (ไม่เก็บใน DB — ตกไปเองตาม retention ของ log)
 
 ### Cache-Control แกว่งอีกครั้ง 26 ส.ค. — gate เดิมจับไม่ได้ (#155)
 

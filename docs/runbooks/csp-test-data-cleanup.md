@@ -4,6 +4,7 @@
 - **ขอบเขตที่ owner ยืนยัน (owner decisions 2026-08-24 ข้อ 4):** `personnel` ชื่อขึ้นต้น `ทดสอบCSP` · `special_area_multiplier` จังหวัดขึ้นต้น `ทดสอบCSP-`
 - **ระดับ:** ⚠️ **DESTRUCTIVE** — ต้องทำตามลำดับใน runbook นี้ทุกขั้น ไม่ข้าม
 - **สิทธิ์:** production DB = TiDB Cloud (เชื่อมผ่าน Render env `MYSQL_PORT=4000` + SSL) — repo ไม่มี credential → **owner รันเองผ่าน TiDB Cloud console**
+  · *(อัปเดต 30 ส.ค. 2026: agent รันแทนตามอนุมัติของ owner — ดูหัวข้อ "ผลการดำเนินการ" ท้ายไฟล์)*
 - **สคริปต์:** `scripts/sql/cleanup-csp-test-data.sql` (SELECT → DELETE → SELECT ยืนยัน)
 
 ## ข้อตกลงสำคัญ
@@ -44,7 +45,7 @@ mysqldump --default-character-set=utf8mb4 --set-charset \
 - ✅ owner ยืนยันยอมรับ scope นี้ (จำนวนแถว + คอลัมน์ที่แสดง)
 - ถ้าไม่ตรงตามที่คาด → **หยุด** แล้วตรวจสอบก่อน (อย่าเดา)
 
-### 3) DELETE (owner เท่านั้น)
+### 3) DELETE (ต้องมี owner ยืนยัน scope ก่อนเสมอ — ครั้งจริง 30 ส.ค. 2026 agent รันแทนตามอนุมัติ ดู "ผลการดำเนินการ")
 
 รัน **เฉพาะบล็อก 2** ของสคริปต์ (DELETE สองตารางตาม WHERE เดียวกับ SELECT)
 
@@ -57,7 +58,8 @@ mysqldump --default-character-set=utf8mb4 --set-charset \
 
 ### 5) บันทึกผล
 
-- Comment ผล (จำนวนแถวที่ลบ, path backup ไฟล์) ลง issue ที่ติดตามงานนี้
+- Comment ผล (จำนวนแถวที่ลบ, path backup ไฟล์) ลง issue ที่ติดตามงานนี้ — *(ครั้งจริง 30 ส.ค. 2026 ไม่มี
+  issue แยก จึงบันทึกในหัวข้อ "ผลการดำเนินการ" ท้ายไฟล์แทน)*
 - อัปเดต `docs/frontend-security-headers.md` — ลบข้อความ "ข้อมูลทดสอบที่ยังค้างใน production (ต้องเก็บกวาด)" เมื่อเคลียร์จริง
 
 ## ข้อมูลอ้างอิง
@@ -65,3 +67,25 @@ mysqldump --default-character-set=utf8mb4 --set-charset \
 - ที่มาของข้อมูล: สร้างผ่าน API 22 ส.ค. (`POST /api/personnel`, `POST /api/multiplier/areas`) ระหว่าง CSP report-only walkthrough — `docs/frontend-security-headers.md` (write path ที่ทดสอบจริง)
 - วิธี connect production: `docs/render-tidb-production.md` (L50–58: TiDB Cloud, port 4000, SSL)
 - สคริปต์: `scripts/sql/cleanup-csp-test-data.sql`
+
+## ผลการดำเนินการ (2026-08-30) — เคลียร์เรียบร้อย
+
+- **ผู้ดำเนินการ:** agent (zcode) รันแทน owner ตามอนุมัติของ owner วันที่ 30 ส.ค. 2026 — owner
+  จัดเตรียม credential ไว้ที่ `secrets/secret-keys.txt` (ค่าถูกดึงเข้า env ของ container ตรง ๆ
+  ไม่ถูกแสดง/ส่งออกภายนอก) · วิธีเดิมที่ระบุ "owner รันเองผ่าน TiDB Cloud console" ปรับเป็น
+  "agent รันผ่าน mysql client (Docker, `--ssl-mode=REQUIRED`)" ตามอนุมัตินั้น — ลำดับขั้นตอน
+  (backup → SELECT ยืนยัน → DELETE → ยืนยัน 0 แถว) คงเดิมทุกขั้น
+- **ขั้น 1 — backup:** `mysqldump --default-character-set=utf8mb4 --set-charset
+  --column-statistics=0 --ssl-mode=REQUIRED` — **ห้ามใช้ `--single-transaction` กับ TiDB**
+  (TiDB ไม่รองรับ SAVEPOINT ที่ mysqldump ใช้ → exit 2 พร้อม error ท้าย dump แม้ข้อมูลจะครบ)
+  · เก็บที่ `D:\00 hrProject\backups\csp-cleanup-20260830\` — `backup-csp-personnel-20260830.sql`
+  (3,939 bytes) · `backup-csp-areas-20260830.sql` (3,685 bytes) — ตรวจแล้วมี footer
+  "Dump completed" และข้อมูล Thai ครบทุกแถว
+- **ขั้น 2 — SELECT ยืนยัน scope:** ตรงขอบเขตที่ยืนยันไว้เป๊ะ — `personnel` 1 แถว
+  (personnel_id 60002) · `special_area_multiplier` 1 แถว (area_multiplier_id 1) — เป็นข้อมูล
+  ทดสอบ soft-deleted ล้วน ไม่มีชื่อจริงปน
+- **ขั้น 3 — DELETE:** ลบได้ 1 + 1 แถว (ROW_COUNT ต่อ statement)
+- **ขั้น 4 — ยืนยันหลังลบ:** `personnel_left = 0` · `areas_left = 0` · `audit_rows_csp = 4`
+  (history ของรายการถูกเก็บไว้ครบตาม design ข้อ 2 — ตรวจผ่าน `before_value`/`after_value`
+  เพราะ `audit_log` ไม่มีคอลัมน์ `action_detail`)
+- **บันทึกผล:** ไม่มี issue แยกติดตามงานนี้ — บันทึก ณ ที่นี้แทนการ comment ลง issue (ขั้น 5 เดิม)
