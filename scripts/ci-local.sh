@@ -109,25 +109,43 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
     -e MYSQL_DATABASE=civil_service_mgmt \
     -v "${TIDB_SRC}:/docker-entrypoint-initdb.d/tidb-init.sql" \
     mysql:8.0)
+  # assert SQL อยู่ไฟล์เดียวกับ ci.yml — ห้าม copy inline (สำเนาเพี้ยนกันเองได้)
+  ASSERT_SQL="${ROOT}/scripts/sql/tidb-init-smoke-assert.sql"
   BOOTSTRAP_OK=0
+  # probe ก่อนแล้วค่อย sleep — ตรงกับ ci.yml (ของเดิม sleep 5s ก่อน probe แรก ทำให้
+  # สอง mirror เหลื่อมกันโดยไม่จำเป็น)
   for _ in $(seq 1 60); do
-    sleep 5
     if docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword --silent \
         -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt >/dev/null 2>&1; then
       BOOTSTRAP_OK=1
       break
     fi
+    sleep 5
   done
-  # init SQL ล้ม = entrypoint abort -> container ไม่ถึง ready จน timeout
+  # seed ต้องมีแถวจริง — assert จากไฟล์เดียวกับ ci.yml (แถวสุดท้ายของ output =
+  # จำนวนตาราง seed ที่ว่าง ต้องเป็น 0; รุ่นก่อนหน้าแค่ print COUNT = "เขียวลอย")
+  if [[ "${BOOTSTRAP_OK}" -eq 1 ]]; then
+    # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+    # `|| ASSERT_OUT=''` — กัน `set -euo pipefail` (บรรทัด 24) abort ก่อนพิมพ์ breakdown/
+    # docker logs เมื่อ exec ล้ม (เช่น ตารางหายตาม drift): ให้ไหลเข้าเส้นทาง stdout-ว่างด้านล่าง
+    ASSERT_OUT=$(docker exec -i "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword \
+      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}") || ASSERT_OUT=''
+    echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
+    echo "${ASSERT_OUT:-<empty — assert exec failed>}"
+    EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)
+    # exec ล้ม/ตารางหาย → stdout ว่าง → ไม่ใช่ "0" → fail (fail-closed ทั้งกรณี)
+    [[ "${EMPTY_TABLES:-x}" == "0" ]] || BOOTSTRAP_OK=0
+  fi
+  # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
   if [[ "${BOOTSTRAP_OK}" -eq 1 ]] && \
       docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
-        -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel UNION ALL SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'organization', COUNT(*) FROM organization UNION ALL SELECT 'position', COUNT(*) FROM position UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program" \
-        && docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
-        -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' >/dev/null 2>&1; then
+      -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' >/dev/null 2>&1; then
     ok 'tidb-init.sql bootstrap'
   else
-    docker logs "${CONTAINER}" >/dev/null 2>&1 || true
-    fail 'tidb-init.sql bootstrap (ดู docker logs tidb-init-smoke)'
+    # พิมพ์ log ก่อนลบ container — ของเดิมดึง log แล้วทิ้ง แล้วบอกให้ไปดู log ที่กำลังจะหาย
+    echo '--- docker logs tidb-init-smoke (tail 50) ---'
+    docker logs "${CONTAINER}" 2>&1 | tail -n 50 || true
+    fail 'tidb-init.sql bootstrap (log 50 บรรทัดท้ายอยู่ด้านบน)'
   fi
   docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
 else

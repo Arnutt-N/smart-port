@@ -54,12 +54,13 @@
 ## ภาคต่อ (2026-08-26): ปิด A2 — tidb-init.sql ถูก execute จริงใน CI + ci-local
 
 - **A2 (review finding 2026-08-20)** คือจุดอ่อนที่เหลืออยู่ของ ADR นี้: `tidb-init.sql` ไม่เคยถูก execute จริง — validator เทียบชื่อเป็นสตริงเท่านั้น จับไม่ได้ถ้าไฟล์มี syntax error, FK อ้างตารางที่นิยามทีหลัง, INSERT seed พัง หรือ view compile ไม่ได้
-- **แก้แล้ว**: job ใหม่ `tidb-init-bootstrap` ใน `.github/workflows/ci.yml` — `docker run mysql:8.0` mount **เฉพาะ** `database/tidb-init.sql` เข้า `/docker-entrypoint-initdb.d/` (ไม่ปน migration mounts ของ backend-tests; จุดประสงค์คือพิสูจน์ "สร้างจากไฟล์เดียว" ได้จริง) → wait แบบ TCP + `SELECT 1 FROM personnel` (บทเรียน #129) → assert แถวของตาราง seed 6 ตาราง (`personnel` · `users` · `organization` · `position` · `promotion_criteria` · `probation_program`) → query ผ่านบน `vw_probation_dashboard` + `vw_audit_log` (พิสูจน์ว่า view compile — สิ่งที่ text-parity จับไม่ได้)
+- **แก้แล้ว**: job ใหม่ `tidb-init-bootstrap` ใน `.github/workflows/ci.yml` — `docker run mysql:8.0` mount **เฉพาะ** `database/tidb-init.sql` เข้า `/docker-entrypoint-initdb.d/` (ไม่ปน migration mounts ของ backend-tests; จุดประสงค์คือพิสูจน์ "สร้างจากไฟล์เดียว" ได้จริง) → wait แบบ TCP + `SELECT 1 FROM personnel` (บทเรียน #129) → assert แถวของตาราง seed 6 ตาราง (`personnel` · `users` · `organization` · `position` · `promotion_criteria` · `probation_program`) **แบบ fail-closed** — จำนวนตาราง seed ที่ว่างต้องเป็น 0 (SQL อยู่ไฟล์เดียว `scripts/sql/tidb-init-smoke-assert.sql` ใช้ร่วมกับ ci-local; รุ่นแรกแค่ print COUNT ซึ่งตารางว่างก็ผ่าน — แก้ตาม review 29 ส.ค.) → query ผ่านบน `vw_probation_dashboard` + `vw_audit_log` (พิสูจน์ว่า view compile — สิ่งที่ text-parity จับไม่ได้)
 - **ท้องถิ่นด้วย**: step `tidb-init.sql Bootstrap Smoke` ใน `scripts/ci-local.sh` / `ci-local.ps1` (ชุดคำสั่งเดียวกัน, ข้ามด้วย `--skip-tidb-bootstrap` / `-SkipTidbBootstrap` — sandbox เทสของ ci-local ใช้ flag นี้) — กัน job "เขียวลอย" เพราะ GitHub Actions ปิด auto-trigger (workflow_dispatch-only) gate ที่บังคับจริงคือ pre-push + ci-local
 - **ข้อจำกัดที่รับรู้**: พิสูจน์ด้วย MySQL 8 (common subset ที่ไฟล์เขียนมาให้รองรับ TiDB อยู่แล้ว) — ถ้าอนาคตเจอ drift ที่ MySQL จับไม่ได้แต่ TiDB จับได้ ค่อยเพิ่ม TiDB container จริงเป็น follow-up
 
 ## References
 
 - Gate: `scripts/validate-schema-parity.mjs` + job `tidb-init-bootstrap` ใน `.github/workflows/ci.yml` (execute จริง)
+- Assert SQL ของ smoke: `scripts/sql/tidb-init-smoke-assert.sql` (ไฟล์เดียวใช้ร่วม ci.yml + `ci-local.sh`/`ci-local.ps1`)
 - Runbook: `docs/render-tidb-production.md`
 - Runner + baseline: `backend/scripts/run-migrations.php`, `backend/tests/Unit/MigrationBaselineTest.php`

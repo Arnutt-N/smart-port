@@ -156,21 +156,41 @@ if (-not $SkipTidbBootstrap) {
       mysql:8.0 2>&1
     $container = ($mysql -join "`n") -replace '^([0-9a-f]{12}).*', '$1'
     $bootstrapOk = $false
+    # probe ก่อนแล้วค่อย sleep — ตรงกับ ci.yml และ ci-local.sh
     for ($i = 0; $i -lt 60; $i++) {
-      Start-Sleep -Seconds 5
       docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword --silent `
         -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt *> $null
       if ($LASTEXITCODE -eq 0) { $bootstrapOk = $true; break }
+      Start-Sleep -Seconds 5
     }
     if ($bootstrapOk) {
-      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt `
-        -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel UNION ALL SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'organization', COUNT(*) FROM organization UNION ALL SELECT 'position', COUNT(*) FROM position UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program"
-      if ($LASTEXITCODE -ne 0) { $bootstrapOk = $false }
+      # seed ต้องมีแถวจริง — assert จากไฟล์เดียวกับ ci.yml (แถวสุดท้ายของ output =
+      # จำนวนตาราง seed ที่ว่าง ต้องเป็น 0; รุ่นก่อนหน้าแค่ print COUNT = "เขียวลอย")
+      # ไม่ merge stderr — mysql เตือนเรื่อง -p ทุกครั้ง จะทำให้แถวสุดท้ายเพี้ยน
+      # -Encoding UTF8 — Windows PowerShell 5.1 อ่านไฟล์ UTF-8 ไร้ BOM เป็น ANSI เป็นค่าเริ่มต้น
+      $assertOut = Get-Content (Join-Path $Root 'scripts/sql/tidb-init-smoke-assert.sql') -Raw -Encoding UTF8 |
+        docker exec -i $container mysql -h 127.0.0.1 -uroot -prootpassword --batch --skip-column-names civil_service_mgmt
+      # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+      Write-Host 'seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):'
+      if ($assertOut) { Write-Host (@($assertOut) -join "`n") } else { Write-Host '<empty — assert exec failed>' }
+      $emptyTables = @($assertOut | Select-Object -Last 1)[0]
+      if ($null -eq $emptyTables) {
+        Write-Host 'seed tables with 0 rows: <unknown — assert exec failed>'
+      } else {
+        Write-Host "seed tables with 0 rows: $emptyTables"
+      }
+      # exec ล้ม/ตารางหาย → $emptyTables ว่าง → ไม่ใช่ '0' → fail (fail-closed ทั้งกรณี)
+      if ($LASTEXITCODE -ne 0 -or "$emptyTables" -ne '0') { $bootstrapOk = $false }
     }
     if ($bootstrapOk) {
       docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt `
         -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' *> $null
       if ($LASTEXITCODE -ne 0) { $bootstrapOk = $false }
+    }
+    if (-not $bootstrapOk) {
+      # พิมพ์ log ก่อนลบ container — ของเดิม rm ก่อนแล้วค่อยบอกให้ดู log ที่หายไปพร้อมกัน
+      Write-Host '--- docker logs tidb-init-smoke (tail 50) ---'
+      docker logs $container 2>&1 | Select-Object -Last 50
     }
     docker rm -f $container *> $null
   } finally {
@@ -179,7 +199,7 @@ if (-not $SkipTidbBootstrap) {
   if ($bootstrapOk) {
     Write-Ok 'tidb-init.sql bootstrap'
   } else {
-    Write-Fail 'tidb-init.sql bootstrap (ดู docker logs tidb-init-smoke ก่อนลบ container)'
+    Write-Fail 'tidb-init.sql bootstrap (log 50 บรรทัดท้ายอยู่ด้านบน)'
     $failed += 'tidb-init-bootstrap'
   }
 } else {

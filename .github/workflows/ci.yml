@@ -180,16 +180,23 @@ jobs:
           # init SQL ล้ม = entrypoint abort -> container ไม่ถึง ready จน timeout
           if ! docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword --silent \
               -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
-            echo "tidb-init.sql bootstrap timed out"; docker logs tidb-init-smoke; exit 1
+            echo "tidb-init.sql bootstrap timed out"; docker logs tidb-init-smoke 2>&1 | tail -n 50; exit 1
           fi
-          # ตารางที่ seed ไว้ต้องมีแถว (พิสูจน์ว่า INSERT ในไฟล์รันจริง ไม่ใช่แค่ DDL ผ่าน)
-          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
-            -e "SELECT 'personnel' AS tbl, COUNT(*) AS n FROM personnel \
-                UNION ALL SELECT 'users', COUNT(*) FROM users \
-                UNION ALL SELECT 'organization', COUNT(*) FROM organization \
-                UNION ALL SELECT 'position', COUNT(*) FROM position \
-                UNION ALL SELECT 'promotion_criteria', COUNT(*) FROM promotion_criteria \
-                UNION ALL SELECT 'probation_program', COUNT(*) FROM probation_program"
+          # ตาราง seed ต้องมีแถวจริง — assert fail-closed จากไฟล์เดียวกับ ci-local
+          # (รุ่นก่อนหน้าแค่ print COUNT ตารางว่างก็เขียว = "เขียวลอย" ตาม review 4 PR)
+          # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+          # `|| ASSERT_OUT=''` — กัน `bash -e` ของ run block abort ก่อนพิมพ์ breakdown/docker
+          # logs เมื่อ exec ล้ม (เช่น ตารางหายตาม drift): ให้ไหลเข้าเส้นทาง stdout-ว่างด้านล่าง
+          ASSERT_OUT=$(docker exec -i tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword \
+            --batch --skip-column-names civil_service_mgmt \
+            < scripts/sql/tidb-init-smoke-assert.sql) || ASSERT_OUT=''
+          echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
+          echo "${ASSERT_OUT:-<empty — assert exec failed>}"
+          EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)
+          if [ "${EMPTY_TABLES}" != "0" ]; then
+            echo "tidb-init.sql bootstrap: seed rows missing (empty_tables=${EMPTY_TABLES})"
+            docker logs tidb-init-smoke 2>&1 | tail -n 50; exit 1
+          fi
           # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
           docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
             -e "SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;" >/dev/null
