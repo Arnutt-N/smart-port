@@ -167,13 +167,18 @@ if (-not $SkipTidbBootstrap) {
       # seed ต้องมีแถวจริง — assert จากไฟล์เดียวกับ ci.yml (แถวสุดท้ายของ output =
       # จำนวนตาราง seed ที่ว่าง ต้องเป็น 0; รุ่นก่อนหน้าแค่ print COUNT = "เขียวลอย")
       # ไม่ merge stderr — mysql เตือนเรื่อง -p ทุกครั้ง จะทำให้แถวสุดท้ายเพี้ยน
-      $assertOut = Get-Content (Join-Path $Root 'scripts/sql/tidb-init-smoke-assert.sql') -Raw |
+      # -Encoding UTF8 — Windows PowerShell 5.1 อ่านไฟล์ UTF-8 ไร้ BOM เป็น ANSI เป็นค่าเริ่มต้น
+      $assertOut = Get-Content (Join-Path $Root 'scripts/sql/tidb-init-smoke-assert.sql') -Raw -Encoding UTF8 |
         docker exec -i $container mysql -h 127.0.0.1 -uroot -prootpassword --batch --skip-column-names civil_service_mgmt
       # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
       Write-Host 'seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):'
       if ($assertOut) { Write-Host (@($assertOut) -join "`n") } else { Write-Host '<empty — assert exec failed>' }
       $emptyTables = @($assertOut | Select-Object -Last 1)[0]
-      Write-Host "seed tables with 0 rows: $emptyTables"
+      if ($null -eq $emptyTables) {
+        Write-Host 'seed tables with 0 rows: <unknown — assert exec failed>'
+      } else {
+        Write-Host "seed tables with 0 rows: $emptyTables"
+      }
       # exec ล้ม/ตารางหาย → $emptyTables ว่าง → ไม่ใช่ '0' → fail (fail-closed ทั้งกรณี)
       if ($LASTEXITCODE -ne 0 -or "$emptyTables" -ne '0') { $bootstrapOk = $false }
     }

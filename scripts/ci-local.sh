@@ -126,8 +126,10 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
   # จำนวนตาราง seed ที่ว่าง ต้องเป็น 0; รุ่นก่อนหน้าแค่ print COUNT = "เขียวลอย")
   if [[ "${BOOTSTRAP_OK}" -eq 1 ]]; then
     # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
+    # `|| ASSERT_OUT=''` — กัน `set -euo pipefail` (บรรทัด 24) abort ก่อนพิมพ์ breakdown/
+    # docker logs เมื่อ exec ล้ม (เช่น ตารางหายตาม drift): ให้ไหลเข้าเส้นทาง stdout-ว่างด้านล่าง
     ASSERT_OUT=$(docker exec -i "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword \
-      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}")
+      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}") || ASSERT_OUT=''
     echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
     echo "${ASSERT_OUT:-<empty — assert exec failed>}"
     EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)

@@ -5,3 +5,6 @@ Dockerfile* text eol=lf
 # — bash ที่มากับ git ทนได้ แต่ bash ของ WSL ปฏิเสธ (`syntax error: unexpected end of file`)
 # ซึ่งเป็นสภาพแวดล้อมที่ backend/tests/run.sh ใช้จริงบนเครื่องนี้
 .githooks/* text eol=lf
+# assert SQL ถูกส่งเข้า mysql client ผ่าน `docker exec -i` stdin ทั้งจาก Linux runner และ
+# Windows — คง LF กันเส้นทาง encoding/line-ending เพี้ยนต่างกันระหว่างสองฝั่ง
+scripts/sql/*.sql text eol=lf
