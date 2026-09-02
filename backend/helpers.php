@@ -191,3 +191,40 @@ function sqlPersonnelFullName(string $personnelAlias = 'p', string $prefixAlias 
     return "CONCAT(COALESCE({$prefixAlias}.prefix_name_th COLLATE utf8mb4_unicode_ci, ''),"
         . " {$personnelAlias}.first_name, ' ', {$personnelAlias}.last_name)";
 }
+
+/**
+ * คำนวณ net breakdown (ปี/เดือน/วัน + net_end_date) จากวันเริ่มต้นและจำนวนวัน effective
+ * รวมศูนย์ logic เดิมที่เคยกระจายใน MultiplierEngine และ supportive (สูตรเดียวทั้งระบบ)
+ *
+ * ⚠ การรวมศูนย์นี้เปลี่ยนความหมายของข้อมูลที่เก็บไว้ 2 มิติ (ตัดสินใจแล้ว — ไม่ทำ migration
+ * เพราะทีมยืนยันว่ายังไม่มีข้อมูลจริงที่ต่างกัน):
+ *   (1) base ของ "ปี" เปลี่ยนจาก 360 → 365 วัน — แถวเก่าที่คำนวณด้วย base 360
+ *       (multiplier) จะไม่ตรงกับสูตรใหม่ถ้าคำนวณซ้ำ
+ *   (2) MultiplierEngine เดิมวาง net_end_date จาก eligible_start (clip start ที่ effective
+ *       window) — ตอนนี้ helper รับ startDate ตรง ๆ caller เป็นคนเลือกว่าจะส่งวันอะไร
+ *       และทุก caller ใช้นิยาม inclusive: net_end_date = start + effective - 1
+ *       (supportive เดิมใช้ start + effective แบบไม่ -1 จึงเลื่อนไป 1 วันจากของเดิม)
+ *
+ * สูตร: base 365 วัน/ปี, 30 วัน/เดือน (ไม่คิด leap year)
+ *
+ * @param DateTime $startDate วันเริ่มต้นนับ (เวลา 00:00:00 ตาม pattern ของ caller)
+ * @param int $effectiveDays จำนวนวัน effective ที่ floor แล้ว
+ * @return array{net_end_date: string, net_years: int, net_months: int, net_day_remainder: int}
+ */
+function computeNetBreakdown(DateTime $startDate, int $effectiveDays): array
+{
+    $netYears = (int) floor($effectiveDays / 365);
+    $netMonths = (int) floor(($effectiveDays % 365) / 30);
+    $netDayRemainder = (int) (($effectiveDays % 365) % 30);
+
+    // inclusive end: effective = 1 วัน → net_end_date = วันเริ่มต้นเอง; effective <= 0 → ใช้วันเริ่มต้น
+    $netEndDate = clone $startDate;
+    $netEndDate->modify('+' . max($effectiveDays - 1, 0) . ' days');
+
+    return [
+        'net_end_date' => $netEndDate->format('Y-m-d'),
+        'net_years' => $netYears,
+        'net_months' => $netMonths,
+        'net_day_remainder' => $netDayRemainder,
+    ];
+}

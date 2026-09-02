@@ -178,12 +178,15 @@ import { RouterLink } from 'vue-router'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import { useApi } from '@/composables/useApi.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import {
   Users, UserCheck, TrendingUp, Clock,
   RefreshCw, AlertCircle, Zap,
 } from 'lucide-vue-next'
 
 const api = useApi()
+// กัน response เก่า (กดรีเฟรชซ้ำเร็ว ๆ) ทับตัวเลขใหม่
+const { next: nextRequest } = useRequestSeq()
 
 const loading = ref(false)
 const error = ref('')
@@ -221,19 +224,26 @@ function formatNumber(value) {
 }
 
 async function fetchDashboard() {
+  const req = nextRequest()
   loading.value = true
   error.value = ''
 
   try {
     // ดึงข้อมูลสรุปจาก /dashboard endpoint เดียว (รวม candidate totals)
     const d = await api.get('/dashboard')
+    if (!req.isCurrent()) return
 
     stats.value.totalPersonnel = d.total_personnel || 0
     stats.value.probationTotal = d.probation?.total || 0
     stats.value.timeCountTotal = d.time_counting?.total || 0
     stats.value.candidateTotal = d.candidates?.total || 0
+    // ใช้ค่า in_progress จาก backend ตรง ๆ (predicate เดียวกับหน้า probation)
+    // fallback คำนวณเองแบบเดิมไว้รองรับช่วงก่อน backend deploy ครบ
+    const inProgress = typeof d.probation?.in_progress === 'number'
+      ? d.probation.in_progress
+      : Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0))
     probationSummary.value = {
-      inProgress: Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0)),
+      inProgress,
       nearDeadline: d.probation?.near_deadline || 0,
       overdue: d.probation?.overdue || 0,
     }
@@ -274,10 +284,11 @@ async function fetchDashboard() {
     priorityTasks.value = tasks
 
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
     console.error('Dashboard fetch error:', err)
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 

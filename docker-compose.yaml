@@ -19,6 +19,15 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # Local/dev only — production Render ต้องไม่ตั้งค่านี้จนกว่าจะตั้งใจใช้ TEST_SEED
       - APPLY_TEST_SEED_MIGRATIONS=1
+    # F41/T24: healthcheck ด้วย `php -r` เรียก /api/readyz — curl CLI ไม่การันตีว่ามี
+    # ใน php:8.3-apache image · /api/readyz เป็น public route (ไม่ต้อง JWT) และ
+    # api.php ตัด prefix 'api' ออกให้เอง
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost/api/readyz') === false ? 1 : 0);"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -37,7 +46,10 @@ services:
     ports:
       - "8081:80" # ใช้ port 8081
     depends_on:
-      - backend
+      # F41/T24: รอ backend healthy (healthcheck ด้านบน) ไม่ใช่แค่ started —
+      # กัน nginx proxy ยิง /api/ ไป backend ที่ยังไม่พร้อมตอน compose up ครั้งแรก
+      backend:
+        condition: service_healthy
     networks:
       - smartport-net
     restart: unless-stopped

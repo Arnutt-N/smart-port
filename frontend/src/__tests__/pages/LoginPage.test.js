@@ -86,9 +86,24 @@ describe('LoginPage', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(login).toHaveBeenCalledWith({ username: 'admin', password: 'admin123' })
+    expect(login).toHaveBeenCalledWith({ username: 'admin', password: 'admin123' }, { remember: false })
     expect(push).toHaveBeenCalledWith('/dashboard')
     expect(wrapper.vm.loading).toBe(false)
+  })
+
+  it('passes remember=true when remember-me is checked', async () => {
+    login.mockResolvedValue({ token: 't', user: { id: 1, role: 'admin' } })
+    mustChangePasswordVal = false
+    const wrapper = mountPage()
+    await wrapper.get('input[autocomplete="username"]').setValue('admin')
+    await wrapper.get('input[autocomplete="current-password"]').setValue('admin123')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(login).toHaveBeenCalledWith({ username: 'admin', password: 'admin123' }, { remember: true })
+    expect(push).toHaveBeenCalledWith('/dashboard')
   })
 
   it('redirects to change-password when mustChangePassword is true', async () => {
@@ -101,7 +116,7 @@ describe('LoginPage', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(login).toHaveBeenCalledWith({ username: 'operator1', password: 'tempPass1' })
+    expect(login).toHaveBeenCalledWith({ username: 'operator1', password: 'tempPass1' }, { remember: false })
     expect(push).toHaveBeenCalledWith('/change-password')
   })
 

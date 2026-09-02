@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 include_once __DIR__ . '/../authz.php';
+include_once __DIR__ . '/../helpers.php';
 
 /**
  * Issue #147 — คืน null เมื่อไม่ได้ตั้ง OCR_SERVER_URL
@@ -112,8 +113,11 @@ function handleOcr(PDO $pdo, string $method, array $path): void
         curl_close($ch);
 
         if ($body === false || $code === 0) {
+            // F29: รายละเอียด error ของ upstream ไม่ควรกลับไปถึง client (info leak) —
+            // ลง error_log ฝั่ง server เท่านั้น (sanitize ก่อน ตาม Issue #122)
+            error_log('[ocr] convert unreachable: ' . sanitizeLogValue($err));
             http_response_code(502);
-            echo json_encode(['error' => 'OCR server unreachable', 'detail' => $err]);
+            echo json_encode(['error' => 'OCR server unreachable']);
             return;
         }
 

@@ -41,6 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # F18/T21: production deps audit — fail บน high/critical (mirror ci-local.ps1/sh)
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Run tests
         run: npm test
 
@@ -82,7 +86,7 @@ jobs:
           MYSQL_DATABASE=civil_service_mgmt
           MYSQL_USER=root
           MYSQL_PASSWORD=rootpassword
-          JWT_SECRET=ci-only-not-for-production
+          JWT_SECRET=ci-only-not-for-production-jwt-32chars-min-000000
           EOF
 
       - name: Start database and backend

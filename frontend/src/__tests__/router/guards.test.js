@@ -126,6 +126,12 @@ describe('router candidate paths', () => {
     expect(router.currentRoute.value.params.section).toBe('overview')
   })
 
+  it('redirects unknown candidate sections to overview', async () => {
+    await router.push('/candidates/foo')
+    expect(router.currentRoute.value.name).toBe('candidates')
+    expect(router.currentRoute.value.params.section).toBe('overview')
+  })
+
   it('does not expose legacy /supportive quick-action path', async () => {
     await router.push('/supportive')
     expect(router.currentRoute.value.path).toBe('/dashboard')

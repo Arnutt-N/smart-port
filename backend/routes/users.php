@@ -299,6 +299,7 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
     }
 
     // Reset password — hash ใหม่ + บังคับเปลี่ยนครั้งถัดไป
+    $passwordReset = false;
     if (isset($data['password']) && $data['password'] !== '') {
         if (strlen($data['password']) < PASSWORD_MIN_LENGTH) {
             http_response_code(400);
@@ -308,6 +309,7 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
         $sets[] = "password_hash = ?";
         $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
         $sets[] = "must_change_password = 1";
+        $passwordReset = true;
     }
 
     if (empty($sets)) {
@@ -339,6 +341,17 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
+
+        // F5: admin reset รหัสผ่านแล้วเพิกถอน refresh token ทุกใบของเจ้าของบัญชี
+        // (kill-all เหมือน self change-password — session เดิม refresh ต่อไม่ได้)
+        // อยู่ใน transaction เดียวกันกับ UPDATE users เมื่อ guardLastSuperadmin
+        if ($passwordReset) {
+            $pdo->prepare(
+                'UPDATE refresh_tokens
+                 SET revoked_at = ?
+                 WHERE user_id = ? AND revoked_at IS NULL'
+            )->execute([date('Y-m-d H:i:s'), $id]);
+        }
 
         $afterStmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
         $afterStmt->execute([$id]);

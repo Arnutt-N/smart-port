@@ -59,11 +59,12 @@ if (getenv('APP_ENV') === 'development') {
 }
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+// F30: ส่ง ACAO เฉพาะเมื่อ Origin อยู่ใน allowlist เท่านั้น — fallback ส่ง origin แรก
+// ให้ทุก request ทำให้ origin แปลกปลอมได้ header อนุญาตโดยไม่จำเป็น
+// Vary: Origin ต้องส่งเสมอ เพราะ response ต่างกันตาม Origin (cache ต้องแยก key)
+header('Vary: Origin');
 if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: $origin");
-} else {
-    // Fallback to first allowed origin
-    header('Access-Control-Allow-Origin: ' . $allowedOrigins[0]);
 }
 
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -126,8 +127,8 @@ if ($isPublicPhotoAsset) {
     checkRateLimitPublic('csp-report', 60, 60);
 } elseif ($isCspSummary) {
     // Issue #113 code review I3: เข้มกว่าตัวอื่นเพราะ endpoint นี้มี secret ให้เดา แต่ 10/นาที
-    // นี้เป็นแค่ defence-in-depth ไม่ใช่ตัวกัน brute-force ตัวจริง — publicClientIp() อ่าน XFF
-    // hop แรกที่ client ปลอมได้ (มีเทสยืนยันที่ PublicRateLimitTest) ตัวกันจริงคือ entropy ของ
+    // นี้เป็นแค่ defence-in-depth ไม่ใช่ตัวกัน brute-force ตัวจริง — publicClientIp() อ่าน
+    // last hop ของ XFF ที่ proxy append (มีเทสยืนยันที่ PublicRateLimitTest) ตัวกันจริงคือ entropy ของ
     // token เอง (ดู CSP_SUMMARY_TOKEN_MIN_LENGTH ใน routes/csp_summary.php)
     checkRateLimitPublic('csp-summary', 10, 60);
 }
@@ -409,6 +410,25 @@ switch ($path[0]) {
         } elseif ($method === 'DELETE' && $servantId > 0) {
             // Soft-delete: ปิดใช้งานบุคลากร (ออกจากรายชื่อ candidates ที่กรอง is_active=1)
             requirePermission('delete', 'personnel');
+            // F15: บันทึก audit ก่อน UPDATE — pattern เดียวกับ PUT ใน routes/personnel.php
+            // (snapshot เฉพาะฟิลด์เดียวกัน, citizen_id ไม่เข้า audit เพราะเป็น PII)
+            $beforeStmt = $pdo->prepare(
+                'SELECT first_name, last_name, prefix_id, employee_id, is_active
+                 FROM personnel WHERE personnel_id = ?'
+            );
+            $beforeStmt->execute([$servantId]);
+            $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+            if ($beforeRow) {
+                logAudit(
+                    $pdo,
+                    (int) (getAuthenticatedUser()['user_id'] ?? 0),
+                    'DELETE',
+                    'personnel',
+                    $servantId,
+                    $beforeRow,
+                    array_merge($beforeRow, ['is_active' => 0])
+                );
+            }
             $stmt = $pdo->prepare(
                 'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
             );
@@ -434,18 +454,28 @@ switch ($path[0]) {
             requirePermission('read', 'dashboard');
             $pdo = getDB();
 
+            // F33: COUNT แต่ละจุดต้องไม่ทำ endpoint ทั้งอันพังเมื่อตารางใดหาย
+            // (schema ต่างกัน/TiDB) — ใช้ analyticsScalar (routes/analytics.php:29)
+            // ซึ่งครอบด้วย try/catch คืน 0 เป็น pattern เดียวกับ analytics route
+            include_once __DIR__ . '/routes/analytics.php';
+
             // จำนวนบุคลากรทั้งหมด (จาก personnel table)
-            $stmt = $pdo->query("SELECT COUNT(*) as total FROM personnel WHERE is_active = 1");
-            $totalPersonnel = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+            $totalPersonnel = analyticsScalar($pdo, "SELECT COUNT(*) FROM personnel WHERE is_active = 1");
 
             // สรุปพ้นทดลอง
-            $stmt = $pdo->query("SELECT COUNT(*) as total FROM probation_enrollment");
-            $probationTotal = (int) $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+            $probationTotal = analyticsScalar($pdo, "SELECT COUNT(*) FROM probation_enrollment");
 
             // vw_probation_dashboard อาจพังบน TiDB (definer issue) — ใช้ try-catch
+            $probationInProgress = 0;
             $probationNear = 0;
             $probationOverdue = 0;
             try {
+                // in_progress ใช้ predicate เดียวกับ summary ของ probation route
+                // (routes/probation.php getProbationList: IN_PROGRESS + DATEDIFF > 0;
+                // view กรอง IN_PROGRESS ไว้แล้ว จึงเหลือกรอง remaining_days > 0)
+                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days > 0");
+                $probationInProgress = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+
                 $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 1 AND 30");
                 $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
@@ -454,6 +484,13 @@ switch ($path[0]) {
             } catch (PDOException $e) {
                 // View ไม่สามารถใช้งานได้ — fallback คำนวณจาก base tables
                 try {
+                    $stmt = $pdo->query("
+                        SELECT COUNT(*) as c FROM probation_enrollment
+                        WHERE overall_status = 'IN_PROGRESS'
+                        AND DATEDIFF(end_date, CURDATE()) > 0
+                    ");
+                    $probationInProgress = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+
                     $stmt = $pdo->query("
                         SELECT COUNT(*) as c FROM probation_enrollment
                         WHERE overall_status = 'IN_PROGRESS'
@@ -473,14 +510,11 @@ switch ($path[0]) {
             }
 
             // จำนวนการนับเวลาเพิ่มเติม
-            $stmt = $pdo->query("SELECT COUNT(*) as c FROM supportive_experience");
-            $supportiveCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+            $supportiveCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM supportive_experience");
 
-            $stmt = $pdo->query("SELECT COUNT(*) as c FROM diverse_experience");
-            $diverseCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+            $diverseCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM diverse_experience");
 
-            $stmt = $pdo->query("SELECT COUNT(*) as c FROM position_equivalence");
-            $equivalenceCount = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
+            $equivalenceCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM position_equivalence");
 
             // Candidate totals จาก QualificationEngine overview (seam เดียวกับ /candidates/overview)
             $candidateTotals = [];
@@ -528,6 +562,7 @@ switch ($path[0]) {
                 'total_personnel' => $totalPersonnel,
                 'probation' => [
                     'total' => $probationTotal,
+                    'in_progress' => $probationInProgress,
                     'near_deadline' => $probationNear,
                     'overdue' => $probationOverdue,
                 ],

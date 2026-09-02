@@ -54,9 +54,19 @@ final class PublicRateLimitTest extends TestCase
     }
 
     #[Test]
-    public function it_uses_first_hop_of_forwarded_for(): void
+    public function it_uses_last_hop_of_forwarded_for(): void
     {
+        // Render proxy chain append IP จริงต่อท้าย XFF — hop ท้ายสุดเชื่อถือได้
+        // hop แรกคือค่าที่ client ตั้งเองได้ (ปลอมได้) จึงต้องไม่ถูกใช้
         $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.7, 10.0.0.1';
+
+        self::assertSame('10.0.0.1', publicClientIp());
+    }
+
+    #[Test]
+    public function it_uses_the_only_hop_when_forwarded_for_is_single_hop(): void
+    {
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.7';
 
         self::assertSame('198.51.100.7', publicClientIp());
     }

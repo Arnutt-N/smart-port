@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const changePassword = vi.fn()
 const logout = vi.fn()
 const push = vi.fn()
+const showToast = vi.fn()
 const confirmLogoutMock = vi.fn(async () => true)
 
 vi.mock('@/stores/auth.js', () => ({
   useAuthStore: () => ({ changePassword, logout }),
+}))
+
+vi.mock('@/stores/ui.js', () => ({
+  useUiStore: () => ({ showToast }),
 }))
 
 vi.mock('vue-router', () => ({
@@ -25,6 +30,7 @@ describe('ChangePasswordPage', () => {
     changePassword.mockReset()
     logout.mockReset()
     push.mockReset()
+    showToast.mockReset()
     confirmLogoutMock.mockReset()
     confirmLogoutMock.mockResolvedValue(true)
   })
@@ -41,7 +47,7 @@ describe('ChangePasswordPage', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('ไม่ตรงกัน')
   })
 
-  it('changes the password and continues to the dashboard', async () => {
+  it('changes the password, revokes the session, and returns to login', async () => {
     changePassword.mockResolvedValue({ success: true })
     const wrapper = mount(ChangePasswordPage)
     await wrapper.get('#current-password').setValue('temporary-password')
@@ -52,7 +58,10 @@ describe('ChangePasswordPage', () => {
     await flushPromises()
 
     expect(changePassword).toHaveBeenCalledWith('temporary-password', 'new-secure-password')
-    expect(push).toHaveBeenCalledWith('/dashboard')
+    // T4: เปลี่ยนรหัส = revoke ทุก session — บังคับ login ใหม่พร้อม toast แจ้ง
+    expect(logout).toHaveBeenCalledTimes(1)
+    expect(showToast).toHaveBeenCalledWith('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
+    expect(push).toHaveBeenCalledWith('/login')
   })
 
   it('logout asks for confirmation before signing out', async () => {

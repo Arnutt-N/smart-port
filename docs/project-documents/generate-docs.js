@@ -252,7 +252,7 @@ function createExecutiveSummary() {
         new TableRow({ children: [dataCell('Frontend', 2500), dataCell('Vue 3 + Vite + Tailwind CSS 4', 3263), dataCell('Vue 3.5, Vite 6.0, Tailwind 4.1', 3263)] }),
         new TableRow({ children: [dataCell('Backend', 2500, { shading: COLOR_ROW_ALT }), dataCell('PHP 8.3 REST API', 3263, { shading: COLOR_ROW_ALT }), dataCell('PHP 8.3-Apache', 3263, { shading: COLOR_ROW_ALT })] }),
         new TableRow({ children: [dataCell('Database', 2500), dataCell('MySQL 8.0 / TiDB Cloud', 3263), dataCell('MySQL 8.0, utf8mb4', 3263)] }),
-        new TableRow({ children: [dataCell('Authentication', 2500, { shading: COLOR_ROW_ALT }), dataCell('JWT (HMAC-SHA256)', 3263, { shading: COLOR_ROW_ALT }), dataCell('firebase/php-jwt 6.0', 3263, { shading: COLOR_ROW_ALT })] }),
+        new TableRow({ children: [dataCell('Authentication', 2500, { shading: COLOR_ROW_ALT }), dataCell('JWT (HMAC-SHA256)', 3263, { shading: COLOR_ROW_ALT }), dataCell('custom HS256 implementation (backend/auth.php) \u2014 \u0E15\u0E31\u0E14\u0E2A\u0E34\u0E19\u0E43\u0E08\u0E41\u0E25\u0E49\u0E27 \u0E44\u0E21\u0E48\u0E43\u0E0A\u0E49 library', 3263, { shading: COLOR_ROW_ALT })] }),
         new TableRow({ children: [dataCell('Deployment', 2500), dataCell('Docker + Render.com', 3263), dataCell('Multi-stage builds', 3263)] }),
         new TableRow({ children: [dataCell('State Management', 2500, { shading: COLOR_ROW_ALT }), dataCell('Pinia', 3263, { shading: COLOR_ROW_ALT }), dataCell('Pinia 3.0', 3263, { shading: COLOR_ROW_ALT })] }),
         new TableRow({ children: [dataCell('Charts', 2500), dataCell('Chart.js + vue-chartjs', 3263), dataCell('Chart.js 4.4', 3263)] }),

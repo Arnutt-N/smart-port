@@ -88,8 +88,9 @@ function handleProbation(PDO $pdo, string $method, array $path): void
 function getProbationList(PDO $pdo): void
 {
     $search = $_GET['search'] ?? '';
-    $limit = intval($_GET['limit'] ?? 20);
-    $offset = intval($_GET['offset'] ?? 0);
+    // clamp กันค่าติดลบ (500 ที่ SQL ไม่รับ) และค่ายักษ์ (dump ตารางทั้งตาราง)
+    $limit = max(1, min(200, intval($_GET['limit'] ?? 20)));
+    $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $where = '';
     $params = [];
@@ -286,16 +287,48 @@ function createProbationEnrollment(PDO $pdo): void
         }
     }
 
+    // กัน FK ระเบิดเป็น 500 — pre-check ทรัพยากรอ้างอิงก่อน INSERT (pattern เดียวกับ multiplier)
+    $personnelId = intval($data['personnel_id']);
+    if (!personnelExists($pdo, $personnelId)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Personnel not found']);
+        return;
+    }
+    $programCheck = $pdo->prepare('SELECT 1 FROM probation_program WHERE program_id = ? LIMIT 1');
+    $programCheck->execute([intval($data['program_id'])]);
+    if (!$programCheck->fetchColumn()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Program not found']);
+        return;
+    }
+
+    // end_date ต้องไม่น้อยกว่า start_date (เทียบ string Y-m-d ได้ตรงเพราะรูปแบบ sort ได้)
+    if ($data['end_date'] < $data['start_date']) {
+        http_response_code(400);
+        echo json_encode(['error' => 'end_date must be greater than or equal to start_date']);
+        return;
+    }
+
     $sql = "INSERT INTO probation_enrollment (personnel_id, program_id, start_date, end_date, overall_status)
             VALUES (?, ?, ?, ?, 'IN_PROGRESS')";
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        intval($data['personnel_id']),
-        intval($data['program_id']),
-        $data['start_date'],
-        $data['end_date']
-    ]);
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $personnelId,
+            intval($data['program_id']),
+            $data['start_date'],
+            $data['end_date']
+        ]);
+    } catch (PDOException $e) {
+        // duplicate (personnel_id, program_id) มี unique key — ต้องเป็น 409 ไม่ใช่ 500
+        if ($e->getCode() === '23000') {
+            http_response_code(409);
+            echo json_encode(['error' => 'Enrollment already exists for this personnel and program']);
+            return;
+        }
+        throw $e;
+    }
 
     $enrollmentId = $pdo->lastInsertId();
 

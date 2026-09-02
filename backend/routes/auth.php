@@ -11,12 +11,14 @@
 //
 // Rate limiting (ตาราง login_attempts):
 //   ผิดติดต่อกัน 5 ครั้งภายใน 15 นาที (นับต่อ username) -> 429
+//   หรือรวมผิดเกิน 20 ครั้งภายใน 15 นาที (นับต่อ IP — กันลอง username ต่าง ๆ กระจายจาก IP เดียว) -> 429
 // ============================================================================
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
 const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
 const LOCKOUT_WINDOW_MINUTES = 15;
 const AUTH_PASSWORD_MIN_LENGTH = 8;
 
@@ -300,6 +302,15 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
         (int) $user['user_id'],
     ]);
 
+    // F5: เปลี่ยนรหัสผ่านแล้วเพิกถอน refresh token ทุกใบของ user นี้ (kill-all) —
+    // session อื่นที่ถือ token เก่าจะ refresh ต่อไม่ได้ แม้ access JWT ยังไม่หมดอายุ
+    // (เขียน revoked_at ด้วย PHP clock — grace ฝั่ง refresh เทียบกับ time() ของ PHP เช่นกัน)
+    $pdo->prepare(
+        'UPDATE refresh_tokens
+         SET revoked_at = ?
+         WHERE user_id = ? AND revoked_at IS NULL'
+    )->execute([date('Y-m-d H:i:s'), (int) $user['user_id']]);
+
     logAudit(
         $pdo,
         (int) $user['user_id'],
@@ -318,10 +329,12 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
  *
  * ข้อความ error 401 เหมือนกันทุกกรณี (user ไม่มี / รหัสผิด / ถูกปิดใช้งาน)
  * เพื่อไม่เปิดเผยว่า username ใดมีอยู่ในระบบ
+ *
+ * @param array<string,mixed>|null $input ใช้ inject ใน tests
  */
-function loginUser(PDO $pdo): void
+function loginUser(PDO $pdo, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // รองรับทั้ง username/password และ email/password (frontend เดิมส่งได้ทั้งสอง key)
     $username = trim((string) ($data['username'] ?? $data['email'] ?? ''));
@@ -336,6 +349,10 @@ function loginUser(PDO $pdo): void
     // ลบ log เก่าเกิน 1 วัน — กันตาราง login_attempts โตไม่จำกัด
     $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY");
 
+    // IP ของ client จริง (last hop ของ XFF — หลัง Render proxy REMOTE_ADDR เดี่ยว ๆ
+    // คือ IP ของ proxy ทั้งหมด ถ้าใช้บันทึก counter จะรวมทุก client เป็น IP เดียว)
+    $ip = publicClientIp();
+
     // Rate limit: นับครั้งที่ผิดใน 15 นาทีล่าสุดของ username นี้
     $stmt = $pdo->prepare(
         "SELECT COUNT(*) AS fails FROM login_attempts
@@ -349,6 +366,27 @@ function loginUser(PDO $pdo): void
         http_response_code(429);
         echo json_encode(['error' => 'พยายามเข้าสู่ระบบผิดเกินกำหนด กรุณารอ ' . LOCKOUT_WINDOW_MINUTES . ' นาที']);
         return;
+    }
+
+    // Rate limit ต่อ IP: รวมทุก username ที่ผิดจาก IP นี้ใน 15 นาที —
+    // กันการกระจายลอง username จาก IP เดียว (tradeoff ที่ยอมรับ: NAT shared-IP
+    // อาจโดนรวมกัน แต่เกณฑ์ 20 สูงกว่าต่อ-username 5 มากพอที่ผู้ใช้ปกติไม่โดน)
+    // ข้ามถ้าไม่รู้ IP จริง (dev/CLI ไม่มี REMOTE_ADDR/XFF) — กัน bucket 'unknown'
+    // รวมทุก client เป็นหนึ่งเดียว (ยังบันทึก IP ลง log ตามจริงเพื่อ audit)
+    if ($ip !== 'unknown' && $ip !== '') {
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) AS fails FROM login_attempts
+             WHERE ip_address = ? AND is_success = 0
+               AND attempted_at > NOW() - INTERVAL " . LOCKOUT_WINDOW_MINUTES . " MINUTE"
+        );
+        $stmt->execute([$ip]);
+        $ipFails = (int) $stmt->fetch(PDO::FETCH_ASSOC)['fails'];
+
+        if ($ipFails >= MAX_LOGIN_ATTEMPTS_PER_IP) {
+            http_response_code(429);
+            echo json_encode(['error' => 'พยายามเข้าสู่ระบบผิดเกินกำหนด กรุณารอ ' . LOCKOUT_WINDOW_MINUTES . ' นาที']);
+            return;
+        }
     }
 
     $stmt = $pdo->prepare(
@@ -366,7 +404,6 @@ function loginUser(PDO $pdo): void
         && $user['password_hash'] !== null
         && (int) $user['is_active'] === 1;
 
-    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
     $logStmt = $pdo->prepare(
         "INSERT INTO login_attempts (username, ip_address, is_success) VALUES (?, ?, ?)"
     );
@@ -381,6 +418,14 @@ function loginUser(PDO $pdo): void
     $logStmt->execute([$username, $ip, 1]);
     $pdo->prepare("UPDATE users SET last_login_at = NOW() WHERE user_id = ?")
         ->execute([$user['user_id']]);
+
+    // Prune refresh token ที่หมดอายุ หรือถูกเพิกถอนมานานเกิน 30 วัน —
+    // กันตาราง refresh_tokens โตไม่จำกัด (ทำหลัง login สำเร็จเท่านั้น ไม่เพิ่มภาระ path อื่น)
+    $pdo->exec(
+        "DELETE FROM refresh_tokens
+         WHERE expires_at < NOW()
+            OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL 30 DAY)"
+    );
 
     $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
     $refreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
@@ -466,6 +511,9 @@ function refreshSession(PDO $pdo, ?array $input = null): void
     if ($row['revoked_at'] !== null) {
         $revokedTs = strtotime((string) $row['revoked_at']);
         $graceSeconds = 10;
+        // F16 นาฬิกาเดียว: เขียน revoked_at ด้วย PHP clock (date()) และ grace เทียบกับ
+        // time() ฝั่ง PHP เช่นกัน — ถ้าผสม NOW() ของ MySQL ที่ session tz ต่างจาก PHP
+        // grace window จะเพี้ยนตามช่องว่างของสองนาฬิกา
         // เพิ่ง revoke ไม่กี่วินาที = race ระหว่าง tab (ไม่ใช่ขโมย) -> 401 เฉยๆ ไม่ kill-all
         if ($revokedTs !== false && (time() - $revokedTs) <= $graceSeconds) {
             http_response_code(401);
@@ -474,17 +522,17 @@ function refreshSession(PDO $pdo, ?array $input = null): void
         }
         // revoke มานานแล้วถูกใช้ซ้ำ = สงสัยถูกขโมย -> เพิกถอนทุกใบ
         $pdo->prepare(
-            'UPDATE refresh_tokens SET revoked_at = NOW()
+            'UPDATE refresh_tokens SET revoked_at = ?
              WHERE user_id = ? AND revoked_at IS NULL'
-        )->execute([(int) $row['user_id']]);
+        )->execute([date('Y-m-d H:i:s'), (int) $row['user_id']]);
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
     }
 
     if (strtotime((string) $row['expires_at']) < time()) {
-        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
-            ->execute([(int) $row['token_id']]);
+        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
+            ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
@@ -498,16 +546,16 @@ function refreshSession(PDO $pdo, ?array $input = null): void
     $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
-        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
-            ->execute([(int) $row['token_id']]);
+        $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
+            ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
     }
 
-    // Rotation: เพิกถอนใบเดิม ออกใบใหม่
-    $pdo->prepare('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = ?')
-        ->execute([(int) $row['token_id']]);
+    // Rotation: เพิกถอนใบเดิม ออกใบใหม่ (เขียนด้วย PHP clock — เหตุผลเดียวกับ F16 ด้านบน)
+    $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
+        ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
 
     $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
     $newRefreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
@@ -529,10 +577,11 @@ function logoutSession(PDO $pdo, ?array $input = null): void
     $rawToken = is_array($data) ? (string) ($data['refresh_token'] ?? '') : '';
 
     if ($rawToken !== '') {
+        // เขียน revoked_at ด้วย PHP clock — นาฬิกาเดียวกับ grace ฝั่ง refresh (F16)
         $pdo->prepare(
-            'UPDATE refresh_tokens SET revoked_at = NOW()
+            'UPDATE refresh_tokens SET revoked_at = ?
              WHERE token_hash = ? AND revoked_at IS NULL'
-        )->execute([hashRefreshToken($rawToken)]);
+        )->execute([date('Y-m-d H:i:s'), hashRefreshToken($rawToken)]);
     }
 
     echo json_encode(['success' => true]);

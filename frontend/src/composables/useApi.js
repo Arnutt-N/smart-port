@@ -1,5 +1,9 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
+// dedupe toast "เซสชันหมดอายุ" — เมื่อ token ตก, หลาย request ชอบ 401 พร้อมกัน
+// ต้องแจ้งผู้ใช้ครั้งเดียว ไม่ใช่หลาย toast ซ้อนกัน
+let sessionExpiredNotified = false
+
 async function authenticatedFetch(url, options = {}, retried = false) {
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
@@ -28,6 +32,11 @@ async function authenticatedFetch(url, options = {}, retried = false) {
     headers,
   })
 
+  if (response.ok) {
+    // เรียกสำเร็จ (เช่นหลังเข้าสู่ระบบใหม่) — เปิดให้แจ้งเตือน session หมดอายุได้อีกครั้ง
+    sessionExpiredNotified = false
+  }
+
   if (response.status === 401) {
     // Login 401 ต้องโชว์ข้อความจาก API (ไทย) — ห้ามกลายเป็น "Unauthorized" แล้วเด้ง logout
     const isPublicAuth =
@@ -46,6 +55,13 @@ async function authenticatedFetch(url, options = {}, retried = false) {
       } catch {
         // refresh ล้มเหลว — ตกไป logout ด้านล่าง
       }
+    }
+
+    // แจ้งผู้ใช้ด้วย toast ไทยก่อนเด้งกลับหน้า login — dedupe กันหลาย request โชว์ซ้ำ
+    if (!sessionExpiredNotified) {
+      sessionExpiredNotified = true
+      const { useUiStore } = await import('@/stores/ui.js')
+      useUiStore().showToast('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error')
     }
 
     auth.logout()
@@ -74,6 +90,10 @@ async function request(url, options = {}) {
     const contentType = response.headers.get('content-type') || ''
     if (contentType.includes('application/json')) {
       const error = await response.json().catch(() => ({ error: response.statusText }))
+      // backend ส่ง error ภาษาอังกฤษมากับโค้ดนี้ — บังคับข้อความไทยให้ผู้ใช้
+      if (error.code === 'PASSWORD_CHANGE_REQUIRED') {
+        throw new Error('กรุณาเปลี่ยนรหัสผ่านก่อนใช้งานระบบ')
+      }
       throw new Error(error.error || response.statusText)
     }
     // Non-JSON response (HTML error page, 503 from cold start, etc.)
