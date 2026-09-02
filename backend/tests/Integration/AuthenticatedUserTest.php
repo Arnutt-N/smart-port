@@ -7,7 +7,7 @@ namespace Tests\Integration;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-putenv('JWT_SECRET=integration-test-secret');
+putenv('JWT_SECRET=integration-test-secret-0123456789abcdef');
 
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../auth.php';

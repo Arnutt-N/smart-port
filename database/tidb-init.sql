@@ -58,8 +58,9 @@ CREATE TABLE civil_servant_photos (
     photo_status VARCHAR(30) DEFAULT 'pending_approval',
     is_primary TINYINT(1) NOT NULL DEFAULT 0,
     upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id)
+    is_active TINYINT(1) NOT NULL DEFAULT 1
+    -- FK (servant_id) -> civil_servants ถูกปลดโดย migration 22 (unify person identity)
+    -- parity gate เทียบ FK pairs — ห้ามใส่กลับ
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- เวอร์ชันภาพ — schema simple ตาม backend/helpers.php ที่ INSERT แค่
@@ -148,8 +149,8 @@ CREATE TABLE performance_proposals (
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (evaluator_id) REFERENCES civil_servants(servant_id),
+    -- FK (servant_id)/(evaluator_id) -> civil_servants ถูกปลดโดย migration 22
+    -- (ตารางนี้ไม่ถูก drop — parity gate เทียบ FK pairs ห้ามใส่กลับ)
     INDEX idx_servant_type (servant_id, proposal_type),
     INDEX idx_status (status),
     INDEX idx_submission_date (submission_date)

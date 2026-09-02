@@ -559,7 +559,8 @@ async function openDeleteConfirm(row) {
     await remove(row.multiplierId)
     await fetchData()
   } catch (err) {
-    alert(err.message || 'ไม่สามารถลบรายการได้')
+    // toast แทน alert() — สไตล์เดียวกับหน้าอื่น และไม่บล็อกเธรด UI
+    ui.showToast(err.message || 'ไม่สามารถลบรายการได้', 'error')
   } finally {
     saving.value = false
   }

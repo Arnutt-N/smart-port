@@ -188,6 +188,24 @@ function getSupportiveDetail(PDO $pdo, int $id): void
 }
 
 /**
+ * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine::parseStrictDate มาไว้ที่นี่
+ * เพื่อไม่ต้อง include engine ทั้งไฟล์) — คืน null ถ้า format ผิดหรือมี overflow
+ * (เดือน 13, วัน 45) — 'Y-m-d|' reset เวลาเป็น 00:00:00 กันคลาดเคลื่อน ±1 วัน
+ */
+function supportiveStrictDate(string $value): ?DateTime
+{
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
+
+/**
  * คำนวณ total_days, effective_days, net_* จาก start_date, end_date, ratio
  * ใช้ร่วมกันระหว่าง create และ update
  *
@@ -197,11 +215,20 @@ function getSupportiveDetail(PDO $pdo, int $id): void
  * @param string $jobSeriesName สายงานที่เกื้อกูล (map to supportive_series_name)
  * @param string|null $primarySeriesName สายงานหลัก (map to primary_series_name)
  * @return array Computed fields
+ * @throws InvalidArgumentException เมื่อวันที่ malformed หรือ end < start (route ตอบ 400)
  */
 function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDateStr, string $jobSeriesName, ?string $primarySeriesName = null): array
 {
-    $startDate = new DateTime($startDateStr);
-    $endDate = new DateTime($endDateStr);
+    // F11: parse แบบเข้มงวด — เดิมใช้ new DateTime() หลวม และ end < start ยังได้
+    // total_days positive ที่ผิดความหมาย
+    $startDate = supportiveStrictDate($startDateStr);
+    $endDate = supportiveStrictDate($endDateStr);
+    if ($startDate === null || $endDate === null) {
+        throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
+    }
+    if ($endDate < $startDate) {
+        throw new InvalidArgumentException('end_date ต้องไม่น้อยกว่า start_date');
+    }
 
     // D-05: total_days = DATEDIFF + 1 (inclusive)
     $totalDays = $endDate->diff($startDate)->days + 1;
@@ -228,24 +255,17 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
     // Floor for net_* calculations since effective_days is DECIMAL(10,2)
     $flooredEffective = intval(floor($effectiveDays));
 
-    // D-07: net breakdown
-    $netYears = intval(floor($flooredEffective / 365));
-    $netMonths = intval(floor(($flooredEffective % 365) / 30));
-    $netDayRemainder = intval($flooredEffective % 365 % 30);
-
-    // net_end_date = start_date + floored effective days
-    $netEndDate = clone $startDate;
-    $netEndDate->modify("+{$flooredEffective} days");
-    $netEndDateStr = $netEndDate->format('Y-m-d');
+    // D-07: net breakdown รวมศูนย์ที่ helpers.php (base 365, inclusive end) — สูตรเดียวกับ multiplier
+    $breakdown = computeNetBreakdown($startDate, $flooredEffective);
 
     return [
         'total_days' => $totalDays,
         'ratio_percent' => $ratioPercent,
         'effective_days' => $effectiveDays,
-        'net_end_date' => $netEndDateStr,
-        'net_years' => $netYears,
-        'net_months' => $netMonths,
-        'net_day_remainder' => $netDayRemainder
+        'net_end_date' => $breakdown['net_end_date'],
+        'net_years' => $breakdown['net_years'],
+        'net_months' => $breakdown['net_months'],
+        'net_day_remainder' => $breakdown['net_day_remainder']
     ];
 }
 
@@ -268,13 +288,20 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // Server-side computation (D-05, D-06, D-07, SE-04)
-    $computed = computeSupportiveFields(
-        $pdo,
-        $data['start_date'],
-        $data['end_date'],
-        $data['job_series_name'],
-        $data['primary_series_name'] ?? null
-    );
+    // วันที่ malformed หรือ end < start → 400 (message มาจาก InvalidArgumentException)
+    try {
+        $computed = computeSupportiveFields(
+            $pdo,
+            $data['start_date'],
+            $data['end_date'],
+            $data['job_series_name'],
+            $data['primary_series_name'] ?? null
+        );
+    } catch (InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        return;
+    }
 
     $sql = "INSERT INTO supportive_experience
             (personnel_id, job_series_name, start_date, end_date,
@@ -364,7 +391,33 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
         $jobSeriesName = $data['job_series_name'] ?? $existing['job_series_name'];
         $primarySeriesName = $data['primary_series_name'] ?? null;
 
-        $computed = computeSupportiveFields($pdo, $startDate, $endDate, $jobSeriesName, $primarySeriesName);
+        // F11: request ไม่ส่ง primary_series_name → อ่าน "ค่าเดิม" จาก DB ก่อน recompute
+        // ไม่งั้น ratio lookup พลาดแล้ว ratio_percent เดิมถูกรีเซ็ตเป็น 100 เฉย ๆ
+        // (primary_series_name ไม่ได้เก็บบน supportive_experience จึง recovery กลับจาก
+        // mapping table ด้วย supportive_series_name + ratio_percent เดิมของแถว —
+        // ใช้ job_series_name เดิมเพราะ ratio_percent ที่เก็บไว้มาจาก mapping คู่เดิม;
+        // ถ้าหาไม่เจอ (mapping ถูกแก้/ซ้ำหลายคู่) ค่อยปล่อย null ให้ default 100 ตาม D-04)
+        if (($primarySeriesName === null || $primarySeriesName === '') && isset($existing['ratio_percent'])) {
+            $prevLookup = $pdo->prepare(
+                'SELECT primary_series_name FROM supportive_job_series
+                 WHERE supportive_series_name = ? AND ratio_percent = ? AND is_active = 1
+                 LIMIT 1'
+            );
+            $prevLookup->execute([$existing['job_series_name'], $existing['ratio_percent']]);
+            $prevPrimary = $prevLookup->fetchColumn();
+            if ($prevPrimary !== false) {
+                $primarySeriesName = (string) $prevPrimary;
+            }
+        }
+
+        // วันที่ malformed หรือ end < start → 400 (message มาจาก InvalidArgumentException)
+        try {
+            $computed = computeSupportiveFields($pdo, $startDate, $endDate, $jobSeriesName, $primarySeriesName);
+        } catch (InvalidArgumentException $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            return;
+        }
 
         $sets[] = "total_days = ?";
         $params[] = $computed['total_days'];

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# pre-push — light local gate (frontend vitest only; no Docker / no Actions)
+# pre-push — light gate; optional Docker steps when available (no Actions)
+#
+# บังคับทุกครั้ง (fail-closed): script regressions + schema parity (node-only) + frontend vitest
+# Optional (รันเมื่อ Docker พร้อมเท่านั้น): backend PHPUnit Unit suite
+#   — backend/tests/run.sh docker-build + docker-run เสมอ จึง "ต้องมี Docker" จริง
+#     Docker ไม่พร้อม = SKIP อย่างมีเสียง **ไม่ fail push** (hook นี้เดิมออกแบบ no-Docker)
 #
 # Skip once:  SKIP_PRE_PUSH=1 git push
 # Or:         git push --no-verify
@@ -32,6 +37,11 @@ echo "[pre-push] script regressions (node --test scripts/tests) ..."
 # quote ปิดก่อน `/scripts` โดยตั้งใจ — คลุม `*` ไว้ในเครื่องหมายคำพูดเมื่อไร glob ก็ไม่ขยาย
 # แล้ว node จะได้ path ที่มีดาวจริง ๆ ต่างจากบรรทัด audit ข้างล่างที่ไม่มี glob จึงคลุมทั้ง path ได้
 node --test "${ROOT}"/scripts/tests/*.test.mjs
+
+# Schema parity gate (T13/F14) — node-only ไม่ต้อง Docker → fail-closed ทุกครั้ง
+# (Actions ปิด auto-trigger อยู่ hook นี้จึงเป็นที่เดียวที่บังคับ gate นี้ได้จริงทุก push)
+echo "[pre-push] schema parity (node scripts/validate-schema-parity.mjs) ..."
+node "${ROOT}/scripts/validate-schema-parity.mjs"
 
 # CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ
 # ให้ใครรัน · Actions ปิด auto-trigger อยู่ hook นี้จึงเป็นที่เดียวที่บังคับได้จริง
@@ -84,4 +94,16 @@ fi
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
 cd "${FRONTEND}"
 npx vitest run --reporter=dot
+
+# Backend PHPUnit Unit suite (T18/F2) — guarded step: run.sh docker-build + docker-run เสมอ
+# จึงต้องมี Docker จริง · ถ้า Docker ไม่พร้อม → SKIP อย่างมีเสียง ไม่ fail push
+# (set -euo pipefail ทำให้ run.sh ล้มเหลว = push ล้มเหลว เมื่อ Docker available — fail-closed)
+if docker info >/dev/null 2>&1; then
+  echo "[pre-push] backend Unit suite (bash backend/tests/run.sh --testsuite Unit) ..."
+  bash "${ROOT}/backend/tests/run.sh" --testsuite Unit
+else
+  echo "[pre-push] SKIP  backend Unit suite skipped — Docker unavailable"
+  echo "[pre-push]       รันเองเมื่อ Docker พร้อม: bash backend/tests/run.sh --testsuite Unit"
+fi
+
 echo "[pre-push] OK"

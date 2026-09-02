@@ -19,8 +19,8 @@ final class RateLimitDatabaseTest extends TestCase
     {
         self::$pdo = testPdo();
         if (!getenv('JWT_SECRET')) {
-            putenv('JWT_SECRET=test-jwt-secret-for-integration');
-            $_ENV['JWT_SECRET'] = 'test-jwt-secret-for-integration';
+            putenv('JWT_SECRET=test-jwt-secret-for-integration-32-chars');
+            $_ENV['JWT_SECRET'] = 'test-jwt-secret-for-integration-32-chars';
         }
     }
 

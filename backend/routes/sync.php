@@ -4,8 +4,8 @@
 // Sync Transform Layer — legacy HR → Smart Port (ADR-0001)
 //
 // Endpoints:
-//   POST /sync/{domain}  — trigger sync for one domain (admin-only)
-//   POST /sync           — trigger sync all domains (admin-only)
+//   POST /sync/{domain}  — trigger sync for one domain (ต้องมีสิทธิ์ create:sync)
+//   POST /sync           — trigger sync all domains (ต้องมีสิทธิ์ create:sync)
 //   GET  /sync/status    — last sync timestamps per domain
 // ============================================================================
 
@@ -24,11 +24,9 @@ function handleSync(PDO $pdo, string $method, array $path): void
         return;
     }
 
-    if (($user['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['error' => 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสั่ง sync ได้']);
-        return;
-    }
+    // ใช้ authz matrix เป็นเส้นตัดสิน (fail-closed) — ห้าม hardcode role check
+    // เพราะ superadmin โดน 403 และ override จาก settings ไม่ถูกนับ
+    requirePermission('create', 'sync');
 
     $sub = $path[1] ?? '';
 

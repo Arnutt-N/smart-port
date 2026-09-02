@@ -75,6 +75,13 @@ RUN printf '%s\n' \
     'expose_php = Off' \
     > /usr/local/etc/php/conf.d/zz-production-errors.ini
 
+# F17/T19: upload limits 25MB — PHP default 2M ตัดรูปขนาดใหญ่
+# ต้องตรงกับ client_max_body_size 25m ใน frontend/nginx.conf (/api/ location)
+RUN printf '%s\n' \
+    'upload_max_filesize = 25M' \
+    'post_max_size = 25M' \
+    > /usr/local/etc/php/conf.d/zz-upload-limits.ini
+
 EXPOSE 80
 
 ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]

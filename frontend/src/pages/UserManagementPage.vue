@@ -294,6 +294,7 @@ import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { roleLabel } from '@/utils/roleLabels.js'
+import { formatServerDateTime } from '@/utils/serverDateTime.js'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -543,16 +544,8 @@ async function submitToggleActive() {
 // ==================== Helpers ====================
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  const date = new Date(value.replace(' ', 'T'))
-  if (isNaN(date.getTime())) return '-'
-  return date.toLocaleString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  // backend คืน DATETIME เป็นเวลาไทย (+07:00) — ใช้ helper ผูก marker ให้แสดงตรงกับที่เก็บทุก timezone
+  return formatServerDateTime(value)
 }
 
 onMounted(fetchData)

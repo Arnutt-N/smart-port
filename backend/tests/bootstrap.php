@@ -83,12 +83,17 @@ function testPdo(): ?PDO
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 
     try {
-        return new PDO($dsn, $user, $pass, [
+        $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
             PDO::ATTR_TIMEOUT            => 4,
         ]);
+        // F26: จัดนาฬิกาให้เทสเห็นเวลาเดียวกับ app — config.php ตั้ง PHP tz = Asia/Bangkok
+        // และ app connection ใช้ session time_zone +07:00 ถ้าเทสเขียน date() ผ่าน session
+        // ที่ tz อื่น TIMESTAMP จะถูกตีความคลาด 7 ชม. ทำให้ grace/prune เทียบเวลาเพี้ยน
+        $pdo->exec("SET time_zone = '+07:00'");
+        return $pdo;
     } catch (PDOException $e) {
         return null;
     }

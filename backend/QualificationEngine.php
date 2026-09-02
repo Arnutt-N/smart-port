@@ -463,7 +463,8 @@ class QualificationEngine
         $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
 
         // Step 6: Data query with ORDER BY + LIMIT/OFFSET
-        $limit = max(1, intval($limit));
+        // cap เพดาน 200 เหมือน probation list — กัน ?limit=999999999 dump ทั้งระดับ
+        $limit = max(1, min(200, intval($limit)));
         $offset = max(0, intval($offset));
         $dataSql = "{$baseSelect}{$searchClause} ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
         $dataStmt = $this->pdo->prepare($dataSql);

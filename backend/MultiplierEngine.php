@@ -50,12 +50,9 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
     $bonusDays = $eligibleDays * ($ratio - 100) / 100;
     $flooredEffective = (int) floor($effectiveDays);
 
-    $netYears = (int) floor($flooredEffective / 360);
-    $netMonths = (int) floor(($flooredEffective % 360) / 30);
-    $netDayRemainder = (int) (($flooredEffective % 360) % 30);
-
-    $netEndDate = clone $eligibleStart;
-    $netEndDate->modify('+' . max($flooredEffective - 1, 0) . ' days');
+    // net breakdown รวมศูนย์ที่ helpers.php (base 365, inclusive end) — สูตรเดียวกับ supportive
+    // ส่ง eligibleStart ตรง ๆ เหมือนเดิม (จุดเริ่มนับยังคือ clip start ที่ effective window)
+    $breakdown = computeNetBreakdown($eligibleStart, $flooredEffective);
 
     return [
         'area_multiplier_id' => (int) $area['area_multiplier_id'],
@@ -69,10 +66,10 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
         'multiplier_ratio' => $ratio,
         'effective_days' => $effectiveDays,
         'bonus_days' => $bonusDays,
-        'net_end_date' => $netEndDate->format('Y-m-d'),
-        'net_years' => $netYears,
-        'net_months' => $netMonths,
-        'net_day_remainder' => $netDayRemainder,
+        'net_end_date' => $breakdown['net_end_date'],
+        'net_years' => $breakdown['net_years'],
+        'net_months' => $breakdown['net_months'],
+        'net_day_remainder' => $breakdown['net_day_remainder'],
     ];
 }
 

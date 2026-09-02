@@ -8,6 +8,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/../../auth.php';
 require_once __DIR__ . '/../../routes/auth.php';
 
 final class PasswordChangeTest extends TestCase
@@ -53,6 +54,7 @@ final class PasswordChangeTest extends TestCase
         }
         self::$pdo->prepare("DELETE FROM audit_log WHERE table_name = 'users' AND record_id = ?")
             ->execute([$this->userId]);
+        self::$pdo->prepare('DELETE FROM refresh_tokens WHERE user_id = ?')->execute([$this->userId]);
         self::$pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$this->userId]);
     }
 
@@ -92,6 +94,54 @@ final class PasswordChangeTest extends TestCase
             ['must_change_password' => false],
             json_decode($row['after_value'], true)
         );
+    }
+
+    #[Test]
+    public function changing_password_revokes_all_active_refresh_tokens(): void
+    {
+        if (!self::$pdo->query("SHOW TABLES LIKE 'refresh_tokens'")->fetchColumn()) {
+            self::markTestSkipped('ไม่พบตาราง refresh_tokens — รัน migration 18-refresh-tokens.sql');
+        }
+
+        // token ใช้งานอยู่ 2 ใบ (เครื่องลูกหลายเครื่อง) — เปลี่ยนรหัสแล้วต้องถูกเพิกถอนหมด (kill-all)
+        $insert = self::$pdo->prepare(
+            'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
+        );
+        $insert->execute([
+            $this->userId,
+            hashRefreshToken('old-device-raw-token'),
+            date('Y-m-d H:i:s', time() + 3600),
+        ]);
+        $insert->execute([
+            $this->userId,
+            hashRefreshToken('other-device-raw-token'),
+            date('Y-m-d H:i:s', time() + 3600),
+        ]);
+
+        ob_start();
+        changePassword(self::$pdo, ['user_id' => $this->userId], [
+            'current_password' => 'temporary-password',
+            'new_password' => 'new-secure-password',
+        ]);
+        $response = json_decode((string) ob_get_clean(), true);
+        self::assertTrue($response['success'] ?? false);
+
+        $stmt = self::$pdo->prepare(
+            'SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL'
+        );
+        $stmt->execute([$this->userId]);
+        self::assertSame(
+            0,
+            (int) $stmt->fetchColumn(),
+            'เปลี่ยนรหัสผ่านแล้ว refresh token ทุกใบต้องถูกเพิกถอน'
+        );
+
+        // token เก่าถูกนำมา reuse = ต้องถูกปฏิเสธ (kill-all ของ F5 ทำงานก่อนถึงจุดนี้แล้ว)
+        http_response_code(200);
+        ob_start();
+        refreshSession(self::$pdo, ['refresh_token' => 'old-device-raw-token']);
+        json_decode((string) ob_get_clean(), true);
+        self::assertSame(401, http_response_code());
     }
 
     #[Test]

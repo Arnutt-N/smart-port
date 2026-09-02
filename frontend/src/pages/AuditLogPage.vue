@@ -214,8 +214,13 @@ import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
 import { useApi } from '@/composables/useApi.js'
+import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { formatServerDateTime } from '@/utils/serverDateTime.js'
 
 const api = useApi()
+// กัน response เก่า (ช้ามาทีหลัง) ทับ state ใหม่เมื่อสลับ filter/page เร็ว ๆ
+const { next: nextRequest } = useRequestSeq()
 
 const loading = ref(false)
 const error = ref('')
@@ -235,6 +240,7 @@ const pagination = ref({
 })
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = ''
 
@@ -249,12 +255,14 @@ async function fetchData() {
     if (filters.value.userId) params.append('user_id', filters.value.userId)
 
     const result = await api.get(`/audit?${params}`)
+    if (!req.isCurrent()) return
     rows.value = result.data || []
     pagination.value.total = result.pagination?.total || 0
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 
@@ -263,6 +271,12 @@ function onPageChange(newOffset) {
   fetchData()
 }
 
+// พิมพ์ user id แล้วรอให้หยุดพิมพ์ก่อนยิง request — debounced + auto-clear เมื่อ unmount
+const { run: scheduleUserIdFilter } = useDebouncedCallback(() => {
+  pagination.value.offset = 0
+  fetchData()
+}, 300)
+
 // เปลี่ยน filter/limit ใดๆ ต้องรีเซ็ต offset กลับหน้าแรกก่อนเสมอ
 // ไม่งั้นถ้าอยู่หน้าท้ายๆ แล้ว filter เหลือผลน้อยกว่า offset เดิม จะเห็น "ไม่พบข้อมูล" ทั้งที่มีจริง
 function onFilterChange() {
@@ -270,10 +284,8 @@ function onFilterChange() {
   fetchData()
 }
 
-let userIdDebounce = null
 function onUserIdInput() {
-  clearTimeout(userIdDebounce)
-  userIdDebounce = setTimeout(onFilterChange, 300)
+  scheduleUserIdFilter()
 }
 
 function showDetail(row) {
@@ -311,15 +323,8 @@ function tableName(table) {
 }
 
 function formatDateTime(dateStr) {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  // backend คืนเวลาไทย (+07:00) — ใช้ helper ผูก marker ให้แสดงเวลาเดียวกับที่เก็บทุก timezone
+  return formatServerDateTime(dateStr)
 }
 
 function onGlobalKeydown(e) {
@@ -333,6 +338,5 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
-  clearTimeout(userIdDebounce)
 })
 </script>

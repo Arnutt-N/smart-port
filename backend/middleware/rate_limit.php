@@ -165,15 +165,27 @@ function rateLimitGlobal(): void
 // ============================================================================
 
 /**
- * IP ของ client — first hop ของ X-Forwarded-For (Render/nginx ตั้งให้)
- * fallback REMOTE_ADDR; sanitize ให้เหลือแค่รูปของ IPv4/IPv6
+ * IP ของ client — last hop ของ X-Forwarded-For
+ *
+ * Render proxy chain: client → Render edge proxy → Apache ใน container
+ * ทุก proxy ผนวก IP ของผู้ส่งต่อท้าย XFF ดังนั้น hop ท้ายสุดคือ IP จากการเชื่อมต่อจริง
+ * ที่ proxy เชื่อถือได้ ส่วน hop แรกมาจาก header ที่ client ตั้งเองได้ (ปลอมได้)
+ * — เคยใช้ first hop แล้วผู้โจมตีสุ่ม XFF เพื่อเปลี่ยน IP หนี rate limit ได้ทุก request
+ * จึงเปลี่ยนมาใช้ last hop
+ * (ห้าม end(explode(...)) ตรง ๆ — PHP 8.3 notice: Only variables should be passed by reference)
+ *
+ * กรณีเรียกตรงไม่ผ่าน proxy (dev) จะไม่มี XFF → fallback REMOTE_ADDR เดิม
+ * sanitize ให้เหลือแค่รูปของ IPv4/IPv6
  */
 function publicClientIp(): string
 {
     $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
-    $first = trim(explode(',', $forwarded)[0]);
-    if ($first !== '' && preg_match('/^[0-9a-fA-F:.]{7,45}$/', $first) === 1) {
-        return $first;
+    if ($forwarded !== '') {
+        $hops = array_map('trim', explode(',', $forwarded));
+        $ip = end($hops);
+        if (is_string($ip) && $ip !== '' && preg_match('/^[0-9a-fA-F:.]{7,45}$/', $ip) === 1) {
+            return $ip;
+        }
     }
 
     return (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');

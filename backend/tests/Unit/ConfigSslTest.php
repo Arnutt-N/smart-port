@@ -11,7 +11,7 @@ use RuntimeException;
 
 // ตั้ง JWT_SECRET ก่อน require config.php เพื่อกัน exit() side-effect
 // (config.php เช็ค JWT_SECRET ว่างแล้ว exit ทันที)
-putenv('JWT_SECRET=test-secret');
+putenv('JWT_SECRET=test-secret-with-32-chars-minimum-len');
 
 // โหลด config.php เพื่อเข้าถึง buildSslOptions() — define() ซ้ำก็ไม่เป็นไร
 // เพราะ bootstrap.php ไม่ได้ require config.php

@@ -2,6 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { isChunkLoadError, resolveChunkRecoveryTarget } from '@/utils/chunkGuard.js'
 import { useNavProgress } from '@/composables/useNavProgress.js'
 
+// section ที่ CandidateListsPage รู้จัก (ตรงกับ categoryConfig ในหน้า) — ค่าอื่น redirect
+// ไป overview กัน bookmark/URL ผิดแล้วเข้าหน้าเปล่า
+export const KNOWN_CANDIDATE_SECTIONS = ['overview', 'general', 'academic', 'support', 'management']
+
 const routes = [
   {
     path: '/login',
@@ -188,6 +192,16 @@ router.beforeEach(async (to) => {
 
   if (to.path === '/login' && auth.isAuthenticated) {
     return '/dashboard'
+  }
+
+  // section ไม่รู้จัก → กลับ /candidates/overview — เช็คใน global guard เพราะ
+  // beforeEnter ของ route record ไม่ทำงานตอนสลับ params ภายใน record เดิม
+  if (
+    to.name === 'candidates' &&
+    to.params.section &&
+    !KNOWN_CANDIDATE_SECTIONS.includes(String(to.params.section))
+  ) {
+    return { path: '/candidates/overview' }
   }
 
   // หน้า admin only — operator/viewer เด้งกลับ dashboard (superadmin ผ่านได้)

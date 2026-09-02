@@ -151,7 +151,8 @@ async function handleLogin() {
   infoMsg.value = ''
   loading.value = true
   try {
-    await auth.login({ username: form.username, password: form.password })
+    // remember=true → เก็บ session ใน localStorage, false → sessionStorage (ปิดเบราว์เซอร์แล้วหมดอายุ)
+    await auth.login({ username: form.username, password: form.password }, { remember: rememberMe.value })
     router.push(auth.mustChangePassword ? '/change-password' : '/dashboard')
   } catch (e) {
     errorMsg.value = e.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่'

@@ -4,6 +4,17 @@ RewriteEngine On
 RewriteCond %{HTTP:Authorization} .
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
+# F6: ห้าม serve runtime files — storage/ มีไฟล์ runtime (rate-limit counters) ที่
+# เปิดอ่านได้จากภายนอกไม่ได้ และ composer.json/lock เปิดเผยโครงสร้าง dependencies
+# ต้องอยู่ "ก่อน" rewrite-to-api มิฉะนั้นทุก request ถูกส่งเข้า api.php ก่อนแล้ว
+RewriteRule ^storage/ - [F,L]
+RewriteRule ^composer\.(json|lock)$ - [F,L]
+# F6 (ต่อ): vendor/ เปิดเผย dependency versions (installed.json), tests/scripts/
+# เป็นโค้ดฝั่ง server และ dotfiles (เช่น .env, .git) ห้ามออกอินเทอร์เน็ตเช่นกัน
+# (หมายเหตุ: ไม่บล็อก sync/ เพราะเป็นชื่อ API route จริง)
+RewriteRule ^(vendor|tests|scripts)/ - [F,L]
+RewriteRule (^|/)\. - [F,L]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ api.php [QSA,L]

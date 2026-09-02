@@ -75,9 +75,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
 import { confirmLogout } from '@/composables/useConfirm.js'
 
 const auth = useAuthStore()
+const ui = useUiStore()
 const router = useRouter()
 
 const currentPassword = ref('')
@@ -96,7 +98,11 @@ async function submit() {
   submitting.value = true
   try {
     await auth.changePassword(currentPassword.value, newPassword.value)
-    await router.push('/dashboard')
+    // T4: เปลี่ยนรหัส = revoke ทุก session (รวม session ปัจจุบัน) — ต้อง login
+    // ใหม่ด้วยรหัสผ่านใหม่ จึงบังคับออกจากระบบแทน push /dashboard
+    auth.logout()
+    ui.showToast('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
+    await router.push('/login')
   } catch (error) {
     errorMessage.value = error?.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้'
   } finally {

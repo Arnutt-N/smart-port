@@ -129,9 +129,9 @@ Pure PHP REST API with no framework.
 
 - **Single entry point**: `api.php` is the API gateway — all requests route through it via `.htaccess` rewrite rules
 - **Routing**: `switch` statement on URL path segments in `api.php`, delegating to feature handlers in `backend/routes/` (e.g. `routes/import.php`, `routes/probation.php`)
-- **Auth**: JWT (HMAC-SHA256) implemented in `auth.php` using `firebase/php-jwt`. Token expiry: 1 hour. Login endpoints (`/auth/login` and `/login`) are unauthenticated; all other routes require a valid JWT in the `Authorization` header
+- **Auth**: JWT (HMAC-SHA256) — custom HS256 implementation (`auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library. Token expiry: 1 hour. Login endpoints (`/auth/login` and `/login`) are unauthenticated; all other routes require a valid JWT in the `Authorization` header
 - **Database**: PDO with prepared statements. Connection setup in `config.php`
-- **Dependencies**: Managed via Composer (`composer.json`), only dependency is `firebase/php-jwt`
+- **Dependencies**: Managed via Composer (`composer.json`), only runtime dependency is `phpoffice/phpspreadsheet` — JWT เป็น custom HS256 implementation (`auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library (ไม่มี `firebase/php-jwt` ใน require block)
 
 ### Service Ports
 | Service       | Port  |
@@ -193,9 +193,9 @@ Pure PHP REST API with no framework.
 - Tailwind CSS 4.1.0 - Utility CSS framework
 - @tailwindcss/vite 4.1.0 - Vite integration plugin
 - Pure PHP REST API - No framework (custom routing via switch statement in `api.php`)
-- Firebase PHP-JWT 6.0 - JWT token generation and validation
+- Custom JWT implementation (HMAC-SHA256) in `backend/auth.php` — ตัดสินใจแล้ว ไม่ใช้ library
 ## Key Dependencies
-- firebase/php-jwt 6.0 - JWT implementation (HMAC-SHA256) for authentication
+- Custom JWT implementation (backend/auth.php) - HMAC-SHA256 for authentication — ตัดสินใจแล้ว ไม่ใช้ library
 - chart.js 4.4.0 - Chart rendering library
 - vue-chartjs 5.3.0 - Vue integration for charts
 - lucide-vue-next 0.470.0 - SVG icon library
@@ -255,7 +255,7 @@ Pure PHP REST API with no framework.
 - **Vue 3 with SPA:** Single-page application with client-side routing and state management
 - **Single-page Vite build:** `index.html` is the sole entry; admin-only views are Vue Router routes guarded by `meta.requiresAdmin`, not a separate HTML page
 - **API proxy in dev:** Vite dev server proxies `/api` requests to avoid CORS issues locally
-- **JWT with custom implementation:** Backend uses both firebase/php-jwt and custom JWT functions
+- **JWT with custom implementation:** custom HS256 implementation (`backend/auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library
 - **Tailwind 4:** Modern CSS framework with `@tailwindcss/vite` plugin for optimal build performance
 - **Docker multi-stage builds:** Optimized container images for frontend (Node → Nginx) and backend (Composer → PHP)
 

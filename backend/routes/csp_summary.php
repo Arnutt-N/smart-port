@@ -9,7 +9,7 @@ require_once __DIR__ . '/../csp_violations.php';
  * Issue #113 code review I3: ความยาวขั้นต่ำของ CSP_SUMMARY_TOKEN
  *
  * ตัวกันสาธารณะ (rate limit 10/นาทีใน api.php) เป็นแค่ defence-in-depth — publicClientIp()
- * (middleware/rate_limit.php) อ่าน XFF hop แรกที่ client ปลอมได้ (มีเทสยืนยันที่
+ * (middleware/rate_limit.php) อ่าน last hop ของ XFF ที่ proxy append (มีเทสยืนยันที่
  * PublicRateLimitTest) ตัวกัน brute-force ตัวจริงคือ entropy ของ token เอง 32 ตัวอักษร
  * (สุ่มจาก charset กว้าง) ให้ entropy ที่เดาไม่ไหวจริงในทางปฏิบัติ — token ที่ Task 5 สุ่มให้
  * ยาว 43 ตัวอักษรอยู่แล้ว จึงไม่กระทบ

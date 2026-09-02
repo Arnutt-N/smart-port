@@ -7,7 +7,8 @@ declare(strict_types=1);
  *
  * ทำไมถึง aggregate ไม่ใช่ append: POST /api/csp-report เป็น public endpoint
  * การเก็บ 1 แถวต่อ event เปิดช่องให้ใครก็ได้เขียนแถวเข้า DB production ไม่จำกัด และ
- * rate limit 60/นาที กันไม่ได้จริงเพราะ publicClientIp() อ่าน XFF ตัวแรกที่ client ปลอมได้
+ * rate limit 60/นาที เป็นแค่ defence-in-depth — publicClientIp() อ่าน last hop ของ XFF
+ * (hop ที่ proxy append จึงปลอมยากขึ้น) แต่ endpoint ก็ยังเปิดให้ใครก็ยิงได้จากหลายแหล่ง
  * เพดานการเติบโตจึงต้องอยู่ในตัว schema เอง (CSP_MAX_KEYS_PER_DAY)
  *
  * Invariant จริงของจำนวนแถวต่อวัน: ≤ CSP_MAX_KEYS_PER_DAY + 1 — แถวส่วนเกินหนึ่งแถวคือ

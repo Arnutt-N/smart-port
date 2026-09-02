@@ -311,6 +311,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useMultiplier } from '@/composables/useMultiplier.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { confirmAction } from '@/composables/useConfirm.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
@@ -330,6 +331,8 @@ import {
 } from 'lucide-vue-next'
 
 const { fetchAreas, createArea, setAreaStatus } = useMultiplier()
+// กัน response เก่า (กดรีเฟรช/toggle ซ้ำเร็ว ๆ) ทับ state ใหม่
+const { next: nextRequest } = useRequestSeq()
 
 const RATIO_PRESETS = [150, 200, 300]
 
@@ -349,15 +352,18 @@ const pendingCount = computed(() => areas.value.filter((area) => area.sourcePend
 const basisOptions = computed(() => [...new Set(areas.value.map((area) => area.basisType).filter(Boolean))])
 
 async function fetchData() {
+  const req = nextRequest()
   loading.value = true
   error.value = null
   try {
     const result = await fetchAreas({ activeOnly: false })
+    if (!req.isCurrent()) return
     areas.value = result.data
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลพื้นที่พิเศษได้'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 

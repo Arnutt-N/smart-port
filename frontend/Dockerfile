@@ -4,7 +4,12 @@
 # === FIX 3 ===
 # เปลี่ยนไปใช้ Debian-based image (slim version) เพื่อความเข้ากันได้ที่ดีกว่า
 # สำหรับ native modules เมื่อเทียบกับ Alpine
-FROM node:20-slim AS builder
+#
+# F19/T22 version gotcha: Node 20→24 pin ให้ตรงกับ CI (setup-node node-version: 24)
+# — ต้อง validate Vite 6/Vitest บน Node 24 ผ่าน docker build ก่อน merge เสมอ
+# (enforcement จริงคือ pin ที่นี่ + CI setup-node 24 · "engines" ใน package.json
+#  เป็น warn-only เชิง documentation เท่านั้น — npm ไม่ block ตอน install)
+FROM node:24-slim AS builder
 
 # ระบุ build-time argument สำหรับ VITE_API_URL
 ARG VITE_API_URL=http://localhost:8000

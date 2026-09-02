@@ -4,7 +4,7 @@
 #
 # Local gates:
 #   0) Fast gates: schema parity + multiplier validator regression
-#   1) Frontend:  npm ci (optional) + vitest + build
+#   1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + build
 #   1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
 #   2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
 #   3) Backend:   bash backend/tests/run.sh
@@ -169,6 +169,10 @@ frontend_gate() {
     # คือรายงานความคืบหน้า *ภายใน* gate ไม่ใช่การตัดสินระดับ gate ที่ summary สนใจ จึงไม่ใช้ skip()
     echo 'skip npm ci (--skip-install)'
   fi
+
+  # F18/T21: npm audit production deps — fail บน high/critical (mirror ci-local.ps1)
+  echo 'npm audit --omit=dev --audit-level=high ...'
+  npm audit --omit=dev --audit-level=high || return 1
 
   # pool/maxWorkers come from frontend/vitest.config.js (forks + 2 workers)
   echo 'npm test (vitest) ...'

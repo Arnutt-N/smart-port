@@ -353,6 +353,10 @@ function validateForm() {
   const errors = {}
   if (!formData.value.start_date) errors.start_date = true
   if (!formData.value.end_date) errors.end_date = true
+  // end >= start เหมือน MultiplierPage — กันบันทึกช่วงวันทดลองกลับด้าน
+  if (formData.value.start_date && formData.value.end_date && formData.value.end_date < formData.value.start_date) {
+    errors.end_date = true
+  }
   formErrors.value = errors
   return Object.keys(errors).length === 0
 }

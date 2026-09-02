@@ -18,7 +18,7 @@ Smart Port ต้อง deploy บนสภาพแวดล้อมของ�
 
 1. **API เป็น PHP ล้วน ไม่มี framework** — `backend/api.php` เป็น entry point เดียว รับทุก request ผ่าน rewrite rule ใน `.htaccess`
 2. **Routing ด้วย switch statement** บน path segment แรก แล้ว `include` ไฟล์ handler ใน `backend/routes/` ต่อ domain
-3. **Dependency เดียวที่ยอมรับคือ `firebase/php-jwt`** — งาน crypto ห้ามเขียนเอง นอกนั้นใช้ standard library
+3. **JWT เป็น custom HS256 implementation (`backend/auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library** (ข้อความเดิมที่ระบุ `firebase/php-jwt` เป็นความคลาดเคลื่อนของเอกสาร — `composer.json` ไม่มี dependency นี้; dependency เดียวที่ยอมรับคือ `phpoffice/phpspreadsheet`)
 4. **เข้าถึงฐานข้อมูลผ่าน PDO + prepared statements เท่านั้น** ไม่มี ORM — query อยู่ในไฟล์ route หรือ service class (`ImportService`, `QualificationEngine`)
 5. **Cross-cutting concern เขียนเป็น middleware แบบ include** (`backend/middleware/csrf.php`, `rate_limit.php`) เรียกจาก `api.php` ก่อน dispatch
 

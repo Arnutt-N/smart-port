@@ -18,6 +18,14 @@ vi.mock('@/stores/auth.js', () => ({
   useAuthStore: () => authMock.state,
 }))
 
+const uiMock = vi.hoisted(() => ({
+  showToast: vi.fn(),
+}))
+
+vi.mock('@/stores/ui.js', () => ({
+  useUiStore: () => ({ showToast: uiMock.showToast }),
+}))
+
 vi.mock('@/router', () => ({
   default: { push: (...args) => mockPush(...args) },
 }))
@@ -76,6 +84,7 @@ describe('useApi', () => {
   beforeEach(() => {
     api = useApi()
     mockPush.mockReset()
+    uiMock.showToast.mockReset()
     authMock.state.token = 'fake-jwt-token'
     authMock.state.csrfToken = 'fake-csrf'
     authMock.state.refreshToken = ''
@@ -246,6 +255,40 @@ describe('useApi', () => {
       expect(mockPush).toHaveBeenCalledWith('/login')
     })
 
+    it('shows the Thai expired-session toast once before redirecting on 401', async () => {
+      authMock.state.refreshToken = ''
+      // เรียกสำเร็จ 1 ครั้งก่อน — เคลียร์ latch (หลังเข้าสู่ระบบใหม่ flag จะถูกรีเซ็ต)
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ ok: true }))
+        .mockResolvedValue(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await api.get('/warmup')
+      await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
+
+      expect(uiMock.showToast).toHaveBeenCalledTimes(1)
+      expect(uiMock.showToast).toHaveBeenCalledWith('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error')
+      expect(mockPush).toHaveBeenCalledWith('/login')
+    })
+
+    it('does not repeat the expired-session toast for follow-up 401s before re-login', async () => {
+      authMock.state.refreshToken = ''
+      // เรียกสำเร็จ 1 ครั้งก่อน — เคลียร์ latch (หลังเข้าสู่ระบบใหม่ flag จะถูกรีเซ็ต)
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ ok: true }))
+        .mockResolvedValue(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await api.get('/warmup')
+      await expect(api.get('/first')).rejects.toThrow('Unauthorized')
+      await expect(api.get('/second')).rejects.toThrow('Unauthorized')
+
+      // 401 สองครั้งติดกัน (token ตกครั้งเดียว) — toast ต้องโชว์ครั้งเดียว ไม่ซ้ำ
+      expect(uiMock.showToast).toHaveBeenCalledTimes(1)
+      expect(uiMock.showToast).toHaveBeenCalledWith('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error')
+      expect(authMock.state.logout).toHaveBeenCalledTimes(2)
+    })
+
     it('does not refresh on /auth/login 401 (shows API error instead)', async () => {
       authMock.state.refreshToken = 'refresh-abc'
       global.fetch = mockFetch(jsonResponse({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }, 401))
@@ -264,7 +307,7 @@ describe('useApi', () => {
         headers: { 'Content-Type': 'application/json' },
       }))
 
-      await expect(api.get('/dashboard')).rejects.toThrow('Password change required')
+      await expect(api.get('/dashboard')).rejects.toThrow('กรุณาเปลี่ยนรหัสผ่านก่อนใช้งานระบบ')
 
       expect(authMock.state.setMustChangePassword).toHaveBeenCalledWith(true)
       expect(mockPush).toHaveBeenCalledWith('/change-password')
