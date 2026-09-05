@@ -60,7 +60,7 @@ Add frontend tests under `frontend/src/__tests__/` and name them `*.test.js`. Up
 Follow the existing Conventional Commit style: `feat:`, `fix:`, `fix(test):`, and similar short imperative subjects. Keep commits scoped to one logical change. PRs should include a concise summary, linked issue or task, API or schema notes, verification steps, and screenshots for UI changes. Avoid mixing unrelated frontend, backend, and SQL work in one PR.
 
 ## Security & Configuration Tips
-Keep secrets in local `.env` files only. Review authentication and CORS changes carefully in `backend/api.php`. Do not commit database data, upload artifacts, credentials, or generated bundles.
+Keep secrets in local `.env` files only. The entire root `/secrets/` directory is local-only: never search, index, summarize, upload, or send any file beneath it to an external service. Build Graft only through `./scripts/graft-safe.ps1 build .`; never invoke `graft` directly in this repository, including automatic refresh hooks and MCP integrations. The wrapper accepts only structural builds, uses selected tracked source files in a temporary snapshot, rejects symlinks/junctions, and runs Graft with a minimal child-environment allowlist. External summarization is disabled. This wrapper is not a network sandbox or a comprehensive sensitive-content detector; direct CLI invocation bypasses it. Do not upload its snapshot, generated graph, or `.graft-backup-*/` directories. Review authentication and CORS changes carefully in `backend/api.php`. Do not commit database data, upload artifacts, credentials, or generated bundles.
 
 ## Agent-Specific Instructions
 
