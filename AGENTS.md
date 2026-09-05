@@ -63,6 +63,8 @@ Follow the existing Conventional Commit style: `feat:`, `fix:`, `fix(test):`, an
 Keep secrets in local `.env` files only. Review authentication and CORS changes carefully in `backend/api.php`. Do not commit database data, upload artifacts, credentials, or generated bundles.
 
 ## Agent-Specific Instructions
+
+Graphify builds must use `python -I scripts/graphify-safe.py build .` only. Do not invoke Graphify build/update/watch, upstream auto-refresh hooks, semantic extraction, or MCP rebuild integrations directly. The wrapper uses selected tracked source files in a fresh snapshot, rejects links, ignores saved root/interpreter and provider overrides, and runs structural extraction with a minimal child environment plus Python network/subprocess guards. These guards are not an OS sandbox or a complete sensitive-content detector. Do not upload snapshots, `graphify-out/`, or `.graphify-quarantine-*/`; quarantines retain old local graph/cache data and are not approved corpus. Install the safe local hooks with `python -I scripts/install-graphify-safe-hooks.py` (requires `core.hooksPath=.githooks`); keep the wrapper route when reinstalling hooks.
 Before editing, check the current worktree and do not revert unrelated user changes. Prefer focused patches, preserve repository conventions, and verify changed behavior with the narrowest relevant command.
 
 For any UI/frontend work, consult `DESIGN.md` (root) — it is the authoritative design system document with color tokens, typography, spacing, component patterns, and voice guidelines. Reference design analysis lives in `docs/design-references/`.
