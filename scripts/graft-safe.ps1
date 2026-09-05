@@ -149,20 +149,29 @@ try {
     }
 
     $generatedGraph = Join-Path $tempRoot 'graft'
-    if (Test-Path -LiteralPath $generatedGraph -PathType Container) {
-        $repoGraph = Join-Path $repoRoot 'graft'
-        Assert-NoReparsePoint $repoGraph $repoRoot
-        Assert-NoReparsePoint $generatedGraph $tempRoot
-        if ([IO.Path]::GetFullPath((Split-Path -Parent $repoGraph)) -ne $repoRoot -or (Split-Path -Leaf $repoGraph) -ne 'graft') {
-            throw 'Refusing to replace an unexpected graph path.'
-        }
-        if (Test-Path -LiteralPath $repoGraph) {
-            $backupGraph = Join-Path $repoRoot ('.graft-backup-' + [guid]::NewGuid().ToString('N'))
-            Move-Item -LiteralPath $repoGraph -Destination $backupGraph
-            Write-Host 'Previous graph preserved in a local .graft-backup-* directory.'
-        }
-        Copy-Item -LiteralPath $generatedGraph -Destination $repoGraph -Recurse
+    if (-not (Test-Path -LiteralPath $generatedGraph -PathType Container)) {
+        throw 'Graft reported success without producing a graph directory.'
     }
+    Assert-NoReparsePoint $generatedGraph $tempRoot
+    foreach ($requiredFileName in @('INDEX.md', '.graph/wiring.json')) {
+        $requiredFile = Join-Path $generatedGraph $requiredFileName
+        Assert-NoReparsePoint $requiredFile $tempRoot
+        if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+            throw "Graft output is incomplete: missing $requiredFileName."
+        }
+    }
+    $repoGraph = Join-Path $repoRoot 'graft'
+    Assert-NoReparsePoint $repoGraph $repoRoot
+    if ([IO.Path]::GetFullPath((Split-Path -Parent $repoGraph)) -ne $repoRoot -or (Split-Path -Leaf $repoGraph) -ne 'graft') {
+        throw 'Refusing to replace an unexpected graph path.'
+    }
+    if (Test-Path -LiteralPath $repoGraph) {
+        $backupGraph = Join-Path $repoRoot ('.graft-backup-' + [guid]::NewGuid().ToString('N'))
+        Assert-NoReparsePoint $backupGraph $repoRoot
+        Move-Item -LiteralPath $repoGraph -Destination $backupGraph
+        Write-Host 'Previous graph preserved in a local .graft-backup-* directory.'
+    }
+    Copy-Item -LiteralPath $generatedGraph -Destination $repoGraph -Recurse
 
     Write-Host "Safe local Graft command completed. Included tracked files: $copiedCount; excluded sensitive/local files: $excludedCount."
 }
