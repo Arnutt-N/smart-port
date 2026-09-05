@@ -2,6 +2,23 @@
 .git
 .gitignore
 
+# Local graphs, agent sessions and confidential material never enter build context.
+secrets/
+graphify-out/
+.graphify-quarantine-*/
+.graphify-safe.lock
+smart-port-graphify-safe-*/
+.qwen/
+.zcode/
+.claude/
+.codex/
+.agents/
+.worktrees/
+project-log-md/
+graft/
+document-ocr/input/
+document-ocr/output/
+
 # Ignore environment files (sensitive data)
 .env
 .env.example
