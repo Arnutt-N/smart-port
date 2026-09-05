@@ -93,7 +93,7 @@ backend/vendor/
 backend/.phpunit.cache/
 backend/.phpunit.result.cache
 
-secrets/
+/secrets/
 /.qwen/
 /.zcode/
 /graphify-out/
@@ -101,6 +101,10 @@ secrets/
 /.graphify-safe.lock
 /smart-port-graphify-safe-*/
 __pycache__/
+/graft/
+/.graft-backup-*/
+/.graft-safe.lock
+/smart-port-graft-safe-*/
 
 # Session/debug artifacts — ห้าม track (diff dumps, crash dumps, debug screenshots)
 *diff.txt

@@ -16,6 +16,9 @@ smart-port-graphify-safe-*/
 .worktrees/
 project-log-md/
 graft/
+.graft-backup-*/
+.graft-safe.lock
+smart-port-graft-safe-*/
 document-ocr/input/
 document-ocr/output/
 
