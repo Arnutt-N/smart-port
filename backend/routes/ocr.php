@@ -55,6 +55,7 @@ function handleOcr(PDO $pdo, string $method, array $path): void
         curl_close($ch);
 
         http_response_code($code ?: 502);
+        header('Content-Type: application/json');
         echo $body ?: json_encode(['error' => 'OCR server unreachable']);
         return;
     }

@@ -1,16 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
+const apiMock = vi.hoisted(() => ({
+  uploadResponse: vi.fn(),
+  get: vi.fn(),
+}))
+
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({
-    uploadResponse: vi.fn(),
-  }),
+  useApi: () => apiMock,
 }))
 
 const OcrPage = (await import('@/pages/OcrPage.vue')).default
 
 describe('OcrPage', () => {
+  beforeEach(() => {
+    apiMock.get.mockReset()
+    apiMock.get.mockResolvedValue({ status: 'ok' })
+    apiMock.uploadResponse.mockReset()
+  })
+
   it('renders OCR preview as plain text (no HTML injection)', async () => {
     const wrapper = mount(OcrPage)
     wrapper.vm.result = {
@@ -53,5 +62,28 @@ describe('OcrPage', () => {
 
     vi.unstubAllGlobals()
     vi.useRealTimers()
+  })
+
+  it('hides the upload form when OCR is not configured (#147)', async () => {
+    apiMock.get.mockRejectedValue(new Error('ยังไม่ได้ติดตั้งบริการแปลงเอกสาร (OCR)'))
+
+    const wrapper = mount(OcrPage)
+    await flushPromises()
+
+    expect(apiMock.get).toHaveBeenCalledWith('/ocr/health')
+    expect(wrapper.text()).toContain('ฟีเจอร์นี้ยังไม่พร้อมใช้งาน')
+    expect(wrapper.text()).toContain('ยังไม่ได้ติดตั้งบริการแปลงเอกสาร (OCR)')
+    expect(wrapper.text()).not.toContain('คลิกเพื่อเลือก')
+    expect(wrapper.find('#ocr-file-input').exists()).toBe(false)
+  })
+
+  it('shows the upload form after OCR health succeeds', async () => {
+    const wrapper = mount(OcrPage)
+    await flushPromises()
+
+    expect(apiMock.get).toHaveBeenCalledWith('/ocr/health')
+    expect(wrapper.find('#ocr-file-input').exists()).toBe(true)
+    expect(wrapper.text()).toContain('คลิกเพื่อเลือก')
+    expect(wrapper.text()).not.toContain('ฟีเจอร์นี้ยังไม่พร้อมใช้งาน')
   })
 })
