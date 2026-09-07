@@ -57,8 +57,7 @@ if [[ ! -f "${DIST_STAMP}" ]]; then
   echo "[pre-push] SKIP  csp bundle audit: ไม่มี frontend/dist/index.html — build ก่อน (cd frontend && npm run build) แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ"
 else
   # hook ไม่ build ให้เอง (npm run build ทุกครั้งที่ push แพงเกินไป) dist จึงอาจเก่ากว่าโค้ด
-  # — แต่เตือนเฉพาะเมื่อ **วัดได้ว่าเก่าจริง** ไม่ใช่เตือนทุกครั้ง · คำเตือนที่ดังตลอดเวลาไม่ใช่
-  # สัญญาณ มันสอนให้คนเลิกอ่าน WARN ซึ่งย้อนแย้งกับ gate ที่สร้างมาให้คนเชื่อ
+  # — วัด stale จริงแล้ว skip อย่างมีเสียง ไม่ audit ของเก่าแล้วขึ้นผ่าน (#151)
   # เทียบ mtime ของ source กับ index.html ของ build (ยืนยันแล้วว่าให้ผลสองทางทั้ง Git Bash และ WSL)
   # ไม่นับไฟล์เทส — vite ไม่เอาเข้า bundle การแก้เทสจึงไม่ทำให้ dist เพี้ยน (วัดแล้ว: ก่อนกรอง
   # repo นี้เตือนเพราะไฟล์ `__tests__/securityHeaders.test.js` ไฟล์เดียว ซึ่งไม่เกี่ยวกับ bundle เลย)
@@ -85,10 +84,14 @@ else
       -newer "${DIST_STAMP}" -print -quit 2>/dev/null || true)"
   fi
   if [[ -n "${STALE_SRC}" ]]; then
-    echo "[pre-push] WARN  csp bundle audit: ${STALE_SRC} ใหม่กว่า dist — ผลนี้เป็นของ build เก่า (cd frontend && npm run build)"
+    # Issue #151 — dist เก่า = ยังไม่ได้ตรวจ bundle ของโค้ดปัจจุบัน
+    # WARN แล้ว audit ต่อแล้วขึ้นผ่านคือ false assurance ("ไม่รู้" กลายเป็น "สะอาด")
+    # skip อย่างมีเสียงให้สมมาตรกับเคสไม่มี dist เลย — hook ไม่ build ให้เอง
+    echo "[pre-push] SKIP  csp bundle audit: ${STALE_SRC} ใหม่กว่า dist — ยังไม่ได้ตรวจ bundle ของโค้ดปัจจุบัน (cd frontend && npm run build แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ)"
+  else
+    echo "[pre-push] csp bundle audit (frontend/dist) ..."
+    node "${ROOT}/scripts/audit-bundle-csp.mjs"
   fi
-  echo "[pre-push] csp bundle audit (frontend/dist) ..."
-  node "${ROOT}/scripts/audit-bundle-csp.mjs"
 fi
 
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
