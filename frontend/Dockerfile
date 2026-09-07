@@ -11,8 +11,11 @@
 #  เป็น warn-only เชิง documentation เท่านั้น — npm ไม่ block ตอน install)
 FROM node:24-slim AS builder
 
-# ระบุ build-time argument สำหรับ VITE_API_URL
-ARG VITE_API_URL=http://localhost:8000
+# ระบุ build-time argument สำหรับ VITE_API_URL — ต้องว่าง (ไม่ใช่ default URL)
+# เมื่อว่างโค้ด fallback ไป '/api' แล้วใช้ nginx proxy ต่อ backend (CSP 'self' บล็อก
+# cross-origin โดยตรง); ค่า http://localhost:8000 ทำ login พังเงียบๆ ตอน deploy
+# ผ่าน nginx และเคยเกิดจริงใน E2E smoke run
+ARG VITE_API_URL=
 
 # กำหนด working directory ภายใน container
 WORKDIR /app

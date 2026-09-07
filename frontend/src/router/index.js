@@ -194,12 +194,14 @@ router.beforeEach(async (to) => {
     return '/dashboard'
   }
 
-  // section ไม่รู้จัก → กลับ /candidates/overview — เช็คใน global guard เพราะ
+  // section ไม่รู้จักหรือว่าง → กลับ /candidates/overview — เช็คใน global guard เพราะ
   // beforeEnter ของ route record ไม่ทำงานตอนสลับ params ภายใน record เดิม
+  // กรณีว่าง: redirect record 'candidates → /candidates/overview' โดน optional
+  // param 'candidates/:section?' บัง (Vue Router 4 จัดแบบ score) — resolve('/candidates')
+  // ตกที่ :section? พร้อม section='' หน้า overview จะไม่ยิง fetch และโล่ง
   if (
     to.name === 'candidates' &&
-    to.params.section &&
-    !KNOWN_CANDIDATE_SECTIONS.includes(String(to.params.section))
+    !KNOWN_CANDIDATE_SECTIONS.includes(String(to.params.section ?? ''))
   ) {
     return { path: '/candidates/overview' }
   }

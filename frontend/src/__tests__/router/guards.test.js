@@ -132,6 +132,15 @@ describe('router candidate paths', () => {
     expect(router.currentRoute.value.params.section).toBe('overview')
   })
 
+  it('redirects bare /candidates to overview (redirect record is shadowed by optional param)', async () => {
+    // Vue Router 4 score-based matching: 'candidates/:section?' match '/candidates' ก่อน
+    // redirect record 'candidates → /candidates/overview' — section จะเป็น '' ไม่ใช่ redirect
+    await router.push('/candidates')
+    expect(router.currentRoute.value.name).toBe('candidates')
+    expect(router.currentRoute.value.path).toBe('/candidates/overview')
+    expect(router.currentRoute.value.params.section).toBe('overview')
+  })
+
   it('does not expose legacy /supportive quick-action path', async () => {
     await router.push('/supportive')
     expect(router.currentRoute.value.path).toBe('/dashboard')
