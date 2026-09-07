@@ -3,12 +3,31 @@
     <header class="flex flex-col gap-1">
       <h1 class="text-2xl font-bold text-gray-800">แปลงเอกสาร PDF</h1>
       <p class="text-sm text-gray-500">
-        อัปโหลดไฟล์ PDF เพื่อแปลงเป็น Markdown — รองรับเอกสารภาษาไทย
+        <template v-if="availability === 'ready'">อัปโหลดไฟล์ PDF เพื่อแปลงเป็น Markdown — รองรับเอกสารภาษาไทย</template>
+        <template v-else-if="availability === 'unavailable'">บริการแปลงเอกสารยังไม่ได้ติดตั้ง</template>
+        <template v-else>กำลังตรวจสอบบริการแปลงเอกสาร…</template>
       </p>
     </header>
 
+    <section
+      v-if="availability !== 'ready'"
+      class="bg-white rounded-xl border p-5"
+      :class="availability === 'unavailable' ? 'border-amber-200' : 'border-gray-200'"
+      aria-live="polite"
+    >
+      <p v-if="availability === 'checking'" class="text-sm text-gray-500">กำลังตรวจสอบบริการแปลงเอกสาร…</p>
+      <div v-else class="flex items-start gap-2 text-amber-800">
+        <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
+        <div>
+          <h2 class="text-sm font-semibold">ฟีเจอร์นี้ยังไม่พร้อมใช้งาน</h2>
+          <p class="mt-1 text-sm">{{ unavailableMsg }}</p>
+          <p class="mt-2 text-xs text-amber-700">กรุณาติดต่อผู้ดูแลระบบ</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Upload -->
-    <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <section v-if="availability === 'ready'" class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       <div
         role="button"
         tabindex="0"
@@ -142,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useApi } from '@/composables/useApi.js'
 import {
   Upload, FileText, Loader2, CheckCircle2, AlertCircle, Copy, Download,
@@ -162,8 +181,25 @@ const result = ref(null)
 const tab = ref('preview')
 const copied = ref(false)
 const copyError = ref(false)
+const availability = ref('checking')
+const unavailableMsg = ref('ยังไม่ได้ติดตั้งบริการแปลงเอกสาร (OCR)')
 let copiedTimer = null
 let copyErrorTimer = null
+let healthCheckCancelled = false
+
+onMounted(async () => {
+  try {
+    await api.get('/ocr/health')
+    if (healthCheckCancelled) return
+    availability.value = 'ready'
+  } catch (err) {
+    if (healthCheckCancelled) return
+    availability.value = 'unavailable'
+    unavailableMsg.value = err instanceof Error && err.message
+      ? err.message
+      : 'ยังไม่ได้ติดตั้งบริการแปลงเอกสาร (OCR)'
+  }
+})
 
 function clearFeedbackTimers() {
   if (copiedTimer != null) {
@@ -176,7 +212,10 @@ function clearFeedbackTimers() {
   }
 }
 
-onBeforeUnmount(clearFeedbackTimers)
+onBeforeUnmount(() => {
+  healthCheckCancelled = true
+  clearFeedbackTimers()
+})
 
 const busy = computed(() => status.value === 'uploading')
 
