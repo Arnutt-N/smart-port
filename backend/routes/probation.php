@@ -95,6 +95,23 @@ function probationUpdateResolvedDate(array $data, array $existing, string $field
     return probationStrictDate($raw) ?? 'Invalid date format';
 }
 
+/** N17 — POST create ใช้ parse เข้มชุดเดียวกับ PUT */
+function probationCreateDateError(mixed $start, mixed $end): ?string
+{
+    if (!is_string($start) || !is_string($end)) {
+        return 'Invalid date format';
+    }
+    $startDate = probationStrictDate($start);
+    $endDate = probationStrictDate($end);
+    if ($startDate === null || $endDate === null) {
+        return 'Invalid date format';
+    }
+    if ($endDate < $startDate) {
+        return 'end_date must be greater than or equal to start_date';
+    }
+    return null;
+}
+
 /**
  * จัดการ request สำหรับ probation tracking endpoints
  *
@@ -382,10 +399,10 @@ function createProbationEnrollment(PDO $pdo): void
         return;
     }
 
-    // end_date ต้องไม่น้อยกว่า start_date (เทียบ string Y-m-d ได้ตรงเพราะรูปแบบ sort ได้)
-    if ($data['end_date'] < $data['start_date']) {
+    $dateError = probationCreateDateError($data['start_date'] ?? null, $data['end_date'] ?? null);
+    if ($dateError !== null) {
         http_response_code(400);
-        echo json_encode(['error' => 'end_date must be greater than or equal to start_date']);
+        echo json_encode(['error' => $dateError]);
         return;
     }
 
