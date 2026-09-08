@@ -17,6 +17,23 @@ include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
 /**
+ * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine.php:224 / supportiveStrictDate)
+ * เพื่อไม่ต้อง include engine ทั้งไฟล์ — คืน null ถ้า format ผิดหรือมี overflow
+ */
+function diverseStrictDate(string $value): ?DateTime
+{
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
+
+/**
  * จัดการ request สำหรับ diverse experience endpoints
  *
  * @param PDO $pdo Database connection
@@ -212,16 +229,38 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         }
     }
 
-    // คำนวณ from_total_days (จำนวนวันรวม ฝั่งต้นทาง)
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
-        $fromTotalDays = (new DateTime($data['from_end_date']))->diff(new DateTime($data['from_start_date']))->days + 1;
+        $fromStart = diverseStrictDate((string) $data['from_start_date']);
+        $fromEnd = diverseStrictDate((string) $data['from_end_date']);
+        if ($fromStart === null || $fromEnd === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
+        if ($fromEnd < $fromStart) {
+            http_response_code(400);
+            echo json_encode(['error' => 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น']);
+            return;
+        }
+        $fromTotalDays = $fromEnd->diff($fromStart)->days + 1;
     }
 
-    // คำนวณ to_total_days (จำนวนวันรวม ฝั่งปลายทาง)
     $toTotalDays = null;
     if (!empty($data['to_start_date']) && !empty($data['to_end_date'])) {
-        $toTotalDays = (new DateTime($data['to_end_date']))->diff(new DateTime($data['to_start_date']))->days + 1;
+        $toStart = diverseStrictDate((string) $data['to_start_date']);
+        $toEnd = diverseStrictDate((string) $data['to_end_date']);
+        if ($toStart === null || $toEnd === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
+        if ($toEnd < $toStart) {
+            http_response_code(400);
+            echo json_encode(['error' => 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น']);
+            return;
+        }
+        $toTotalDays = $toEnd->diff($toStart)->days + 1;
     }
 
     // คำนวณ diff_count ใน PHP เพื่อกำหนด qualified_date
@@ -340,7 +379,19 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $fromStartDate = $data['from_start_date'] ?? $existing['from_start_date'];
     $fromEndDate = $data['from_end_date'] ?? $existing['from_end_date'];
     if (!empty($fromStartDate) && !empty($fromEndDate)) {
-        $fromTotalDays = (new DateTime($fromEndDate))->diff(new DateTime($fromStartDate))->days + 1;
+        $fromStart = diverseStrictDate((string) $fromStartDate);
+        $fromEnd = diverseStrictDate((string) $fromEndDate);
+        if ($fromStart === null || $fromEnd === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
+        if ($fromEnd < $fromStart) {
+            http_response_code(400);
+            echo json_encode(['error' => 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น']);
+            return;
+        }
+        $fromTotalDays = $fromEnd->diff($fromStart)->days + 1;
     } else {
         $fromTotalDays = null;
     }
@@ -351,7 +402,19 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $toStartDate = $data['to_start_date'] ?? $existing['to_start_date'];
     $toEndDate = $data['to_end_date'] ?? $existing['to_end_date'];
     if (!empty($toStartDate) && !empty($toEndDate)) {
-        $toTotalDays = (new DateTime($toEndDate))->diff(new DateTime($toStartDate))->days + 1;
+        $toStart = diverseStrictDate((string) $toStartDate);
+        $toEnd = diverseStrictDate((string) $toEndDate);
+        if ($toStart === null || $toEnd === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
+            return;
+        }
+        if ($toEnd < $toStart) {
+            http_response_code(400);
+            echo json_encode(['error' => 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น']);
+            return;
+        }
+        $toTotalDays = $toEnd->diff($toStart)->days + 1;
     } else {
         $toTotalDays = null;
     }

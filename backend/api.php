@@ -131,6 +131,8 @@ if ($isPublicPhotoAsset) {
     // last hop ของ XFF ที่ proxy append (มีเทสยืนยันที่ PublicRateLimitTest) ตัวกันจริงคือ entropy ของ
     // token เอง (ดู CSP_SUMMARY_TOKEN_MIN_LENGTH ใน routes/csp_summary.php)
     checkRateLimitPublic('csp-summary', 10, 60);
+} elseif ($isPublicAuth) {
+    checkRateLimitPublic('auth', 60, 60);
 }
 
 // login/refresh/logout เป็น public; auth endpoint อื่นต้องมี JWT เช่นเดียวกับ API ปกติ

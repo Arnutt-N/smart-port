@@ -49,7 +49,7 @@
         </div>
         <div>
           <dt class="text-xs text-gray-500">เข้าใช้ล่าสุด</dt>
-          <dd class="text-sm text-gray-900">{{ formatDateTime(account.lastLoginAt) }}</dd>
+          <dd class="text-sm text-gray-900">{{ formatServerDateTime(account.lastLoginAt) }}</dd>
         </div>
       </dl>
     </div>
@@ -127,6 +127,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { roleLabel } from '@/utils/roleLabels.js'
+import { formatServerDateTime } from '@/utils/serverDateTime.js'
 import { User, AlertCircle } from 'lucide-vue-next'
 
 const TIME_SHORTCUTS = [
@@ -197,15 +198,6 @@ async function fetchData() {
   } finally {
     if (req.isCurrent()) loading.value = false
   }
-}
-
-function formatDateTime(value) {
-  if (!value) return '-'
-  const date = new Date(value.replace(' ', 'T'))
-  if (isNaN(date.getTime())) return '-'
-  return date.toLocaleString('th-TH', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
 }
 
 watch(() => route.params.id, fetchData)

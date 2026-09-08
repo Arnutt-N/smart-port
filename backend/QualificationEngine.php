@@ -243,9 +243,9 @@ class QualificationEngine
                     WHERE approval_status = 'APPROVED'
                     GROUP BY personnel_id
                 ) eqs ON eqs.personnel_id = e.personnel_id AND eqs.eqv_days > 0";
-        // วันดำรง M1/M2 สะสม (ช่วงปิด end_date NOT NULL) — S2 path บต/ทว + อต-อส + เทียบ
+        // วันดำรง M1/M2 สะสม (ช่วงปิด end_date NOT NULL) — inclusive end (+1) ตาม computeNetBreakdown
         $msTenure = "LEFT JOIN (
-                    SELECT personnel_id, SUM(DATEDIFF(end_date, effective_date)) AS ms_days
+                    SELECT personnel_id, SUM(DATEDIFF(end_date, effective_date) + 1) AS ms_days
                     FROM personnel_position_history
                     WHERE position_level IN ('M1','M2') AND end_date IS NOT NULL
                     GROUP BY personnel_id
@@ -466,7 +466,7 @@ class QualificationEngine
         // cap เพดาน 200 เหมือน probation list — กัน ?limit=999999999 dump ทั้งระดับ
         $limit = max(1, min(200, intval($limit)));
         $offset = max(0, intval($offset));
-        $dataSql = "{$baseSelect}{$searchClause} ORDER BY remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
+        $dataSql = "{$baseSelect}{$searchClause} ORDER BY (remaining_days IS NULL), remaining_days ASC LIMIT {$limit} OFFSET {$offset}";
         $dataStmt = $this->pdo->prepare($dataSql);
         $dataStmt->execute($params);
         $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
