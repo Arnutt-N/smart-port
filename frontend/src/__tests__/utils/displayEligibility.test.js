@@ -40,4 +40,9 @@ describe('probationStatusFor', () => {
     expect(probationStatusFor('IN_PROGRESS', 31)).toBe('NOT_DUE')
     expect(probationStatusFor('IN_PROGRESS', 45)).toBe('NOT_DUE')
   })
+
+  it('treats remaining_days === 0 as READY and negative as OVERDUE', () => {
+    expect(probationStatusFor('IN_PROGRESS', 0)).toBe('READY')
+    expect(probationStatusFor('IN_PROGRESS', -1)).toBe('OVERDUE')
+  })
 })
