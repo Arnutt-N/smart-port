@@ -25,6 +25,23 @@ const MULTIPLIER_OVERLAP_EXCLUDE_SQL = 'SELECT COUNT(*) FROM multiplier_experien
           AND eligible_start_date <= ?
           AND eligible_end_date >= ?';
 
+/** N10 — เขียน master พื้นที่พิเศษ = admin/superadmin (UI requiresAdmin) */
+function multiplierAreaWriteAllowed(?array $user): bool
+{
+    $role = (string) ($user['role'] ?? '');
+    return $role === 'admin' || $role === 'superadmin';
+}
+
+function denyMultiplierAreaWrite(): void
+{
+    http_response_code(403);
+    echo json_encode([
+        'error' => 'Forbidden',
+        'message' => 'คุณไม่มีสิทธิ์ในการดำเนินการนี้',
+        'required_permission' => 'admin',
+    ]);
+}
+
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
     // GET = read, POST = create, PUT = update, DELETE = delete
@@ -58,6 +75,10 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
 
             case 'POST':
                 if (($path[1] ?? '') === 'areas') {
+                    if (!multiplierAreaWriteAllowed($user)) {
+                        denyMultiplierAreaWrite();
+                        return;
+                    }
                     createMultiplierArea($pdo, $user);
                     return;
                 }
@@ -71,6 +92,10 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
                     && ctype_digit($path[2] ?? '')
                     && ($path[3] ?? '') === 'status'
                 ) {
+                    if (!multiplierAreaWriteAllowed($user)) {
+                        denyMultiplierAreaWrite();
+                        return;
+                    }
                     setMultiplierAreaStatus($pdo, (int) $path[2]);
                     return;
                 }
