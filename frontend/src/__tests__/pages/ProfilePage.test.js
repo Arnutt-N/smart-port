@@ -70,6 +70,20 @@ describe('ProfilePage', () => {
     expect(wrapper.text()).toContain('ผู้ดูแลระบบ')
   })
 
+  it('formats last login with Thai Buddhist year via formatServerDateTime (#N24)', async () => {
+    mockFetchMe.mockResolvedValue({
+      data: {
+        userId: 1, username: 'admin', fullName: 'ผู้ดูแลระบบ', email: 'a@b.c',
+        role: 'admin', isActive: true, mustChangePassword: false,
+        lastLoginAt: '2026-09-01 10:00:00', createdAt: '2023-01-01',
+      },
+    })
+    const wrapper = await mountPage()
+    await vi.waitFor(() => expect(mockFetchMe).toHaveBeenCalled())
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('2569')
+  })
+
   it('renders servant detail when id param present', async () => {
     routeParams.value = { id: '5' }
     const wrapper = await mountPage()

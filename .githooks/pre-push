@@ -30,6 +30,9 @@ if [[ ! -d "${FRONTEND}/node_modules" ]]; then
   exit 1
 fi
 
+echo "[pre-push] npm audit --omit=dev --audit-level=high ..."
+(cd "${FRONTEND}" && npm audit --omit=dev --audit-level=high)
+
 # Script regressions (mock server ในเครื่อง ไม่ออกเน็ต) — ~15s เร็วกว่า vitest มาก
 # รันก่อนเพื่อ fail เร็ว และเพราะ Actions ปิด auto-trigger อยู่ hook นี้คือที่เดียวที่
 # gate พวกนี้ถูกบังคับจริงทุกครั้ง (schema parity validator / live header / CSP self-test)

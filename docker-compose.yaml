@@ -99,7 +99,7 @@ services:
       - ./database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql
       - ./database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 10s
       timeout: 5s
       retries: 10

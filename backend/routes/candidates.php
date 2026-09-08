@@ -13,6 +13,7 @@
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../authz.php';
 include_once __DIR__ . '/../QualificationEngine.php';
+include_once __DIR__ . '/personnel.php';
 
 /**
  * จัดการ request สำหรับ candidate list endpoints
@@ -71,6 +72,8 @@ function handleCandidates(PDO $pdo, string $method, array $path): void
             echo json_encode(['error' => 'Personnel not found']);
             return;
         }
+        $role = (string) (getAuthenticatedUser()['role'] ?? '');
+        $result['data'] = redactPersonnelCitizenIdForRole($result['data'], $role);
         echo json_encode($result);
     } else {
         // รายชื่อทั้งหมด: GET /candidates/K2?search=&limit=20&offset=0

@@ -276,6 +276,20 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
  *   - อัปเดตเฉพาะ field ที่อนุญาต
  *   - คำนวณ request_total_days ใหม่หากเปลี่ยนวันที่
  */
+/**
+ * Inclusive day count for an approved date range.
+ * Throws InvalidArgumentException when end < start (message matches MultiplierEngine.php:20).
+ */
+function approvedRangeTotalDays(string $start, string $end): int
+{
+    $approvedStart = new DateTime($start);
+    $approvedEnd = new DateTime($end);
+    if ($approvedEnd < $approvedStart) {
+        throw new InvalidArgumentException('วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น');
+    }
+    return $approvedEnd->diff($approvedStart)->days + 1;
+}
+
 function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
@@ -317,16 +331,18 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
                 return;
             }
 
-            // คำนวณ approved_total_days (DATEDIFF+1)
+            // คำนวณ approved_total_days (DATEDIFF+1) — จับ subclass ก่อน Exception
             try {
-                $approvedStart = new DateTime($data['approved_start_date']);
-                $approvedEnd = new DateTime($data['approved_end_date']);
+                $approvedTotalDays = approvedRangeTotalDays($data['approved_start_date'], $data['approved_end_date']);
+            } catch (InvalidArgumentException $e) {
+                http_response_code(400);
+                echo json_encode(['error' => $e->getMessage()]);
+                return;
             } catch (Exception $e) {
                 http_response_code(400);
                 echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
                 return;
             }
-            $approvedTotalDays = $approvedEnd->diff($approvedStart)->days + 1;
 
             // ผู้อนุมัติจาก JWT (ผ่าน requirePermission('update', 'equivalence_approval') แล้ว) สำหรับ approved_by
             $userId = $approver['user_id'] ?? null;
