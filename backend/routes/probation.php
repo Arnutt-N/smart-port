@@ -14,6 +14,7 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../authz.php';
+include_once __DIR__ . '/../audit.php';
 
 /**
  * จัดการ request สำหรับ probation tracking endpoints
@@ -330,10 +331,23 @@ function createProbationEnrollment(PDO $pdo): void
         throw $e;
     }
 
-    $enrollmentId = $pdo->lastInsertId();
+    $enrollmentId = (int) $pdo->lastInsertId();
+    $afterStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+    $afterStmt->execute([$enrollmentId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    $auth = getAuthenticatedUser();
+    logAudit(
+        $pdo,
+        (int) $auth['user_id'],
+        'CREATE',
+        'probation_enrollment',
+        $enrollmentId,
+        null,
+        $after ?: null
+    );
 
     http_response_code(201);
-    echo json_encode(['success' => true, 'enrollment_id' => intval($enrollmentId)]);
+    echo json_encode(['success' => true, 'enrollment_id' => $enrollmentId]);
 }
 
 /**
@@ -343,6 +357,15 @@ function createProbationEnrollment(PDO $pdo): void
 function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
 {
     $data = json_decode(file_get_contents('php://input'), true);
+
+    $beforeStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+    $beforeStmt->execute([$enrollmentId]);
+    $existing = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$existing) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Enrollment not found']);
+        return;
+    }
 
     $allowed = [
         'start_date',
@@ -376,16 +399,19 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    if ($stmt->rowCount() === 0) {
-        // แถวอาจมีอยู่แต่ค่าไม่เปลี่ยน — แยก 404 จริง
-        $check = $pdo->prepare('SELECT 1 FROM probation_enrollment WHERE enrollment_id = ?');
-        $check->execute([$enrollmentId]);
-        if (!$check->fetchColumn()) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Enrollment not found']);
-            return;
-        }
-    }
+    $afterStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+    $afterStmt->execute([$enrollmentId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    $auth = getAuthenticatedUser();
+    logAudit(
+        $pdo,
+        (int) $auth['user_id'],
+        'UPDATE',
+        'probation_enrollment',
+        $enrollmentId,
+        $existing,
+        $after ?: null
+    );
 
     echo json_encode(['success' => true]);
 }
@@ -396,6 +422,19 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
  */
 function deleteProbationEnrollment(PDO $pdo, int $enrollmentId): void
 {
+    $beforeStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+    $beforeStmt->execute([$enrollmentId]);
+    $existing = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$existing) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Enrollment not found']);
+        return;
+    }
+    if ($existing['overall_status'] === 'CANCELLED') {
+        echo json_encode(['success' => true]);
+        return;
+    }
+
     $stmt = $pdo->prepare(
         "UPDATE probation_enrollment
          SET overall_status = 'CANCELLED'
@@ -404,17 +443,19 @@ function deleteProbationEnrollment(PDO $pdo, int $enrollmentId): void
     );
     $stmt->execute([$enrollmentId]);
 
-    if ($stmt->rowCount() === 0) {
-        $check = $pdo->prepare('SELECT overall_status FROM probation_enrollment WHERE enrollment_id = ?');
-        $check->execute([$enrollmentId]);
-        $status = $check->fetchColumn();
-        if ($status === false) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Enrollment not found']);
-            return;
-        }
-        // already cancelled — treat as success (idempotent)
-    }
+    $afterStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+    $afterStmt->execute([$enrollmentId]);
+    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+    $auth = getAuthenticatedUser();
+    logAudit(
+        $pdo,
+        (int) $auth['user_id'],
+        'DELETE',
+        'probation_enrollment',
+        $enrollmentId,
+        $existing,
+        $after ?: null
+    );
 
     echo json_encode(['success' => true]);
 }
