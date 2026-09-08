@@ -13,6 +13,18 @@ include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 include_once __DIR__ . '/../MultiplierEngine.php';
 
+/** N13 — ล็อกแถวบุคคลก่อนเช็ค overlap เพื่อกัน concurrent INSERT นับโบนัสซ้ำ */
+const MULTIPLIER_PERSONNEL_LOCK_SQL = 'SELECT personnel_id FROM personnel WHERE personnel_id = ? FOR UPDATE';
+const MULTIPLIER_OVERLAP_SQL = 'SELECT COUNT(*) FROM multiplier_experience
+        WHERE personnel_id = ?
+          AND eligible_start_date <= ?
+          AND eligible_end_date >= ?';
+const MULTIPLIER_OVERLAP_EXCLUDE_SQL = 'SELECT COUNT(*) FROM multiplier_experience
+        WHERE personnel_id = ?
+          AND multiplier_id != ?
+          AND eligible_start_date <= ?
+          AND eligible_end_date >= ?';
+
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
     // GET = read, POST = create, PUT = update, DELETE = delete
@@ -310,24 +322,29 @@ function createMultiplier(PDO $pdo, array $user): void
         return;
     }
 
-    // กันการนับซ้ำ: ปฏิเสธถ้า "ช่วงที่นับได้จริง" (eligible period) ทับกับรายการเดิมของบุคคลนี้
-    // เพราะ bonus_days aggregate จากช่วงเหล่านี้ การทับ = double-count วันเลื่อนระดับ
-    $overlapStmt = $pdo->prepare("
-        SELECT COUNT(*) FROM multiplier_experience
-        WHERE personnel_id = ?
-          AND eligible_start_date <= ?
-          AND eligible_end_date >= ?
-    ");
-    $overlapStmt->execute([
-        $personnelId,
-        $computed['eligible_end_date'],
-        $computed['eligible_start_date'],
-    ]);
-    if ((int) $overlapStmt->fetchColumn() > 0) {
-        http_response_code(409);
-        echo json_encode(['error' => 'ช่วงวันที่นับทวีคูณทับซ้อนกับรายการเดิมของบุคลากรนี้']);
-        return;
-    }
+    // กันการนับซ้ำ: ล็อกแถวบุคคลแล้วค่อย COUNT overlap ของช่วงที่นับได้จริง
+    $pdo->beginTransaction();
+    try {
+        $lockStmt = $pdo->prepare(MULTIPLIER_PERSONNEL_LOCK_SQL);
+        $lockStmt->execute([$personnelId]);
+        if (!$lockStmt->fetchColumn()) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+            return;
+        }
+        $overlapStmt = $pdo->prepare(MULTIPLIER_OVERLAP_SQL);
+        $overlapStmt->execute([
+            $personnelId,
+            $computed['eligible_end_date'],
+            $computed['eligible_start_date'],
+        ]);
+        if ((int) $overlapStmt->fetchColumn() > 0) {
+            $pdo->rollBack();
+            http_response_code(409);
+            echo json_encode(['error' => 'ช่วงวันที่นับทวีคูณทับซ้อนกับรายการเดิมของบุคลากรนี้']);
+            return;
+        }
 
     $sql = "INSERT INTO multiplier_experience
             (personnel_id, area_multiplier_id, province, district, basis_type,
@@ -380,6 +397,14 @@ function createMultiplier(PDO $pdo, array $user): void
             'bonus_days' => $computed['bonus_days'],
         ]
     );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     http_response_code(201);
     echo json_encode([
@@ -560,25 +585,29 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         return;
     }
 
-    // ตรวจ overlap (ยกเว้นตัวเอง)
-    $overlapStmt = $pdo->prepare("
-        SELECT COUNT(*) FROM multiplier_experience
-        WHERE personnel_id = ?
-          AND multiplier_id != ?
-          AND eligible_start_date <= ?
-          AND eligible_end_date >= ?
-    ");
-    $overlapStmt->execute([
-        $personnelId,
-        $multiplierId,
-        $computed['eligible_end_date'],
-        $computed['eligible_start_date'],
-    ]);
-    if ((int) $overlapStmt->fetchColumn() > 0) {
-        http_response_code(409);
-        echo json_encode(['error' => 'ช่วงวันที่นับทวีคูณทับซ้อนกับรายการเดิมของบุคลากรนี้']);
-        return;
-    }
+    $pdo->beginTransaction();
+    try {
+        $lockStmt = $pdo->prepare(MULTIPLIER_PERSONNEL_LOCK_SQL);
+        $lockStmt->execute([$personnelId]);
+        if (!$lockStmt->fetchColumn()) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
+            return;
+        }
+        $overlapStmt = $pdo->prepare(MULTIPLIER_OVERLAP_EXCLUDE_SQL);
+        $overlapStmt->execute([
+            $personnelId,
+            $multiplierId,
+            $computed['eligible_end_date'],
+            $computed['eligible_start_date'],
+        ]);
+        if ((int) $overlapStmt->fetchColumn() > 0) {
+            $pdo->rollBack();
+            http_response_code(409);
+            echo json_encode(['error' => 'ช่วงวันที่นับทวีคูณทับซ้อนกับรายการเดิมของบุคลากรนี้']);
+            return;
+        }
 
     // Update
     $sql = "UPDATE multiplier_experience SET
@@ -642,6 +671,14 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         $existing,
         $after ?: null
     );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     // ดึงข้อมูลที่อัปเดตแล้วพร้อม decoration
     $updatedStmt = $pdo->prepare("

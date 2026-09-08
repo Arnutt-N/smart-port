@@ -146,6 +146,8 @@
                 id="supportive-personnel-search"
                 v-model="personnelSearch"
                 @input="onPersonnelInput"
+                @compositionstart="isComposingPersonnel = true"
+                @compositionend="onPersonnelCompositionEnd"
                 type="text"
                 placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -359,6 +361,7 @@ const personnelSearch = ref('')
 const personnelResults = ref([])
 const showPersonnelDropdown = ref(false)
 const personnelSearchFailed = ref(false)
+const isComposingPersonnel = ref(false)
 const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
   const req = nextPersonnelRequest()
   const val = personnelSearch.value.trim()
@@ -522,6 +525,7 @@ async function confirmDelete(id) {
 
 // Personnel autocomplete
 function onPersonnelInput() {
+  if (isComposingPersonnel.value) return
   formData.value.personnel_id = null
   const val = personnelSearch.value.trim()
   if (val.length < 2) {
@@ -533,6 +537,11 @@ function onPersonnelInput() {
     return
   }
   schedulePersonnelSearch()
+}
+
+function onPersonnelCompositionEnd() {
+  isComposingPersonnel.value = false
+  onPersonnelInput()
 }
 
 function selectPersonnel(person) {

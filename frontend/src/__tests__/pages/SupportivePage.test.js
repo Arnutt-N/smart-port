@@ -190,6 +190,26 @@ describe('SupportivePage', () => {
     expect(mockRemove).not.toHaveBeenCalled()
   })
 
+  it('skips personnel typeahead while IME is composing then runs on composition end', async () => {
+    vi.useFakeTimers()
+    const wrapper = await mountPage()
+    wrapper.vm.openCreate()
+    await wrapper.vm.$nextTick()
+    mockSearchPersonnel.mockClear()
+
+    const input = wrapper.get('#supportive-personnel-search')
+    await input.trigger('compositionstart')
+    await input.setValue('สม')
+    await input.trigger('input')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(mockSearchPersonnel).not.toHaveBeenCalled()
+
+    await input.trigger('compositionend')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(mockSearchPersonnel).toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
   it('closeModal clears form errors', async () => {
     const wrapper = await mountPage()
     wrapper.vm.openCreate()

@@ -16,6 +16,102 @@ include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../authz.php';
 include_once __DIR__ . '/../audit.php';
 
+/** @var list<string> overall_status ที่ PUT รับได้ — CANCELLED ตั้งได้เฉพาะ DELETE */
+const PROBATION_OVERALL_STATUSES = ['IN_PROGRESS', 'COMPLETED', 'FAILED', 'EXTENDED'];
+
+/**
+ * parse Y-m-d แบบเข้ม (pattern เดียวกับ diverseStrictDate) — คืน null ถ้า format ผิดหรือ overflow
+ */
+function probationStrictDate(string $value): ?DateTime
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
+
+/**
+ * N14 — ตรวจ payload PUT พ้นทดลอง: whitelist status, ห้ามเปิด CANCELLED, end≥start (merge กับแถวเดิม)
+ *
+ * @param array<string, mixed> $data
+ * @param array<string, mixed> $existing
+ */
+function probationUpdateValidationError(array $data, array $existing): ?string
+{
+    $currentStatus = (string) ($existing['overall_status'] ?? '');
+    if ($currentStatus === 'CANCELLED') {
+        return 'Cancelled enrollment cannot be reopened';
+    }
+    if (array_key_exists('overall_status', $data)) {
+        $next = $data['overall_status'];
+        if (!is_string($next) || !in_array($next, PROBATION_OVERALL_STATUSES, true)) {
+            return 'Invalid overall_status';
+        }
+    }
+
+    $start = probationUpdateResolvedDate($data, $existing, 'start_date');
+    if (is_string($start)) {
+        return $start;
+    }
+    $end = probationUpdateResolvedDate($data, $existing, 'end_date');
+    if (is_string($end)) {
+        return $end;
+    }
+    if ($start !== null && $end !== null && $end < $start) {
+        return 'end_date must be greater than or equal to start_date';
+    }
+
+    return null;
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @param array<string, mixed> $existing
+ * @return DateTime|string|null DateTime, ข้อความ error, หรือ null ถ้าไม่มีค่า
+ */
+function probationUpdateResolvedDate(array $data, array $existing, string $field): DateTime|string|null
+{
+    if (array_key_exists($field, $data)) {
+        if (!is_string($data[$field])) {
+            return 'Invalid date format';
+        }
+        return probationStrictDate($data[$field]) ?? 'Invalid date format';
+    }
+    $raw = $existing[$field] ?? null;
+    if ($raw === null || $raw === '') {
+        return null;
+    }
+    if (!is_string($raw)) {
+        return 'Invalid date format';
+    }
+    return probationStrictDate($raw) ?? 'Invalid date format';
+}
+
+/** N17 — POST create ใช้ parse เข้มชุดเดียวกับ PUT */
+function probationCreateDateError(mixed $start, mixed $end): ?string
+{
+    if (!is_string($start) || !is_string($end)) {
+        return 'Invalid date format';
+    }
+    $startDate = probationStrictDate($start);
+    $endDate = probationStrictDate($end);
+    if ($startDate === null || $endDate === null) {
+        return 'Invalid date format';
+    }
+    if ($endDate < $startDate) {
+        return 'end_date must be greater than or equal to start_date';
+    }
+    return null;
+}
+
 /**
  * จัดการ request สำหรับ probation tracking endpoints
  *
@@ -303,10 +399,10 @@ function createProbationEnrollment(PDO $pdo): void
         return;
     }
 
-    // end_date ต้องไม่น้อยกว่า start_date (เทียบ string Y-m-d ได้ตรงเพราะรูปแบบ sort ได้)
-    if ($data['end_date'] < $data['start_date']) {
+    $dateError = probationCreateDateError($data['start_date'] ?? null, $data['end_date'] ?? null);
+    if ($dateError !== null) {
         http_response_code(400);
-        echo json_encode(['error' => 'end_date must be greater than or equal to start_date']);
+        echo json_encode(['error' => $dateError]);
         return;
     }
 
@@ -364,6 +460,16 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
     if (!$existing) {
         http_response_code(404);
         echo json_encode(['error' => 'Enrollment not found']);
+        return;
+    }
+
+    if (!is_array($data)) {
+        $data = [];
+    }
+    $validationError = probationUpdateValidationError($data, $existing);
+    if ($validationError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $validationError]);
         return;
     }
 

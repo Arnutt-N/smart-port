@@ -234,7 +234,6 @@ async function fetchDashboard() {
     if (!req.isCurrent()) return
 
     stats.value.totalPersonnel = d.total_personnel || 0
-    stats.value.probationTotal = d.probation?.total || 0
     stats.value.timeCountTotal = d.time_counting?.total || 0
     stats.value.candidateTotal = d.candidates?.total || 0
     // ใช้ค่า in_progress จาก backend ตรง ๆ (predicate เดียวกับหน้า probation)
@@ -242,6 +241,7 @@ async function fetchDashboard() {
     const inProgress = typeof d.probation?.in_progress === 'number'
       ? d.probation.in_progress
       : Math.max(0, (d.probation?.total || 0) - (d.probation?.near_deadline || 0) - (d.probation?.overdue || 0))
+    stats.value.probationTotal = inProgress
     probationSummary.value = {
       inProgress,
       nearDeadline: d.probation?.near_deadline || 0,

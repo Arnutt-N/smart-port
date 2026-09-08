@@ -192,6 +192,12 @@ function getSupportiveDetail(PDO $pdo, int $id): void
  * เพื่อไม่ต้อง include engine ทั้งไฟล์) — คืน null ถ้า format ผิดหรือมี overflow
  * (เดือน 13, วัน 45) — 'Y-m-d|' reset เวลาเป็น 00:00:00 กันคลาดเคลื่อน ±1 วัน
  */
+/** N15 — DECIMAL(5,2) ต้องเป็น float ไม่ใช่ intval ที่ตัดทศนิยม */
+function supportiveRatioPercent(int|float|string $raw): float
+{
+    return (float) $raw;
+}
+
 function supportiveStrictDate(string $value): ?DateTime
 {
     $date = DateTime::createFromFormat('Y-m-d|', $value);
@@ -245,7 +251,7 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
         $ratioStmt->execute([$primarySeriesName, $jobSeriesName]);
         $ratioRow = $ratioStmt->fetch(PDO::FETCH_ASSOC);
         if ($ratioRow) {
-            $ratioPercent = intval($ratioRow['ratio_percent']);
+            $ratioPercent = supportiveRatioPercent($ratioRow['ratio_percent']);
         }
     }
 
