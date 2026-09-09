@@ -316,6 +316,15 @@ switch ($path[0]) {
                 break;
             }
 
+            // N37: pre-check personnel ก่อนรับไฟล์ (pattern เดียวกับ probation) —
+            // servant_id ที่ไม่มีจริงเดิม INSERT แล้วโยน FK/PD ที่ทำ store ระเบิดเป็น 500
+            $pdo = getDB();
+            if (!personnelExists($pdo, $servant_id)) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Personnel not found']);
+                break;
+            }
+
             if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Upload failed']);
@@ -376,9 +385,19 @@ switch ($path[0]) {
             $web_path = photoWebPath($safeFileName);
 
             try {
-                $pdo = getDB();
                 include_once __DIR__ . '/routes/photos.php';
                 $stored = storePhotoRecord($pdo, $servant_id, $safeFileName, $web_path, $bytes, $mimeType);
+
+                // N37: บันทึก audit — เดิม POST /photos ไม่เข้า audit log เลย
+                logAudit(
+                    $pdo,
+                    (int) (getAuthenticatedUser()['user_id'] ?? 0),
+                    'CREATE',
+                    'civil_servant_photos',
+                    (int) $stored['photo_id'],
+                    null,
+                    ['servant_id' => $servant_id, 'file_name' => $safeFileName, 'mime_type' => $mimeType]
+                );
 
                 echo json_encode([
                     'success' => true,
