@@ -14,41 +14,20 @@ describe('StatCard', () => {
     expect(wrapper.text()).toContain('42')
   })
 
-  it('shows green change class for positive change', () => {
-    const wrapper = mount(StatCard, {
-      props: { label: 'A', value: 1, icon: DummyIcon, change: '+5%' },
-    })
-    expect(wrapper.text()).toContain('+5% จากเดือนที่แล้ว')
-    expect(wrapper.find('.text-green-600').exists()).toBe(true)
-  })
-
-  it('shows red change class for negative change', () => {
-    const wrapper = mount(StatCard, {
-      props: { label: 'A', value: 1, icon: DummyIcon, change: '-3%' },
-    })
-    expect(wrapper.find('.text-red-600').exists()).toBe(true)
-  })
-
-  it('shows gray change class for neutral change', () => {
-    const wrapper = mount(StatCard, {
-      props: { label: 'A', value: 1, icon: DummyIcon, change: 'คงที่' },
-    })
-    expect(wrapper.find('.text-gray-600').exists()).toBe(true)
-  })
-
-  it('renders sparkline bars when sparkline is true', () => {
-    const wrapper = mount(StatCard, {
-      props: { label: 'A', value: 1, icon: DummyIcon, sparkline: true },
-    })
-    const bars = wrapper.findAll('.flex.items-end .flex-1')
-    expect(bars.length).toBe(8)
-  })
-
-  it('hides change and sparkline by default', () => {
+  // N48: ตัด props change/sparkline — เทสเดิมที่อ้างพฤติกรรมของ props ตายถูกลบ
+  // คงยืนยันว่า render label/value พร้อม icon ทุก call site (10 หน้า)
+  it('renders icon component', () => {
     const wrapper = mount(StatCard, {
       props: { label: 'A', value: 1, icon: DummyIcon },
     })
-    expect(wrapper.text()).not.toContain('จากเดือนที่แล้ว')
-    expect(wrapper.findAll('.flex.items-end .flex-1')).toHaveLength(0)
+    expect(wrapper.find('svg').exists()).toBe(true)
+  })
+
+  it('applies custom icon classes', () => {
+    const wrapper = mount(StatCard, {
+      props: { label: 'A', value: 1, icon: DummyIcon, iconBgClass: 'bg-amber-50', iconClass: 'text-amber-600' },
+    })
+    expect(wrapper.find('.bg-amber-50').exists()).toBe(true)
+    expect(wrapper.find('.text-amber-600').exists()).toBe(true)
   })
 })
