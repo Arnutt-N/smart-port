@@ -24,16 +24,14 @@ function handleSync(PDO $pdo, string $method, array $path): void
         return;
     }
 
-    // ใช้ authz matrix เป็นเส้นตัดสิน (fail-closed) — ห้าม hardcode role check
-    // เพราะ superadmin โดน 403 และ override จาก settings ไม่ถูกนับ
-    requirePermission('create', 'sync');
-
     $sub = $path[1] ?? '';
 
     try {
         switch ($method) {
             case 'GET':
                 if ($sub === 'status') {
+                    // N32: GET ใช้ read:sync ไม่ใช่ create:sync
+                    requirePermission('read', 'sync');
                     handleSyncStatus($pdo);
                 } else {
                     http_response_code(404);
@@ -42,6 +40,9 @@ function handleSync(PDO $pdo, string $method, array $path): void
                 break;
 
             case 'POST':
+                // ใช้ authz matrix เป็นเส้นตัดสิน (fail-closed) — ห้าม hardcode role check
+                // เพราะ superadmin โดน 403 และ override จาก settings ไม่ถูกนับ
+                requirePermission('create', 'sync');
                 handleSyncTrigger($pdo, $sub);
                 break;
 
