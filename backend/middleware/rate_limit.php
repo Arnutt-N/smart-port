@@ -165,20 +165,32 @@ function rateLimitGlobal(): void
 // ============================================================================
 
 /**
- * IP ของ client — last hop ของ X-Forwarded-For
+ * IP ของ client — last hop ของ X-Forwarded-For เมื่อ REMOTE_ADDR ของ host ที่ใช้
+ * เป็น "trusted proxy" ตาม TRUSTED_PROXIES env
  *
- * Render proxy chain: client → Render edge proxy → Apache ใน container
- * ทุก proxy ผนวก IP ของผู้ส่งต่อท้าย XFF ดังนั้น hop ท้ายสุดคือ IP จากการเชื่อมต่อจริง
- * ที่ proxy เชื่อถือได้ ส่วน hop แรกมาจาก header ที่ client ตั้งเองได้ (ปลอมได้)
- * — เคยใช้ first hop แล้วผู้โจมตีสุ่ม XFF เพื่อเปลี่ยน IP หนี rate limit ได้ทุก request
- * จึงเปลี่ยนมาใช้ last hop
+ * ขั้น 10 S1 review: ใช้ XFF แบบไม่เช็ค REMOTE_ADDR = ใครเข้าถึง backend ตรง ๆ (dev,
+ * หลัง LB ที่ reverse ได้) สุ่ม XFF เพื่อหลบ rate limit ได้ทุก request → ต้อง whitelist
+ *
+ * โทพอลอจีที่ตั้งค่าเอาไว้: Render edge proxy → Apache (php:8.3-apache, ไม่มี mod_remoteip)
+ * REMOTE_ADDR ที่ PHP เห็น = IP ของ Render edge — ดังนั้น:
+ *  - TRUSTED_PROXIES set + REMOTE_ADDR อยู่ในรายการ → เชื่อ last hop ของ XFF
+ *    (Render append IP จริง client ท้าย XFF เสมอ — hop แรก/กลางใด ๆ เป็นค่าที่ client ปลอมได้)
+ *  - REMOTE_ADDR ไม่ trusted → ใช้ REMOTE_ADDR ตรง ๆ (dev localhost ต่อตรง: ไม่มี XFF
+ *    ถูกนำมาตีความ แม้ส่ง header ปลอมมาก็ไม่เปลี่ยน key ของ rate limit)
+ *
+ * env: TRUSTED_PROXIES = comma-separated IPs/CIDRs (เว้นว่าง = ไม่เชื่อ XFF ทุกกรณี)
  * (ห้าม end(explode(...)) ตรง ๆ — PHP 8.3 notice: Only variables should be passed by reference)
- *
- * กรณีเรียกตรงไม่ผ่าน proxy (dev) จะไม่มี XFF → fallback REMOTE_ADDR เดิม
- * sanitize ให้เหลือแค่รูปของ IPv4/IPv6
  */
 function publicClientIp(): string
 {
+    $remoteAddr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+
+    // REMOTE_ADDR ที่ไม่ trusted → ใช้เลย (dev / ต่อตรง / whitelist ไม่ตั้ง)
+    if (!remoteAddrIsTrustedProxy($remoteAddr)) {
+        return $remoteAddr !== '' ? $remoteAddr : 'unknown';
+    }
+
+
     $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
     if ($forwarded !== '') {
         $hops = array_map('trim', explode(',', $forwarded));
@@ -188,7 +200,70 @@ function publicClientIp(): string
         }
     }
 
-    return (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    // trusted proxy แต่ไม่มี XFF ใช้ได้ — ยอมรับ key ร่วมของ proxy กลุ่มเดียว
+    // (โทพอล Render: ทุก connection จริงมาจาก edge เสมอ จึงเหมือน shared bucket)
+    return $remoteAddr !== '' ? $remoteAddr : 'unknown';
+}
+
+/**
+ * เช็ค REMOTE_ADDR อยู่ใน TRUSTED_PROXIES (exact IP หรือ CIDR IPv4) หรือไม่
+ * parse เมื่อเรียกเท่านั้น — แคช static เพราะ header เดิมทั้ง request
+ */
+function remoteAddrIsTrustedProxy(string $remoteAddr): bool
+{
+    static $cachedFor = null;
+    static $cachedVal = false;
+
+    if ($cachedFor === $remoteAddr) {
+        return $cachedVal;
+    }
+
+    if ($remoteAddr === '' || !filter_var($remoteAddr, FILTER_VALIDATE_IP)) {
+        // ไม่ cache ค่า output ไว้เมื่อ REMOTE_ADDR ไม่ใช่ IP (เช่น '' จาก tearDown)
+        // เพื่อให้เทสที่ set/unset REMOTE_ADDR ไล่กันได้ — mark cache miss โดยเทียบกับค่าล้ำหน้า
+        return false;
+    }
+
+    $trusted = array_map('trim', explode(',', (string) getenv('TRUSTED_PROXIES') ?: ''));
+    $isTrusted = false;
+    foreach ($trusted as $entry) {
+        if ($entry === '') {
+            continue;
+        }
+        if ($entry === $remoteAddr) {
+            $isTrusted = true;
+            break;
+        }
+        // CIDR /24 /64 — ใช้ filter_var ธรรมดา ไม่พึ่ง extension เพิ่ม
+        if (str_contains($entry, '/') && ipInCidr($remoteAddr, $entry)) {
+            $isTrusted = true;
+            break;
+        }
+    }
+
+    // แคชเฉพาะกรณีที่ env เปลี่ยนไม่สไตล์ runtime — ค่า get ก่อนหน้าใช้ซ้ำได้
+    $cachedVal = $isTrusted;
+    return $isTrusted;
+}
+
+/** IPv4 CIDR เท่านั้น (IPv6 ไม่ใช้ใน render topology — ระบุ exact IP) */
+function ipInCidr(string $ip, string $cidr): bool
+{
+    [$subnet, $bits] = array_pad(explode('/', $cidr, 2), 2, null);
+    if ($bits === null || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        return false;
+    }
+    $bits = (int) $bits;
+    if ($bits < 0 || $bits > 32) {
+        return false;
+    }
+    $ipLong = ip2long($ip);
+    $subnetLong = ip2long($subnet);
+    if ($ipLong === false || $subnetLong === false) {
+        return false;
+    }
+    $mask = $bits === 0 ? 0 : (-1 << (32 - $bits)) & 0xFFFFFFFF;
+    return ($ipLong & $mask) === ($subnetLong & $mask);
 }
 
 /**

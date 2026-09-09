@@ -528,40 +528,57 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
  */
 function deleteProbationEnrollment(PDO $pdo, int $enrollmentId): void
 {
-    $beforeStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
-    $beforeStmt->execute([$enrollmentId]);
-    $existing = $beforeStmt->fetch(PDO::FETCH_ASSOC);
-    if (!$existing) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Enrollment not found']);
-        return;
-    }
-    if ($existing['overall_status'] === 'CANCELLED') {
-        echo json_encode(['success' => true]);
-        return;
-    }
+    // ขั้น 10 S6: SELECT FOR UPDATE → UPDATE → audit ใน transaction เดียว (pattern N13)
+    // — ของเดิม SELECT/UPDATE แยก + audit เสมอ ทำ race ได้ audit DELETE ปลอม
+    try {
+        $pdo->beginTransaction();
+        $beforeStmt = $pdo->prepare(
+            'SELECT * FROM probation_enrollment WHERE enrollment_id = ?' .
+            ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '')
+        );
+        $beforeStmt->execute([$enrollmentId]);
+        $existing = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$existing) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'Enrollment not found']);
+            return;
+        }
+        if ($existing['overall_status'] === 'CANCELLED') {
+            // idempotent — ปิดไปแล้ว ไม่เขียน audit ซ้ำ
+            $pdo->rollBack();
+            echo json_encode(['success' => true]);
+            return;
+        }
 
-    $stmt = $pdo->prepare(
-        "UPDATE probation_enrollment
-         SET overall_status = 'CANCELLED'
-         WHERE enrollment_id = ?
-           AND overall_status <> 'CANCELLED'"
-    );
-    $stmt->execute([$enrollmentId]);
+        $stmt = $pdo->prepare(
+            "UPDATE probation_enrollment
+             SET overall_status = 'CANCELLED'
+             WHERE enrollment_id = ?
+               AND overall_status <> 'CANCELLED'"
+        );
+        $stmt->execute([$enrollmentId]);
 
-    $afterStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
-    $afterStmt->execute([$enrollmentId]);
-    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    $auth = getAuthenticatedUser();
-    logAudit(
-        $pdo,
-        (int) $auth['user_id'],
-        'DELETE',
-        'probation_enrollment',
-        $enrollmentId,
-        $existing,
-        $after ?: null
-    );
+        $afterStmt = $pdo->prepare('SELECT * FROM probation_enrollment WHERE enrollment_id = ?');
+        $afterStmt->execute([$enrollmentId]);
+        $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+        $auth = getAuthenticatedUser();
+        logAudit(
+            $pdo,
+            (int) $auth['user_id'],
+            'DELETE',
+            'probation_enrollment',
+            $enrollmentId,
+            $existing,
+            $after ?: null
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     echo json_encode(['success' => true]);
 }

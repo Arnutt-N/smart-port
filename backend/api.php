@@ -431,39 +431,58 @@ switch ($path[0]) {
         } elseif ($method === 'DELETE' && $servantId > 0) {
             // Soft-delete: ปิดใช้งานบุคลากร (ออกจากรายชื่อ candidates ที่กรอง is_active=1)
             requirePermission('delete', 'personnel');
-            // F15: บันทึก audit ก่อน UPDATE — pattern เดียวกับ PUT ใน routes/personnel.php
-            // (snapshot เฉพาะฟิลด์เดียวกัน, citizen_id ไม่เข้า audit เพราะเป็น PII)
-            $beforeStmt = $pdo->prepare(
-                'SELECT first_name, last_name, prefix_id, employee_id, is_active
-                 FROM personnel WHERE personnel_id = ?'
-            );
-            $beforeStmt->execute([$servantId]);
-            $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC);
-            // N40: ไม่พบ row → 404 ก่อน audit; ปิดใช้งานอยู่แล้ว → 409 ไม่เขียน audit ซ้ำ
-            // (เดิม audit ถูกเขียนแม้ UPDATE จะ rowCount=0 ทำให้ log โกหกว่ามีการลบ)
-            if (!$beforeRow) {
-                http_response_code(404);
-                echo json_encode(['error' => 'Not found']);
-                break;
+            // ขั้น 10 S1: SELECT FOR UPDATE → UPDATE → audit ใน transaction เดียว (pattern N13)
+            // — ของเดิม logAudit รันก่อน UPDATE โดยไม่มี lock ทำ race ขนานได้ audit DELETE ปลอม
+            try {
+                $pdo->beginTransaction();
+                $beforeStmt = $pdo->prepare(
+                    'SELECT first_name, last_name, prefix_id, employee_id, is_active
+                     FROM personnel WHERE personnel_id = ?' .
+                    ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '')
+                );
+                $beforeStmt->execute([$servantId]);
+                $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC);
+                // F15/N40: ไม่พบ row → 404; ปิดใช้งานอยู่แล้ว → 409 — ไม่เขียน audit
+                // (citizen_id ไม่เข้า audit เพราะเป็น PII)
+                if (!$beforeRow) {
+                    $pdo->rollBack();
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Not found']);
+                    break;
+                }
+                if ((int) $beforeRow['is_active'] !== 1) {
+                    $pdo->rollBack();
+                    http_response_code(409);
+                    echo json_encode(['error' => 'บุคลากรถูกปิดใช้งานอยู่แล้ว']);
+                    break;
+                }
+                $stmt = $pdo->prepare(
+                    'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
+                );
+                $stmt->execute([$servantId]);
+                if ($stmt->rowCount() === 0) {
+                    // กันระดับ isolation ที่ SELECT FOR UPDATE ไม่พอ (แผน B) — rowCount=0 = ไม่มีการเปลี่ยน
+                    $pdo->rollBack();
+                    http_response_code(409);
+                    echo json_encode(['error' => 'บุคลากรถูกปิดใช้งานอยู่แล้ว']);
+                    break;
+                }
+                logAudit(
+                    $pdo,
+                    (int) (getAuthenticatedUser()['user_id'] ?? 0),
+                    'DELETE',
+                    'personnel',
+                    $servantId,
+                    $beforeRow,
+                    array_merge($beforeRow, ['is_active' => 0])
+                );
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
             }
-            if ((int) $beforeRow['is_active'] !== 1) {
-                http_response_code(409);
-                echo json_encode(['error' => 'บุคลากรถูกปิดใช้งานอยู่แล้ว']);
-                break;
-            }
-            logAudit(
-                $pdo,
-                (int) (getAuthenticatedUser()['user_id'] ?? 0),
-                'DELETE',
-                'personnel',
-                $servantId,
-                $beforeRow,
-                array_merge($beforeRow, ['is_active' => 0])
-            );
-            $stmt = $pdo->prepare(
-                'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
-            );
-            $stmt->execute([$servantId]);
             echo json_encode(['success' => true]);
         } else {
             respondMethodNotAllowed();

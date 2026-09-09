@@ -25,11 +25,24 @@ const MULTIPLIER_OVERLAP_EXCLUDE_SQL = 'SELECT COUNT(*) FROM multiplier_experien
           AND eligible_start_date <= ?
           AND eligible_end_date >= ?';
 
-/** N10 — เขียน master พื้นที่พิเศษ = admin/superadmin (UI requiresAdmin) */
-function multiplierAreaWriteAllowed(?array $user): bool
+/**
+ * N10 — เขียน master พื้นที่พิเศษ = admin/superadmin (UI requiresAdmin)
+ *
+ * ขั้น 10 S2: เดิม hardcode role check ขัด comment ของ sync.php (ห้าม hardcode role เพราะ
+ * superadmin override ไม่ถูกนับ) — ใช้ `delete:multiplier` แทน: ใน default matrix
+ * operator delete = [] จึงเทียบเท่า admin/superadmin ที่ตั้งใจ และปุ่มลบแถว master
+ * (DELETE /multiplier/{id}) ก็ใช้ delete:multiplier เป็นตัวตั้ง — ผู้ลบข้อมูลทวีคูณ
+ * ย่อมเพียงพอจะแก้ master อ้างอิง แต่ยังผ่าน override ของ settings ตาม matrix
+ *
+ * @param PDO|null $pdo ส่งเมื่อใช้จริง (evaluate overrides) — null = default matrix เท่านั้น
+ */
+function multiplierAreaWriteAllowed(?array $user, ?PDO $pdo = null): bool
 {
+    if (!$user) {
+        return false;
+    }
     $role = (string) ($user['role'] ?? '');
-    return $role === 'admin' || $role === 'superadmin';
+    return checkPermission($role, 'delete', 'multiplier', $pdo);
 }
 
 function denyMultiplierAreaWrite(): void
@@ -38,7 +51,7 @@ function denyMultiplierAreaWrite(): void
     echo json_encode([
         'error' => 'Forbidden',
         'message' => 'คุณไม่มีสิทธิ์ในการดำเนินการนี้',
-        'required_permission' => 'admin',
+        'required_permission' => 'delete:multiplier',
     ]);
 }
 
@@ -75,7 +88,7 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
 
             case 'POST':
                 if (($path[1] ?? '') === 'areas') {
-                    if (!multiplierAreaWriteAllowed($user)) {
+                    if (!multiplierAreaWriteAllowed($user, $pdo)) {
                         denyMultiplierAreaWrite();
                         return;
                     }
@@ -92,7 +105,7 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
                     && ctype_digit($path[2] ?? '')
                     && ($path[3] ?? '') === 'status'
                 ) {
-                    if (!multiplierAreaWriteAllowed($user)) {
+                    if (!multiplierAreaWriteAllowed($user, $pdo)) {
                         denyMultiplierAreaWrite();
                         return;
                     }
