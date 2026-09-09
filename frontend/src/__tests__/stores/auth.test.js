@@ -37,6 +37,44 @@ describe('auth store', () => {
     expect(auth.isAdmin).toBe(false)
   })
 
+  // N4 — can() อ่าน effective grants (รวม role_permission_overrides)
+  describe('N4 permission grants', () => {
+    it('can() returns null-grants fallback to role intents', () => {
+      const auth = useAuthStore()
+      auth.setAuth(authData()) // role = admin
+      expect(auth.can('delete', 'multiplier')).toBe(true) // fallback: admin ทุกอย่าง
+
+      const opAuth = useAuthStore()
+      opAuth.setAuth({ ...authData(), user: { ...authData().user, role: 'operator' } })
+      expect(opAuth.can('delete', 'multiplier')).toBe(false)
+      expect(opAuth.can('create', 'multiplier')).toBe(true)
+      expect(opAuth.can('create', 'photos')).toBe(true)
+    })
+
+    it('can() uses loaded grants instead of role', () => {
+      const auth = useAuthStore()
+      auth.setAuth(authData())
+      // override ปิด delete:multiplier ของ admin — can() ต้องตาม grants
+      auth.permissionGrants = { read: ['*'], create: [], update: [], delete: [] }
+      expect(auth.can('delete', 'multiplier')).toBe(false)
+      expect(auth.isAdmin).toBe(false) // no delete grants = not admin-like
+    })
+
+    it('setAuth clears stale grants on session change', () => {
+      const auth = useAuthStore()
+      auth.setAuth(authData())
+      auth.permissionGrants = { read: ['multiplier'], create: [], update: [], delete: [] }
+      auth.setAuth(authData())
+      expect(auth.permissionGrants).toBeNull()
+    })
+
+    it('isAdmin stays role-based before grants load (fallback)', () => {
+      const auth = useAuthStore()
+      auth.setAuth(authData()) // admin, grants = null
+      expect(auth.isAdmin).toBe(true)
+    })
+  })
+
   it('setAuth persists token/user/csrf and authenticates', () => {
     const auth = useAuthStore()
     auth.setAuth(authData())

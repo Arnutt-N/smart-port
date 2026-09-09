@@ -65,10 +65,40 @@ export const useAuthStore = defineStore('auth', () => {
   const csrfToken = ref(readStoredString('csrf_token'))
   const user = ref(readStoredJson('user'))
 
+  // N4: effective permission grants ของ role ตัวเอง (จาก GET /settings/permissions/self)
+  // — FE คำนวณปุ่มจาก matrix จริงรวม role_permission_overrides แทน hardcode role เทียบ
+  // null = ยังไม่โหลด → fallback เทียบ role ขา intents เดิม (กันล็อก UI ตอน endpoint มีปัญหา)
+  const permissionGrants = ref(null)
+
   const isAuthenticated = computed(() => !!token.value && isTokenValid())
   const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
-  const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role === 'superadmin')
+  // N4: "admin" = สิทธิ์ delete อะไรได้ก็ได้ตาม matrix จริง (รวม override) —
+  // grants ยังไม่โหลด → fallback เทียบ role ตาม intents เดิม (admin/superadmin)
+  const isAdmin = computed(() => {
+    if (isSuperAdmin.value) return true
+    if (permissionGrants.value) {
+      return (permissionGrants.value.delete || []).length > 0
+    }
+    return user.value?.role === 'admin' || user.value?.role === 'superadmin'
+  })
   const mustChangePassword = computed(() => Boolean(user.value?.must_change_password))
+
+  /**
+   * ตรวจสิทธิ์จาก matrix จริง (รวม override) — fallback ไป intents เดิมเมื่อ grants ยังไม่โหลด
+   * @param {string} action 'read'|'create'|'update'|'delete'
+   * @param {string} resource resource key ตาม authzResources()
+   */
+  const can = computed(() => (action, resource) => {
+    if (isSuperAdmin.value) return true
+    if (permissionGrants.value) {
+      return (permissionGrants.value[action] || []).includes(resource)
+    }
+    // fallback: intents เดิม — admin ได้ทุก action, operator อ่าน/สร้าง/แก้ไข
+    if (isAdmin.value) return true
+    if (action === 'read') return true
+    if (action === 'delete') return false
+    return user.value?.role === 'operator'
+  })
 
   function isTokenValid() {
     if (!token.value) return false
@@ -124,7 +154,26 @@ export const useAuthStore = defineStore('auth', () => {
     csrfToken.value = data.csrf_token || ''
     user.value = data.user
     refreshToken.value = data.refresh_token || ''
+    // N4: grants ผูกกับ token — ล้างค่าเก่ากัน role ค้าง (โหลดใหม่โดย router guard)
+    // ไม่ยิง fetch ตรงนี้: setAuth ถูกเรียกใน contexts มากกว่า login (เช่น hydrate test)
+    permissionGrants.value = null
     persistAuthStorage(options.remember)
+  }
+
+  // N4 — ดึง effective matrix ของตัวเอง (GET /settings/permissions/self)
+  // ล้มเงียบได้: can() ยัง fallback เทียบ role ตาม intents เดิม
+  async function fetchPermissionGrants() {
+    if (!token.value || isSuperAdmin.value) return
+    const { useApi } = await import('@/composables/useApi.js')
+    const api = useApi()
+    try {
+      const result = await api.get('/settings/permissions/self')
+      if (result?.data?.grants) {
+        permissionGrants.value = result.data.grants
+      }
+    } catch {
+      // ปล่อย null — fallback ทำงานแทน ไม่ล็อกผู้ใช้ออกจากหน้า
+    }
   }
 
   // N44: default remember=false — refresh token เก็บ sessionStorage ไม่ localStorage
@@ -260,6 +309,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     isSuperAdmin,
     mustChangePassword,
+    can,
+    permissionGrants,
+    fetchPermissionGrants,
     isTokenValid,
     setAuth,
     setMustChangePassword,

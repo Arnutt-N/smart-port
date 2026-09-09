@@ -182,6 +182,12 @@ router.beforeEach(async (to) => {
     return '/login'
   }
 
+  // N4: โหลด effective grants ของ role ตัวเองครั้งเดียวต่อ session (grants=null หลัง
+  // login/refresh เสมอ) — ล้มเงียบได้เพราะ can() fallback เทียบ role ตาม intents เดิม
+  if (auth.isAuthenticated && !auth.permissionGrants && !auth.isSuperAdmin) {
+    auth.fetchPermissionGrants().catch(() => {})
+  }
+
   if (auth.isAuthenticated && auth.mustChangePassword && to.path !== '/change-password') {
     return '/change-password'
   }
