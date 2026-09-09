@@ -420,31 +420,31 @@ switch ($path[0]) {
             );
             $beforeStmt->execute([$servantId]);
             $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC);
-            if ($beforeRow) {
-                logAudit(
-                    $pdo,
-                    (int) (getAuthenticatedUser()['user_id'] ?? 0),
-                    'DELETE',
-                    'personnel',
-                    $servantId,
-                    $beforeRow,
-                    array_merge($beforeRow, ['is_active' => 0])
-                );
+            // N40: ไม่พบ row → 404 ก่อน audit; ปิดใช้งานอยู่แล้ว → 409 ไม่เขียน audit ซ้ำ
+            // (เดิม audit ถูกเขียนแม้ UPDATE จะ rowCount=0 ทำให้ log โกหกว่ามีการลบ)
+            if (!$beforeRow) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Not found']);
+                break;
             }
+            if ((int) $beforeRow['is_active'] !== 1) {
+                http_response_code(409);
+                echo json_encode(['error' => 'บุคลากรถูกปิดใช้งานอยู่แล้ว']);
+                break;
+            }
+            logAudit(
+                $pdo,
+                (int) (getAuthenticatedUser()['user_id'] ?? 0),
+                'DELETE',
+                'personnel',
+                $servantId,
+                $beforeRow,
+                array_merge($beforeRow, ['is_active' => 0])
+            );
             $stmt = $pdo->prepare(
                 'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
             );
             $stmt->execute([$servantId]);
-            if ($stmt->rowCount() === 0) {
-                $check = $pdo->prepare('SELECT is_active FROM personnel WHERE personnel_id = ?');
-                $check->execute([$servantId]);
-                $active = $check->fetchColumn();
-                if ($active === false) {
-                    http_response_code(404);
-                    echo json_encode(['error' => 'Not found']);
-                    break;
-                }
-            }
             echo json_encode(['success' => true]);
         } else {
             respondMethodNotAllowed();

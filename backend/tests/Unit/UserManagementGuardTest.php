@@ -113,6 +113,29 @@ final class UserManagementGuardTest extends TestCase
         self::assertSame('admin', $pdo->query('SELECT role FROM users WHERE user_id = 2')->fetchColumn());
     }
 
+    #[Test]
+    public function non_string_password_returns_400_not_type_error(): void
+    {
+        $pdo = $this->sqliteUsers();
+        if ($pdo === null) {
+            self::markTestSkipped('pdo_sqlite not available');
+        }
+
+        $pdo->exec(
+            "INSERT INTO users (user_id, username, full_name, email, role, is_active, must_change_password)
+             VALUES (1, 'sa1', 'One', null, 'superadmin', 1, 0)"
+        );
+
+        http_response_code(200);
+        ob_start();
+        // N34: password เป็น array จาก JSON — เดิม strlen() ระเบิด TypeError 500
+        updateUser($pdo, 1, ['user_id' => 99, 'role' => 'superadmin'], ['password' => ['a', 'b']]);
+        $body = json_decode((string) ob_get_clean(), true);
+
+        self::assertSame(400, http_response_code());
+        self::assertStringContainsString('รหัสผ่าน', (string) ($body['error'] ?? ''));
+    }
+
     private function sqliteUsers(): ?PDO
     {
         if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {

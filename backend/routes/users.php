@@ -148,7 +148,8 @@ function createUser(PDO $pdo, ?array $auth): void
         }
     }
 
-    if (strlen($data['password']) < PASSWORD_MIN_LENGTH) {
+    // N34: password ที่ไม่ใช่ string (array/object จาก JSON) ทำ strlen ระเบิด TypeError 500 → ตอบ 400
+    if (!is_string($data['password']) || strlen($data['password']) < PASSWORD_MIN_LENGTH) {
         http_response_code(400);
         echo json_encode(['error' => 'รหัสผ่านต้องมีความยาวอย่างน้อย ' . PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
         return;
@@ -299,9 +300,10 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
     }
 
     // Reset password — hash ใหม่ + บังคับเปลี่ยนครั้งถัดไป
+    // N34: password ที่ไม่ใช่ string ทำ strlen ระเบิด TypeError 500 → ตอบ 400
     $passwordReset = false;
     if (isset($data['password']) && $data['password'] !== '') {
-        if (strlen($data['password']) < PASSWORD_MIN_LENGTH) {
+        if (!is_string($data['password']) || strlen($data['password']) < PASSWORD_MIN_LENGTH) {
             http_response_code(400);
             echo json_encode(['error' => 'รหัสผ่านต้องมีความยาวอย่างน้อย ' . PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
             return;

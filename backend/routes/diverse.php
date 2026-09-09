@@ -229,6 +229,13 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         }
     }
 
+    // N39: pre-check personnel ก่อน INSERT (pattern เดียวกับ probation/multiplier)
+    if (!personnelExists($pdo, intval($data['personnel_id']))) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากร']);
+        return;
+    }
+
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
         $fromStart = diverseStrictDate((string) $data['from_start_date']);

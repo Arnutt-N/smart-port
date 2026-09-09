@@ -50,12 +50,13 @@ function logAudit(
             $action,
             $tableName,
             $recordId,
-            $beforeValue ? json_encode($beforeValue, JSON_UNESCAPED_UNICODE) : null,
-            $afterValue ? json_encode($afterValue, JSON_UNESCAPED_UNICODE) : null,
+            // N36: JSON_THROW_ON_ERROR — UTF-8 พังต้องเข้า catch + error_log ไม่ใช่ bind false เป็น payload ว่างเงียบ
+            $beforeValue ? json_encode($beforeValue, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null,
+            $afterValue ? json_encode($afterValue, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) : null,
             $ipAddress,
             $userAgent,
         ]);
-    } catch (PDOException $e) {
+    } catch (PDOException | JsonException $e) {
         error_log("[Audit] Failed to log: " . $e->getMessage());
         return false;
     }

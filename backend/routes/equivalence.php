@@ -216,6 +216,13 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
         }
     }
 
+    // N39: pre-check personnel ก่อน INSERT (pattern เดียวกับ probation/multiplier)
+    if (!personnelExists($pdo, intval($data['personnel_id']))) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากร']);
+        return;
+    }
+
     // คำนวณ request_total_days จากวันที่เริ่มต้นและสิ้นสุด (DATEDIFF+1)
     $requestTotalDays = null;
     if (!empty($data['request_start_date']) && !empty($data['request_end_date'])) {
@@ -380,11 +387,13 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
         } elseif ($newStatus === 'REJECTED') {
             $userId = $approver['user_id'] ?? null;
 
+            // N38: เคลียร์ approved_by ด้วย — ไม่งั้นชื่อผู้อนุมัติค้างบนรายการที่ถูกปฏิเสธ
             $sql = "UPDATE position_equivalence
                     SET approval_status = 'REJECTED',
                         approved_start_date = NULL,
                         approved_end_date = NULL,
-                        approved_total_days = NULL
+                        approved_total_days = NULL,
+                        approved_by = NULL
                     WHERE equivalence_id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id]);
