@@ -50,6 +50,13 @@ services:
       # กัน nginx proxy ยิง /api/ ไป backend ที่ยังไม่พร้อมตอน compose up ครั้งแรก
       backend:
         condition: service_healthy
+    # N59: healthcheck — nginx ตอบ 200 เมื่อ serving ปกติ (เช่น หน้าแรก)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - smartport-net
     restart: unless-stopped

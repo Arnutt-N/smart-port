@@ -98,14 +98,15 @@ async function request(url, options = {}) {
     }
     // Non-JSON response (HTML error page, 503 from cold start, etc.)
     const text = await response.text().catch(() => '')
+    // N50: ข้อความ fallback ต้องเป็นไทย (ผู้ใช้กลุ่มเป้าหมายอ่านไทย)
     if (response.status === 503) {
-      throw new Error('Database connection failed. Please try again.')
+      throw new Error('เชื่อมต่อฐานข้อมูลไม่ได้ กรุณาลองใหม่อีกครั้ง')
     }
     if (text.includes('<br') || text.includes('<b>') || text.startsWith('<')) {
       // PHP error/warning leaked as HTML
-      throw new Error('Server error. Please try again.')
+      throw new Error('เกิดข้อผิดพลาดในเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง')
     }
-    throw new Error(response.statusText || 'Connection error')
+    throw new Error(response.statusText || 'เชื่อมต่อไม่ได้ กรุณาลองใหม่')
   }
 
   // Response is OK (2xx) but might still be HTML if PHP errored after headers sent
@@ -113,9 +114,9 @@ async function request(url, options = {}) {
   if (!contentType.includes('application/json')) {
     const text = await response.text().catch(() => '')
     if (text.includes('<br') || text.includes('<b>') || text.trim().startsWith('<')) {
-      throw new Error('Server error. Please try again.')
+      throw new Error('เกิดข้อผิดพลาดในเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง')
     }
-    throw new Error('Invalid response format. Please try again.')
+    throw new Error('รูปแบบการตอบกลับไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง')
   }
 
   return response.json()

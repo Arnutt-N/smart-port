@@ -92,11 +92,27 @@ function handleSyncTrigger(PDO $pdo, string $domain): void
         $pass = getenv('SYNC_STAGING_PASSWORD') ?: '';
         $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 
-        $stagingPdo = new PDO($dsn, $user, $pass, [
+        $stagingOptions = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        ];
+
+        // N20: staging connection ต้องเข้มเท่า connection หลัก — เปิด SSL เมื่อ staging เป็น TiDB/remote
+        // (SYNC_STAGING_SSL=true → ใช้ CA เดียวกับ MYSQL_SSL_CA หรือ CA เฉพาะ staging)
+        $stagingSsl = getenv('SYNC_STAGING_SSL') ?: '';
+        if ($stagingSsl === 'true' || $stagingSsl === '1') {
+            $caPath = getenv('SYNC_STAGING_SSL_CA') ?: (getenv('MYSQL_SSL_CA') ?: '');
+            if ($caPath === '' || !is_readable($caPath)) {
+                http_response_code(503);
+                echo json_encode(['error' => 'SYNC_STAGING_SSL เปิดอยู่แต่ CA ไม่ได้ตั้งค่าหรืออ่านไม่ได้ (SYNC_STAGING_SSL_CA / MYSQL_SSL_CA)'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $stagingOptions[PDO::MYSQL_ATTR_SSL_CA] = $caPath;
+            $stagingOptions[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = true;
+        }
+
+        $stagingPdo = new PDO($dsn, $user, $pass, $stagingOptions);
 
         $source = new StagingPdoAdapter($stagingPdo);
     } elseif ($sourceType === 'csv') {

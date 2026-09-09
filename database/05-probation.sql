@@ -146,39 +146,10 @@ CREATE TABLE probation_task_progress (
 CREATE INDEX idx_prob_task_enroll ON probation_task_progress(enrollment_id);
 CREATE INDEX idx_prob_task_status ON probation_task_progress(status);
 
--- ############################################################################
--- PART 6: e-LEARNING
--- ############################################################################
-
--- หลักสูตร e-Learning ก.พ.
-CREATE TABLE elearning_course (
-    elearning_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    course_code VARCHAR(100) UNIQUE,
-    course_name VARCHAR(300) NOT NULL,
-    course_url VARCHAR(500),
-    provider VARCHAR(200) DEFAULT 'สำนักงาน ก.พ.',
-    duration_hours DECIMAL(6,2),
-    is_mandatory_for_probation TINYINT(1) DEFAULT 0,
-    category VARCHAR(100),
-    is_active TINYINT(1) DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ผลการเรียน e-Learning ของแต่ละคน
-CREATE TABLE elearning_enrollment (
-    enrollment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    personnel_id BIGINT NOT NULL,
-    elearning_id BIGINT NOT NULL,
-    start_date DATE,
-    completion_date DATE,
-    score DECIMAL(5,2),
-    result VARCHAR(20),
-    certificate_url VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY (personnel_id, elearning_id),
-    FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
-    FOREIGN KEY (elearning_id) REFERENCES elearning_course(elearning_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- elearning_course / elearning_enrollment (N5): dead tables — ตัดออกจาก migration 05
+-- เดิม migration 24-drop-dead-tables.sql ลบทิ้งหลังสร้าง = migration โยก้อนวน
+-- (backend ไม่มี route/query ใดถึงตารางนี้)
+-- DB รุ่นเก่าที่สร้างไว้แล้ว: 24 ยัง DROP IF EXISTS อยู่ จึงเคลียร์สะอาดเอง
 
 -- ############################################################################
 -- PART 7: EVALUATION

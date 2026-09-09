@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock useApi before importing useCandidates
 const mockGet = vi.fn()
 const mockDel = vi.fn()
+const mockPut = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({ get: mockGet, del: mockDel }),
+  useApi: () => ({ get: mockGet, del: mockDel, put: mockPut }),
 }))
 
 const { useCandidates } = await import('@/composables/useCandidates.js')
@@ -13,6 +14,7 @@ describe('useCandidates', () => {
   beforeEach(() => {
     mockGet.mockReset()
     mockDel.mockReset()
+    mockPut.mockReset()
   })
 
   it('returns fetchByLevel and deactivatePersonnel', () => {
@@ -162,11 +164,11 @@ describe('useCandidates', () => {
     })
   })
 
-  it('deactivates personnel via DELETE civil-servants', async () => {
-    mockDel.mockResolvedValue({ success: true })
+  it('deactivates personnel via PUT /personnel (single deactivate path, N8)', async () => {
+    mockPut.mockResolvedValue({ success: true })
     const { deactivatePersonnel } = useCandidates()
     await deactivatePersonnel(42)
-    expect(mockDel).toHaveBeenCalledWith('/civil-servants/42')
+    expect(mockPut).toHaveBeenCalledWith('/personnel/42', { is_active: 0 })
   })
 
   it('maps 91 remaining days as NOT_MET and 90 as NEAR_MET', async () => {

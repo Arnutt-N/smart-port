@@ -303,7 +303,44 @@ function publicRateLimitWithin(string $bucket, int $limit, int $windowSeconds, ?
     flock($handle, LOCK_UN);
     fclose($handle);
 
+    // N43: prune ไฟล์ไร้ hit ล่าสุด — เดิมไฟล์ค้างตลอดชีวิตทำ disk โตไม่จำกัด
+    // (สุ่ม 1/50 เรียก + ลบเฉพาะไฟล์ที่ hits[] ว่างเกิน window — ต่ำพอไม่กลาดต่อ latency)
+    if (random_int(1, 50) === 1) {
+        pruneRateLimitFiles($now);
+    }
+
     return $within;
+}
+
+/**
+ * ลบไฟล์ state ของ public rate limiter ที่ไม่มี hit อยู่ใน window (ประหยัด disk)
+ * — เรียกสุ่มจาก publicRateLimitWithin ไม่ใช่ cron — ไม่ต้อง perfect: เหลือไฟล์
+ * ช่องโหว่อะไรไม่ได้ เพราะ hit ถัดไปจะเขียนทับ
+ *
+ * @param int $now timestamp ตอนเรียก
+ */
+function pruneRateLimitFiles(int $now): void
+{
+    $files = glob(RATE_LIMIT_DIR . '*.json') ?: [];
+    foreach ($files as $file) {
+        $content = @file_get_contents($file);
+        if ($content === false) {
+            continue;
+        }
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            @unlink($file); // พัง/ว่าง — ลบเป็น garbage
+            continue;
+        }
+        // "ล่าสุด" = max(hits) — ไฟล์ที่ไม่มี hit เลยว่างเปล่าอยู่แล้ว = ลบได้
+        $lastHit = 0;
+        foreach ((array) ($data['hits'] ?? []) as $ts) {
+            $lastHit = max($lastHit, (int) $ts);
+        }
+        if ($lastHit === 0 || $now - $lastHit > 3600) {
+            @unlink($file);
+        }
+    }
 }
 
 /**

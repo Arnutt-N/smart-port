@@ -16,6 +16,10 @@ on:
 jobs:
   deploy:
     name: Trigger Render Deploy
+    # N57: deploy หลัง CI jobs ทั้งชุดผ่าน — ไม่ trigger บน build แดง
+    # (หมายเหตุ: ทำงานเฉพาะเมื่อ CI รันเองด้วย — ปัจจุบัน CI เป็น workflow_dispatch อย่างเดียว
+    #  ตาม N30; เปิด CI อัตโนมัติเมื่อ quota พร้อม)
+    needs: [frontend-build, schema-parity, tidb-init-bootstrap, backend-tests, docker-build]
     runs-on: ubuntu-latest
     # นำ secret มาเป็น env ระดับ job — ห้ามอ้าง secrets ใน if: โดยตรง (parse ไม่ผ่าน)
     env:

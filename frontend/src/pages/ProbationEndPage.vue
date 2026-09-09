@@ -126,7 +126,7 @@
     />
 
     <Teleport to="body">
-      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center" v-bind="viewModalA11yAttrs">
         <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
@@ -185,7 +185,7 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center" v-bind="editModalA11yAttrs">
         <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
@@ -264,6 +264,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useProbation } from '@/composables/useProbation.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useModalA11y } from '@/composables/useModalA11y.js'
 import { getRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -348,6 +349,12 @@ function closeEditModal() {
   editingRow.value = null
   formErrors.value = {}
 }
+
+// N51: role="dialog" + Escape ปิด
+useModalA11y(showViewModal, () => { showViewModal.value = false })
+useModalA11y(showEditModal, closeEditModal)
+const viewModalA11yAttrs = { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'รายละเอียดการทดลองปฏิบัติราชการ' }
+const editModalA11yAttrs = { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'แก้ไขการทดลองปฏิบัติราชการ' }
 
 function validateForm() {
   const errors = {}

@@ -56,6 +56,18 @@ RUN printf '%s\n' \
 RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf \
     && printf "default_charset = \"UTF-8\"\n" > /usr/local/etc/php/conf.d/charset.ini
 
+# N19: security headers ที่ Apache ต้องส่งเอง — เนื้อหาสำคัญ /api/uploads/* เสิร์ฟผ่าน
+# Apache ไม่ผ่าน frontend ที่มี render.yaml headers — ชุดเดียวกับ frontend (ตัด CSP
+# เพราะ API เสิร์ฟ JSON/รูปไม่มี HTML จะ sniff ได้)
+RUN printf '%s\n' \
+    'LoadModule headers_module modules/mod_headers.so' \
+    'Header always set X-Content-Type-Options "nosniff"' \
+    'Header always set X-Frame-Options "DENY"' \
+    'Header always set Referrer-Policy "strict-origin-when-cross-origin"' \
+    'Header always set Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=()"' \
+    'Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"' \
+    > /etc/apache2/conf-enabled/security-headers.conf
+
 # Production-safe PHP error settings: log errors but never display HTML to clients
 RUN printf '%s\n' \
     'display_errors = Off' \
