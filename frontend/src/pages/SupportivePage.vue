@@ -396,17 +396,18 @@ const distinctPersonnelCount = computed(() => {
 })
 
 const recentCount = computed(() => {
-  // นับรายการที่เพิ่มในเดือนปัจจุบัน (ใช้ startDate เป็นตัวอ้างอิง)
+  // N27: ใช้ summary.recent_count จาก backend (นับจาก full dataset) ก่อน
+  // fallback นับจากหน้าปัจจุบันเท่านั้น
+  if (summary.value?.recent_count != null) return summary.value.recent_count
   const now = new Date()
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
-  const count = rows.value.filter(r => {
+  return rows.value.filter(r => {
     if (!r.startDate) return false
     const d = ymdToDate(r.startDate)
     if (!d) return false
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear
   }).length
-  return count || 'N/A'
 })
 
 // Fetch data

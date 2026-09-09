@@ -9,7 +9,7 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <StatCard
         label="ทั้งหมดที่มีกำหนดเกษียณ"
-        :value="pagination.total"
+        :value="totalAll"
         :icon="Users"
         icon-bg-class="bg-blue-50"
         icon-class="text-blue-600"
@@ -150,15 +150,18 @@ const { run: scheduleSearch } = useDebouncedCallback(() => {
   fetchData()
 }, 300)
 const within = ref('')
+const totalAll = ref(0)
 const totalWithin12 = ref(0)
 const totalWithin6 = ref(0)
 
 async function fetchStatTotals(req) {
-  const [r12, r6] = await Promise.all([
+  const [rAll, r12, r6] = await Promise.all([
+    fetchList({ search: searchQuery.value, limit: 1, offset: 0 }),
     fetchList({ search: searchQuery.value, within: 12, limit: 1, offset: 0 }),
     fetchList({ search: searchQuery.value, within: 6, limit: 1, offset: 0 }),
   ])
   if (!req.isCurrent()) return
+  totalAll.value = rAll.pagination.total
   totalWithin12.value = r12.pagination.total
   totalWithin6.value = r6.pagination.total
 }

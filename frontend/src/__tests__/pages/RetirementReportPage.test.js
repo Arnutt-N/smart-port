@@ -25,6 +25,15 @@ function resolvedData(rows = [sampleRow]) {
   })
 }
 
+// mockImplementation ที่ให้ total ต่างกันตาม within — ใช้ทดสอบ totalAll แยกจาก pagination.total (N29)
+function resolvedWithTotals({ all = 10, w12 = 4, w6 = 2 } = {}) {
+  mockFetchList.mockImplementation(({ within } = {}) => {
+    if (within === 6) return Promise.resolve({ data: [sampleRow], pagination: { total: w6, limit: 1, offset: 0, has_more: false } })
+    if (within === 12) return Promise.resolve({ data: [sampleRow], pagination: { total: w12, limit: 1, offset: 0, has_more: false } })
+    return Promise.resolve({ data: [sampleRow], pagination: { total: all, limit: 20, offset: 0, has_more: false } })
+  })
+}
+
 async function mountPage() {
   const wrapper = mount(RetirementReportPage)
   await vi.waitFor(() => expect(mockFetchList).toHaveBeenCalled())
@@ -65,6 +74,20 @@ describe('RetirementReportPage', () => {
     wrapper.vm.onFilterChange()
     await vi.waitFor(() => expect(mockFetchList).toHaveBeenCalled())
     expect(mockFetchList).toHaveBeenCalledWith(expect.objectContaining({ within: '6', offset: 0 }))
+  })
+
+  it('totalAll stays unfiltered when within filter is applied', async () => {
+    resolvedWithTotals({ all: 10, w12: 4, w6: 2 })
+    const wrapper = await mountPage()
+    await vi.waitFor(() => expect(wrapper.vm.totalAll).toBe(10))
+    expect(wrapper.vm.totalWithin12).toBe(4)
+    expect(wrapper.vm.totalWithin6).toBe(2)
+
+    // เปลี่ยน filter → pagination.total เปลี่ยน แต่ totalAll ต้องยังเป็น 10
+    wrapper.vm.within = '6'
+    wrapper.vm.onFilterChange()
+    await vi.waitFor(() => expect(wrapper.vm.loading).toBe(false))
+    expect(wrapper.vm.totalAll).toBe(10)
   })
 
   it('shows empty state when no rows', async () => {

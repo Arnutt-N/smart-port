@@ -124,6 +124,23 @@ describe('SupportivePage', () => {
     expect(wrapper.vm.distinctPersonnelCount).toBe(7)
   })
 
+  it('uses summary recent_count when present', async () => {
+    mockFetchList.mockResolvedValue({
+      success: true,
+      data: [sampleRow],
+      summary: { recent_count: 4 },
+      pagination: { total: 1, limit: 20, offset: 0 },
+    })
+    const wrapper = await mountPage()
+    expect(wrapper.vm.recentCount).toBe(4)
+  })
+
+  it('recentCount falls back to 0 (not N/A) when no rows match current month', async () => {
+    // sampleRow.startDate = '2021-01-01' — ไม่ตรงเดือนปัจจุบันเสมอ
+    const wrapper = await mountPage()
+    expect(wrapper.vm.recentCount).toBe(0)
+  })
+
   it('blocks save when required form fields are missing', async () => {
     const wrapper = await mountPage()
     wrapper.vm.openCreate()
