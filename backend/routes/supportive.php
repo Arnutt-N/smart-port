@@ -134,9 +134,12 @@ function getSupportiveList(PDO $pdo): void
     unset($row);
 
     // Summary จาก full dataset (ไม่ใช่ current page)
+    // recent_count = รายการที่ start_date อยู่ในเดือนปัจจุบัน — FE ใช้แสดงการ์ด «เพิ่มล่าสุด» (N27)
     $summaryStmt = $pdo->query("
         SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
-               SUM(effective_days) AS total_effective_days
+               SUM(effective_days) AS total_effective_days,
+               SUM(CASE WHEN YEAR(start_date) = YEAR(CURDATE()) AND MONTH(start_date) = MONTH(CURDATE())
+                        THEN 1 ELSE 0 END) AS recent_count
         FROM supportive_experience
     ");
     $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
@@ -148,6 +151,7 @@ function getSupportiveList(PDO $pdo): void
             'total' => $total,
             'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
             'total_effective_days' => (float) ($summaryRow['total_effective_days'] ?? 0),
+            'recent_count' => (int) ($summaryRow['recent_count'] ?? 0),
         ],
         'pagination' => [
             'total' => $total,
