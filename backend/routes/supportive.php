@@ -293,6 +293,13 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
         }
     }
 
+    // N39: pre-check personnel ก่อน INSERT (pattern เดียวกับ probation/multiplier)
+    if (!personnelExists($pdo, intval($data['personnel_id']))) {
+        http_response_code(404);
+        echo json_encode(['error' => 'ไม่พบบุคลากร']);
+        return;
+    }
+
     // Server-side computation (D-05, D-06, D-07, SE-04)
     // วันที่ malformed หรือ end < start → 400 (message มาจาก InvalidArgumentException)
     try {
