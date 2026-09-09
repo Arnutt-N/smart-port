@@ -21,17 +21,8 @@
             <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
-    <source>
-        <!-- F43: ครอบ *.php ทั้ง backend (root + routes/ + sync/ + middleware/)
-             เพื่อให้ coverage ไม่หลุดไฟล์ใหม่ — ตัดโฟลเดอร์ runtime/third-party ออก -->
-        <include>
-            <directory>.</directory>
-        </include>
-        <exclude>
-            <directory>vendor</directory>
-            <directory>storage</directory>
-            <directory>uploads</directory>
-            <directory>tests</directory>
-        </exclude>
-    </source>
+    <!-- N58: ลบ <source> coverage — ไม่มี driver (pcov/Xdebug) ใน image จึง generate
+         ไม่ได้และ config เป็นแค่ "อ้างว่ามี coverage" โดยไม่ทำจริง; เพิ่มกลับพร้อม driver
+         เมื่อตัดสินใจ enforce เกณฑ์ coverage ใน CI -->
+
 </phpunit>

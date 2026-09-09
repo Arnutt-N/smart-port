@@ -28,9 +28,9 @@
     </EmptyState>
 
     <template v-else>
+      <!-- N9: ลบการ์ด «ข้าราชการ» — เกือบซ้ำกับ «บุคลากรทั้งหมด» (niche บนตารางเดียว) -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="บุคลากรทั้งหมด" :value="totals.personnel.toLocaleString()" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" />
-        <StatCard label="ข้าราชการ" :value="totals.civilServants.toLocaleString()" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" />
         <StatCard label="รางวัล" :value="totals.awards.toLocaleString()" :icon="Award" icon-bg-class="bg-yellow-50" icon-class="text-yellow-600" />
         <StatCard label="เครื่องราชอิสริยาภรณ์" :value="totals.decorations.toLocaleString()" :icon="Medal" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
         <StatCard label="ผลงานและข้อเสนอ" :value="totals.workResults.toLocaleString()" :icon="FileText" icon-bg-class="bg-indigo-50" icon-class="text-indigo-600" />
@@ -48,10 +48,11 @@
 <script setup>
 import { ref, computed, onMounted, h } from 'vue'
 import { useAnalytics } from '@/composables/useAnalytics.js'
+import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import StatCard from '@/components/StatCard.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { Users, UserCheck, Award, Medal, FileText, CalendarClock, RefreshCw, AlertCircle } from 'lucide-vue-next'
+import { Users, Award, Medal, FileText, CalendarClock, RefreshCw, AlertCircle } from 'lucide-vue-next'
 
 // Inline distribution bar card — CSS bars, no chart library.
 const DistributionCard = {
@@ -81,6 +82,7 @@ const DistributionCard = {
 }
 
 const { fetchSummary } = useAnalytics()
+const { next: nextRequest } = useRequestSeq()
 
 const loading = ref(false)
 const loaded = ref(false)
@@ -90,18 +92,21 @@ const proposalsByStatus = ref([])
 const awardsByType = ref([])
 
 async function fetchData() {
+  const req = nextRequest() // N46: กัน response เก่าของ request ก่อนหน้าทับล่าสุด
   loading.value = true
   error.value = null
   try {
     const result = await fetchSummary()
+    if (!req.isCurrent()) return
     totals.value = result.data.totals
     proposalsByStatus.value = result.data.proposalsByStatus
     awardsByType.value = result.data.awardsByType
     loaded.value = true
   } catch (err) {
+    if (!req.isCurrent()) return
     error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    if (req.isCurrent()) loading.value = false
   }
 }
 

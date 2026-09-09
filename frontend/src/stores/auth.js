@@ -127,7 +127,9 @@ export const useAuthStore = defineStore('auth', () => {
     persistAuthStorage(options.remember)
   }
 
-  async function login(credentials, { remember = true } = {}) {
+  // N44: default remember=false — refresh token เก็บ sessionStorage ไม่ localStorage
+  // ยกเว้นผู้ใช้ติ๊ก "จดจำฉัน" ที่ LoginPage ส่ง explicit
+  async function login(credentials, { remember = false } = {}) {
     const { useApi } = await import('@/composables/useApi.js')
     const api = useApi()
     const data = await api.post('/auth/login', credentials)

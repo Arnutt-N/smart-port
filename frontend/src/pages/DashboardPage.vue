@@ -286,7 +286,6 @@ async function fetchDashboard() {
   } catch (err) {
     if (!req.isCurrent()) return
     error.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-    console.error('Dashboard fetch error:', err)
   } finally {
     if (req.isCurrent()) loading.value = false
   }

@@ -26,8 +26,13 @@ function migrationPdo(): PDO
     $host = migrationEnv('MYSQL_HOST', 'db');
     $port = migrationEnv('MYSQL_PORT', '3306');
     $dbname = migrationEnv('MYSQL_DATABASE', 'civil_service_mgmt');
-    $username = migrationEnv('MYSQL_USER', 'root');
-    $password = migrationEnv('MYSQL_PASSWORD', 'rootpassword');
+    // N41: ไม่มี default credentials — เดิม fallback root/rootpassword ต่างจาก config.php
+    // ที่ fail-closed ทำให้รันตก DB อื่นที่มี root สามารถ "สำเร็จ" ผิดเจตนาปมได้
+    $username = migrationEnv('MYSQL_USER');
+    $password = migrationEnv('MYSQL_PASSWORD');
+    if ($username === '' || $password === '') {
+        throw new RuntimeException('MYSQL_USER and MYSQL_PASSWORD must be set (no default credentials in migrations runner)');
+    }
     $useSSL = migrationEnv('MYSQL_SSL', '');
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";

@@ -419,7 +419,6 @@ const activeSubTab = ref(null)
 const loading = ref(false)
 const error = ref(null)
 const rows = ref([])
-const summary = ref(null)
 const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
 const searchQuery = ref('')
@@ -535,7 +534,6 @@ async function fetchData() {
     })
     if (!req.isCurrent()) return
     rows.value = result.data
-    summary.value = result.summary
     pagination.value = result.pagination
   } catch (err) {
     if (!req.isCurrent()) return

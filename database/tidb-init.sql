@@ -1,6 +1,10 @@
 -- Smart Port: Combined Schema for TiDB Cloud / MySQL 8 (rebuild ทั้งระบบจากไฟล์เดียว)
--- Layers: 01 core (civil_servants), 02 photo/extra, 03 personnel stubs,
---         04 career path, 05 probation, 06 seed, 07 education, 08 v11, 09 auth
+-- Layers: 01 core, 02 photo/extra, 03 personnel stubs, 04 probation, 05 seed
+-- N5: ตาราง dead ตาม migration 24 ถูกตัดออกจากไฟล์นี้แล้ว (civil_servants,
+--     advance_notifications, task_assignments, ml_predictions, career_paths,
+--     candidate_lists(+members), network_connections, photo_versions,
+--     v_civil_servants_current, elearning_course/enrollment) — bootstrap ต้องไม่
+--     สร้างตารางที่ migration ตามมาลบ (Render RUN_MIGRATIONS=0 ไม่มีตัวลบ)
 -- Import: mysql --default-character-set=utf8mb4 <db_name> < tidb-init.sql
 -- TiDB: ไม่ใช้ ENUM/TRIGGER/DEFINER (ENUM ต้นฉบับแปลงเป็น VARCHAR แล้ว validate ฝั่ง PHP)
 -- NOTE: เพิ่ม/ลบ "ตาราง seed" ที่ต้องมีแถว → ต้องเติมรายชื่อใน scripts/sql/tidb-init-smoke-assert.sql
@@ -27,23 +31,10 @@ CREATE TABLE prefixes (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Core civil servant profile table.
-CREATE TABLE civil_servants (
-    servant_id INT PRIMARY KEY AUTO_INCREMENT,
-    employee_id VARCHAR(20) UNIQUE NOT NULL,
-    citizen_id VARCHAR(13) UNIQUE NOT NULL,
-    prefix_id INT,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    birth_date DATE NOT NULL,
-    appointment_date DATE NOT NULL,
-    retirement_date DATE,
-    servant_status VARCHAR(20) DEFAULT 'active',
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (prefix_id) REFERENCES prefixes(prefix_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- civil_servants (N5): ไม่สร้างใน bootstrap — ADR-0002 ย้าย person identity ไป
+-- personnel แล้ว (migration 22) และ migration 24 ลบตารางนี้; backend ไม่ query ตรง
+-- (legacy /civil-servants อ่านจาก personnel ผ่าน alias servant_id)
+-- เดิม bootstrap สร้าง → migration ลบ = fresh prod with RUN_MIGRATIONS=0 ค้าง dead table
 
 -- Uploaded photo records for each civil servant.
 CREATE TABLE civil_servant_photos (
@@ -63,72 +54,22 @@ CREATE TABLE civil_servant_photos (
     -- parity gate เทียบ FK pairs — ห้ามใส่กลับ
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- เวอร์ชันภาพ — schema simple ตาม backend/helpers.php ที่ INSERT แค่
--- (photo_id, version_type, file_name) จึงไม่ใช้เวอร์ชัน rich ของ layer 02
-CREATE TABLE photo_versions (
-    version_id INT PRIMARY KEY AUTO_INCREMENT,
-    photo_id INT NOT NULL,
-    version_type VARCHAR(50) NOT NULL,
-    file_name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (photo_id) REFERENCES civil_servant_photos(photo_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- photo_versions (N5): ตัดออกจากเดิม — Issue #127 แล้ว backend ไม่สร้างแถวซ้ำ
+-- ทำให้ตารางนี้ไม่มี consumer เขียน (เทสอ่านเพื่อ assert "ไม่มี phantom" เท่านั้น)
 
--- Current profile view.
-CREATE VIEW v_civil_servants_current AS
-SELECT
-    cs.servant_id,
-    CONCAT(p.prefix_name_th, cs.first_name, ' ', cs.last_name) AS full_name,
-    csp.file_path AS photo_path
-FROM civil_servants cs
-LEFT JOIN prefixes p ON cs.prefix_id = p.prefix_id
-LEFT JOIN civil_servant_photos csp
-    ON cs.servant_id = csp.servant_id
-    AND csp.is_primary = TRUE;
+-- v_civil_servants_current (N5): ตัด — view อ้าง civil_servants ที่ไม่สร้างแล้ว
+-- และไม่มี route ใด query ชื่อนี้ (profile ใช้ query ตรงบน personnel)
 
 -- Sample data for a clean bootstrap.
 INSERT INTO prefixes (prefix_code, prefix_name_th) VALUES ('MR', 'นาย');
-INSERT INTO civil_servants (
-    employee_id,
-    citizen_id,
-    prefix_id,
-    first_name,
-    last_name,
-    birth_date,
-    appointment_date
-) VALUES (
-    'EMP001',
-    '1234567890123',
-    1,
-    'สมชาย',
-    'ไทยแท้',
-    '1980-01-01',
-    '2000-01-01'
-);
 
 -- ============================================
 -- FILE: 02-data.sql (photo_management_system.sql)
 -- ============================================
-
--- ตาราง advance_notifications (การแจ้งเตือนล่วงหน้า)
-CREATE TABLE advance_notifications (
-    notification_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id INT NOT NULL,
-    notification_type VARCHAR(30) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT,
-    due_date DATE,
-    priority VARCHAR(20) DEFAULT 'medium',
-    status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    sent_at TIMESTAMP NULL,
-    read_at TIMESTAMP NULL,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
-    INDEX idx_servant_type (servant_id, notification_type),
-    INDEX idx_due_date (due_date),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- N5: ตาราง dead (advance_notifications/task_assignments/ml_predictions/career_paths/
+-- candidate_lists/candidate_list_members/network_connections) ตัดออกจาก bootstrap
+-- — migration 24-drop-dead-tables.sql ลบอยู่แล้ว; เดิม bootstrap สร้างแล้ว migration
+-- ลบทิ้งซ้ำ = fresh prod โดนค้าง dual tables จน migration รัน (แต่ Render ตั้ง RUN_MIGRATIONS=0)
 
 -- ตาราง performance_proposals (ผลงานและข้อเสนอ)
 CREATE TABLE performance_proposals (
@@ -156,129 +97,9 @@ CREATE TABLE performance_proposals (
     INDEX idx_submission_date (submission_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ตาราง task_assignments (การจัดการงาน)
-CREATE TABLE task_assignments (
-    task_id INT PRIMARY KEY AUTO_INCREMENT,
-    assignee_id INT NOT NULL,
-    assigner_id INT,
-    task_title VARCHAR(255) NOT NULL,
-    task_description TEXT,
-    priority VARCHAR(20) DEFAULT 'medium',
-    status VARCHAR(20) DEFAULT 'pending',
-    assigned_date DATE NOT NULL,
-    due_date DATE,
-    completion_date DATE,
-    estimated_hours DECIMAL(5,2),
-    actual_hours DECIMAL(5,2),
-    completion_percentage TINYINT DEFAULT 0,
-    notes TEXT,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (assignee_id) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (assigner_id) REFERENCES civil_servants(servant_id),
-    INDEX idx_assignee_status (assignee_id, status),
-    INDEX idx_due_date (due_date),
-    INDEX idx_priority (priority)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ตาราง ml_predictions (การคาดการณ์ AI)
-CREATE TABLE ml_predictions (
-    prediction_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id INT NOT NULL,
-    prediction_type VARCHAR(30) NOT NULL,
-    prediction_data JSON,
-    confidence_score DECIMAL(3,2), -- 0.00 - 1.00
-    prediction_date DATE NOT NULL,
-    valid_until DATE,
-    model_version VARCHAR(50),
-    accuracy_score DECIMAL(3,2),
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
-    INDEX idx_servant_type (servant_id, prediction_type),
-    INDEX idx_prediction_date (prediction_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ตาราง career_paths (เส้นทางความก้าวหน้า)
-CREATE TABLE career_paths (
-    path_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id INT NOT NULL,
-    current_position VARCHAR(255),
-    target_position VARCHAR(255),
-    estimated_timeline_months INT,
-    required_skills TEXT,
-    required_training TEXT,
-    probability_score DECIMAL(3,2),
-    path_status VARCHAR(20) DEFAULT 'active',
-    created_by INT,
-    approved_by INT,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (created_by) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (approved_by) REFERENCES civil_servants(servant_id),
-    INDEX idx_servant_status (servant_id, path_status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ตาราง candidate_lists (รายชื่อผู้สมัคร)
-CREATE TABLE candidate_lists (
-    list_id INT PRIMARY KEY AUTO_INCREMENT,
-    list_name VARCHAR(255) NOT NULL,
-    position_title VARCHAR(255),
-    department VARCHAR(255),
-    criteria_json JSON,
-    created_by INT,
-    status VARCHAR(20) DEFAULT 'draft',
-    max_candidates INT DEFAULT 10,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES civil_servants(servant_id),
-    INDEX idx_status (status),
-    INDEX idx_created_by (created_by)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ตาราง candidate_list_members (สมาชิกในรายชื่อผู้สมัคร)
-CREATE TABLE candidate_list_members (
-    member_id INT PRIMARY KEY AUTO_INCREMENT,
-    list_id INT NOT NULL,
-    servant_id INT NOT NULL,
-    score DECIMAL(5,2),
-    ranking INT,
-    match_percentage DECIMAL(3,2),
-    notes TEXT,
-    added_by INT,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (list_id) REFERENCES candidate_lists(list_id),
-    FOREIGN KEY (servant_id) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (added_by) REFERENCES civil_servants(servant_id),
-    UNIQUE KEY unique_list_servant (list_id, servant_id),
-    INDEX idx_ranking (list_id, ranking)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ตาราง network_connections (เครือข่ายบุคลากร)
-CREATE TABLE network_connections (
-    connection_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id_1 INT NOT NULL,
-    servant_id_2 INT NOT NULL,
-    connection_type VARCHAR(20) NOT NULL,
-    strength VARCHAR(20) DEFAULT 'medium',
-    established_date DATE,
-    last_interaction DATE,
-    interaction_count INT DEFAULT 0,
-    notes TEXT,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (servant_id_1) REFERENCES civil_servants(servant_id),
-    FOREIGN KEY (servant_id_2) REFERENCES civil_servants(servant_id),
-    UNIQUE KEY unique_connection (servant_id_1, servant_id_2),
-    INDEX idx_servant_type (servant_id_1, connection_type),
-    INDEX idx_strength (strength)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ตาราง task_assignments / ml_predictions / career_paths / candidate_lists /
+-- candidate_list_members / network_connections (N5): dead tables — ตัดออกจาก
+-- bootstrap แล้ว (migration 24 ลบอยู่แล้ว)
 
 -- หมายเหตุ: photo_versions ไม่เอาเวอร์ชันของไฟล์นี้ (ENUM + file_path NOT NULL)
 -- เพราะ backend/helpers.php INSERT แค่ (photo_id, version_type, file_name)
@@ -900,39 +721,8 @@ CREATE TABLE probation_task_progress (
 CREATE INDEX idx_prob_task_enroll ON probation_task_progress(enrollment_id);
 CREATE INDEX idx_prob_task_status ON probation_task_progress(status);
 
--- ############################################################################
--- PART 6: e-LEARNING
--- ############################################################################
-
--- หลักสูตร e-Learning ก.พ.
-CREATE TABLE elearning_course (
-    elearning_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    course_code VARCHAR(100) UNIQUE,
-    course_name VARCHAR(300) NOT NULL,
-    course_url VARCHAR(500),
-    provider VARCHAR(200) DEFAULT 'สำนักงาน ก.พ.',
-    duration_hours DECIMAL(6,2),
-    is_mandatory_for_probation TINYINT(1) DEFAULT 0,
-    category VARCHAR(100),
-    is_active TINYINT(1) DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ผลการเรียน e-Learning ของแต่ละคน
-CREATE TABLE elearning_enrollment (
-    enrollment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    personnel_id BIGINT NOT NULL,
-    elearning_id BIGINT NOT NULL,
-    start_date DATE,
-    completion_date DATE,
-    score DECIMAL(5,2),
-    result VARCHAR(20),
-    certificate_url VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY (personnel_id, elearning_id),
-    FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
-    FOREIGN KEY (elearning_id) REFERENCES elearning_course(elearning_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- elearning_course / elearning_enrollment (N5): dead — migration 24 ลบอยู่แล้ว
+-- (elearning wire ไม่ครบตามหมายเหตุของ 24); bootstrap ไม่ควรสร้างให้ migration เช็คทำลาย
 
 -- ############################################################################
 -- PART 7: EVALUATION

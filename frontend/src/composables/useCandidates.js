@@ -49,7 +49,9 @@ export function useCandidates() {
   }
 
   async function deactivatePersonnel(personnelId) {
-    return api.del(`/civil-servants/${personnelId}`)
+    // N8: ปิดใช้งานบุคลากรใช้เส้นเดียวกับหน้ามาสเตอร์ (PUT /personnel, audit UPDATE)
+    // เดิม DELETE /civil-servants/{id} — action ต่างใน audit log ทั้งที่ผลเดียวกัน
+    return api.put(`/personnel/${personnelId}`, { is_active: 0 })
   }
 
   return { fetchByLevel, fetchOverview, deactivatePersonnel }

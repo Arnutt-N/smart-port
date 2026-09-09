@@ -98,17 +98,18 @@ describe('useApi', () => {
   describe('HTML-detection branches', () => {
     it('throws clean error when non-ok response is HTML (PHP error leaked)', async () => {
       global.fetch = mockFetch(htmlResponse('<br /><b>Warning</b>: Undefined variable'))
-      await expect(api.get('/test')).rejects.toThrow('Server error. Please try again.')
+      // N50: ข้อความ fallback เป็นภาษาไทย
+      await expect(api.get('/test')).rejects.toThrow('เกิดข้อผิดพลาดในเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง')
     })
 
     it('throws database error message on 503 HTML response', async () => {
       global.fetch = mockFetch(htmlResponse('<html><body>Service Unavailable</body></html>', 503))
-      await expect(api.get('/test')).rejects.toThrow('Database connection failed. Please try again.')
+      await expect(api.get('/test')).rejects.toThrow('เชื่อมต่อฐานข้อมูลไม่ได้ กรุณาลองใหม่อีกครั้ง')
     })
 
     it('throws clean error when 2xx response is HTML (PHP errored after headers sent)', async () => {
       global.fetch = mockFetch(htmlResponse('<br /><b>Fatal error</b>: Allowed memory exhausted', 200))
-      await expect(api.get('/test')).rejects.toThrow('Server error. Please try again.')
+      await expect(api.get('/test')).rejects.toThrow('เกิดข้อผิดพลาดในเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง')
     })
 
     it('throws invalid response format for non-JSON 2xx without HTML markers', async () => {
@@ -120,7 +121,7 @@ describe('useApi', () => {
         text: () => Promise.resolve('plain text response'),
         clone: () => ({ json: () => Promise.reject(new Error('not json')), text: () => Promise.resolve('plain text response') }),
       })
-      await expect(api.get('/test')).rejects.toThrow('Invalid response format. Please try again.')
+      await expect(api.get('/test')).rejects.toThrow('รูปแบบการตอบกลับไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง')
     })
   })
 

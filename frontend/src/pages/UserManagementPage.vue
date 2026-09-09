@@ -115,7 +115,8 @@
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
         <h2 class="text-lg font-semibold text-gray-900">{{ editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้ใหม่' }}</h2>
 
-        <div class="space-y-3">
+        <!-- N47: ครอบ <form> — native email validation + Enter submit ทำงาน -->
+        <form class="space-y-3" @submit.prevent="submitForm">
           <div>
             <label for="user-username" class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
             <input
@@ -190,14 +191,14 @@
             </select>
             <p v-if="isSelfEditing" class="text-xs text-gray-400 mt-1">ไม่สามารถแก้ไขสิทธิ์ของตนเองได้</p>
           </div>
-        </div>
+        </form>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="closeFormModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+          <button type="button" @click="closeFormModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
             ยกเลิก
           </button>
           <button
-            @click="submitForm"
+            type="submit"
             :disabled="saving"
             class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
           >

@@ -293,23 +293,34 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
-    $pdo->prepare(
-        'UPDATE users
-         SET password_hash = ?, must_change_password = 0
-         WHERE user_id = ?'
-    )->execute([
-        password_hash($newPassword, PASSWORD_DEFAULT),
-        (int) $user['user_id'],
-    ]);
+    // N33: hash ใหม่ + revoke refresh tokens ต้องเป็น atomic — เดิม UPDATE hash แล้ว
+    // revoke ล้ม (แยก statement) = รหัสใหม่ใช้ได้แต่ session เก่ายัง refresh ได้
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare(
+            'UPDATE users
+             SET password_hash = ?, must_change_password = 0
+             WHERE user_id = ?'
+        )->execute([
+            password_hash($newPassword, PASSWORD_DEFAULT),
+            (int) $user['user_id'],
+        ]);
 
-    // F5: เปลี่ยนรหัสผ่านแล้วเพิกถอน refresh token ทุกใบของ user นี้ (kill-all) —
-    // session อื่นที่ถือ token เก่าจะ refresh ต่อไม่ได้ แม้ access JWT ยังไม่หมดอายุ
-    // (เขียน revoked_at ด้วย PHP clock — grace ฝั่ง refresh เทียบกับ time() ของ PHP เช่นกัน)
-    $pdo->prepare(
-        'UPDATE refresh_tokens
-         SET revoked_at = ?
-         WHERE user_id = ? AND revoked_at IS NULL'
-    )->execute([date('Y-m-d H:i:s'), (int) $user['user_id']]);
+        // F5: เปลี่ยนรหัสผ่านแล้วเพิกถอน refresh token ทุกใบของ user นี้ (kill-all) —
+        // session อื่นที่ถือ token เก่าจะ refresh ต่อไม่ได้ แม้ access JWT ยังไม่หมดอายุ
+        // (เขียน revoked_at ด้วย PHP clock — grace ฝั่ง refresh เทียบกับ time() ของ PHP เช่นกัน)
+        $pdo->prepare(
+            'UPDATE refresh_tokens
+             SET revoked_at = ?
+             WHERE user_id = ? AND revoked_at IS NULL'
+        )->execute([date('Y-m-d H:i:s'), (int) $user['user_id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     logAudit(
         $pdo,
