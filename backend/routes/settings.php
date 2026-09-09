@@ -22,6 +22,12 @@ function handleSettings(PDO $pdo, string $method, array $path): void
     $section = $path[1] ?? '';
 
     if ($section === 'permissions') {
+        // N4: GET .../permissions/self — effective matrix ของ role ตัวเอง (login ใด ๆ)
+        // ให้ FE คำนวณปุ่มจาก matrix จริงรวม override แทน hardcode role เทียบ
+        if (($path[2] ?? '') === 'self' && $method === 'GET') {
+            getOwnPermissionMatrix($pdo);
+            return;
+        }
         $auth = requireSuperAdmin();
         if ($method === 'GET') {
             getPermissionSettings($pdo);
@@ -38,6 +44,54 @@ function handleSettings(PDO $pdo, string $method, array $path): void
 
     http_response_code(404);
     echo json_encode(['error' => 'ไม่พบ endpoint การตั้งค่า']);
+}
+
+/**
+ * N4 — GET /settings/permissions/self
+ * Effective permission matrix ของ role ผู้เรียกเอง (รวม role_permission_overrides)
+ * ให้ FE render ปุ่ม/เมนูจากสิทธิ์จริง ไม่ใช่เทียบ role แข็ง — superadmin bypass
+ * จึงคืน 'all' เป็นสัญญาณ; 503 fail-closed ตาม authz.php เมื่อ override store unreachable
+ */
+function getOwnPermissionMatrix(PDO $pdo): void
+{
+    // test hook: getAuthenticatedUser อ่าน JWT+DB — unit test ฉีด identity ผ่าน global แทน
+    $user = $GLOBALS['__auth_user'] ?? getAuthenticatedUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+    $role = (string) ($user['role'] ?? 'viewer');
+
+    if ($role === 'superadmin') {
+        http_response_code(200);
+        echo json_encode(['success' => true, 'data' => ['role' => $role, 'all' => true]]);
+        return;
+    }
+
+    clearPermissionOverrideCache();
+    try {
+        $grants = [];
+        foreach (AUTHZ_ACTIONS as $action) {
+            $allowed = [];
+            foreach (authzResources() as $resource) {
+                if (checkPermission($role, $action, $resource, $pdo)) {
+                    $allowed[] = $resource;
+                }
+            }
+            $grants[$action] = $allowed;
+        }
+    } catch (RuntimeException $e) {
+        http_response_code(503);
+        echo json_encode([
+            'error' => 'Service Unavailable',
+            'message' => 'ไม่สามารถตรวจสอบสิทธิ์ระบบได้ในขณะนี้',
+        ]);
+        return;
+    }
+
+    http_response_code(200);
+    echo json_encode(['success' => true, 'data' => ['role' => $role, 'grants' => $grants]]);
 }
 
 function getPermissionSettings(PDO $pdo): void

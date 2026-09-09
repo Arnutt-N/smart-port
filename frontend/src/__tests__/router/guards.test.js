@@ -4,6 +4,8 @@ const mockAuth = {
   isAuthenticated: false,
   mustChangePassword: false,
   user: null,
+  permissionGrants: null,
+  fetchPermissionGrants: vi.fn(async () => {}),
   get isAdmin() {
     return this.user?.role === 'admin' || this.user?.role === 'superadmin'
   },
