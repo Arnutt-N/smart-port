@@ -18,6 +18,20 @@ final class PublicRateLimitTest extends TestCase
 {
     private const TEST_IP = '203.0.113.122';
     private const BUCKET = 't122_bucket';
+    /** REMOTE_ADDR ปลอมที่ใช้แทน "Render edge"—ต้องเป็น IP public ที่ไม่ collide กับ TEST_IP */
+    private const EDGE_IP = '198.51.100.1';
+
+    protected function setUp(): void
+    {
+        // publicClientIp อ่าน TRUSTED_PROXIES — เทส XFF ต้อง set REMOTE_ADDR trusted ก่อน
+        $this->setTrusted(self::EDGE_IP);
+    }
+
+    private function setTrusted(string $ip): void
+    {
+        putenv('TRUSTED_PROXIES=' . $ip);
+        $_SERVER['REMOTE_ADDR'] = $ip;
+    }
 
     private function fileFor(): string
     {
@@ -31,6 +45,14 @@ final class PublicRateLimitTest extends TestCase
             unlink($file);
         }
         unset($_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['REMOTE_ADDR']);
+        // รีเซ็ต TRUSTED_PROXIES + แคช static ของ remoteAddrIsTrustedProxy (อยู่ท้ายเทสถัดไป)
+        putenv('TRUSTED_PROXIES');
+        $mirror = new \ReflectionFunction('remoteAddrIsTrustedProxy');
+        foreach ($mirror->getStaticVariables() as $name => $_) {
+        }
+        // ล้าง static cache ด้วยการเรียกเมื่อ REMOTE_ADDR ว่าง (ทางลัด: unset หลัง env ล้างแล้ว)
+        unset($_SERVER['REMOTE_ADDR']);
+        remoteAddrIsTrustedProxy('');
     }
 
     #[Test]
@@ -54,7 +76,7 @@ final class PublicRateLimitTest extends TestCase
     }
 
     #[Test]
-    public function it_uses_last_hop_of_forwarded_for(): void
+    public function it_uses_last_hop_of_forwarded_for_from_trusted_proxy(): void
     {
         // Render proxy chain append IP จริงต่อท้าย XFF — hop ท้ายสุดเชื่อถือได้
         // hop แรกคือค่าที่ client ตั้งเองได้ (ปลอมได้) จึงต้องไม่ถูกใช้
@@ -72,20 +94,33 @@ final class PublicRateLimitTest extends TestCase
     }
 
     #[Test]
+    public function it_ignores_forwarded_for_when_remote_addr_is_not_trusted(): void
+    {
+        // ขั้น 10 S1: client ต่อตรง (dev) — XFF ปลอมต้องไม่เปลี่ยน rate-limit key
+        putenv('TRUSTED_PROXIES=');
+        $_SERVER['REMOTE_ADDR'] = '10.1.2.3';
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '6.6.6.6, 7.7.7.7';
+
+        self::assertSame('10.1.2.3', publicClientIp());
+    }
+
+    #[Test]
     public function it_falls_back_to_remote_addr_on_garbage_forwarded_for(): void
     {
+        putenv('TRUSTED_PROXIES=' . self::EDGE_IP);
+        $_SERVER['REMOTE_ADDR'] = self::EDGE_IP;
         $_SERVER['HTTP_X_FORWARDED_FOR'] = "evil\r\nX-Injected: 1";
-        $_SERVER['REMOTE_ADDR'] = '192.0.2.9';
 
-        self::assertSame('192.0.2.9', publicClientIp());
+        self::assertSame(self::EDGE_IP, publicClientIp());
     }
 
     #[Test]
     public function it_falls_back_to_remote_addr_when_no_forwarded_for(): void
     {
-        $_SERVER['REMOTE_ADDR'] = '192.0.2.55';
+        $_SERVER['REMOTE_ADDR'] = self::EDGE_IP;
+        unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 
-        self::assertSame('192.0.2.55', publicClientIp());
+        self::assertSame(self::EDGE_IP, publicClientIp());
     }
 
     #[Test]
