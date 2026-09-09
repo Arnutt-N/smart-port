@@ -29,7 +29,11 @@
 
 - **ปีเป็น พ.ศ. เสมอในสิ่งที่ผู้ใช้เห็น** — `received_year` ของเครื่องราชฯ เก็บเป็น พ.ศ. ในฐานข้อมูลด้วย (validate ช่วง 2400–2700) ส่วนคอลัมน์ `DATE`/`TIMESTAMP` อื่นเก็บเป็น ค.ศ. แล้วแปลงตอนแสดงผลด้วย `formatThaiDate()`
 - **การนับวันใช้ฐาน 365 วัน/ปี, 30 วัน/เดือน** (ไม่คิด leap year) — สูตรรวมศูนย์ใน `computeNetBreakdown()`; วันสิ้นสุดนับแบบ inclusive (`net_end_date` = start + effective − 1) ไม่ใช่ปฏิทินเกรกอเรียน และไม่ใช่ฐาน 360 ที่เคยใช้ในสูตรเก่า
-- **`citizen_id` คือ natural key ของบุคคล** — เป็น PII ห้ามหลุดเข้า log table (`import_log` จึงไม่มีคอลัมน์นี้); การสร้างบุคลากรทีละคนต้องมี `citizen_id` ที่ไม่ซ้ำ; **หลังสร้างแล้วห้ามแก้ใน UI ปกติ** (ผิดแล้วปิดใช้งานแล้วสร้างใหม่); **การเขียนใหม่** (สร้างทีละคน / นำเข้า Excel / HR sync D1) ต้องผ่าน checksum บัตรประชาชนไทย — แถวที่มีอยู่แล้วไม่ถูกเขียนใหม่; **มาสเตอร์ list/detail JSON ไม่ส่ง `citizen_id` ให้ operator/viewer** (typeahead ก็ไม่ส่ง) แต่ยังค้นหาด้วยเลขบัตรได้ — `admin` / `superadmin` เห็นเลขเต็ม
+- **`citizen_id` คือ natural key ของบุคคล** — เป็น PII ห้ามหลุดเข้า log table (`import_log` จึงไม่มีคอลัมน์นี้); การสร้างบุคลากรทีละคนต้องมี `citizen_id` ที่ไม่ซ้ำ; **หลังสร้างแล้วห้ามแก้ใน UI ปกติ** (ผิดแล้วปิดใช้งานแล้วสร้างใหม่); **การเขียนใหม่** (สร้างทีละคน / นำเข้า Excel / HR sync D1) ต้องผ่าน checksum บัตรประชาชนไทย — **มาสเตอร์ list/detail JSON ไม่ส่ง `citizen_id` ให้ operator/viewer** (typeahead ก็ไม่ส่ง) แต่ยังค้นหาด้วยเลขบัตรได้ — `admin` / `superadmin` เห็นเลขเต็ม
+- **ความซ้ำ (duplicate) กับ personnel มีพฤติกรรมต่างกันตามช่องทาง (N61)** —
+  - **นำเข้า Excel** (`ImportService`): all-or-nothing — insert ทั้ง 4 ตารางใน transaction เดียว, duplicate `citizen_id` ซ้ำกับข้อมูลที่มีอยู่ = reject **ทั้งไฟล์** ด้วยข้อความเป็นมิตร (ไม่ยอมอัปเดตแถวเดิมเงียบ ๆ)
+  - **HR sync D1** (`PersonTransformer`): upsert — `INSERT ... ON DUPLICATE KEY UPDATE` ตาม `citizen_id`, แปลงเฉพาะคอลัมน์ HR นำเข้าได้ (แถวเดิมจึงถูก sync ทับเฉพาะคอลัมน์อ้างอิง HR)
+  - ทั้งสองช่องทางต่างจาก "สร้างทีละคน" ที่ duplicate = 409 ต่อรายการ ระวังเวลาเขียนโค้ดใหม่ให้เลือก semantics ให้ถูกช่องทาง
 - **มาสเตอร์ข้อมูลบุคลากร** สร้าง/แก้ไข/ปิดใช้งานได้เฉพาะ `admin` / `superadmin` — `operator` และ `viewer` อ่าน/ค้นหาได้ (แล้วไปทำงานรายการนับเวลาตามสิทธิ์เดิมของแต่ละโมดูล)
 - **บุคลากรเลิกใช้ด้วยการปิดใช้งาน** ไม่ลบแถวถาวร — ประวัติเกื้อกูล/ทวีคูณ/แตกต่าง/เทียบตำแหน่งต้องอ้างอิงคนเดิมได้; ทางลัด `?create=1&personnel_id=` ของหน้าเวลานับไม่พรีฟิลคนที่ปิดใช้งานหรือไม่พบ
 - **สิทธิ์ตาม role** (`backend/authz.php::checkPermission`): `superadmin` ทำได้ทุกอย่าง + จัดการเมทริกซ์สิทธิ์ระบบ · `admin` ทำได้ทุกอย่างตาม default (ยกเว้นหน้าตั้งค่าสิทธิ์ระบบ) · `operator` อ่าน/สร้าง/แก้ไขได้ แต่ **ลบไม่ได้** และอนุมัติการเทียบตำแหน่งไม่ได้ · `viewer` อ่านอย่างเดียว (career overview: candidates/probation/personnel/dashboard/multiplier/profile) · ค่า default อยู่ในโค้ด และถูกทับได้ด้วยตาราง `role_permission_overrides` · OCR create และ awards write เป็น admin ตาม default · UI ซ่อนปุ่มให้ตรง matrix; บัญชีตัวเองแก้ username/รหัสผ่านได้ที่ `/settings/account`
@@ -40,4 +44,5 @@
 
 ระบบลา · วินัย/สอบสวน · เงินเดือนและค่าตอบแทน · KPI/ประเมินผล — ไม่มี counterpart ในระบบนี้
 บางตารางในฐานข้อมูลมาจากแบบร่างเดิมและยังไม่มีโค้ดใช้งาน (เช่น `candidate_lists`, `training_course`,
-`elearning_*`, `screening_list`) อย่าเพิ่งถือว่าเป็นฟีเจอร์ที่ใช้งานอยู่
+`screening_list`) อย่าเพิ่งถือว่าเป็นฟีเจอร์ที่ใช้งานอยู่ — `elearning_*` ถูกลบออกจากทั้ง migration
+และ bootstrap แล้ว (N5, migration 24 ยัง DROP IF EXISTS เคลียร์ DB เก่า)
