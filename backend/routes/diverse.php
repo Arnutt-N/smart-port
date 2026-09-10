@@ -38,6 +38,32 @@ function diverseStrictDate(string $value): ?DateTime
 }
 
 /**
+ * U1 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
+ * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
+ *
+ * @param array<string,mixed> $data
+ * @param list<string> $fields
+ */
+function diverseDateFieldError(mixed $data, array $fields): ?string
+{
+    if (!is_array($data)) {
+        return 'รูปแบบข้อมูลไม่ถูกต้อง';
+    }
+    foreach ($fields as $field) {
+        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
+            continue;
+        }
+        if (!is_string($data[$field]) || diverseStrictDate($data[$field]) === null) {
+            return 'รูปแบบวันที่ไม่ถูกต้อง';
+        }
+    }
+    return null;
+}
+
+/** @var list<string> ฟิลด์วันที่ของ diverse ที่ต้องผ่าน strict parse เมื่อส่งมา */
+const DIVERSE_DATE_FIELDS = ['from_start_date', 'from_end_date', 'to_start_date', 'to_end_date'];
+
+/**
  * จัดการ request สำหรับ diverse experience endpoints
  *
  * @param PDO $pdo Database connection
@@ -240,6 +266,14 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
+    // U1: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
+    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
+
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
         $fromStart = diverseStrictDate((string) $data['from_start_date']);
@@ -360,6 +394,14 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     }
 
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
+
+    // U1: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
+    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
 
     // Allowed fields — ไม่รวม diff_count (GENERATED column)
     $allowed = [

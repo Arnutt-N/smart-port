@@ -183,10 +183,8 @@ final class ImportServiceTest extends TestCase
             'approved_start_date' => '',
             'approved_end_date' => '',
         ]]);
-        $text = implode(' ', $errors);
-        self::assertStringNotContainsString('approval_status', $text);
-        self::assertStringNotContainsString('approved_start_date', $text);
-        self::assertStringNotContainsString('approved_end_date', $text);
+        // U4: assert ให้แน่น — fixture นี้ต้องไม่มี error ใด ๆ เลย ไม่ใช่แค่ไม่มี 3 กลุ่มนี้
+        self::assertEmpty($errors, 'unexpected errors: ' . implode(' | ', $errors));
     }
 
     /**
