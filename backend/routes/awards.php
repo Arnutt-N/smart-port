@@ -63,14 +63,14 @@ function handleAwards(PDO $pdo, string $method, array $path): void
     }
 }
 
-const AWARD_SELECT = "a.award_id, a.servant_id, a.award_name, a.award_type,
+const AWARD_SELECT = "a.award_id, a.personnel_id, a.award_name, a.award_type,
                       a.award_level, a.awarded_date, a.description, a.created_at,
-                      CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                      CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
 
 function awardBaseQuery(): string
 {
     return "FROM awards a
-            LEFT JOIN personnel p ON a.servant_id = p.personnel_id
+            LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
             LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
@@ -130,7 +130,7 @@ function getAwardDetail(PDO $pdo, int $id): void
 function validateAwardPayload(array $data, bool $requireCore): array
 {
     if ($requireCore) {
-        foreach (['servant_id', 'award_name'] as $field) {
+        foreach (['personnel_id', 'award_name'] as $field) {
             if (!isset($data[$field]) || $data[$field] === '') {
                 return [null, "กรุณาระบุข้อมูล: {$field}"];
             }
@@ -171,19 +171,19 @@ function createAward(PDO $pdo, ?array $auth): void
         return;
     }
 
-    $servantId = intval($valid['servant_id']);
-    if (!personnelExists($pdo, $servantId)) {
+    $personnelId = intval($valid['personnel_id']);
+    if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
         return;
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO awards (servant_id, award_name, award_type, award_level, awarded_date, description)
+        "INSERT INTO awards (personnel_id, award_name, award_type, award_level, awarded_date, description)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
-        $servantId,
+        $personnelId,
         trim($valid['award_name']),
         $valid['award_type'] ?? 'general',
         ($valid['award_level'] ?? '') !== '' ? $valid['award_level'] : null,
@@ -193,7 +193,7 @@ function createAward(PDO $pdo, ?array $auth): void
 
     $newId = intval($pdo->lastInsertId());
     logAudit($pdo, intval($auth['user_id']), 'CREATE', 'awards', $newId, null, [
-        'servant_id' => intval($valid['servant_id']),
+        'personnel_id' => intval($valid['personnel_id']),
         'award_name' => trim($valid['award_name']),
         'award_type' => $valid['award_type'] ?? 'general',
     ]);
@@ -224,7 +224,7 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
 
     $fields = [];
     $params = [];
-    $editable = ['servant_id', 'award_name', 'award_type', 'award_level', 'awarded_date', 'description'];
+    $editable = ['personnel_id', 'award_name', 'award_type', 'award_level', 'awarded_date', 'description'];
     foreach ($editable as $col) {
         if (array_key_exists($col, $valid)) {
             $fields[] = "{$col} = ?";
@@ -232,7 +232,7 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
             if (in_array($col, ['award_level', 'awarded_date'], true) && $value === '') {
                 $value = null;
             }
-            if ($col === 'servant_id') {
+            if ($col === 'personnel_id') {
                 $value = intval($value);
                 if (!personnelExists($pdo, $value)) {
                     http_response_code(404);

@@ -30,7 +30,7 @@ describe('useAwards', () => {
     mockGet.mockResolvedValue({
       success: true,
       data: [{
-        award_id: 1, servant_id: 5, servant_name: 'สมชาย',
+        award_id: 1, personnel_id: 5, personnel_name: 'สมชาย',
         award_name: 'รางวัลดีเด่น', award_type: 'honor', award_level: 'national',
         awarded_date: '2024-01-01', description: 'x', created_at: '2024-01-02',
       }],
@@ -44,7 +44,7 @@ describe('useAwards', () => {
     expect(url).toContain('limit=5')
     expect(url).toContain('offset=10')
     expect(result.data[0]).toEqual({
-      awardId: 1, servantId: 5, servantName: 'สมชาย',
+      awardId: 1, personnelId: 5, personnelName: 'สมชาย',
       awardName: 'รางวัลดีเด่น', awardType: 'honor', awardLevel: 'national',
       awardedDate: '2024-01-01', description: 'x', createdAt: '2024-01-02',
     })
@@ -53,9 +53,9 @@ describe('useAwards', () => {
   it('create maps camelCase payload to snake_case', async () => {
     mockPost.mockResolvedValue({ success: true })
     const { create } = useAwards()
-    await create({ servantId: 3, awardName: 'A', awardType: 'general', awardLevel: 'ministry', awardedDate: '2024-05-05', description: 'd' })
+    await create({ personnelId: 3, awardName: 'A', awardType: 'general', awardLevel: 'ministry', awardedDate: '2024-05-05', description: 'd' })
     expect(mockPost).toHaveBeenCalledWith('/awards', {
-      servant_id: 3, award_name: 'A', award_type: 'general', award_level: 'ministry', awarded_date: '2024-05-05', description: 'd',
+      personnel_id: 3, award_name: 'A', award_type: 'general', award_level: 'ministry', awarded_date: '2024-05-05', description: 'd',
     })
   })
 

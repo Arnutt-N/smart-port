@@ -170,7 +170,7 @@ function goCreateTimeEntry(path) {
     path,
     query: {
       create: '1',
-      personnel_id: String(servant.value.servantId),
+      personnel_id: String(servant.value.personnelId),
       full_name: servant.value.fullName || '',
     },
   })

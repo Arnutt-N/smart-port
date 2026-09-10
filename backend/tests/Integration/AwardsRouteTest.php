@@ -71,7 +71,7 @@ final class AwardsRouteTest extends TestCase
     private function seedAward(string $name, string $type = 'general'): int
     {
         self::$pdo->prepare(
-            'INSERT INTO awards (servant_id, award_name, award_type, awarded_date) VALUES (?, ?, ?, ?)'
+            'INSERT INTO awards (personnel_id, award_name, award_type, awarded_date) VALUES (?, ?, ?, ?)'
         )->execute([$this->personnelId, $name, $type, '2024-06-01']);
         $id = (int) self::$pdo->lastInsertId();
         $this->awardIds[] = $id;
@@ -91,19 +91,19 @@ final class AwardsRouteTest extends TestCase
         [, $err1] = validateAwardPayload([], true);
         self::assertNotNull($err1);
 
-        [, $err2] = validateAwardPayload(['servant_id' => 1, 'award_name' => 'x', 'award_type' => 'bogus'], true);
+        [, $err2] = validateAwardPayload(['personnel_id' => 1, 'award_name' => 'x', 'award_type' => 'bogus'], true);
         self::assertNotNull($err2);
 
-        [, $err3] = validateAwardPayload(['servant_id' => 1, 'award_name' => 'x', 'award_level' => 'bogus'], true);
+        [, $err3] = validateAwardPayload(['personnel_id' => 1, 'award_name' => 'x', 'award_level' => 'bogus'], true);
         self::assertNotNull($err3);
 
-        [$valid, $err4] = validateAwardPayload(['servant_id' => 1, 'award_name' => 'x', 'award_type' => 'honor'], true);
+        [$valid, $err4] = validateAwardPayload(['personnel_id' => 1, 'award_name' => 'x', 'award_type' => 'honor'], true);
         self::assertNull($err4);
         self::assertSame('honor', $valid['award_type']);
     }
 
     #[Test]
-    public function list_returns_seeded_award_with_joined_servant_name(): void
+    public function list_returns_seeded_award_with_joined_personnel_name(): void
     {
         $name = 'รางวัลทดสอบ-' . bin2hex(random_bytes(3));
         $this->seedAward($name);
@@ -115,7 +115,7 @@ final class AwardsRouteTest extends TestCase
         self::assertArrayHasKey('pagination', $response);
         self::assertGreaterThanOrEqual(1, $response['pagination']['total']);
         self::assertSame($name, $response['data'][0]['award_name']);
-        self::assertStringContainsString('ทดสอบ', $response['data'][0]['servant_name']);
+        self::assertStringContainsString('ทดสอบ', $response['data'][0]['personnel_name']);
     }
 
     #[Test]

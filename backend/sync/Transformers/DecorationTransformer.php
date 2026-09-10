@@ -8,7 +8,7 @@ require_once __DIR__ . '/../SourceAdapterInterface.php';
 
 /**
  * D6: per_decoratehis (+ per_decoration lookup) → royal_decorations
- * Natural key: servant_id + decoration_name + received_year
+ * Natural key: personnel_id + decoration_name + received_year
  * received_year stores Buddhist Era (validation 2400-2700) — NO CE conversion
  */
 class DecorationTransformer
@@ -34,12 +34,12 @@ class DecorationTransformer
 
         $checkStmt = $this->target->prepare(
             'SELECT decoration_id FROM royal_decorations
-             WHERE servant_id = ? AND decoration_name = ? AND received_year = ?
+             WHERE personnel_id = ? AND decoration_name = ? AND received_year = ?
              LIMIT 1'
         );
 
         $insertStmt = $this->target->prepare(
-            'INSERT INTO royal_decorations (servant_id, decoration_name, decoration_class, received_year, gazette_ref)
+            'INSERT INTO royal_decorations (personnel_id, decoration_name, decoration_class, received_year, gazette_ref)
              VALUES (?, ?, ?, ?, ?)'
         );
 

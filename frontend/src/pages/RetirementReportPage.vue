@@ -84,7 +84,7 @@
           <tbody>
             <tr
               v-for="(row, index) in rows"
-              :key="row.servantId"
+              :key="row.personnelId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
               <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>

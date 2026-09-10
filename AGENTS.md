@@ -279,7 +279,7 @@ Pure PHP REST API with no framework.
 - PHP variables: camelCase (e.g., `$method`, `$path`, `$token`, `$data`, `$email`, `$password`)
 - Not explicitly used in this codebase (Vue 3/PHP)
 - Props object keys: camelCase (e.g., `status`, `label`, `requiresAuth`)
-- Response payload keys: snake_case from backend, accessed via destructuring (e.g., `servant_id`, `file_name`, `is_active`)
+- Response payload keys: snake_case from backend, accessed via destructuring (e.g., `personnel_id`, `file_name`, `is_active`)
 ## Code Style
 - No explicit linter/formatter configured
 - Indentation: 2 spaces observed in Vue/JS files

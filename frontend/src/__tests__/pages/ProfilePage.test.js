@@ -31,7 +31,7 @@ async function mountPage(role = 'admin') {
 
 function activeServant(overrides = {}) {
   return {
-    servantId: 5,
+    personnelId: 5,
     employeeId: 'EMP005',
     fullName: 'นายสมชาย ไทยแท้',
     birthDate: '1980-01-01',

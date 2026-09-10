@@ -67,7 +67,7 @@
             >
               <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
               <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.title }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.servantName || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.personnelName || '-' }}</td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.proposalType || '-' }}</td>
               <td class="px-6 py-3 text-sm text-gray-700">{{ row.submissionDate || '-' }}</td>
               <td class="px-6 py-3 text-sm">
@@ -116,7 +116,7 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p class="text-xs text-gray-500">ข้าราชการ</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.servantName || '-' }}</p>
+                <p class="text-sm text-gray-900">{{ viewingRow?.personnelName || '-' }}</p>
               </div>
               <div>
                 <p class="text-xs text-gray-500">สถานะ</p>

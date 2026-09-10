@@ -20,7 +20,7 @@ describe('useRetirement', () => {
     mockGet.mockResolvedValue({
       success: true,
       data: [{
-        servant_id: 3, employee_id: 'EMP003', full_name: 'สมศักดิ์',
+        personnel_id: 3, employee_id: 'EMP003', full_name: 'สมศักดิ์',
         retirement_date: '2030-09-30', servant_status: 'active', remaining_days: 120,
       }],
       pagination: { total: 1 },
@@ -31,7 +31,7 @@ describe('useRetirement', () => {
     expect(url).toContain('/retirement')
     expect(url).toContain('within=12')
     expect(result.data[0]).toEqual({
-      servantId: 3, employeeId: 'EMP003', fullName: 'สมศักดิ์',
+      personnelId: 3, employeeId: 'EMP003', fullName: 'สมศักดิ์',
       retirementDate: '2030-09-30', servantStatus: 'active', remainingDays: 120,
     })
   })
@@ -39,7 +39,7 @@ describe('useRetirement', () => {
   it('keeps null remainingDays as null', async () => {
     mockGet.mockResolvedValue({
       success: true,
-      data: [{ servant_id: 1, remaining_days: null }],
+      data: [{ personnel_id: 1, remaining_days: null }],
       pagination: {},
     })
     const { fetchList } = useRetirement()

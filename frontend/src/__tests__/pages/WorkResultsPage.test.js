@@ -12,7 +12,7 @@ const WorkResultsPage = (await import('@/pages/WorkResultsPage.vue')).default
 const sampleRow = {
   proposalId: 1,
   title: 'ผลงานเด่น',
-  servantName: 'สมชาย ใจดี',
+  personnelName: 'สมชาย ใจดี',
   proposalType: 'improvement',
   submissionDate: '2024-01-01',
   status: 'approved',

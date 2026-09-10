@@ -78,7 +78,7 @@ final class LegacyCivilServantsListTest extends TestCase
     private function seededRow(array $payload): ?array
     {
         foreach ($payload['data'] as $row) {
-            if ((int) ($row['servant_id'] ?? 0) === $this->personnelId) {
+            if ((int) ($row['personnel_id'] ?? 0) === $this->personnelId) {
                 return $row;
             }
         }

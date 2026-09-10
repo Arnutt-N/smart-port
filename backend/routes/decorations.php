@@ -60,14 +60,14 @@ function handleDecorations(PDO $pdo, string $method, array $path): void
     }
 }
 
-const DECORATION_SELECT = "d.decoration_id, d.servant_id, d.decoration_name, d.decoration_class,
+const DECORATION_SELECT = "d.decoration_id, d.personnel_id, d.decoration_name, d.decoration_class,
                            d.received_year, d.gazette_ref, d.description, d.created_at,
-                           CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                           CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
 
 function decorationBaseQuery(): string
 {
     return "FROM royal_decorations d
-            LEFT JOIN personnel p ON d.servant_id = p.personnel_id
+            LEFT JOIN personnel p ON d.personnel_id = p.personnel_id
             LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
@@ -124,7 +124,7 @@ function getDecorationDetail(PDO $pdo, int $id): void
 function validateDecorationPayload(array $data, bool $requireCore): array
 {
     if ($requireCore) {
-        foreach (['servant_id', 'decoration_name'] as $field) {
+        foreach (['personnel_id', 'decoration_name'] as $field) {
             if (!isset($data[$field]) || $data[$field] === '') {
                 return [null, "กรุณาระบุข้อมูล: {$field}"];
             }
@@ -152,19 +152,19 @@ function createDecoration(PDO $pdo, ?array $auth): void
         return;
     }
 
-    $servantId = intval($valid['servant_id']);
-    if (!personnelExists($pdo, $servantId)) {
+    $personnelId = intval($valid['personnel_id']);
+    if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
         return;
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO royal_decorations (servant_id, decoration_name, decoration_class, received_year, gazette_ref, description)
+        "INSERT INTO royal_decorations (personnel_id, decoration_name, decoration_class, received_year, gazette_ref, description)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
-        $servantId,
+        $personnelId,
         trim($valid['decoration_name']),
         ($valid['decoration_class'] ?? '') !== '' ? $valid['decoration_class'] : null,
         ($valid['received_year'] ?? '') !== '' ? intval($valid['received_year']) : null,
@@ -174,7 +174,7 @@ function createDecoration(PDO $pdo, ?array $auth): void
 
     $newId = intval($pdo->lastInsertId());
     logAudit($pdo, intval($auth['user_id']), 'CREATE', 'royal_decorations', $newId, null, [
-        'servant_id' => intval($valid['servant_id']),
+        'personnel_id' => intval($valid['personnel_id']),
         'decoration_name' => trim($valid['decoration_name']),
     ]);
 
@@ -204,7 +204,7 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
 
     $fields = [];
     $params = [];
-    $editable = ['servant_id', 'decoration_name', 'decoration_class', 'received_year', 'gazette_ref', 'description'];
+    $editable = ['personnel_id', 'decoration_name', 'decoration_class', 'received_year', 'gazette_ref', 'description'];
     foreach ($editable as $col) {
         if (array_key_exists($col, $valid)) {
             $fields[] = "{$col} = ?";
@@ -212,7 +212,7 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
             if (in_array($col, ['decoration_class', 'received_year', 'gazette_ref'], true) && $value === '') {
                 $value = null;
             }
-            if ($col === 'servant_id') {
+            if ($col === 'personnel_id') {
                 $value = intval($value);
                 if (!personnelExists($pdo, $value)) {
                     http_response_code(404);

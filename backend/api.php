@@ -198,7 +198,7 @@ switch ($path[0]) {
         if ($id) {
             // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล
             $stmt = $pdo->prepare(
-                "SELECT p.personnel_id AS servant_id, p.employee_id, p.first_name, p.last_name,
+                "SELECT p.personnel_id, p.employee_id, p.first_name, p.last_name,
                         p.birth_date, p.appointment_date, p.retirement_date,
                         p.servant_status, p.is_active,
                         CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
@@ -206,7 +206,7 @@ switch ($path[0]) {
                  FROM personnel p
                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                  LEFT JOIN civil_servant_photos csp
-                     ON p.personnel_id = csp.servant_id AND csp.is_primary = 1
+                     ON p.personnel_id = csp.personnel_id AND csp.is_primary = 1
                  WHERE p.personnel_id = ?"
             );
             $stmt->execute([$id]);
@@ -307,19 +307,19 @@ switch ($path[0]) {
     case 'photos':
         if ($method == 'POST') {
             requirePermission('create', 'photos');
-            $servant_id = intval($_POST['servant_id'] ?? 0);
+            $personnelId = intval($_POST['personnel_id'] ?? 0);
             $file = $_FILES['photo'] ?? null;
 
-            if ($servant_id <= 0 || !is_array($file)) {
+            if ($personnelId <= 0 || !is_array($file)) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid upload request']);
                 break;
             }
 
             // N37: pre-check personnel ก่อนรับไฟล์ (pattern เดียวกับ probation) —
-            // servant_id ที่ไม่มีจริงเดิม INSERT แล้วโยน FK/PD ที่ทำ store ระเบิดเป็น 500
+            // personnel_id ที่ไม่มีจริงเดิม INSERT แล้วโยน FK/PD ที่ทำ store ระเบิดเป็น 500
             $pdo = getDB();
-            if (!personnelExists($pdo, $servant_id)) {
+            if (!personnelExists($pdo, $personnelId)) {
                 http_response_code(404);
                 echo json_encode(['error' => 'Personnel not found']);
                 break;
@@ -386,7 +386,7 @@ switch ($path[0]) {
 
             try {
                 include_once __DIR__ . '/routes/photos.php';
-                $stored = storePhotoRecord($pdo, $servant_id, $safeFileName, $web_path, $bytes, $mimeType);
+                $stored = storePhotoRecord($pdo, $personnelId, $safeFileName, $web_path, $bytes, $mimeType);
 
                 // N37: บันทึก audit — เดิม POST /photos ไม่เข้า audit log เลย
                 logAudit(
@@ -396,7 +396,7 @@ switch ($path[0]) {
                     'civil_servant_photos',
                     (int) $stored['photo_id'],
                     null,
-                    ['servant_id' => $servant_id, 'file_name' => $safeFileName, 'mime_type' => $mimeType]
+                    ['personnel_id' => $personnelId, 'file_name' => $safeFileName, 'mime_type' => $mimeType]
                 );
 
                 echo json_encode([
@@ -416,7 +416,7 @@ switch ($path[0]) {
 
     case 'civil-servants':
         $pdo = getDB();
-        $servantId = isset($path[1]) ? intval($path[1]) : 0;
+        $personnelId = isset($path[1]) ? intval($path[1]) : 0;
 
         if ($method == 'GET') {
             requirePermission('read', 'personnel');
@@ -428,7 +428,7 @@ switch ($path[0]) {
             $offset = intval($_GET['offset'] ?? 0);
 
             echo json_encode(legacyCivilServantsList($pdo, $role, $search, $limit, $offset));
-        } elseif ($method === 'DELETE' && $servantId > 0) {
+        } elseif ($method === 'DELETE' && $personnelId > 0) {
             // Soft-delete: ปิดใช้งานบุคลากร (ออกจากรายชื่อ candidates ที่กรอง is_active=1)
             requirePermission('delete', 'personnel');
             // ขั้น 10 S1: SELECT FOR UPDATE → UPDATE → audit ใน transaction เดียว (pattern N13)
@@ -440,7 +440,7 @@ switch ($path[0]) {
                      FROM personnel WHERE personnel_id = ?' .
                     ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '')
                 );
-                $beforeStmt->execute([$servantId]);
+                $beforeStmt->execute([$personnelId]);
                 $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC);
                 // F15/N40: ไม่พบ row → 404; ปิดใช้งานอยู่แล้ว → 409 — ไม่เขียน audit
                 // (citizen_id ไม่เข้า audit เพราะเป็น PII)
@@ -459,7 +459,7 @@ switch ($path[0]) {
                 $stmt = $pdo->prepare(
                     'UPDATE personnel SET is_active = 0 WHERE personnel_id = ? AND is_active = 1'
                 );
-                $stmt->execute([$servantId]);
+                $stmt->execute([$personnelId]);
                 if ($stmt->rowCount() === 0) {
                     // กันระดับ isolation ที่ SELECT FOR UPDATE ไม่พอ (แผน B) — rowCount=0 = ไม่มีการเปลี่ยน
                     $pdo->rollBack();
@@ -472,7 +472,7 @@ switch ($path[0]) {
                     (int) (getAuthenticatedUser()['user_id'] ?? 0),
                     'DELETE',
                     'personnel',
-                    $servantId,
+                    $personnelId,
                     $beforeRow,
                     array_merge($beforeRow, ['is_active' => 0])
                 );
