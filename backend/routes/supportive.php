@@ -202,6 +202,23 @@ function supportiveRatioPercent(int|float|string $raw): float
     return (float) $raw;
 }
 
+/**
+ * U2 — ฟิลด์ string ที่ส่งมาต้องเป็น string จริง (กัน array จาก JSON ทำ TypeError 500
+ * ใน computeSupportiveFields ที่รับ string) — ข้ามค่าที่ไม่ส่งมา/null
+ *
+ * @param array<string,mixed> $data
+ * @param list<string> $fields
+ */
+function supportiveStringFieldError(array $data, array $fields): ?string
+{
+    foreach ($fields as $field) {
+        if (array_key_exists($field, $data) && $data[$field] !== null && !is_string($data[$field])) {
+            return 'รูปแบบข้อมูลไม่ถูกต้อง';
+        }
+    }
+    return null;
+}
+
 function supportiveStrictDate(string $value): ?DateTime
 {
     // F1: preg guard ให้ตรง probationStrictDate (กัน '2026-1-15' หลุด)
@@ -308,6 +325,17 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
+    // U2: string fields ต้องเป็น string จริง (กัน array จาก JSON ทำ TypeError 500)
+    $typeError = supportiveStringFieldError(
+        $data,
+        ['start_date', 'end_date', 'job_series_name', 'primary_series_name']
+    );
+    if ($typeError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $typeError], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     // Server-side computation (D-05, D-06, D-07, SE-04)
     // วันที่ malformed หรือ end < start → 400 (message มาจาก InvalidArgumentException)
     try {
@@ -407,6 +435,18 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
                       || isset($data['job_series_name']) || isset($data['primary_series_name']);
 
     if ($needsRecompute) {
+        // U2: กัน array จาก JSON ทำ TypeError 500 (ตรวจเฉพาะค่าที่ส่งมา; null = ไม่ส่งมา)
+        if (is_array($data)) {
+            $typeError = supportiveStringFieldError(
+                $data,
+                ['start_date', 'end_date', 'job_series_name', 'primary_series_name']
+            );
+            if ($typeError !== null) {
+                http_response_code(400);
+                echo json_encode(['error' => $typeError], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+        }
         $startDate = $data['start_date'] ?? $existing['start_date'];
         $endDate = $data['end_date'] ?? $existing['end_date'];
         $jobSeriesName = $data['job_series_name'] ?? $existing['job_series_name'];

@@ -224,12 +224,14 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // คำนวณ request_total_days จากวันที่เริ่มต้นและสิ้นสุด (DATEDIFF+1)
+    // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
     $requestTotalDays = null;
     if (!empty($data['request_start_date']) && !empty($data['request_end_date'])) {
-        try {
-            $startDate = new DateTime($data['request_start_date']);
-            $endDate = new DateTime($data['request_end_date']);
-        } catch (Exception $e) {
+        $startDate = is_string($data['request_start_date'])
+            ? equivalenceStrictDate($data['request_start_date']) : null;
+        $endDate = is_string($data['request_end_date'])
+            ? equivalenceStrictDate($data['request_end_date']) : null;
+        if ($startDate === null || $endDate === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
             return;
@@ -284,13 +286,36 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
  *   - คำนวณ request_total_days ใหม่หากเปลี่ยนวันที่
  */
 /**
+ * U3 — parse Y-m-d แบบเข้ม (mirror probationStrictDate) — คืน null ถ้า format ผิดหรือ overflow
+ * (กัน '2026-1-15'/datetime suffix หลุดผ่าน new DateTime ตรง ๆ)
+ */
+function equivalenceStrictDate(string $value): ?DateTime
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
+
+/**
  * Inclusive day count for an approved date range.
  * Throws InvalidArgumentException when end < start (message matches MultiplierEngine.php:20).
  */
 function approvedRangeTotalDays(string $start, string $end): int
 {
-    $approvedStart = new DateTime($start);
-    $approvedEnd = new DateTime($end);
+    $approvedStart = equivalenceStrictDate($start);
+    $approvedEnd = equivalenceStrictDate($end);
+    if ($approvedStart === null || $approvedEnd === null) {
+        throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง');
+    }
     if ($approvedEnd < $approvedStart) {
         throw new InvalidArgumentException('วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น');
     }
@@ -429,10 +454,10 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $startDate = $data['request_start_date'] ?? $current['request_start_date'];
     $endDate = $data['request_end_date'] ?? $current['request_end_date'];
     if ((isset($data['request_start_date']) || isset($data['request_end_date'])) && !empty($startDate) && !empty($endDate)) {
-        try {
-            $start = new DateTime($startDate);
-            $end = new DateTime($endDate);
-        } catch (Exception $e) {
+        // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
+        $start = is_string($startDate) ? equivalenceStrictDate($startDate) : null;
+        $end = is_string($endDate) ? equivalenceStrictDate($endDate) : null;
+        if ($start === null || $end === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
             return;

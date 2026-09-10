@@ -25,4 +25,13 @@ final class EquivalenceApprovedRangeTest extends TestCase
     {
         self::assertSame(31, approvedRangeTotalDays('2026-01-01', '2026-01-31'));
     }
+
+    #[Test]
+    public function malformed_date_throws_invalid_format(): void
+    {
+        // U3: strict parse — วันที่หลวมต้อง 400 (InvalidArgumentException) ไม่ใช่ TypeError 500
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('รูปแบบวันที่ไม่ถูกต้อง');
+        approvedRangeTotalDays('2026-1-15', '2026-01-31');
+    }
 }
