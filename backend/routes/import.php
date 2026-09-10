@@ -16,10 +16,75 @@ const IMPORT_MAX_BYTES = 5 * 1024 * 1024;   // 5MB
 const IMPORT_RATE_MAX = 10;                  // จำนวนครั้งต่อหน้าต่าง
 const IMPORT_RATE_WINDOW_MIN = 15;           // นาที
 
+/**
+ * N23/N56: test hook — pattern เดียวกับ routes/settings.php (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveImportUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * N56: แกนนำเข้าไฟล์ที่ผ่านการตรวจชั้น upload แล้ว — pre-log → ImportService
+ * → update import_log → audit → สรุปผล (ไม่แตะ $_FILES/is_uploaded_file จึงเรียก
+ * จาก integration test ได้ตรง ๆ ด้วย fixture .xlsx)
+ *
+ * @return array{http:int, body:array<string,mixed>} http = 200 (สำเร็จ) | 422 (ล้มเหลว)
+ */
+function processImportUpload(PDO $pdo, string $tmpPath, string $origName, int $userId): array
+{
+    // pre-log attempt ก่อน import — กัน rate-limit bypass (นับทันที) + audit ไว้แม้ import crash
+    $logStmt = $pdo->prepare('INSERT INTO import_log (user_id, filename) VALUES (?, ?)');
+    $logStmt->execute([$userId, mb_substr($origName, 0, 300)]);
+    $logId = (int) $pdo->lastInsertId();
+
+    $result = (new ImportService($pdo))->importFromFile($tmpPath);
+
+    // อัปเดตผลลง import_log (OWASP A09) — ไม่เก็บ citizen_id (PII)
+    $pdo->prepare(
+        'UPDATE import_log SET personnel_count = ?, is_success = ?, error_summary = ? WHERE log_id = ?'
+    )->execute([
+        (int) ($result['summary']['personnel'] ?? 0),
+        $result['success'] ? 1 : 0,
+        $result['success'] ? null : mb_substr(implode(' | ', $result['errors']), 0, 500),
+        $logId,
+    ]);
+
+    // Audit log: บันทึกสรุปผลนำเข้า — เฉพาะตัวเลข/สถานะ ไม่มี PII (citizen_id, ชื่อ-สกุล)
+    logAudit(
+        $pdo,
+        $userId,
+        'CREATE',
+        'import',
+        $logId,
+        null,
+        [
+            'filename' => mb_substr($origName, 0, 300),
+            'personnel_count' => (int) ($result['summary']['personnel'] ?? 0),
+            'success' => $result['success'],
+            'error_count' => count($result['errors'] ?? []),
+        ]
+    );
+
+    return ['http' => $result['success'] ? 200 : 422, 'body' => $result];
+}
+
 function handleImport(PDO $pdo, string $method, array $path): void
 {
-    requirePermission('create', 'import');
-    $user = getAuthenticatedUser();
+    $user = resolveImportUser();
+    // N23: เดิม requirePermission exit จะฆ่า PHPUnit — ใช้ evaluate + return
+    // contract เดิม (401/403/503 + body) คงไว้ทุกประการ
+    $denied = evaluatePermissionAccess('create', 'import', $user, $pdo);
+    if ($denied !== null) {
+        http_response_code($denied['status']);
+        echo json_encode($denied['body']);
+        return;
+    }
     $userId = (int) ($user['user_id'] ?? 0);
     if ($userId < 1) {
         http_response_code(401);
@@ -92,39 +157,8 @@ function handleImport(PDO $pdo, string $method, array $path): void
         return;
     }
 
-    // pre-log attempt ก่อน import — กัน rate-limit bypass (นับทันที) + audit ไว้แม้ import crash
-    $logStmt = $pdo->prepare('INSERT INTO import_log (user_id, filename) VALUES (?, ?)');
-    $logStmt->execute([$userId, mb_substr((string) ($file['name'] ?? ''), 0, 300)]);
-    $logId = (int) $pdo->lastInsertId();
+    $outcome = processImportUpload($pdo, (string) $file['tmp_name'], (string) ($file['name'] ?? ''), $userId);
 
-    $result = (new ImportService($pdo))->importFromFile((string) $file['tmp_name']);
-
-    // อัปเดตผลลง import_log (OWASP A09) — ไม่เก็บ citizen_id (PII)
-    $pdo->prepare(
-        'UPDATE import_log SET personnel_count = ?, is_success = ?, error_summary = ? WHERE log_id = ?'
-    )->execute([
-        (int) ($result['summary']['personnel'] ?? 0),
-        $result['success'] ? 1 : 0,
-        $result['success'] ? null : mb_substr(implode(' | ', $result['errors']), 0, 500),
-        $logId,
-    ]);
-
-    // Audit log: บันทึกสรุปผลนำเข้า — เฉพาะตัวเลข/สถานะ ไม่มี PII (citizen_id, ชื่อ-สกุล)
-    logAudit(
-        $pdo,
-        $userId,
-        'CREATE',
-        'import',
-        $logId,
-        null,
-        [
-            'filename' => mb_substr((string) ($file['name'] ?? ''), 0, 300),
-            'personnel_count' => (int) ($result['summary']['personnel'] ?? 0),
-            'success' => $result['success'],
-            'error_count' => count($result['errors'] ?? []),
-        ]
-    );
-
-    http_response_code($result['success'] ? 200 : 422);
-    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    http_response_code($outcome['http']);
+    echo json_encode($outcome['body'], JSON_UNESCAPED_UNICODE);
 }
