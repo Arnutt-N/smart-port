@@ -15,9 +15,39 @@ include_once __DIR__ . '/../SyncTransformService.php';
 include_once __DIR__ . '/../sync/StagingPdoAdapter.php';
 include_once __DIR__ . '/../sync/CsvFileAdapter.php';
 
+/**
+ * N23: test hook — integration test ฉีด identity ผ่าน $GLOBALS['__auth_user']
+ * แทน JWT+DB (pattern เดียวกับ routes/settings.php) ใช้ array_key_exists
+ * เพื่อให้ฉีด null (unauthenticated) ได้ต่างจาก ?? ที่ตกทะลุ getAuthenticatedUser
+ */
+function resolveSyncUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * N23: ตรวจ permission แบบไม่ exit (requirePermission exit จะฆ่า PHPUnit)
+ * contract เดียวกัน — 401/403/503 พร้อม body เดิมจาก evaluatePermissionAccess
+ *
+ * @return array{status:int, body:array<string,mixed>}|null null = ผ่าน
+ */
+function denySyncIfForbidden(PDO $pdo, string $action, ?array $user): ?array
+{
+    $denied = evaluatePermissionAccess($action, 'sync', $user, $pdo);
+    if ($denied !== null) {
+        http_response_code($denied['status']);
+        echo json_encode($denied['body']);
+    }
+    return $denied;
+}
+
 function handleSync(PDO $pdo, string $method, array $path): void
 {
-    $user = getAuthenticatedUser();
+    $user = resolveSyncUser();
     if (!$user) {
         http_response_code(401);
         echo json_encode(['error' => 'Unauthorized']);
@@ -31,7 +61,9 @@ function handleSync(PDO $pdo, string $method, array $path): void
             case 'GET':
                 if ($sub === 'status') {
                     // N32: GET ใช้ read:sync ไม่ใช่ create:sync
-                    requirePermission('read', 'sync');
+                    if (denySyncIfForbidden($pdo, 'read', $user) !== null) {
+                        return;
+                    }
                     handleSyncStatus($pdo);
                 } else {
                     http_response_code(404);
@@ -42,8 +74,10 @@ function handleSync(PDO $pdo, string $method, array $path): void
             case 'POST':
                 // ใช้ authz matrix เป็นเส้นตัดสิน (fail-closed) — ห้าม hardcode role check
                 // เพราะ superadmin โดน 403 และ override จาก settings ไม่ถูกนับ
-                requirePermission('create', 'sync');
-                handleSyncTrigger($pdo, $sub);
+                if (denySyncIfForbidden($pdo, 'create', $user) !== null) {
+                    return;
+                }
+                handleSyncTrigger($pdo, $sub, null, $user);
                 break;
 
             default:
@@ -71,11 +105,19 @@ function handleSyncStatus(PDO $pdo): void
     echo json_encode(['success' => true, 'data' => $status], JSON_UNESCAPED_UNICODE);
 }
 
-function handleSyncTrigger(PDO $pdo, string $domain): void
+/**
+ * @param array<string,mixed>|null $input บอดี้ที่ฉีดจาก test (null = อ่าน php://input)
+ * @param array{user_id?:int|string}|null $authUser ผู้เรียก (null = resolve เอง)
+ */
+function handleSyncTrigger(PDO $pdo, string $domain, ?array $input = null, ?array $authUser = null): void
 {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body = $input ?? (json_decode(file_get_contents('php://input'), true) ?? []);
     $sourceType = $body['source'] ?? 'staging';
     $full = (bool) ($body['full'] ?? false);
+    // N23: ของเดิมอ้าง $user ที่ไม่มีใน scope นี้ (ประกาศใน handleSync) —
+    // ส่งผู้เรียกเข้ามาตรง ๆ แทน (fallback resolve เองเพื่อคงพฤติกรรมเดิม)
+    $triggerUser = $authUser ?? resolveSyncUser();
+    $triggerUserId = (int) ($triggerUser['user_id'] ?? 0);
 
     if ($sourceType === 'staging') {
         $host = getenv('SYNC_STAGING_HOST') ?: '';
@@ -148,5 +190,5 @@ function handleSyncTrigger(PDO $pdo, string $domain): void
         echo json_encode(['success' => !$hasErrors, 'data' => $result], JSON_UNESCAPED_UNICODE);
     }
 
-    logAudit($pdo, (int) ($user['user_id'] ?? 0), 'sync', 'external_ref', null, null, ['domain' => $domain ?: 'all', 'source' => $sourceType, 'full' => $full]);
+    logAudit($pdo, $triggerUserId, 'sync', 'external_ref', null, null, ['domain' => $domain ?: 'all', 'source' => $sourceType, 'full' => $full]);
 }

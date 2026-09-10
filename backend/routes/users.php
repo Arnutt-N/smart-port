@@ -53,26 +53,51 @@ function countActiveSuperadmins(PDO $pdo, bool $forUpdate = false): int
 }
 
 /**
+ * N23: test hook — pattern เดียวกับ routes/settings.php + routes/sync.php
+ * ใช้ array_key_exists เพื่อให้ฉีด null (unauthenticated) ได้
+ */
+function resolveUsersAuthUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
  * จัดการ request สำหรับ user management endpoints
  * GET = read (admin+operator ดูได้), POST/PUT = create/update (admin เท่านั้น ตาม permission matrix)
+ *
+ * N23: $input/$query สำหรับฉีดบอดี้/query จาก integration test
+ * (null = อ่าน php://input/$_GET ตามเดิม) — contract HTTP ไม่เปลี่ยน
  *
  * @param PDO $pdo Database connection
  * @param string $method HTTP method
  * @param array $path URL path segments
+ * @param array<string,mixed>|null $input
+ * @param array<string,mixed>|null $query
  */
-function handleUsers(PDO $pdo, string $method, array $path): void
+function handleUsers(PDO $pdo, string $method, array $path, ?array $input = null, ?array $query = null): void
 {
     $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update'];
-    requirePermission($actionMap[$method] ?? 'read', 'users');
-    $auth = getAuthenticatedUser();
+    $auth = resolveUsersAuthUser();
+    // N23: เดิม requirePermission exit จะฆ่า PHPUnit — ใช้ evaluate + return
+    // contract เดิม (401/403/503 + body) คงไว้ทุกประการ
+    $denied = evaluatePermissionAccess($actionMap[$method] ?? 'read', 'users', $auth, $pdo);
+    if ($denied !== null) {
+        http_response_code($denied['status']);
+        echo json_encode($denied['body']);
+        return;
+    }
 
     switch ($method) {
         case 'GET':
-            getUserList($pdo);
+            getUserList($pdo, $query);
             break;
 
         case 'POST':
-            createUser($pdo, $auth);
+            createUser($pdo, $auth, $input);
             break;
 
         case 'PUT':
@@ -82,7 +107,7 @@ function handleUsers(PDO $pdo, string $method, array $path): void
                 echo json_encode(['error' => 'กรุณาระบุ ID ของผู้ใช้']);
                 return;
             }
-            updateUser($pdo, intval($id), $auth);
+            updateUser($pdo, intval($id), $auth, $input);
             break;
 
         default:
@@ -93,13 +118,16 @@ function handleUsers(PDO $pdo, string $method, array $path): void
 
 /**
  * GET /users — รายชื่อผู้ใช้ พร้อม pagination และค้นหาจาก username/full_name
+ *
+ * @param array<string,mixed>|null $query ฉีด query จาก test (null = $_GET)
  */
-function getUserList(PDO $pdo): void
+function getUserList(PDO $pdo, ?array $query = null): void
 {
-    $search = $_GET['search'] ?? '';
+    $q = $query ?? $_GET;
+    $search = $q['search'] ?? '';
     // clamp กัน limit มหาศาล / offset ติดลบ
-    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
+    $limit = max(1, min(intval($q['limit'] ?? 20), 200));
+    $offset = max(0, intval($q['offset'] ?? 0));
 
     $where = '';
     $params = [];
@@ -134,10 +162,12 @@ function getUserList(PDO $pdo): void
 
 /**
  * POST /users — สร้างผู้ใช้ใหม่ (must_change_password = 1 เสมอ)
+ *
+ * @param array<string,mixed>|null $input ฉีดบอดี้จาก test (null = อ่าน php://input)
  */
-function createUser(PDO $pdo, ?array $auth): void
+function createUser(PDO $pdo, ?array $auth, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     $required = ['username', 'password', 'full_name', 'role'];
     foreach ($required as $field) {
