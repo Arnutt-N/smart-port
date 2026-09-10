@@ -2,7 +2,7 @@ import { useResourceCrud } from '@/composables/useResourceCrud.js'
 
 function toPayload(data) {
   const payload = {}
-  if (data.servantId !== undefined) payload.servant_id = data.servantId
+  if (data.personnelId !== undefined) payload.personnel_id = data.personnelId
   if (data.decorationName !== undefined) payload.decoration_name = data.decorationName
   if (data.decorationClass !== undefined) payload.decoration_class = data.decorationClass
   if (data.receivedYear !== undefined) payload.received_year = data.receivedYear
@@ -14,8 +14,8 @@ function toPayload(data) {
 function mapRow(row) {
   return {
     decorationId: row.decoration_id,
-    servantId: row.servant_id,
-    servantName: row.servant_name,
+    personnelId: row.personnel_id,
+    personnelName: row.personnel_name,
     decorationName: row.decoration_name,
     decorationClass: row.decoration_class,
     receivedYear: row.received_year,

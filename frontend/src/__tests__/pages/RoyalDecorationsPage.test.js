@@ -21,8 +21,8 @@ const RoyalDecorationsPage = (await import('@/pages/RoyalDecorationsPage.vue')).
 
 const sampleRow = {
   decorationId: 1,
-  servantId: 4,
-  servantName: 'สมหญิง รักดี',
+  personnelId: 4,
+  personnelName: 'สมหญิง รักดี',
   decorationName: 'ทวีติยาภรณ์ช้างเผือก',
   decorationClass: 'ชั้นที่ 1',
   receivedYear: 2566,

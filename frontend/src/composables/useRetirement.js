@@ -20,7 +20,7 @@ export function useRetirement() {
 
   function mapRow(row) {
     return {
-      servantId: row.servant_id,
+      personnelId: row.personnel_id,
       employeeId: row.employee_id,
       fullName: row.full_name,
       retirementDate: row.retirement_date,

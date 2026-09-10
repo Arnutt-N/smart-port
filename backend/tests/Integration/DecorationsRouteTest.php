@@ -71,7 +71,7 @@ final class DecorationsRouteTest extends TestCase
     private function seedDecoration(string $name, ?int $year = 2565): int
     {
         self::$pdo->prepare(
-            'INSERT INTO royal_decorations (servant_id, decoration_name, received_year) VALUES (?, ?, ?)'
+            'INSERT INTO royal_decorations (personnel_id, decoration_name, received_year) VALUES (?, ?, ?)'
         )->execute([$this->personnelId, $name, $year]);
         $id = (int) self::$pdo->lastInsertId();
         $this->decorationIds[] = $id;
@@ -91,19 +91,19 @@ final class DecorationsRouteTest extends TestCase
         [, $err1] = validateDecorationPayload([], true);
         self::assertNotNull($err1);
 
-        [, $err2] = validateDecorationPayload(['servant_id' => 1, 'decoration_name' => 'x', 'received_year' => 1900], true);
+        [, $err2] = validateDecorationPayload(['personnel_id' => 1, 'decoration_name' => 'x', 'received_year' => 1900], true);
         self::assertNotNull($err2);
 
-        [, $err3] = validateDecorationPayload(['servant_id' => 1, 'decoration_name' => 'x', 'received_year' => 9999], true);
+        [, $err3] = validateDecorationPayload(['personnel_id' => 1, 'decoration_name' => 'x', 'received_year' => 9999], true);
         self::assertNotNull($err3);
 
-        [$valid, $err4] = validateDecorationPayload(['servant_id' => 1, 'decoration_name' => 'x', 'received_year' => 2565], true);
+        [$valid, $err4] = validateDecorationPayload(['personnel_id' => 1, 'decoration_name' => 'x', 'received_year' => 2565], true);
         self::assertNull($err4);
         self::assertSame(2565, (int) $valid['received_year']);
     }
 
     #[Test]
-    public function list_returns_seeded_decoration_with_joined_servant_name(): void
+    public function list_returns_seeded_decoration_with_joined_personnel_name(): void
     {
         $name = 'เครื่องราชฯทดสอบ-' . bin2hex(random_bytes(3));
         $this->seedDecoration($name);
@@ -115,7 +115,7 @@ final class DecorationsRouteTest extends TestCase
         self::assertArrayHasKey('pagination', $response);
         self::assertGreaterThanOrEqual(1, $response['pagination']['total']);
         self::assertSame($name, $response['data'][0]['decoration_name']);
-        self::assertStringContainsString('ทดสอบ', $response['data'][0]['servant_name']);
+        self::assertStringContainsString('ทดสอบ', $response['data'][0]['personnel_name']);
     }
 
     #[Test]

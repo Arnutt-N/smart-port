@@ -39,7 +39,7 @@ CREATE TABLE prefixes (
 -- Uploaded photo records for each civil servant.
 CREATE TABLE civil_servant_photos (
     photo_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id INT NOT NULL,
+    personnel_id BIGINT NOT NULL,
     photo_type VARCHAR(20) NOT NULL DEFAULT 'profile',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
@@ -50,7 +50,8 @@ CREATE TABLE civil_servant_photos (
     is_primary TINYINT(1) NOT NULL DEFAULT 0,
     upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_active TINYINT(1) NOT NULL DEFAULT 1
-    -- FK (servant_id) -> civil_servants ถูกปลดโดย migration 22 (unify person identity)
+    -- FK เดิม (servant_id) -> civil_servants ถูกปลดโดย migration 22 (unify person identity)
+    -- คอลัมน์ rename เป็น personnel_id โดย migration 32 (N60)
     -- parity gate เทียบ FK pairs — ห้ามใส่กลับ
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -74,7 +75,7 @@ INSERT INTO prefixes (prefix_code, prefix_name_th) VALUES ('MR', 'นาย');
 -- ตาราง performance_proposals (ผลงานและข้อเสนอ)
 CREATE TABLE performance_proposals (
     proposal_id INT PRIMARY KEY AUTO_INCREMENT,
-    servant_id INT NOT NULL,
+    personnel_id BIGINT NOT NULL,
     proposal_type VARCHAR(20) NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -90,9 +91,10 @@ CREATE TABLE performance_proposals (
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    -- FK (servant_id)/(evaluator_id) -> civil_servants ถูกปลดโดย migration 22
+    -- FK เดิม (servant_id)/(evaluator_id) -> civil_servants ถูกปลดโดย migration 22
+    -- servant_id rename เป็น personnel_id โดย migration 32 (N60)
     -- (ตารางนี้ไม่ถูก drop — parity gate เทียบ FK pairs ห้ามใส่กลับ)
-    INDEX idx_servant_type (servant_id, proposal_type),
+    INDEX idx_personnel_type (personnel_id, proposal_type),
     INDEX idx_status (status),
     INDEX idx_submission_date (submission_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1272,14 +1274,14 @@ CREATE TABLE refresh_tokens (
 -- ============================================
 CREATE TABLE awards (
     award_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    servant_id INT NOT NULL,
+    personnel_id BIGINT NOT NULL,
     award_name VARCHAR(255) NOT NULL,
     award_type VARCHAR(50) NOT NULL DEFAULT 'general',
     award_level VARCHAR(50) NULL DEFAULT NULL,
     awarded_date DATE NULL DEFAULT NULL,
     description TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_awards_servant (servant_id),
+    KEY idx_awards_personnel (personnel_id),
     KEY idx_awards_date (awarded_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1289,14 +1291,14 @@ CREATE TABLE awards (
 -- received_year เก็บเป็นปี พ.ศ. (SMALLINT) — validate ช่วง 2400-2700 ฝั่ง PHP
 CREATE TABLE royal_decorations (
     decoration_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    servant_id INT NOT NULL,
+    personnel_id BIGINT NOT NULL,
     decoration_name VARCHAR(255) NOT NULL,
     decoration_class VARCHAR(100) NULL DEFAULT NULL,
     received_year SMALLINT NULL DEFAULT NULL,
     gazette_ref VARCHAR(255) NULL DEFAULT NULL,
     description TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_decorations_servant (servant_id)
+    KEY idx_decorations_personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

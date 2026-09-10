@@ -10,7 +10,7 @@ vi.mock('@/composables/useRetirement.js', () => ({
 const RetirementReportPage = (await import('@/pages/RetirementReportPage.vue')).default
 
 const sampleRow = {
-  servantId: 3,
+  personnelId: 3,
   employeeId: 'EMP003',
   fullName: 'สมศักดิ์ ตั้งใจ',
   retirementDate: '2030-09-30',

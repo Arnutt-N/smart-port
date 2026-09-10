@@ -30,7 +30,7 @@ describe('useDecorations', () => {
     mockGet.mockResolvedValue({
       success: true,
       data: [{
-        decoration_id: 2, servant_id: 4, servant_name: 'สมหญิง',
+        decoration_id: 2, personnel_id: 4, personnel_name: 'สมหญิง',
         decoration_name: 'ทวีติยาภรณ์', decoration_class: 'ชั้นที่ 1',
         received_year: 2566, gazette_ref: 'ล.123', description: 'y', created_at: '2024-02-02',
       }],
@@ -40,7 +40,7 @@ describe('useDecorations', () => {
     const result = await fetchList()
     expect(mockGet.mock.calls[0][0]).toContain('/royal-decorations')
     expect(result.data[0]).toEqual({
-      decorationId: 2, servantId: 4, servantName: 'สมหญิง',
+      decorationId: 2, personnelId: 4, personnelName: 'สมหญิง',
       decorationName: 'ทวีติยาภรณ์', decorationClass: 'ชั้นที่ 1',
       receivedYear: 2566, gazetteRef: 'ล.123', description: 'y', createdAt: '2024-02-02',
     })
@@ -49,9 +49,9 @@ describe('useDecorations', () => {
   it('create maps camelCase to snake_case', async () => {
     mockPost.mockResolvedValue({ success: true })
     const { create } = useDecorations()
-    await create({ servantId: 1, decorationName: 'D', decorationClass: 'c', receivedYear: 2565, gazetteRef: 'g', description: 'z' })
+    await create({ personnelId: 1, decorationName: 'D', decorationClass: 'c', receivedYear: 2565, gazetteRef: 'g', description: 'z' })
     expect(mockPost).toHaveBeenCalledWith('/royal-decorations', {
-      servant_id: 1, decoration_name: 'D', decoration_class: 'c', received_year: 2565, gazette_ref: 'g', description: 'z',
+      personnel_id: 1, decoration_name: 'D', decoration_class: 'c', received_year: 2565, gazette_ref: 'g', description: 'z',
     })
   })
 

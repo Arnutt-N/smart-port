@@ -84,7 +84,7 @@ final class PhotoStorageTest extends TestCase
         // แถวรุ่นเก่าที่ไฟล์สูญหายจาก ephemeral disk — file_data NULL ต้องเสิร์ฟ 404 (null)
         $name = self::NAME_PREFIX . 'legacy.jpg';
         self::$pdo->prepare(
-            'INSERT INTO civil_servant_photos (servant_id, file_name, file_path) VALUES (1, ?, ?)'
+            'INSERT INTO civil_servant_photos (personnel_id, file_name, file_path) VALUES (1, ?, ?)'
         )->execute([$name, 'uploads/' . $name]);
 
         $this->assertNull(fetchActivePhoto(self::$pdo, $name));

@@ -26,8 +26,8 @@ export function useWorkResults() {
   function mapRow(row) {
     return {
       proposalId: row.proposal_id,
-      servantId: row.servant_id,
-      servantName: row.servant_name,
+      personnelId: row.personnel_id,
+      personnelName: row.personnel_name,
       proposalType: row.proposal_type,
       title: row.title,
       description: row.description,

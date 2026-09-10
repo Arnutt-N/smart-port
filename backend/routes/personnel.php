@@ -215,7 +215,8 @@ function redactPersonnelCitizenIdForRole(array $row, string $role): array
 }
 
 /**
- * Legacy /civil-servants list (เรียกจาก api.php) — contract เดิม + pagination
+ * Legacy /civil-servants list (เรียกจาก api.php) — N60: ฟิลด์ servant_id เปลี่ยนเป็น
+ * personnel_id พร้อม backend ทั้งหมด (deploy พร้อม frontend ใหม่)
  * แต่ค้นหาด้วย citizen_id ได้โดย "ไม่ให้ค่าคืน" แก่ role ที่ไม่ใช่ admin/superadmin
  * (CONTEXT.md: operator/viewer ค้นหาด้วยเลขบัตรได้ แต่ต้องไม่เห็นค่าใน response)
  *
@@ -241,7 +242,7 @@ function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $li
 
     $sql = "
         SELECT
-            p.personnel_id AS servant_id,
+            p.personnel_id,
             p.employee_id,
             p.citizen_id,
             CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) as full_name,
@@ -261,12 +262,12 @@ function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $li
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $servants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // PII gate: role ที่ไม่ใช่ admin/superadmin ต้องไม่ได้รับ citizen_id
-    $servants = array_map(
+    $rows = array_map(
         static fn (array $row): array => redactPersonnelCitizenIdForRole($row, $role),
-        $servants
+        $rows
     );
 
     // นับ total ให้ตรงกับ filter ของ list query (is_active = 1)
@@ -277,7 +278,7 @@ function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $li
 
     return [
         'success' => true,
-        'data' => $servants,
+        'data' => $rows,
         'pagination' => [
             'total' => $total,
             'limit' => $limit,

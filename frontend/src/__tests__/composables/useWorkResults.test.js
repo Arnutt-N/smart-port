@@ -23,7 +23,7 @@ describe('useWorkResults', () => {
     mockGet.mockResolvedValue({
       success: true,
       data: [{
-        proposal_id: 1, servant_id: 2, servant_name: 'ก', proposal_type: 'improvement',
+        proposal_id: 1, personnel_id: 2, personnel_name: 'ก', proposal_type: 'improvement',
         title: 'ผลงาน', description: 'd', impact_description: 'i', quantitative_result: '10',
         result_unit: 'ครั้ง', submission_date: '2024-01-01', evaluation_score: 88,
         status: 'approved', approval_level: 'department', created_at: '2024-01-02',

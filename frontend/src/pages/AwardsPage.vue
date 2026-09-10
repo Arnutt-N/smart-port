@@ -62,7 +62,7 @@
             >
               <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
               <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.awardName }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.servantName || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">{{ row.personnelName || '-' }}</td>
               <td class="px-6 py-3 text-sm">
                 <StatusBadge :status="row.awardType || 'general'" />
               </td>
@@ -103,8 +103,8 @@
 
         <div class="space-y-3">
           <div>
-            <label for="awards-servant-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (servant_id) <span class="text-red-500">*</span></label>
-            <input id="awards-servant-id" v-model.number="form.servantId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label for="awards-personnel-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสข้าราชการ (personnel_id) <span class="text-red-500">*</span></label>
+            <input id="awards-personnel-id" v-model.number="form.personnelId" type="number" min="1" class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label for="awards-award-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อรางวัล <span class="text-red-500">*</span></label>
@@ -193,7 +193,7 @@ const { run: scheduleSearch } = useDebouncedCallback(() => {
 const showFormModal = ref(false)
 const editing = ref(null)
 const saving = ref(false)
-const defaultForm = () => ({ servantId: null, awardName: '', awardType: 'general', awardLevel: '', awardedDate: '', description: '' })
+const defaultForm = () => ({ personnelId: null, awardName: '', awardType: 'general', awardLevel: '', awardedDate: '', description: '' })
 const form = ref(defaultForm())
 
 
@@ -238,7 +238,7 @@ function openCreate() {
 function openEdit(row) {
   editing.value = row
   form.value = {
-    servantId: row.servantId,
+    personnelId: row.personnelId,
     awardName: row.awardName,
     awardType: row.awardType || 'general',
     awardLevel: row.awardLevel || '',
@@ -254,7 +254,7 @@ function closeFormModal() {
 }
 
 function validate() {
-  if (!form.value.servantId) {
+  if (!form.value.personnelId) {
     ui.showToast('กรุณาระบุรหัสข้าราชการ', 'error')
     return false
   }
@@ -274,7 +274,7 @@ async function submitForm() {
   saving.value = true
   try {
     const payload = {
-      servantId: form.value.servantId,
+      personnelId: form.value.personnelId,
       awardName: form.value.awardName.trim(),
       awardType: form.value.awardType,
       awardLevel: form.value.awardLevel || null,

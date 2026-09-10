@@ -29,7 +29,7 @@ export function useProfile() {
 
   function mapServant(row) {
     return {
-      servantId: row.servant_id,
+      personnelId: row.personnel_id,
       employeeId: row.employee_id,
       firstName: row.first_name,
       lastName: row.last_name,

@@ -27,25 +27,25 @@ function isValidPhotoFileName(string $name): bool
  *
  * @return array{photo_id: int}
  */
-function storePhotoRecord(PDO $pdo, int $servantId, string $fileName, string $webPath, string $bytes, string $mime): array
+function storePhotoRecord(PDO $pdo, int $personnelId, string $fileName, string $webPath, string $bytes, string $mime): array
 {
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare(
-            'INSERT INTO civil_servant_photos (servant_id, file_name, file_path, file_data, mime_type, file_size)
+            'INSERT INTO civil_servant_photos (personnel_id, file_name, file_path, file_data, mime_type, file_size)
              VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$servantId, $fileName, $webPath, $bytes, $mime, strlen($bytes)]);
+        $stmt->execute([$personnelId, $fileName, $webPath, $bytes, $mime, strlen($bytes)]);
         $photoId = (int) $pdo->lastInsertId();
 
-        // รูปล่าสุดต้องเป็น primary เสมอ — กวาด is_primary = 0 ทุกแถวเก่าของ servant นี้
+        // รูปล่าสุดต้องเป็น primary เสมอ — กวาด is_primary = 0 ทุกแถวเก่าของบุคลากรนี้
         // (รวมแถวที่ถูก soft-delete ด้วย) ก่อนตั้งแถวใหม่เป็น 1 ใน transaction เดียวกัน
         // เพราะ GET /profile/{id} JOIN ด้วย is_primary = 1 ถ้ามี primary ค้างหลายแถว
         // profile จะได้รูปไม่ตรงหรือได้ null
         $sweep = $pdo->prepare(
-            'UPDATE civil_servant_photos SET is_primary = 0 WHERE servant_id = ? AND photo_id != ?'
+            'UPDATE civil_servant_photos SET is_primary = 0 WHERE personnel_id = ? AND photo_id != ?'
         );
-        $sweep->execute([$servantId, $photoId]);
+        $sweep->execute([$personnelId, $photoId]);
 
         $setPrimary = $pdo->prepare('UPDATE civil_servant_photos SET is_primary = 1 WHERE photo_id = ?');
         $setPrimary->execute([$photoId]);

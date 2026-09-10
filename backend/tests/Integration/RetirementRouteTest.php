@@ -73,7 +73,7 @@ final class RetirementRouteTest extends TestCase
 
         $match = null;
         foreach ($response['data'] as $row) {
-            if ((int) $row['servant_id'] === $this->personnelId) {
+            if ((int) $row['personnel_id'] === $this->personnelId) {
                 $match = $row;
                 break;
             }

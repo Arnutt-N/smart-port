@@ -16,7 +16,7 @@ final class AwardDateValidationTest extends TestCase
     public function malformed_awarded_date_is_rejected(): void
     {
         [, $err] = validateAwardPayload([
-            'servant_id' => 1,
+            'personnel_id' => 1,
             'award_name' => 'x',
             'awarded_date' => 'not-a-date',
         ], true);
@@ -27,7 +27,7 @@ final class AwardDateValidationTest extends TestCase
     public function overflow_awarded_date_is_rejected(): void
     {
         [, $err] = validateAwardPayload([
-            'servant_id' => 1,
+            'personnel_id' => 1,
             'award_name' => 'x',
             'awarded_date' => '2026-02-30',
         ], true);
@@ -38,7 +38,7 @@ final class AwardDateValidationTest extends TestCase
     public function blank_awarded_date_is_allowed(): void
     {
         [, $err] = validateAwardPayload([
-            'servant_id' => 1,
+            'personnel_id' => 1,
             'award_name' => 'x',
             'awarded_date' => '',
         ], true);
@@ -49,7 +49,7 @@ final class AwardDateValidationTest extends TestCase
     public function canonical_awarded_date_is_allowed(): void
     {
         [, $err] = validateAwardPayload([
-            'servant_id' => 1,
+            'personnel_id' => 1,
             'award_name' => 'x',
             'awarded_date' => '2024-06-01',
         ], true);

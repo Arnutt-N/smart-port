@@ -21,8 +21,8 @@ const AwardsPage = (await import('@/pages/AwardsPage.vue')).default
 
 const sampleRow = {
   awardId: 1,
-  servantId: 5,
-  servantName: 'สมชาย ใจดี',
+  personnelId: 5,
+  personnelName: 'สมชาย ใจดี',
   awardName: 'รางวัลดีเด่น',
   awardType: 'honor',
   awardLevel: 'national',

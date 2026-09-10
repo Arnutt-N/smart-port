@@ -105,6 +105,7 @@ services:
       - ./database/29-ensure-probation-view-prefixes.sql:/docker-entrypoint-initdb.d/29-ensure-probation-view-prefixes.sql
       - ./database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql
       - ./database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql
+      - ./database/32-rename-servant-id.sql:/docker-entrypoint-initdb.d/32-rename-servant-id.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 10s

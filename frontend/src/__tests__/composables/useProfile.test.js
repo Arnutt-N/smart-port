@@ -43,7 +43,7 @@ describe('useProfile', () => {
     mockGet.mockResolvedValue({
       success: true,
       data: {
-        servant_id: 5, employee_id: 'EMP005', first_name: 'สม', last_name: 'ชาย',
+        personnel_id: 5, employee_id: 'EMP005', first_name: 'สม', last_name: 'ชาย',
         full_name: 'นายสมชาย', birth_date: '1980-01-01', appointment_date: '2000-01-01',
         retirement_date: '2040-09-30', servant_status: 'active',
         photo_path: 'uploads/photo_abc.jpg',
@@ -52,7 +52,7 @@ describe('useProfile', () => {
     const { fetchById } = useProfile()
     const result = await fetchById(5)
     expect(mockGet).toHaveBeenCalledWith('/profile/5')
-    expect(result.data.servantId).toBe(5)
+    expect(result.data.personnelId).toBe(5)
     expect(result.data.fullName).toBe('นายสมชาย')
     // ต้องเป็น URL ที่ยิงผ่าน API base ไม่ใช่ path ดิบจาก DB
     expect(result.data.photoPath).toBe('/api/uploads/photo_abc.jpg')
@@ -61,7 +61,7 @@ describe('useProfile', () => {
   it('maps a missing photo to null instead of a broken image URL', async () => {
     mockGet.mockResolvedValue({
       success: true,
-      data: { servant_id: 6, full_name: 'นางสาวสมหญิง', photo_path: null },
+      data: { personnel_id: 6, full_name: 'นางสาวสมหญิง', photo_path: null },
     })
     const { fetchById } = useProfile()
     const result = await fetchById(6)

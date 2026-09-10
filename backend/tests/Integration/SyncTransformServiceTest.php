@@ -289,7 +289,7 @@ final class SyncTransformServiceTest extends TestCase
 
         self::assertSame(1, $result['created'], json_encode($result));
 
-        $stmt = self::$pdo->prepare('SELECT * FROM royal_decorations WHERE servant_id = ?');
+        $stmt = self::$pdo->prepare('SELECT * FROM royal_decorations WHERE personnel_id = ?');
         $stmt->execute([$personnelId]);
         $dec = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -335,7 +335,7 @@ final class SyncTransformServiceTest extends TestCase
         try {
             self::$pdo->exec("DELETE FROM external_ref WHERE source_system = 'legacy-hr'");
             self::$pdo->exec("DELETE FROM personnel_position_history WHERE personnel_id IN (SELECT personnel_id FROM personnel WHERE citizen_id LIKE '19999%')");
-            self::$pdo->exec("DELETE FROM royal_decorations WHERE servant_id IN (SELECT personnel_id FROM personnel WHERE citizen_id LIKE '19999%')");
+            self::$pdo->exec("DELETE FROM royal_decorations WHERE personnel_id IN (SELECT personnel_id FROM personnel WHERE citizen_id LIKE '19999%')");
             self::$pdo->exec("DELETE FROM personnel WHERE citizen_id LIKE '19999%'");
             self::$pdo->exec("DELETE FROM organization WHERE org_code LIKE 'TEST%'");
             self::$pdo->exec("DELETE FROM `position` WHERE position_code LIKE 'TEST%'");

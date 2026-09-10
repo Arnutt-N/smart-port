@@ -29,16 +29,16 @@ function handleWorkResults(PDO $pdo, string $method, array $path): void
     }
 }
 
-const WORK_RESULT_SELECT = "pp.proposal_id, pp.servant_id, pp.proposal_type, pp.title,
+const WORK_RESULT_SELECT = "pp.proposal_id, pp.personnel_id, pp.proposal_type, pp.title,
                             pp.description, pp.impact_description, pp.quantitative_result,
                             pp.result_unit, pp.submission_date, pp.evaluation_score,
                             pp.status, pp.approval_level, pp.created_at,
-                            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS servant_name";
+                            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
 
 function workResultBaseQuery(): string
 {
     return "FROM performance_proposals pp
-            LEFT JOIN personnel p ON pp.servant_id = p.personnel_id
+            LEFT JOIN personnel p ON pp.personnel_id = p.personnel_id
             LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
 }
 
