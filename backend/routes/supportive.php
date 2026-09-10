@@ -204,6 +204,10 @@ function supportiveRatioPercent(int|float|string $raw): float
 
 function supportiveStrictDate(string $value): ?DateTime
 {
+    // F1: preg guard ให้ตรง probationStrictDate (กัน '2026-1-15' หลุด)
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
     $date = DateTime::createFromFormat('Y-m-d|', $value);
     $errors = DateTime::getLastErrors();
     if (

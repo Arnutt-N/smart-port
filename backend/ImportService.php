@@ -173,8 +173,34 @@ class ImportService
         $this->validateChild($sheets['Diverse'], $citizenIds, 'Diverse', ['qualified_date' => true], $errors);
         $this->validateChild($sheets['Equivalence'], $citizenIds, 'Equivalence', ['approved_total_days' => 'int'], $errors);
         $this->validateChild($sheets['History'], $citizenIds, 'History', ['position_level' => true, 'effective_date' => 'date'], $errors);
+        // F3 (N35): ชีต Equivalence — whitelist approval_status + ตรวจวันอนุมัติ
+        // (status ขยะเดิมถูกกลืนเงียบเพราะ engine นับแค่ APPROVED; วันดิบเข้า DATE เสี่ยง 500 แบบ N17)
+        $this->validateEquivalence($sheets['Equivalence'], $errors);
 
         return $errors;
+    }
+
+    /**
+     * F3 — ตรวจชีต Equivalence เพิ่มจาก validateChild: approval_status ว่างได้
+     * (default APPROVED ใน persist — ไฟล์ import ตรงไม่ผ่าน transition ของ route)
+     * หรือต้องเป็น PENDING/APPROVED/REJECTED (ตรง routes/equivalence.php);
+     * วันอนุมัติว่างได้ แต่ถ้ามีต้องเป็น YYYY-MM-DD
+     *
+     * @param array<int, array<string,string|null>> $rows
+     * @param array<int,string> $errors
+     */
+    private function validateEquivalence(array $rows, array &$errors): void
+    {
+        $allowed = ['PENDING', 'APPROVED', 'REJECTED'];
+        foreach ($rows as $i => $r) {
+            $rowNo = $i + 2;
+            $status = $r['approval_status'] ?? null;
+            if ($status !== null && $status !== '' && !in_array($status, $allowed, true)) {
+                $errors[] = "Equivalence แถว {$rowNo}: approval_status ไม่ถูกต้อง (PENDING/APPROVED/REJECTED)";
+            }
+            $this->checkDate($r['approved_start_date'] ?? null, false, "Equivalence แถว {$rowNo}: approved_start_date", $errors);
+            $this->checkDate($r['approved_end_date'] ?? null, false, "Equivalence แถว {$rowNo}: approved_end_date", $errors);
+        }
     }
 
     /**

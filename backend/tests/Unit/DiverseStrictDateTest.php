@@ -28,6 +28,20 @@ final class DiverseStrictDateTest extends TestCase
     }
 
     #[Test]
+    public function unpadded_dates_are_null(): void
+    {
+        // F1: ต้องเข้มเท่า probationStrictDate — ไม่มี zero-pad = format ผิด
+        self::assertNull(diverseStrictDate('2026-1-15'));
+        self::assertNull(diverseStrictDate('2026-01-5'));
+    }
+
+    #[Test]
+    public function datetime_suffix_is_null(): void
+    {
+        self::assertNull(diverseStrictDate('2026-01-15 00:00:00'));
+    }
+
+    #[Test]
     public function create_and_update_do_not_use_loose_datetime(): void
     {
         $src = file_get_contents(__DIR__ . '/../../routes/diverse.php');

@@ -69,7 +69,51 @@ function probationUpdateValidationError(array $data, array $existing): ?string
         return 'end_date must be greater than or equal to start_date';
     }
 
+    // F2: final_result_date/extension_end_date อยู่ใน $allowed แต่ไม่เคยถูกตรวจ —
+    // วันที่พัง bind ดิบลง DB (500/ข้อมูลเสีย) จึงตรวจ format ตรงนี้ก่อน bind
+    foreach (['final_result_date', 'extension_end_date'] as $optField) {
+        $optError = probationUpdateOptionalDateError($data, $optField);
+        if ($optError !== null) {
+            return $optError;
+        }
+    }
+
+    // F2: extension ต้องยืดออกไป ไม่ใช่หดกลับ (เทียบกับ end ที่ merge แล้ว;
+    // ไม่มี end ให้เทียบ = ข้าม เหลือแค่ format check ด้านบน)
+    if ($end instanceof DateTime
+        && array_key_exists('extension_end_date', $data)
+        && is_string($data['extension_end_date'])
+        && $data['extension_end_date'] !== ''
+    ) {
+        $ext = probationStrictDate($data['extension_end_date']);
+        if ($ext !== null && $ext < $end) {
+            return 'extension_end_date must be greater than or equal to end_date';
+        }
+    }
+
     return null;
+}
+
+/**
+ * F2 — ตรวจวัน optional ของ PUT พ้นทดลอง (`final_result_date`, `extension_end_date`):
+ * ไม่ส่งมา/`''`/JSON null = ล้างเป็น NULL ได้ (คง contract แถว coerce ใน update);
+ * นอกนั้นต้องเป็น string ผ่าน `probationStrictDate` มิฉะนั้น 400
+ *
+ * @param array<string, mixed> $data
+ */
+function probationUpdateOptionalDateError(array $data, string $field): ?string
+{
+    if (!array_key_exists($field, $data)) {
+        return null;
+    }
+    $val = $data[$field];
+    if ($val === '' || $val === null) {
+        return null;
+    }
+    if (!is_string($val)) {
+        return 'Invalid date format';
+    }
+    return probationStrictDate($val) === null ? 'Invalid date format' : null;
 }
 
 /**
