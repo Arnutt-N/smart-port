@@ -181,6 +181,75 @@ final class ProbationUpdateValidationTest extends TestCase
     }
 
     #[Test]
+    public function malformed_optional_dates_are_rejected(): void
+    {
+        foreach (['final_result_date', 'extension_end_date'] as $field) {
+            self::assertSame(
+                'Invalid date format',
+                probationUpdateValidationError([$field => 'not-a-date'], self::existing()),
+                $field
+            );
+            self::assertSame(
+                'Invalid date format',
+                probationUpdateValidationError([$field => '2026-02-30'], self::existing()),
+                $field
+            );
+            self::assertSame(
+                'Invalid date format',
+                probationUpdateValidationError([$field => '2026-1-5'], self::existing()),
+                $field
+            );
+            self::assertSame(
+                'Invalid date format',
+                probationUpdateValidationError([$field => ['x']], self::existing()),
+                $field
+            );
+        }
+    }
+
+    #[Test]
+    public function empty_or_missing_optional_dates_are_allowed(): void
+    {
+        foreach (['final_result_date', 'extension_end_date'] as $field) {
+            self::assertNull(probationUpdateValidationError([$field => ''], self::existing()), $field);
+            self::assertNull(probationUpdateValidationError([$field => null], self::existing()), $field);
+        }
+        self::assertNull(probationUpdateValidationError(
+            ['final_result_date' => '2026-08-01', 'extension_end_date' => '2026-09-01'],
+            self::existing()
+        ));
+    }
+
+    #[Test]
+    public function extension_end_before_end_is_rejected(): void
+    {
+        self::assertSame(
+            'extension_end_date must be greater than or equal to end_date',
+            probationUpdateValidationError(['extension_end_date' => '2026-06-01'], self::existing())
+        );
+    }
+
+    #[Test]
+    public function extension_end_equal_to_end_is_allowed(): void
+    {
+        self::assertNull(probationUpdateValidationError(
+            ['extension_end_date' => '2026-07-01'],
+            self::existing()
+        ));
+    }
+
+    #[Test]
+    public function extension_without_resolvable_end_skips_range_check(): void
+    {
+        $existing = self::existing();
+        $existing['end_date'] = null;
+        self::assertNull(probationUpdateValidationError(
+            ['extension_end_date' => '2026-01-01'],
+            $existing
+        ));
+    }
+
+    #[Test]
     public function update_source_calls_validator(): void
     {
         $src = file_get_contents(__DIR__ . '/../../routes/probation.php');

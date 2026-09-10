@@ -141,6 +141,74 @@ final class ImportServiceTest extends TestCase
         self::assertStringContainsString('เลขบัตรประชาชนไม่ถูกต้อง', implode(' ', $errors));
     }
 
+    /**
+     * F3 — ชีต Equivalence: approval_status นอก whitelist / วันอนุมัติผิด format ต้อง fail
+     * พร้อมข้อความระบุแถว; ค่าว่างผ่าน (default APPROVED / nullable)
+     */
+    #[Test]
+    public function it_rejects_equivalence_with_bad_status_or_dates(): void
+    {
+        $errors = $this->validateSheets([[
+            'citizen_id' => '1100100299013',
+            'actual_position' => 'นักวิชาการ',
+            'equivalent_type' => 'TYPE_A',
+            'approved_total_days' => '400',
+            'approval_status' => 'HACKED',
+            'approved_start_date' => '2019-01-01',
+            'approved_end_date' => '2020-02-05',
+        ]]);
+        self::assertStringContainsString('approval_status', implode(' ', $errors));
+
+        $errors = $this->validateSheets([[
+            'citizen_id' => '1100100299013',
+            'actual_position' => 'นักวิชาการ',
+            'equivalent_type' => 'TYPE_A',
+            'approved_total_days' => '400',
+            'approval_status' => 'APPROVED',
+            'approved_start_date' => '2026-13-40',
+            'approved_end_date' => '',
+        ]]);
+        self::assertStringContainsString('approved_start_date', implode(' ', $errors));
+    }
+
+    #[Test]
+    public function it_accepts_equivalence_with_empty_status_and_dates(): void
+    {
+        $errors = $this->validateSheets([[
+            'citizen_id' => '1100100299013',
+            'actual_position' => 'นักวิชาการ',
+            'equivalent_type' => 'TYPE_A',
+            'approved_total_days' => '400',
+            'approval_status' => '',
+            'approved_start_date' => '',
+            'approved_end_date' => '',
+        ]]);
+        $text = implode(' ', $errors);
+        self::assertStringNotContainsString('approval_status', $text);
+        self::assertStringNotContainsString('approved_start_date', $text);
+        self::assertStringNotContainsString('approved_end_date', $text);
+    }
+
+    /**
+     * @param list<array<string,string>> $equivalenceRows
+     * @return list<string>
+     */
+    private function validateSheets(array $equivalenceRows): array
+    {
+        $svc = new ImportService(self::$pdo);
+        $ref = new \ReflectionMethod($svc, 'validate');
+        $ref->setAccessible(true);
+        return $ref->invoke($svc, [
+            'Personnel' => [[
+                'citizen_id' => '1100100299013', 'first_name' => 'ก', 'last_name' => 'ข',
+                'hire_date' => '2010-01-01', 'current_level_code' => 'K3',
+                'current_level_start_date' => '2020-01-01', 'education_level' => 'MASTER',
+                'org_name' => 'กอง', 'position_name' => 'นักทรัพยากร',
+            ]],
+            'Diverse' => [], 'Equivalence' => $equivalenceRows, 'History' => [],
+        ]);
+    }
+
     #[Test]
     public function it_returns_friendly_error_on_reimport(): void
     {

@@ -102,7 +102,9 @@ final class QualificationEngineTest extends TestCase
 
             // --- S2 combination (Excel to-S2 backdate; today หักล้าง → deterministic) ---
             'S2 บต+เทียบ 900ว (AC3 backdate)'          => ['S2', 109, '2020-12-14'],
-            'S2 ทว(K5)+อต/อส 300ว+เทียบ 400ว (AK3)'   => ['S2', 110, '2022-02-01'],
+            // F6: golden เก่าคำนวณด้วย ms 300 แบบ exclusive; #168 เปลี่ยน $msTenure เป็น
+            // inclusive (+1) ตรง computeNetBreakdown → 400+301=701: 2021-01-01−701d=2019-01-31+3y
+            'S2 ทว(K5)+อต/อส 301ว(inclusive)+เทียบ 400ว (AK3)' => ['S2', 110, '2022-01-31'],
             'S2 S1 ไม่มีเทียบ → เฉพาะ W3 (+1ปี)'       => ['S2', 108, '2023-01-01'],
 
             // --- K/O linear (buildBaseQuery) — coverage ใหม่ ไม่เคยมี automated test ---

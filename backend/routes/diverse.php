@@ -19,9 +19,13 @@ include_once __DIR__ . '/../audit.php';
 /**
  * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine.php:224 / supportiveStrictDate)
  * เพื่อไม่ต้อง include engine ทั้งไฟล์ — คืน null ถ้า format ผิดหรือมี overflow
+ * F1: preg guard ให้ตรง probationStrictDate/supportiveStrictDate (กัน '2026-1-15' หลุด)
  */
 function diverseStrictDate(string $value): ?DateTime
 {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
     $date = DateTime::createFromFormat('Y-m-d|', $value);
     $errors = DateTime::getLastErrors();
     if (
