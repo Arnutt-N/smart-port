@@ -215,8 +215,7 @@ function redactPersonnelCitizenIdForRole(array $row, string $role): array
 }
 
 /**
- * Legacy /civil-servants list (เรียกจาก api.php) — N60: ฟิลด์ servant_id เปลี่ยนเป็น
- * personnel_id พร้อม backend ทั้งหมด (deploy พร้อม frontend ใหม่)
+ * Legacy /civil-servants list (เรียกจาก api.php) — contract เดิม + pagination
  * แต่ค้นหาด้วย citizen_id ได้โดย "ไม่ให้ค่าคืน" แก่ role ที่ไม่ใช่ admin/superadmin
  * (CONTEXT.md: operator/viewer ค้นหาด้วยเลขบัตรได้ แต่ต้องไม่เห็นค่าใน response)
  *

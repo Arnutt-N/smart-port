@@ -29,11 +29,14 @@ function handleWorkResults(PDO $pdo, string $method, array $path): void
     }
 }
 
-const WORK_RESULT_SELECT = "pp.proposal_id, pp.personnel_id, pp.proposal_type, pp.title,
-                            pp.description, pp.impact_description, pp.quantitative_result,
-                            pp.result_unit, pp.submission_date, pp.evaluation_score,
-                            pp.status, pp.approval_level, pp.created_at,
-                            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
+function workResultSelectSql(): string
+{
+    return "pp.proposal_id, pp.personnel_id, pp.proposal_type, pp.title,
+            pp.description, pp.impact_description, pp.quantitative_result,
+            pp.result_unit, pp.submission_date, pp.evaluation_score,
+            pp.status, pp.approval_level, pp.created_at, "
+            . sqlPersonnelFullName() . " AS personnel_name";
+}
 
 function workResultBaseQuery(): string
 {
@@ -62,7 +65,7 @@ function getWorkResultList(PDO $pdo): void
     }
     $where = ' WHERE ' . implode(' AND ', $conditions);
 
-    $sql = "SELECT " . WORK_RESULT_SELECT . ' ' . workResultBaseQuery() . $where
+    $sql = "SELECT " . workResultSelectSql() . ' ' . workResultBaseQuery() . $where
         . " ORDER BY pp.submission_date DESC, pp.proposal_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -86,7 +89,7 @@ function getWorkResultList(PDO $pdo): void
 
 function getWorkResultDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . WORK_RESULT_SELECT . ' ' . workResultBaseQuery() . " WHERE pp.proposal_id = ?";
+    $sql = "SELECT " . workResultSelectSql() . ' ' . workResultBaseQuery() . " WHERE pp.proposal_id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);

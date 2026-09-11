@@ -60,9 +60,12 @@ function handleDecorations(PDO $pdo, string $method, array $path): void
     }
 }
 
-const DECORATION_SELECT = "d.decoration_id, d.personnel_id, d.decoration_name, d.decoration_class,
-                           d.received_year, d.gazette_ref, d.description, d.created_at,
-                           CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
+function decorationSelectSql(): string
+{
+    return "d.decoration_id, d.personnel_id, d.decoration_name, d.decoration_class,
+            d.received_year, d.gazette_ref, d.description, d.created_at, "
+            . sqlPersonnelFullName() . " AS personnel_name";
+}
 
 function decorationBaseQuery(): string
 {
@@ -85,7 +88,7 @@ function getDecorationList(PDO $pdo): void
         $params = [$term, $term, $term];
     }
 
-    $sql = "SELECT " . DECORATION_SELECT . ' ' . decorationBaseQuery() . $where
+    $sql = "SELECT " . decorationSelectSql() . ' ' . decorationBaseQuery() . $where
         . " ORDER BY d.received_year DESC, d.decoration_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -109,7 +112,7 @@ function getDecorationList(PDO $pdo): void
 
 function getDecorationDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . DECORATION_SELECT . ' ' . decorationBaseQuery() . " WHERE d.decoration_id = ?";
+    $sql = "SELECT " . decorationSelectSql() . ' ' . decorationBaseQuery() . " WHERE d.decoration_id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
