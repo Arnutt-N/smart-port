@@ -244,7 +244,7 @@ function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $li
             p.personnel_id,
             p.employee_id,
             p.citizen_id,
-            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) as full_name,
+            " . sqlPersonnelFullName() . " as full_name,
             p.first_name,
             p.last_name,
             p.birth_date,
