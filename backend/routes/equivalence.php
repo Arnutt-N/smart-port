@@ -80,7 +80,7 @@ function getEquivalenceList(PDO $pdo): void
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
     $baseQuery = "SELECT pe.*,
-                         CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                         " . sqlPersonnelFullName() . " AS full_name,
                          u.username AS approved_by_name
                   FROM position_equivalence pe
                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
@@ -103,7 +103,7 @@ function getEquivalenceList(PDO $pdo): void
 
     if ($search !== '') {
         $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ?
+                          OR " . sqlPersonnelFullName() . " LIKE ?
                           OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
                           OR pe.approval_order_ref LIKE ?)";
         $term = "%{$search}%";
@@ -170,7 +170,7 @@ function getEquivalenceList(PDO $pdo): void
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
     $sql = "SELECT pe.*,
-                   CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                   " . sqlPersonnelFullName() . " AS full_name,
                    u.username AS approved_by_name
             FROM position_equivalence pe
             LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id

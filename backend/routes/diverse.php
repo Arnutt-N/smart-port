@@ -134,7 +134,7 @@ function getDiverseList(PDO $pdo): void
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
-    $baseQuery = "SELECT de.*, CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name
+    $baseQuery = "SELECT de.*, " . sqlPersonnelFullName() . " AS full_name
                   FROM diverse_experience de
                   LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
@@ -154,7 +154,7 @@ function getDiverseList(PDO $pdo): void
 
     if ($search !== '') {
         $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) LIKE ?
+                          OR " . sqlPersonnelFullName() . " LIKE ?
                           OR de.from_job_series LIKE ? OR de.to_job_series LIKE ?
                           OR de.from_division LIKE ? OR de.to_division LIKE ?)";
         $term = "%{$search}%";
@@ -214,7 +214,7 @@ function getDiverseList(PDO $pdo): void
  */
 function getDiverseDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT de.*, CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name
+    $sql = "SELECT de.*, " . sqlPersonnelFullName() . " AS full_name
             FROM diverse_experience de
             LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
             LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id

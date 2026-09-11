@@ -217,7 +217,7 @@ function getMultiplierById(PDO $pdo, int $multiplierId): void
     $stmt = $pdo->prepare("
         SELECT
             me.*,
-            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+            " . sqlPersonnelFullName() . " AS full_name,
             sam.legal_reference,
             sam.source_reference
         FROM multiplier_experience me
@@ -271,7 +271,7 @@ function getMultiplierList(PDO $pdo): void
     $sql = "
         SELECT
             me.*,
-            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+            " . sqlPersonnelFullName() . " AS full_name,
             sam.legal_reference,
             sam.source_reference
         {$baseQuery}
@@ -722,7 +722,7 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
     $updatedStmt = $pdo->prepare("
         SELECT
             me.*,
-            CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+            " . sqlPersonnelFullName() . " AS full_name,
             sam.legal_reference,
             sam.source_reference
         FROM multiplier_experience me

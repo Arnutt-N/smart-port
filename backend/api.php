@@ -201,7 +201,7 @@ switch ($path[0]) {
                 "SELECT p.personnel_id, p.employee_id, p.first_name, p.last_name,
                         p.birth_date, p.appointment_date, p.retirement_date,
                         p.servant_status, p.is_active,
-                        CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS full_name,
+                        " . sqlPersonnelFullName() . " AS full_name,
                         csp.file_path AS photo_path
                  FROM personnel p
                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
