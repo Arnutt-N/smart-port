@@ -429,7 +429,13 @@ function createProbationEnrollment(PDO $pdo): void
     }
 
     // กัน FK ระเบิดเป็น 500 — pre-check ทรัพยากรอ้างอิงก่อน INSERT (pattern เดียวกับ multiplier)
-    $personnelId = intval($data['personnel_id']);
+    // U5: personnel_id ต้องเป็น int-like ก่อน (กัน array/bool ถูก intval กลบเงียบ)
+    $personnelId = strictPersonnelId($data['personnel_id']);
+    if ($personnelId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
     if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'Personnel not found']);

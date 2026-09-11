@@ -9,6 +9,11 @@ use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../../routes/diverse.php';
 require_once __DIR__ . '/../../routes/supportive.php';
+require_once __DIR__ . '/../../routes/equivalence.php';
+require_once __DIR__ . '/../../routes/multiplier.php';
+require_once __DIR__ . '/../../routes/probation.php';
+require_once __DIR__ . '/../../routes/awards.php';
+require_once __DIR__ . '/../../routes/decorations.php';
 
 /**
  * U5 — strictPersonnelId: personnel_id จาก client ต้องเป็น int-like
@@ -86,5 +91,94 @@ final class StrictPersonnelIdTest extends TestCase
         $end = strpos($src, $endFn, $start);
         self::assertNotFalse($end);
         return substr($src, $start, $end - $start);
+    }
+
+    // ------------------------------------------------------------------
+    // U5 follow-up: routes ที่เหลือ (equivalence/multiplier/probation/awards/decorations)
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function award_payload_normalizes_personnel_id(): void
+    {
+        [$valid, $err] = validateAwardPayload(['personnel_id' => [1], 'award_name' => 'x'], true);
+        self::assertNull($valid);
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', $err);
+
+        [$valid, $err] = validateAwardPayload(['personnel_id' => '7', 'award_name' => 'x'], true);
+        self::assertNull($err);
+        self::assertSame(7, $valid['personnel_id']);
+
+        // ไม่ส่งมา (update) → ไม่แตะ
+        [$valid, $err] = validateAwardPayload(['award_name' => 'x'], false);
+        self::assertNull($err);
+        self::assertArrayNotHasKey('personnel_id', $valid);
+    }
+
+    #[Test]
+    public function decoration_payload_normalizes_personnel_id(): void
+    {
+        [$valid, $err] = validateDecorationPayload(['personnel_id' => true, 'decoration_name' => 'x'], true);
+        self::assertNull($valid);
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', $err);
+
+        [$valid, $err] = validateDecorationPayload(
+            ['personnel_id' => 3, 'decoration_name' => 'x', 'received_year' => 2565],
+            true
+        );
+        self::assertNull($err);
+        self::assertSame(3, $valid['personnel_id']);
+    }
+
+    #[Test]
+    public function remaining_creates_validate_personnel_id_before_insert(): void
+    {
+        $cases = [
+            [__DIR__ . '/../../routes/equivalence.php', 'function createEquivalence', 'function updateEquivalence'],
+            [__DIR__ . '/../../routes/multiplier.php', 'function createMultiplier', 'function updateMultiplier'],
+            [__DIR__ . '/../../routes/probation.php', 'function createProbationEnrollment', "\nfunction "],
+        ];
+        foreach ($cases as [$file, $startFn, $endFn]) {
+            $src = file_get_contents($file);
+            self::assertIsString($src);
+            $start = strpos($src, $startFn);
+            self::assertNotFalse($start, $file);
+            if (str_starts_with($endFn, "\n")) {
+                $end = strpos($src, $endFn, $start + 10);
+            } else {
+                $end = strpos($src, $endFn, $start);
+            }
+            self::assertNotFalse($end, $file);
+            $fn = substr($src, $start, $end - $start);
+            self::assertStringContainsString('strictPersonnelId(', $fn, $file);
+            self::assertStringNotContainsString("intval(\$data['personnel_id'])", $fn, $file);
+        }
+    }
+
+    #[Test]
+    public function update_multiplier_validates_personnel_id_override(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../routes/multiplier.php');
+        self::assertIsString($src);
+        $start = strpos($src, 'function updateMultiplier');
+        self::assertNotFalse($start);
+        $end = strpos($src, "\nfunction ", $start + 10);
+        $fn = $end === false ? substr($src, $start) : substr($src, $start, $end - $start);
+        self::assertStringContainsString('strictPersonnelId($data', $fn);
+    }
+
+    #[Test]
+    public function award_and_decoration_creates_use_validated_id(): void
+    {
+        foreach (['awards', 'decorations'] as $route) {
+            $src = file_get_contents(__DIR__ . "/../../routes/{$route}.php");
+            self::assertIsString($src);
+            self::assertStringContainsString('strictPersonnelId($data', $src, $route);
+            $start = strpos($src, 'function create');
+            self::assertNotFalse($start, $route);
+            $end = strpos($src, 'function update', $start);
+            self::assertNotFalse($end, $route);
+            $fn = substr($src, $start, $end - $start);
+            self::assertStringNotContainsString("intval(\$valid['personnel_id'])", $fn, $route);
+        }
     }
 }
