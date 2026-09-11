@@ -183,6 +183,23 @@ function personnelExists(PDO $pdo, int $personnelId): bool
 }
 
 /**
+ * U5 — personnel_id จาก client ต้องเป็น int-like (กัน array/bool/float/string ปน
+ * ถูก intval กลบเงียบ เช่น [1] → 1, true → 1, 1.9 → 1)
+ * รับเฉพาะ int หรือ digit-string (JSON number 1 ส่งมาเป็น int อยู่แล้ว) — คืน null
+ * เมื่อไม่ใช่ (route ตอบ 400) · int ติดลบยังส่งผ่านให้ personnelExists ตอบ 404 ตามเดิม
+ */
+function strictPersonnelId(mixed $value): ?int
+{
+    if (is_int($value)) {
+        return $value;
+    }
+    if (is_string($value) && $value !== '' && ctype_digit($value)) {
+        return intval($value);
+    }
+    return null;
+}
+
+/**
  * SQL expression: คำนำหน้า + ชื่อ + นามสกุล (NULL-safe)
  * ใช้คู่กับ LEFT JOIN prefixes — COLLATE บังคับเพราะ prefixes / personnel คนละ collation
  */
