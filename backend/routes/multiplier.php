@@ -338,7 +338,13 @@ function createMultiplier(PDO $pdo, array $user): void
     }
 
     // ตรวจว่า personnel_id มีอยู่จริงก่อน เพื่อคืน 404 ที่อ่านง่าย แทนที่จะปล่อยให้ FK ระเบิดเป็น 500
-    $personnelId = intval($data['personnel_id']);
+    // U5: personnel_id ต้องเป็น int-like ก่อน (กัน array/bool ถูก intval กลบเงียบ)
+    $personnelId = strictPersonnelId($data['personnel_id']);
+    if ($personnelId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
     $personCheck = $pdo->prepare('SELECT 1 FROM personnel WHERE personnel_id = ? LIMIT 1');
     $personCheck->execute([$personnelId]);
     if (!$personCheck->fetchColumn()) {
@@ -598,7 +604,14 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
     }
 
     // ใช้ค่าเดิมถ้าไม่ได้ส่งมา
-    $personnelId = intval($data['personnel_id'] ?? $existing['personnel_id']);
+    // U5: personnel_id ต้องเป็น int-like (กัน array จาก JSON ถูก intval กลบเงียบ —
+    // ค่าจาก DB เป็น int/digit-string อยู่แล้วจึงผ่าน ส่วนค่าที่ client ส่งมาผิดจะได้ 400)
+    $personnelId = strictPersonnelId($data['personnel_id'] ?? $existing['personnel_id']);
+    if ($personnelId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
     $areaMultiplierId = intval($data['area_multiplier_id'] ?? $existing['area_multiplier_id']);
     $startDate = $data['start_date'] ?? $existing['start_date'];
     $endDate = $data['end_date'] ?? $existing['end_date'];

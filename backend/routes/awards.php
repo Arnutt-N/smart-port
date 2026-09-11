@@ -143,6 +143,17 @@ function validateAwardPayload(array $data, bool $requireCore): array
     if (isset($data['award_type']) && !in_array($data['award_type'], AWARD_VALID_TYPES, true)) {
         return [null, 'ประเภทรางวัลไม่ถูกต้อง'];
     }
+
+    // U5: personnel_id ต้องเป็น int-like (กัน array/bool ถูก intval กลบเงียบ) —
+    // normalize เป็น int ตั้งแต่ validator ทั้ง create/update จึงได้ค่าที่ตรวจแล้ว
+    if (array_key_exists('personnel_id', $data) && $data['personnel_id'] !== '' && $data['personnel_id'] !== null) {
+        $pid = strictPersonnelId($data['personnel_id']);
+        if ($pid === null) {
+            return [null, 'รูปแบบข้อมูลไม่ถูกต้อง'];
+        }
+        $data['personnel_id'] = $pid;
+    }
+
     if (isset($data['award_level']) && $data['award_level'] !== '' && !in_array($data['award_level'], AWARD_VALID_LEVELS, true)) {
         return [null, 'ระดับรางวัลไม่ถูกต้อง'];
     }
@@ -174,7 +185,7 @@ function createAward(PDO $pdo, ?array $auth): void
         return;
     }
 
-    $personnelId = intval($valid['personnel_id']);
+    $personnelId = $valid['personnel_id'];
     if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
@@ -196,7 +207,7 @@ function createAward(PDO $pdo, ?array $auth): void
 
     $newId = intval($pdo->lastInsertId());
     logAudit($pdo, intval($auth['user_id']), 'CREATE', 'awards', $newId, null, [
-        'personnel_id' => intval($valid['personnel_id']),
+        'personnel_id' => $valid['personnel_id'],
         'award_name' => trim($valid['award_name']),
         'award_type' => $valid['award_type'] ?? 'general',
     ]);

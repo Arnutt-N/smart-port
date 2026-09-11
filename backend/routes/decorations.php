@@ -142,6 +142,16 @@ function validateDecorationPayload(array $data, bool $requireCore): array
         }
     }
 
+    // U5: personnel_id ต้องเป็น int-like (กัน array/bool ถูก intval กลบเงียบ) —
+    // normalize เป็น int ตั้งแต่ validator ทั้ง create/update จึงได้ค่าที่ตรวจแล้ว
+    if (array_key_exists('personnel_id', $data) && $data['personnel_id'] !== '' && $data['personnel_id'] !== null) {
+        $pid = strictPersonnelId($data['personnel_id']);
+        if ($pid === null) {
+            return [null, 'รูปแบบข้อมูลไม่ถูกต้อง'];
+        }
+        $data['personnel_id'] = $pid;
+    }
+
     return [$data, null];
 }
 
@@ -155,7 +165,7 @@ function createDecoration(PDO $pdo, ?array $auth): void
         return;
     }
 
-    $personnelId = intval($valid['personnel_id']);
+    $personnelId = $valid['personnel_id'];
     if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
@@ -177,7 +187,7 @@ function createDecoration(PDO $pdo, ?array $auth): void
 
     $newId = intval($pdo->lastInsertId());
     logAudit($pdo, intval($auth['user_id']), 'CREATE', 'royal_decorations', $newId, null, [
-        'personnel_id' => intval($valid['personnel_id']),
+        'personnel_id' => $valid['personnel_id'],
         'decoration_name' => trim($valid['decoration_name']),
     ]);
 
