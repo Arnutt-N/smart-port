@@ -260,7 +260,14 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // N39: pre-check personnel ก่อน INSERT (pattern เดียวกับ probation/multiplier)
-    if (!personnelExists($pdo, intval($data['personnel_id']))) {
+    // U5: personnel_id ต้องเป็น int-like ก่อน (กัน array/bool ถูก intval กลบเงียบ)
+    $personnelId = strictPersonnelId($data['personnel_id']);
+    if ($personnelId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
+    if (!personnelExists($pdo, $personnelId)) {
         http_response_code(404);
         echo json_encode(['error' => 'ไม่พบบุคลากร']);
         return;
@@ -332,7 +339,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
-        intval($data['personnel_id']),
+        $personnelId,
         $data['from_job_series'] ?? null,
         $data['from_work_group'] ?? null,
         $data['from_division'] ?? null,
