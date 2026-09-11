@@ -29,7 +29,7 @@ async function mountPage(role = 'admin') {
   return wrapper
 }
 
-function activeServant(overrides = {}) {
+function activePersonnel(overrides = {}) {
   return {
     personnelId: 5,
     employeeId: 'EMP005',
@@ -55,7 +55,7 @@ describe('ProfilePage', () => {
         lastLoginAt: '2024-01-01 10:00:00', createdAt: '2023-01-01',
       },
     })
-    mockFetchById.mockResolvedValue({ data: activeServant() })
+    mockFetchById.mockResolvedValue({ data: activePersonnel() })
   })
 
   afterEach(() => {
@@ -84,7 +84,7 @@ describe('ProfilePage', () => {
     expect(wrapper.text()).toContain('2569')
   })
 
-  it('renders servant detail when id param present', async () => {
+  it('renders personnel detail when id param present', async () => {
     routeParams.value = { id: '5' }
     const wrapper = await mountPage()
     await vi.waitFor(() => expect(mockFetchById).toHaveBeenCalledWith('5'))
@@ -112,7 +112,7 @@ describe('ProfilePage', () => {
 
   it('hides career time shortcuts when personnel is inactive', async () => {
     routeParams.value = { id: '5' }
-    mockFetchById.mockResolvedValue({ data: activeServant({ isActive: false }) })
+    mockFetchById.mockResolvedValue({ data: activePersonnel({ isActive: false }) })
     const wrapper = await mountPage('admin')
     await vi.waitFor(() => expect(mockFetchById).toHaveBeenCalledWith('5'))
     await wrapper.vm.$nextTick()

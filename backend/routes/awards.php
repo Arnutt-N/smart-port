@@ -63,9 +63,12 @@ function handleAwards(PDO $pdo, string $method, array $path): void
     }
 }
 
-const AWARD_SELECT = "a.award_id, a.personnel_id, a.award_name, a.award_type,
-                      a.award_level, a.awarded_date, a.description, a.created_at,
-                      CONCAT(COALESCE(px.prefix_name_th COLLATE utf8mb4_unicode_ci, ''), p.first_name, ' ', p.last_name) AS personnel_name";
+function awardSelectSql(): string
+{
+    return "a.award_id, a.personnel_id, a.award_name, a.award_type,
+            a.award_level, a.awarded_date, a.description, a.created_at, "
+            . sqlPersonnelFullName() . " AS personnel_name";
+}
 
 function awardBaseQuery(): string
 {
@@ -88,7 +91,7 @@ function getAwardList(PDO $pdo): void
         $params = [$term, $term, $term];
     }
 
-    $sql = "SELECT " . AWARD_SELECT . ' ' . awardBaseQuery() . $where
+    $sql = "SELECT " . awardSelectSql() . ' ' . awardBaseQuery() . $where
         . " ORDER BY a.awarded_date DESC, a.award_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -112,7 +115,7 @@ function getAwardList(PDO $pdo): void
 
 function getAwardDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . AWARD_SELECT . ' ' . awardBaseQuery() . " WHERE a.award_id = ?";
+    $sql = "SELECT " . awardSelectSql() . ' ' . awardBaseQuery() . " WHERE a.award_id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);

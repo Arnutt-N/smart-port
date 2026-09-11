@@ -54,13 +54,13 @@
       </dl>
     </div>
 
-    <!-- Servant detail + career shortcuts -->
-    <template v-else-if="isDetail && servant">
+    <!-- Personnel detail + career shortcuts -->
+    <template v-else-if="isDetail && personnel">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl">
         <div class="flex items-center gap-4 mb-6">
           <img
-            v-if="servant.photoPath"
-            :src="servant.photoPath"
+            v-if="personnel.photoPath"
+            :src="personnel.photoPath"
             alt="รูปข้าราชการ"
             class="w-20 h-20 rounded-lg object-cover border border-gray-200"
           />
@@ -68,26 +68,26 @@
             <User class="w-10 h-10 text-gray-400" />
           </div>
           <div>
-            <p class="text-lg font-semibold text-gray-900">{{ servant.fullName }}</p>
-            <p class="text-sm text-gray-500">รหัสพนักงาน: {{ servant.employeeId }}</p>
+            <p class="text-lg font-semibold text-gray-900">{{ personnel.fullName }}</p>
+            <p class="text-sm text-gray-500">รหัสพนักงาน: {{ personnel.employeeId }}</p>
           </div>
         </div>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <dt class="text-xs text-gray-500">วันเกิด</dt>
-            <dd class="text-sm text-gray-900">{{ servant.birthDate || '-' }}</dd>
+            <dd class="text-sm text-gray-900">{{ personnel.birthDate || '-' }}</dd>
           </div>
           <div>
             <dt class="text-xs text-gray-500">วันบรรจุ</dt>
-            <dd class="text-sm text-gray-900">{{ servant.appointmentDate || '-' }}</dd>
+            <dd class="text-sm text-gray-900">{{ personnel.appointmentDate || '-' }}</dd>
           </div>
           <div>
             <dt class="text-xs text-gray-500">วันเกษียณ</dt>
-            <dd class="text-sm text-gray-900">{{ servant.retirementDate || '-' }}</dd>
+            <dd class="text-sm text-gray-900">{{ personnel.retirementDate || '-' }}</dd>
           </div>
           <div>
             <dt class="text-xs text-gray-500">สถานะ</dt>
-            <dd class="text-sm text-gray-900">{{ servant.servantStatus || '-' }}</dd>
+            <dd class="text-sm text-gray-900">{{ personnel.servantStatus || '-' }}</dd>
           </div>
         </dl>
       </div>
@@ -148,7 +148,7 @@ const { next: nextRequest } = useRequestSeq()
 const loading = ref(false)
 const error = ref(null)
 const account = ref(null)
-const servant = ref(null)
+const personnel = ref(null)
 
 const isDetail = computed(() => !!route.params.id)
 
@@ -160,18 +160,18 @@ function canCreateResource(resource) {
 }
 
 const careerShortcuts = computed(() => {
-  if (!servant.value?.isActive) return []
+  if (!personnel.value?.isActive) return []
   return TIME_SHORTCUTS.filter((item) => canCreateResource(item.resource))
 })
 
 function goCreateTimeEntry(path) {
-  if (!servant.value) return
+  if (!personnel.value) return
   router.push({
     path,
     query: {
       create: '1',
-      personnel_id: String(servant.value.personnelId),
-      full_name: servant.value.fullName || '',
+      personnel_id: String(personnel.value.personnelId),
+      full_name: personnel.value.fullName || '',
     },
   })
 }
@@ -181,12 +181,12 @@ async function fetchData() {
   loading.value = true
   error.value = null
   account.value = null
-  servant.value = null
+  personnel.value = null
   try {
     if (isDetail.value) {
       const result = await fetchById(route.params.id)
       if (!req.isCurrent()) return
-      servant.value = result.data
+      personnel.value = result.data
     } else {
       const result = await fetchMe()
       if (!req.isCurrent()) return

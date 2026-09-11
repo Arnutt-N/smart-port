@@ -10,7 +10,7 @@ export function useProfile() {
 
   async function fetchById(id) {
     const result = await api.get(`/profile/${id}`)
-    return { success: result.success, data: result.data ? mapServant(result.data) : null }
+    return { success: result.success, data: result.data ? mapPersonnel(result.data) : null }
   }
 
   function mapAccount(row) {
@@ -27,7 +27,7 @@ export function useProfile() {
     }
   }
 
-  function mapServant(row) {
+  function mapPersonnel(row) {
     return {
       personnelId: row.personnel_id,
       employeeId: row.employee_id,
