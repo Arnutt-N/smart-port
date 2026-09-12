@@ -11,13 +11,14 @@ require_once __DIR__ . '/../../scripts/migration-lib.php';
 
 /**
  * Guards the baseline cut-off used by scripts/run-migrations.php.
- * docker-compose init + CI init + tidb-init already apply through 30;
+ * docker-compose init + CI init + tidb-init already apply through 32;
  * only newer files execute (Issue #129 — ตัดที่ 25 ไม่ได้แล้ว เพราะ init mounts
- * ครอบถึง 30 และ 30 เป็น ALTER TABLE ADD COLUMN ที่ re-apply ซ้ำไม่ได้)
+ * ครอบถึง 30 และ 30 เป็น ALTER TABLE ADD COLUMN ที่ re-apply ซ้ำไม่ได้;
+ * 32 เป็น RENAME ที่ rerun ไม่ได้เช่นกัน จึงขยับ baseline ผ่าน 32)
  */
 final class MigrationBaselineTest extends TestCase
 {
-    private const BASELINE_THROUGH = '30-photo-blob-storage.sql';
+    private const BASELINE_THROUGH = '32-rename-servant-id.sql';
 
     #[Test]
     public function baseline_cut_off_matches_runner_constant(): void
@@ -30,7 +31,7 @@ final class MigrationBaselineTest extends TestCase
     {
         self::assertGreaterThan(
             0,
-            strnatcasecmp('31-placeholder-next.sql', self::BASELINE_THROUGH)
+            strnatcasecmp('33-placeholder-next.sql', self::BASELINE_THROUGH)
         );
     }
 
@@ -46,6 +47,8 @@ final class MigrationBaselineTest extends TestCase
             '25-ensure-multiplier-tables.sql',
             '27-superadmin-permission-overrides.sql',
             '30-photo-blob-storage.sql',
+            '31-csp-violation-daily.sql',
+            '32-rename-servant-id.sql',
         ];
 
         foreach ($historical as $name) {

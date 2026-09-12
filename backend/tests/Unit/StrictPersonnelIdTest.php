@@ -181,4 +181,47 @@ final class StrictPersonnelIdTest extends TestCase
             self::assertStringNotContainsString("intval(\$valid['personnel_id'])", $fn, $route);
         }
     }
+
+    #[Test]
+    public function area_id_uses_same_int_like_contract(): void
+    {
+        // R4: area_multiplier_id ใช้ strictPersonnelId ตัวเดิม (ไม่สร้าง helper ใหม่)
+        self::assertNull(strictPersonnelId([2]));
+        self::assertNull(strictPersonnelId(2.5));
+        self::assertNull(strictPersonnelId(true));
+        self::assertSame(3, strictPersonnelId('3'));
+        self::assertSame(3, strictPersonnelId(3));
+    }
+
+    #[Test]
+    public function multiplier_validates_area_id_before_compute(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../routes/multiplier.php');
+        self::assertIsString($src);
+
+        $start = strpos($src, 'function createMultiplier');
+        self::assertNotFalse($start);
+        $end = strpos($src, 'function updateMultiplier', $start);
+        self::assertNotFalse($end);
+        $create = substr($src, $start, $end - $start);
+        self::assertStringContainsString("strictPersonnelId(\$data['area_multiplier_id'])", $create);
+        self::assertStringNotContainsString("intval(\$data['area_multiplier_id'])", $create);
+
+        $update = substr($src, $end);
+        self::assertStringContainsString("strictPersonnelId(\$data['area_multiplier_id']", $update);
+        self::assertStringNotContainsString("intval(\$data['area_multiplier_id'])", $update);
+    }
+
+    #[Test]
+    public function photos_upload_validates_personnel_id(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../../api.php');
+        self::assertIsString($src);
+        $start = strpos($src, "case 'photos':");
+        self::assertNotFalse($start);
+        $end = strpos($src, 'function ', $start);
+        $fn = $end === false ? substr($src, $start) : substr($src, $start, $end - $start);
+        self::assertStringContainsString('strictPersonnelId($_POST', $fn);
+        self::assertStringNotContainsString("intval(\$_POST['personnel_id'])", $fn);
+    }
 }

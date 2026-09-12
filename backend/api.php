@@ -307,7 +307,12 @@ switch ($path[0]) {
     case 'photos':
         if ($method == 'POST') {
             requirePermission('create', 'photos');
-            $personnelId = intval($_POST['personnel_id'] ?? 0);
+            $personnelId = strictPersonnelId($_POST['personnel_id'] ?? null);
+            if ($personnelId === null) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid upload request']);
+                break;
+            }
             $file = $_FILES['photo'] ?? null;
 
             if ($personnelId <= 0 || !is_array($file)) {
