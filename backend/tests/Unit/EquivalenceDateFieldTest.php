@@ -93,6 +93,22 @@ final class EquivalenceDateFieldTest extends TestCase
         self::assertStringContainsString('equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS)', $fn);
     }
 
+    #[Test]
+    public function empty_string_dates_normalize_to_null(): void
+    {
+        // R7: '' ต้องไม่ถูก bind ดิบลง DATE — normalize เป็น null ทั้ง create/update
+        $src = file_get_contents(__DIR__ . '/../../routes/equivalence.php');
+        self::assertIsString($src);
+        foreach (['function createEquivalence', 'function updateEquivalence'] as $fnName) {
+            $start = strpos($src, $fnName);
+            self::assertNotFalse($start, $fnName);
+            $end = strpos($src, "\nfunction ", $start + 10);
+            $fn = $end === false ? substr($src, $start) : substr($src, $start, $end - $start);
+            self::assertStringContainsString('EQUIVALENCE_DATE_FIELDS as $dateField', $fn, $fnName);
+            self::assertStringContainsString("\$data[\$dateField] = null;", $fn, $fnName);
+        }
+    }
+
     private static function functionSource(string $file, string $startFn, string $endFn): string
     {
         $src = file_get_contents($file);

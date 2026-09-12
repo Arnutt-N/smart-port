@@ -93,4 +93,20 @@ final class DiverseDateFieldTest extends TestCase
         $fn = substr($src, $start, $end - $start);
         self::assertStringContainsString('diverseDateFieldError($data, DIVERSE_DATE_FIELDS)', $fn);
     }
+
+    #[Test]
+    public function empty_string_dates_normalize_to_null(): void
+    {
+        // R7: '' ต้องไม่ถูก bind ดิบลง DATE — normalize เป็น null ทั้ง create/update
+        foreach (['function createDiverse', 'function updateDiverse'] as $fnName) {
+            $src = file_get_contents(__DIR__ . '/../../routes/diverse.php');
+            self::assertIsString($src);
+            $start = strpos($src, $fnName);
+            self::assertNotFalse($start, $fnName);
+            $end = strpos($src, "\nfunction ", $start + 10);
+            $fn = $end === false ? substr($src, $start) : substr($src, $start, $end - $start);
+            self::assertStringContainsString('DIVERSE_DATE_FIELDS as $dateField', $fn, $fnName);
+            self::assertStringContainsString("\$data[\$dateField] = null;", $fn, $fnName);
+        }
+    }
 }
