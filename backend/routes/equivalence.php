@@ -19,6 +19,33 @@ include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
 /**
+ * U6 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
+ * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
+ * mirror `diverseDateFieldError` (diverse.php) ต่างแค่ชื่อ/const
+ *
+ * @param array<string,mixed> $data
+ * @param list<string> $fields
+ */
+function equivalenceDateFieldError(mixed $data, array $fields): ?string
+{
+    if (!is_array($data)) {
+        return 'รูปแบบข้อมูลไม่ถูกต้อง';
+    }
+    foreach ($fields as $field) {
+        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
+            continue;
+        }
+        if (!is_string($data[$field]) || equivalenceStrictDate($data[$field]) === null) {
+            return 'รูปแบบวันที่ไม่ถูกต้อง';
+        }
+    }
+    return null;
+}
+
+/** @var list<string> ฟิลด์วันที่ของ equivalence ที่ต้องผ่าน strict parse เมื่อส่งมา */
+const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
+
+/**
  * จัดการ request สำหรับ position equivalence endpoints
  *
  * @param PDO $pdo Database connection
@@ -230,6 +257,14 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
+    // U6: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
+    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
+
     // คำนวณ request_total_days จากวันที่เริ่มต้นและสิ้นสุด (DATEDIFF+1)
     // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
     $requestTotalDays = null;
@@ -280,19 +315,6 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
 }
 
 /**
- * PUT /equivalence/{id} — อัปเดต / อนุมัติ / ปฏิเสธ คำขอเทียบตำแหน่ง
- *
- * Approval workflow:
- *   - PENDING -> APPROVED: ต้องระบุ approved_start_date, approved_end_date
- *     คำนวณ approved_total_days, บันทึก approved_by จาก JWT
- *   - PENDING -> REJECTED: NULL ค่า approved dates/days
- *   - ห้ามเปลี่ยนสถานะอื่นนอกจากที่กำหนด
- *
- * Regular update (ไม่มี approval_status):
- *   - อัปเดตเฉพาะ field ที่อนุญาต
- *   - คำนวณ request_total_days ใหม่หากเปลี่ยนวันที่
- */
-/**
  * U3 — parse Y-m-d แบบเข้ม (mirror probationStrictDate) — คืน null ถ้า format ผิดหรือ overflow
  * (กัน '2026-1-15'/datetime suffix หลุดผ่าน new DateTime ตรง ๆ)
  */
@@ -329,6 +351,19 @@ function approvedRangeTotalDays(string $start, string $end): int
     return $approvedEnd->diff($approvedStart)->days + 1;
 }
 
+/**
+ * PUT /equivalence/{id} — อัปเดต / อนุมัติ / ปฏิเสธ คำขอเทียบตำแหน่ง
+ *
+ * Approval workflow:
+ *   - PENDING -> APPROVED: ต้องระบุ approved_start_date, approved_end_date
+ *     คำนวณ approved_total_days, บันทึก approved_by จาก JWT
+ *   - PENDING -> REJECTED: NULL ค่า approved dates/days
+ *   - ห้ามเปลี่ยนสถานะอื่นนอกจากที่กำหนด
+ *
+ * Regular update (ไม่มี approval_status):
+ *   - อัปเดตเฉพาะ field ที่อนุญาต
+ *   - คำนวณ request_total_days ใหม่หากเปลี่ยนวันที่
+ */
 function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
@@ -446,6 +481,13 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     }
 
     // Regular field update (ไม่มีการเปลี่ยนสถานะ)
+    // U6: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
+    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
     $allowed = ['actual_position', 'equivalent_type', 'request_start_date', 'request_end_date', 'approval_order_ref'];
     $sets = [];
     $params = [];

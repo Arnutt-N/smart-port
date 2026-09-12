@@ -353,10 +353,17 @@ function createMultiplier(PDO $pdo, array $user): void
         return;
     }
 
+    // U5-follow-up: area id ต้องเป็น int-like ก่อน (กัน array ถูก intval กลบแล้วคำนวณผิดพื้นที่เงียบ)
+    $areaMultiplierId = strictPersonnelId($data['area_multiplier_id']);
+    if ($areaMultiplierId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
     try {
         $computed = computeMultiplierFields(
             $pdo,
-            intval($data['area_multiplier_id']),
+            $areaMultiplierId,
             $data['start_date'],
             $data['end_date']
         );
@@ -612,7 +619,12 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
         return;
     }
-    $areaMultiplierId = intval($data['area_multiplier_id'] ?? $existing['area_multiplier_id']);
+    $areaMultiplierId = strictPersonnelId($data['area_multiplier_id'] ?? $existing['area_multiplier_id']);
+    if ($areaMultiplierId === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
+        return;
+    }
     $startDate = $data['start_date'] ?? $existing['start_date'];
     $endDate = $data['end_date'] ?? $existing['end_date'];
 

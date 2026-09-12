@@ -33,7 +33,7 @@ CREATE TABLE prefixes (
 
 -- civil_servants (N5): ไม่สร้างใน bootstrap — ADR-0002 ย้าย person identity ไป
 -- personnel แล้ว (migration 22) และ migration 24 ลบตารางนี้; backend ไม่ query ตรง
--- (legacy /civil-servants อ่านจาก personnel ผ่าน alias servant_id)
+-- (legacy /civil-servants อ่านจาก personnel ตรง ๆ ไม่มี alias แล้ว — #186)
 -- เดิม bootstrap สร้าง → migration ลบ = fresh prod with RUN_MIGRATIONS=0 ค้าง dead table
 
 -- Uploaded photo records for each civil servant.

@@ -11,12 +11,13 @@ declare(strict_types=1);
 
 /**
  * Last migration assumed already applied when the DB was provisioned by
- * docker-compose init mounts, CI init mounts, or tidb-init (all include through 30).
- * Fresh volumes must not re-run non-idempotent files such as 22 or 30
+ * docker-compose init mounts, CI init mounts, or tidb-init (all include through 32).
+ * Fresh volumes must not re-run non-idempotent files such as 22, 30 or 32
  * (Issue #129: baseline เดิมตัดที่ 25 ทำให้ fresh volume โดน re-apply 30
- *  ซึ่งเป็น ALTER TABLE ADD COLUMN ล้วน ๆ → Duplicate column แล้ว runner พัง)
+ *  ซึ่งเป็น ALTER TABLE ADD COLUMN ล้วน ๆ → Duplicate column แล้ว runner พัง;
+ *  32 เป็น RENAME ที่ rerun ไม่ได้เช่นกัน — init mounts รันมันแล้ว)
  */
-const MIGRATION_BASELINE_THROUGH = '30-photo-blob-storage.sql';
+const MIGRATION_BASELINE_THROUGH = '32-rename-servant-id.sql';
 
 function migrationEnv(string $key, string $default = ''): string
 {
