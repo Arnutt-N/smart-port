@@ -281,6 +281,13 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
+    // R7: '' = ไม่ส่งมา (กัน bind '' ดิบลง DATE) — normalize เป็น null ก่อนใช้ต่อ
+    foreach (DIVERSE_DATE_FIELDS as $dateField) {
+        if (array_key_exists($dateField, $data) && $data[$dateField] === '') {
+            $data[$dateField] = null;
+        }
+    }
+
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
         $fromStart = diverseStrictDate((string) $data['from_start_date']);
@@ -408,6 +415,14 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
         return;
+    }
+
+    // R7: ล้างวันที่ด้วย '' = NULL (กัน bind '' ดิบลง DATE → 500 บน MySQL strict)
+    // pattern เดียวกับ awards/decorations ที่แปลง '' เป็น null ใน update
+    foreach (DIVERSE_DATE_FIELDS as $dateField) {
+        if (array_key_exists($dateField, $data) && $data[$dateField] === '') {
+            $data[$dateField] = null;
+        }
     }
 
     // Allowed fields — ไม่รวม diff_count (GENERATED column)

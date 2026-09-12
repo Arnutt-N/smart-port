@@ -265,6 +265,13 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
+    // R7: '' = ไม่ส่งมา (กัน bind '' ดิบลง DATE) — normalize เป็น null ก่อนใช้ต่อ
+    foreach (EQUIVALENCE_DATE_FIELDS as $dateField) {
+        if (array_key_exists($dateField, $data) && $data[$dateField] === '') {
+            $data[$dateField] = null;
+        }
+    }
+
     // คำนวณ request_total_days จากวันที่เริ่มต้นและสิ้นสุด (DATEDIFF+1)
     // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
     $requestTotalDays = null;
@@ -487,6 +494,13 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
         return;
+    }
+    // R7: '' = ไม่ส่งมา (กัน bind '' ดิบลง DATE) — normalize เป็น null
+    // (loop ข้างล่างใช้ isset จึงข้าม field นี้ = คงค่าเดิมไว้)
+    foreach (EQUIVALENCE_DATE_FIELDS as $dateField) {
+        if (array_key_exists($dateField, $data) && $data[$dateField] === '') {
+            $data[$dateField] = null;
+        }
     }
     $allowed = ['actual_position', 'equivalent_type', 'request_start_date', 'request_end_date', 'approval_order_ref'];
     $sets = [];
