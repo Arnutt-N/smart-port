@@ -16,7 +16,7 @@ RUN composer install --no-dev --no-interaction --no-plugins --no-scripts --optim
 # =========================================================================
 FROM php:8.3-apache
 
-RUN a2enmod rewrite
+RUN a2enmod rewrite headers
 
 RUN apt-get update && apt-get install -y \
     libzip-dev \
@@ -60,7 +60,6 @@ RUN printf "AddDefaultCharset UTF-8\n" > /etc/apache2/conf-enabled/charset.conf 
 # Apache ไม่ผ่าน frontend ที่มี render.yaml headers — ชุดเดียวกับ frontend (ตัด CSP
 # เพราะ API เสิร์ฟ JSON/รูปไม่มี HTML จะ sniff ได้)
 RUN printf '%s\n' \
-    'LoadModule headers_module modules/mod_headers.so' \
     'Header always set X-Content-Type-Options "nosniff"' \
     'Header always set X-Frame-Options "DENY"' \
     'Header always set Referrer-Policy "strict-origin-when-cross-origin"' \
