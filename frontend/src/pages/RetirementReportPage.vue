@@ -43,7 +43,7 @@
         v-model="within"
         aria-label="กรองข้าราชการตามช่วงเวลาก่อนเกษียณ"
         @change="onFilterChange"
-        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        class="input"
       >
         <option value="">ทั้งหมด</option>
         <option value="6">ภายใน 6 เดือน</option>
@@ -61,7 +61,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -73,12 +73,12 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสพนักงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเกษียณ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">คงเหลือ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รหัสพนักงาน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเกษียณ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">คงเหลือ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
             </tr>
           </thead>
           <tbody>

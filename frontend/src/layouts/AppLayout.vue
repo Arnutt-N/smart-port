@@ -2,13 +2,13 @@
   <div
     v-if="sidebarOpen"
     class="fixed inset-0 bg-black/50 z-20 lg:hidden"
-    @click="sidebarOpen = false"
+    @click="sidebarOpen = false; sidebarTouched = true"
   />
 
-  <AppSidebar :open="sidebarOpen" @close="sidebarOpen = false" />
+  <AppSidebar :open="sidebarOpen" @close="sidebarOpen = false; sidebarTouched = true" />
 
   <div class="lg:ml-64 transition-all duration-300">
-    <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen" />
+    <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen; sidebarTouched = true" />
     <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
       <!-- แสดง loading แทนพื้นที่ว่างเมื่อ RouterView ยังไม่มี component; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
@@ -30,9 +30,10 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import AppTopbar from '@/components/AppTopbar.vue'
 
 const sidebarOpen = ref(window.innerWidth >= 1024)
+const sidebarTouched = ref(false)
 
 function handleResize() {
-  sidebarOpen.value = window.innerWidth >= 1024
+  if (!sidebarTouched.value) sidebarOpen.value = window.innerWidth >= 1024
 }
 
 onMounted(() => window.addEventListener('resize', handleResize))

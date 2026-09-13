@@ -9,7 +9,7 @@
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer"
-        :class="tab === 'account' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        :class="tab === 'account' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
         @click="openAccountTab"
       >
         บัญชีของฉัน
@@ -18,7 +18,7 @@
         v-if="auth.isSuperAdmin"
         type="button"
         class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer"
-        :class="tab === 'permissions' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        :class="tab === 'permissions' ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
         @click="openPermissionsTab"
       >
         สิทธิ์ระบบ
@@ -38,7 +38,7 @@
             v-model="profileForm.username"
             type="text"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <div>
@@ -48,7 +48,7 @@
             v-model="profileForm.full_name"
             type="text"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <div>
@@ -57,7 +57,7 @@
             id="settings-email"
             v-model="profileForm.email"
             type="email"
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <div v-if="usernameChanged">
@@ -68,7 +68,7 @@
             type="password"
             autocomplete="current-password"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
 
@@ -77,7 +77,7 @@
         <button
           type="submit"
           :disabled="savingProfile"
-          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+          class="btn-primary px-4 py-2"
         >
           {{ savingProfile ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบัญชี' }}
         </button>
@@ -93,7 +93,7 @@
             type="password"
             autocomplete="current-password"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <div>
@@ -105,7 +105,7 @@
             autocomplete="new-password"
             minlength="8"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <div>
@@ -117,14 +117,14 @@
             autocomplete="new-password"
             minlength="8"
             required
-            class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input"
           />
         </div>
         <p v-if="passwordError" role="alert" class="text-sm text-red-600">{{ passwordError }}</p>
         <button
           type="submit"
           :disabled="savingPassword"
-          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+          class="btn-primary px-4 py-2"
         >
           {{ savingPassword ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่' }}
         </button>
@@ -153,7 +153,7 @@
             <button
               type="button"
               :disabled="savingMatrix || pendingOverrides.length === 0"
-              class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+              class="btn-primary px-4 py-2"
               @click="saveMatrix"
             >
               {{ savingMatrix ? 'กำลังบันทึก…' : `บันทึก (${pendingOverrides.length})` }}
@@ -189,7 +189,7 @@
                   <input
                     :id="`settings-perm-${resourceIdx}-${actionIdx}`"
                     type="checkbox"
-                    class="h-4 w-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-600 cursor-pointer"
                     :aria-label="`สิทธิ์ ${action} ของบทบาท ${selectedRole} ในส่วน ${resource}`"
                     :checked="cellAllowed(selectedRole, action, resource)"
                     @change="toggleCell(selectedRole, action, resource, $event.target.checked)"
@@ -323,7 +323,7 @@ async function saveProfile() {
     await auth.updateMe(payload)
     originalUsername.value = profileForm.username.trim()
     profileForm.current_password = ''
-    ui.showToast('บันทึกบัญชีสำเร็จ', 'success')
+    ui.showToast('บันทึกบัญชีแล้ว', 'success')
   } catch (err) {
     profileError.value = err.message || 'บันทึกไม่สำเร็จ'
   } finally {
@@ -346,7 +346,7 @@ async function savePassword() {
     passwordForm.current = ''
     passwordForm.next = ''
     passwordForm.confirm = ''
-    ui.showToast('เปลี่ยนรหัสผ่านสำเร็จ', 'success')
+    ui.showToast('เปลี่ยนรหัสผ่านแล้ว', 'success')
   } catch (err) {
     passwordError.value = err.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ'
   } finally {
@@ -408,7 +408,7 @@ async function saveMatrix() {
   matrixError.value = ''
   try {
     await api.put('/settings/permissions', { overrides: pendingOverrides.value })
-    ui.showToast('บันทึกสิทธิ์ระบบสำเร็จ', 'success')
+    ui.showToast('บันทึกสิทธิ์ระบบแล้ว', 'success')
     await loadMatrix()
   } catch (err) {
     matrixError.value = err.message || 'บันทึกไม่สำเร็จ'

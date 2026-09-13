@@ -57,7 +57,7 @@
         <FileText class="w-10 h-10 mx-auto text-gray-400" />
         <p v-if="file" class="mt-3 text-sm font-medium text-gray-700">{{ file.name }}</p>
         <p v-else class="mt-3 text-sm text-gray-600">
-          ลากไฟล์มาวาง หรือ <span class="text-blue-600 font-medium">คลิกเพื่อเลือก</span>
+          ลากไฟล์มาวาง หรือ <span class="text-primary-600 font-medium">คลิกเพื่อเลือก</span>
         </p>
         <p class="mt-1 text-xs text-gray-400">รองรับ .pdf ขนาดไม่เกิน 50MB</p>
       </div>
@@ -65,7 +65,7 @@
       <div class="flex items-center gap-3">
         <button
           :disabled="!file || busy"
-          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-not-allowed"
           @click="submit"
         >
           <Loader2 v-if="busy" class="w-4 h-4 animate-spin" />
@@ -118,14 +118,14 @@
         <div class="flex gap-1 border-b border-gray-200">
           <button
             class="px-3 py-1.5 text-xs font-medium border-b-2 transition-colors"
-            :class="tab === 'preview' ? 'border-blue-500 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+            :class="tab === 'preview' ? 'border-primary-500 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
             @click="tab = 'preview'"
           >
             Preview
           </button>
           <button
             class="px-3 py-1.5 text-xs font-medium border-b-2 transition-colors"
-            :class="tab === 'raw' ? 'border-blue-500 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+            :class="tab === 'raw' ? 'border-primary-500 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
             @click="tab = 'raw'"
           >
             Markdown

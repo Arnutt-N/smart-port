@@ -57,7 +57,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -69,15 +69,15 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่ง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเริ่มทดลอง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบกำหนด</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันคงเหลือ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่ง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">หน่วยงาน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่มทดลอง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันครบกำหนด</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันคงเหลือ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -175,7 +175,7 @@
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
             <button
               @click="showViewModal = false"
-              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              class="btn-secondary px-4 py-2"
             >
               ปิด
             </button>
@@ -195,30 +195,30 @@
           <form @submit.prevent="handleSave" class="px-6 py-4 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มทดลอง <span class="text-red-500">*</span></label>
+                <label class="label">วันเริ่มทดลอง <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.start_date"
                   id="probation-start-date"
                   label="วันเริ่มทดลอง"
-                  :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.start_date }"
+                  :error="formErrors.start_date"
                 />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">วันครบกำหนด <span class="text-red-500">*</span></label>
+                <label class="label">วันครบกำหนด <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
                   v-model="formData.end_date"
                   id="probation-end-date"
                   label="วันครบกำหนด"
-                  :class="{ 'ring-2 ring-red-500 rounded-lg': formErrors.end_date }"
+                  :error="formErrors.end_date"
                 />
               </div>
             </div>
             <div>
-              <label for="probation-overall-status" class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <label for="probation-overall-status" class="label">สถานะ</label>
               <select
                 id="probation-overall-status"
                 v-model="formData.overall_status"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
               >
                 <option value="IN_PROGRESS">กำลังดำเนินการ</option>
                 <option value="COMPLETED">ผ่านทดลอง</option>
@@ -227,12 +227,12 @@
               </select>
             </div>
             <div>
-              <label for="probation-remarks" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+              <label for="probation-remarks" class="label">หมายเหตุ</label>
               <textarea
                 id="probation-remarks"
                 v-model="formData.remarks"
                 rows="3"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 placeholder="ระบุหมายเหตุ (ถ้ามี)"
               />
             </div>
@@ -240,14 +240,14 @@
               <button
                 type="button"
                 @click="closeEditModal"
-                class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                class="btn-secondary px-4 py-2 cursor-pointer"
               >
                 ยกเลิก
               </button>
               <button
                 type="submit"
                 :disabled="saving"
-                class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                class="btn-primary px-4 py-2 cursor-pointer"
               >
                 {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
               </button>
@@ -377,7 +377,7 @@ async function handleSave() {
   saving.value = true
   try {
     await update(editingRow.value.enrollmentId, { ...formData.value })
-    ui.showToast('อัปเดตสำเร็จ', 'success')
+    ui.showToast('อัปเดตแล้ว', 'success')
     closeEditModal()
     fetchData()
   } catch (err) {
@@ -395,7 +395,7 @@ async function confirmDelete(row) {
   if (!ok) return
   try {
     await remove(row.enrollmentId)
-    ui.showToast('ลบสำเร็จ', 'success')
+    ui.showToast('ลบแล้ว', 'success')
     fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')

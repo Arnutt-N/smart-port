@@ -7,7 +7,7 @@
         <p class="text-gray-600 mt-1">สรุปข้อมูลสำคัญและกิจกรรมล่าสุดของระบบการจัดการข้าราชการ</p>
       </div>
       <div class="flex items-center space-x-3">
-        <button @click="fetchDashboard" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+        <button @click="fetchDashboard" class="btn-primary flex items-center space-x-2 px-4 py-2">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
           <span>รีเฟรช</span>
         </button>
@@ -84,10 +84,10 @@
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รายการ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ความสำคัญ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รายการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวน</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ความสำคัญ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -105,9 +105,7 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right">
-                  <RouterLink :to="task.route" class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                    ดูรายละเอียด
-                  </RouterLink>
+                  <TableRowActions :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => $router.push(task.route) }]" />
                 </td>
               </tr>
               <tr v-if="priorityTasks.length === 0">
@@ -145,12 +143,12 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-gray-900">สรุปพ้นทดลอง</h3>
-            <UserCheck class="w-5 h-5 text-blue-500" />
+            <UserCheck class="w-5 h-5 text-primary-500" />
           </div>
           <div class="space-y-3">
             <div class="flex justify-between items-center p-2 rounded-lg bg-blue-50">
-              <span class="text-sm text-blue-700">กำลังดำเนินการ</span>
-              <span class="text-sm font-bold text-blue-700">{{ probationSummary.inProgress }}</span>
+              <span class="text-sm text-primary-700">กำลังดำเนินการ</span>
+              <span class="text-sm font-bold text-primary-700">{{ probationSummary.inProgress }}</span>
             </div>
             <div class="flex justify-between items-center p-2 rounded-lg bg-orange-50">
               <span class="text-sm text-orange-700">ใกล้ครบกำหนด</span>
@@ -176,6 +174,7 @@
 import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import StatCard from '@/components/StatCard.vue'
+import TableRowActions from '@/components/TableRowActions.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import { useApi } from '@/composables/useApi.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
@@ -214,7 +213,7 @@ const multiplierSummary = ref({
 const priorityTasks = ref([])
 
 const quickActions = [
-  { title: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, color: 'bg-blue-500', route: '/probation-end' },
+  { title: 'พ้นทดลองปฏิบัติราชการ', icon: UserCheck, color: 'bg-primary-500', route: '/probation-end' },
   { title: 'เลื่อนระดับตำแหน่ง', icon: TrendingUp, color: 'bg-green-500', route: '/candidates/general' },
   { title: 'การนับเวลาเกื้อกูล', icon: Clock, color: 'bg-purple-500', route: '/time-counting' },
 ]

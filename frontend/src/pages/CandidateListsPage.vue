@@ -54,7 +54,7 @@
         >
           <button
             @click="fetchOverviewData"
-            class="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg"
+            class="btn-primary mt-4"
           >
             ลองใหม่
           </button>
@@ -135,14 +135,14 @@
           <table class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่งปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบกำหนด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันคงเหลือ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่งปัจจุบัน</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ระดับ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันครบกำหนด</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันคงเหลือ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -184,7 +184,7 @@
           :key="tab.level"
           class="px-4 py-2 text-sm rounded-full transition-colors"
           :class="activeSubTab === tab.level
-            ? 'bg-blue-500 text-white'
+            ? 'bg-primary-500 text-white'
             : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'"
           @click="activeSubTab = tab.level"
         >
@@ -214,7 +214,7 @@
       >
         <button
           @click="fetchData"
-          class="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg"
+          class="btn-primary mt-4"
         >
           ลองใหม่
         </button>
@@ -226,18 +226,18 @@
           <table class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่งปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระดับตำแหน่ง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเข้าสู่ระดับปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ครบกำหนด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเกื้อกูล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ 3 ต่าง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเทียบ ตน.</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนวันที่เหลือ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-นามสกุล</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่งปัจจุบัน</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ระดับตำแหน่ง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเข้าสู่ระดับปัจจุบัน</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ครบกำหนด</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเกื้อกูล</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ 3 ต่าง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเทียบ ตน.</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนวันที่เหลือ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -353,10 +353,17 @@
               </div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+          <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+            <button
+              v-if="isAdmin && viewingRow?.name"
+              @click="goToPersonnelMaster"
+              class="btn-secondary px-4 py-2 cursor-pointer"
+            >
+              จัดการที่ข้อมูลบุคลากร
+            </button>
             <button
               @click="showViewModal = false"
-              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              class="btn-secondary px-4 py-2 cursor-pointer"
             >
               ปิด
             </button>
@@ -375,9 +382,6 @@ import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { getCandidateRemainingDaysClass, formatRemainingDays } from '@/utils/remainingDays.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useUiStore } from '@/stores/ui.js'
-import { confirmDelete as confirmDeleteAction } from '@/composables/useConfirm.js'
-import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -394,22 +398,16 @@ const props = defineProps({
   section: { type: String, default: 'overview' },
 })
 
-const { fetchByLevel, fetchOverview, deactivatePersonnel } = useCandidates()
+const { fetchByLevel, fetchOverview } = useCandidates()
 const router = useRouter()
 const auth = useAuthStore()
-const ui = useUiStore()
 const { next: nextRequest } = useRequestSeq()
 const { next: nextOverviewRequest } = useRequestSeq()
 
 const isAdmin = computed(() => auth.isAdmin)
 
 function rowActions(row) {
-  return buildStandardRowActions({
-    onView: () => openView(row),
-    onEdit: () => openEdit(row),
-    onDelete: () => confirmDelete(row),
-    canDelete: isAdmin.value,
-  })
+  return [{ key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) }]
 }
 
 // Sub-tab state (reactive, not router per D-04)
@@ -441,28 +439,11 @@ function openView(row) {
   showViewModal.value = true
 }
 
-function openEdit(row) {
-  if (!row?.personnelId) return
-  router.push(`/profile/${row.personnelId}`)
-}
-
-async function confirmDelete(row) {
-  const ok = await confirmDeleteAction({
-    message: `คุณต้องการปิดใช้งาน ${row.name} จากระบบหรือไม่?`,
-    detail: 'จะไม่แสดงในบัญชีรายชื่อผู้มีคุณสมบัติ (สามารถเปิดใช้งานใหม่ได้ภายหลัง)',
-  })
-  if (!ok) return
-  try {
-    await deactivatePersonnel(row.personnelId)
-    ui.showToast('ปิดใช้งานสำเร็จ', 'success')
-    if (isOverview.value) {
-      fetchOverviewData()
-    } else {
-      fetchData()
-    }
-  } catch (err) {
-    ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
-  }
+function goToPersonnelMaster() {
+  const name = viewingRow.value?.name
+  if (!name) return
+  showViewModal.value = false
+  router.push({ path: '/personnel', query: { search: name } })
 }
 
 // Configuration maps

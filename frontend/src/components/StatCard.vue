@@ -20,7 +20,7 @@ defineProps({
   label: String,
   value: [String, Number],
   icon: Object,
-  iconBgClass: { type: String, default: 'bg-blue-50' },
-  iconClass: { type: String, default: 'text-blue-600' },
+  iconBgClass: { type: String, default: 'bg-primary-50' },
+  iconClass: { type: String, default: 'text-primary-600' },
 })
 </script>

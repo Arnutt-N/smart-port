@@ -63,7 +63,7 @@
         <FileSpreadsheet class="w-10 h-10 mx-auto text-gray-400" />
         <p v-if="file" class="mt-3 text-sm font-medium text-gray-700">{{ file.name }}</p>
         <p v-else class="mt-3 text-sm text-gray-600">
-          ลากไฟล์มาวาง หรือ <span class="text-blue-600 font-medium">คลิกเพื่อเลือก</span>
+          ลากไฟล์มาวาง หรือ <span class="text-primary-600 font-medium">คลิกเพื่อเลือก</span>
         </p>
         <p class="mt-1 text-xs text-gray-400">รองรับ .xlsx ขนาดไม่เกิน 5MB</p>
       </div>
@@ -71,7 +71,7 @@
       <div class="flex items-center gap-3">
         <button
           :disabled="!file || busy"
-          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-not-allowed"
           @click="submit"
         >
           <Loader2 v-if="busy" class="w-4 h-4 animate-spin" />

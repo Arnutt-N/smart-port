@@ -1,10 +1,10 @@
 <template>
-  <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
+  <nav aria-label="เปลี่ยนหน้า" class="flex items-center justify-between flex-wrap gap-2 mt-4 text-sm text-gray-600">
     <span>แสดง {{ from }} ถึง {{ to }} จาก {{ total }} รายการ</span>
     <div class="flex items-center gap-1">
       <button
         :disabled="currentPage === 1"
-        class="px-3 py-1 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="px-3 py-1 text-sm rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed min-w-11 min-h-11 inline-flex items-center justify-center cursor-pointer"
         @click="goToPage(currentPage - 1)"
       >
         ก่อนหน้า
@@ -14,10 +14,11 @@
         <span v-if="page === '...'" class="px-2 py-1 text-gray-400">...</span>
         <button
           v-else
-          class="px-3 py-1 text-sm rounded-lg"
+          class="px-3 py-1 text-sm rounded-md min-w-11 min-h-11 inline-flex items-center justify-center cursor-pointer"
           :class="page === currentPage
-            ? 'bg-blue-500 text-white'
+            ? 'bg-primary-500 text-white'
             : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'"
+          :aria-current="page === currentPage ? 'page' : undefined"
           @click="goToPage(page)"
         >
           {{ page }}
@@ -26,13 +27,13 @@
 
       <button
         :disabled="currentPage === totalPages"
-        class="px-3 py-1 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="px-3 py-1 text-sm rounded-md bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed min-w-11 min-h-11 inline-flex items-center justify-center cursor-pointer"
         @click="goToPage(currentPage + 1)"
       >
         ถัดไป
       </button>
     </div>
-  </div>
+  </nav>
 </template>
 
 <script setup>

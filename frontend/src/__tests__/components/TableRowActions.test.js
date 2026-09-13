@@ -83,4 +83,15 @@ describe('TableRowActions', () => {
     })
     expect(wrapper.find('button[aria-label="แก้ไข"]').exists()).toBe(true)
   })
+
+  it('has focus ring and 44px touch target on inline buttons', () => {
+    const wrapper = mount(TableRowActions, {
+      props: {
+        actions: [{ key: 'edit', label: 'แก้ไข' }],
+      },
+    })
+    const btn = wrapper.find('button[aria-label="แก้ไข"]')
+    expect(btn.classes()).toContain('focus-visible:ring-2')
+    expect(btn.classes()).toContain('min-h-11')
+  })
 })

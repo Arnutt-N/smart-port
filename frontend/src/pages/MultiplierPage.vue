@@ -17,7 +17,7 @@
           <span>ข้อมูล seed ชุดแรกยังรอเอกสารอ้างอิง</span>
         </div>
         <button
-          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+          class="btn-primary inline-flex items-center justify-center gap-2 px-4 py-2"
           @click="openCreateModal"
         >
           <Plus class="w-4 h-4" />
@@ -69,7 +69,7 @@
           id="multiplier-area-search"
           aria-label="ค้นหาพื้นที่พิเศษ จังหวัด อำเภอ หรือฐานประกาศ"
           placeholder="ค้นหา master data จากจังหวัด อำเภอ หรือฐานประกาศ..."
-          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          class="input pl-10"
         />
       </div>
       <button
@@ -90,7 +90,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -106,15 +106,15 @@
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">พื้นที่</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ช่วงปฏิบัติงาน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ช่วงที่นับได้</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันจริง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันทวีคูณ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สุทธิ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงปฏิบัติงาน</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงที่นับได้</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันจริง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันทวีคูณ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สุทธิ</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -135,9 +135,11 @@
                 </td>
                 <td class="px-6 py-3 text-sm text-right">
                   <TableRowActions
-                    :actions="[
+                    :actions="isAdmin ? [
                       { key: 'edit', label: 'แก้ไข', onClick: () => openEditModal(row) },
                       { key: 'delete', label: 'ลบ', variant: 'danger', onClick: () => openDeleteConfirm(row) },
+                    ] : [
+                      { key: 'edit', label: 'แก้ไข', onClick: () => openEditModal(row) },
                     ]"
                   />
                 </td>
@@ -169,7 +171,7 @@
           <RouterLink
             v-if="isAdmin"
             to="/settings/special-areas"
-            class="text-sm text-blue-600 hover:text-blue-700"
+            class="text-sm text-primary-600 hover:text-primary-700"
           >
             จัดการพื้นที่ →
           </RouterLink>
@@ -178,12 +180,12 @@
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">พื้นที่</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ฐานประกาศ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อัตรา</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเริ่ม</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันสิ้นสุด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อ้างอิง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ฐานประกาศ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตรา</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่ม</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันสิ้นสุด</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อ้างอิง</th>
               </tr>
             </thead>
             <tbody>
@@ -247,7 +249,7 @@
                 v-model="personnelSearch"
                 type="text"
                 placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.personnel_id ? 'border-red-500' : 'border-gray-300'"
                 @input="onPersonnelSearch"
                 @compositionstart="isComposingPersonnel = true"
@@ -279,7 +281,7 @@
                 <RouterLink
                   v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
                   :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
                 >
                   {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
                 </RouterLink>
@@ -294,7 +296,7 @@
             <select
               id="multiplier-area-select"
               v-model="formData.area_multiplier_id"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               :class="formErrors.area_multiplier_id ? 'border-red-500' : 'border-gray-300'"
             >
               <option value="">เลือกพื้นที่</option>
@@ -326,7 +328,7 @@
               id="multiplier-proof-reference"
               v-model="formData.proof_reference"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               placeholder="เลขคำสั่ง หนังสือรับรอง หรือหลักฐานประกอบ"
             />
           </div>
@@ -337,7 +339,7 @@
               id="multiplier-description"
               v-model="formData.description"
               rows="3"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
             ></textarea>
           </div>
 
@@ -355,7 +357,7 @@
             </button>
             <button
               type="submit"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              class="btn-primary px-4 py-2"
               :disabled="saving"
             >
               {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
@@ -557,6 +559,7 @@ async function openDeleteConfirm(row) {
   saving.value = true
   try {
     await remove(row.multiplierId)
+    ui.showToast('ลบรายการแล้ว', 'success')
     await fetchData()
   } catch (err) {
     // toast แทน alert() — สไตล์เดียวกับหน้าอื่น และไม่บล็อกเธรด UI
@@ -601,6 +604,7 @@ async function handleSubmit() {
 
     showModal.value = false
     pagination.value.offset = 0
+    ui.showToast('บันทึกรายการแล้ว', 'success')
     await fetchData()
   } catch (err) {
     submitError.value = err.message || 'ไม่สามารถบันทึกรายการทวีคูณได้'

@@ -207,4 +207,25 @@ describe('UserManagementPage', () => {
 
     expect(wrapper.vm.showFormModal).toBe(true)
   })
+
+  it('submits via native form requestSubmit (Enter works)', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreate()
+    await wrapper.vm.$nextTick()
+
+    const form = wrapper.find('form')
+    expect(form.exists()).toBe(true)
+    expect(form.find('button[type="submit"]').exists()).toBe(true)
+
+    wrapper.vm.formData = {
+      username: 'new.user',
+      password: 'password123',
+      passwordConfirm: 'password123',
+      fullName: 'ผู้ใช้ใหม่',
+      email: '',
+      role: 'viewer',
+    }
+    form.element.requestSubmit()
+    await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled())
+  })
 })

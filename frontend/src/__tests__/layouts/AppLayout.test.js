@@ -113,6 +113,17 @@ describe('AppLayout', () => {
     expect(wrapper.vm.sidebarOpen).toBe(true)
   })
 
+  it('keeps manual sidebar choice across resize', async () => {
+    const wrapper = mountLayout()
+    await wrapper.get('[data-testid="topbar"]').trigger('click')
+    expect(wrapper.vm.sidebarOpen).toBe(false)
+
+    vi.stubGlobal('innerWidth', 1400)
+    window.dispatchEvent(new Event('resize'))
+    await nextTick()
+    expect(wrapper.vm.sidebarOpen).toBe(false)
+  })
+
   it('removes resize listener on unmount', () => {
     const removeSpy = vi.spyOn(window, 'removeEventListener')
     const wrapper = mountLayout()

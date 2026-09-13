@@ -1,13 +1,12 @@
 <template>
   <aside
-    class="w-64 bg-gray-800 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out flex flex-col sidebar-scroll"
-    style="overflow-y: overlay;"
+    class="w-64 bg-gray-800 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out flex flex-col sidebar-scroll overflow-y-auto"
     :class="open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
   >
     <!-- Header: logo ชิดซ้าย, ชื่อแบรนด์กึ่งกลาง -->
     <div class="relative flex items-center h-16 min-h-16 bg-gray-900">
       <div class="absolute left-4">
-        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+        <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
           <BookOpen class="w-4 h-4 text-white" />
         </div>
       </div>
@@ -21,7 +20,7 @@
     <nav class="px-4 flex-1">
       <template v-for="(section, sIdx) in menuSections" :key="section.id">
         <div
-          class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2"
+          class="text-[11px] font-semibold uppercase text-gray-500 mb-2"
           :class="sIdx === 0 ? 'mt-2' : 'mt-6'"
         >
           {{ section.label }}
@@ -31,9 +30,9 @@
           <template v-for="item in section.items" :key="item.id">
             <!-- Item with submenu -->
             <div v-if="item.children">
-              <button
+                <button
                 @click="toggleSubmenu(item.id)"
-                class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer"
+                class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 :class="isParentActive(item)
                   ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
                   : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
@@ -50,7 +49,7 @@
                   v-for="child in item.children"
                   :key="child.id"
                   :to="child.to"
-                  class="w-full flex items-center px-3 py-2 text-left rounded-lg transition-all duration-200"
+                  class="w-full flex items-center px-3 py-2 min-h-11 text-left rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   :class="route.path === child.to
                     ? 'bg-blue-500/10 text-blue-400 font-medium'
                     : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'"
@@ -65,7 +64,7 @@
             <RouterLink
               v-else
               :to="item.to"
-              class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer"
+              class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
                 ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
                 : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
@@ -91,7 +90,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
               <p class="text-white text-sm font-medium truncate">{{ auth.user?.name || 'ผู้ใช้' }}</p>
-              <span class="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-medium shrink-0">
+              <span class="text-[10px] px-1.5 py-0.5 bg-primary-500/20 text-primary-300 rounded font-medium shrink-0">
                 {{ roleLabel(auth.user?.role) }}
               </span>
             </div>

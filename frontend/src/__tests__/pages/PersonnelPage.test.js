@@ -123,6 +123,31 @@ describe('PersonnelPage', () => {
     await vi.waitFor(() => expect(wrapper.text()).toContain('โหลดข้อมูลไม่สำเร็จ'))
   })
 
+  it('lists view as the first row action', async () => {
+    const wrapper = await mountPage('admin')
+    expect(wrapper.vm.rowActions(sampleRow)[0].key).toBe('view')
+  })
+
+  it('opens read-only view modal without a save button', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.openView(sampleRow)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('ดูข้อมูลบุคลากร')
+    const buttons = wrapper.findAll('button').map((b) => b.text())
+    expect(buttons).toContain('ปิด')
+    expect(buttons).not.toContain('บันทึก')
+    expect(wrapper.find('#personnel-first-name').attributes('disabled')).toBeDefined()
+  })
+
+  it('prefills search from ?search= query and consumes it', async () => {
+    routeQuery.value = { search: 'สมชาย' }
+    const wrapper = await mountPage('admin')
+    expect(mockFetchList).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'สมชาย', offset: 0 }),
+    )
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+  })
+
   it('shows empty state when no rows', async () => {
     resolvedData([])
     const wrapper = await mountPage()

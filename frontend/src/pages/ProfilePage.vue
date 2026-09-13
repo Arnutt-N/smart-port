@@ -16,7 +16,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -27,7 +27,7 @@
     <div v-else-if="!isDetail && account" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl">
       <div class="flex items-center gap-4 mb-6">
         <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-          <User class="w-8 h-8 text-blue-600" />
+          <User class="w-8 h-8 text-primary-600" />
         </div>
         <div>
           <p class="text-lg font-semibold text-gray-900">{{ account.fullName }}</p>
@@ -100,7 +100,7 @@
             v-for="item in careerShortcuts"
             :key="item.path"
             type="button"
-            class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors text-left"
+            class="btn-primary px-4 py-2 text-left"
             @click="goCreateTimeEntry(item.path)"
           >
             {{ item.label }}

@@ -82,6 +82,15 @@ describe('PaginationBar', () => {
       props: { total: 50, limit: 10, offset: 20 },
     })
     const page3 = wrapper.findAll('button').find((b) => b.text() === '3')
-    expect(page3.classes()).toContain('bg-blue-500')
+    expect(page3.classes()).toContain('bg-primary-500')
+  })
+
+  it('wraps in nav with aria-current on the current page', () => {
+    const wrapper = mount(PaginationBar, {
+      props: { total: 95, limit: 20, offset: 80 },
+    })
+    expect(wrapper.find('nav[aria-label="เปลี่ยนหน้า"]').exists()).toBe(true)
+    const page5 = wrapper.findAll('button').find((b) => b.text() === '5')
+    expect(page5.attributes('aria-current')).toBe('page')
   })
 })

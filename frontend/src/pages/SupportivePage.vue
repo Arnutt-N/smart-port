@@ -8,7 +8,7 @@
         <p class="text-sm text-gray-500 mt-1">บันทึกวันเกื้อกูลต่อบุคคล</p>
       </div>
       <button
-        class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary flex items-center gap-2 px-4 py-2"
         @click="openCreate"
       >
         <Plus class="w-4 h-4" />
@@ -62,7 +62,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -75,15 +75,15 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สายงานที่เกื้อกูล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเริ่มต้น</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันสิ้นสุด</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนวัน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อัตราลดทอน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ได้</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สายงานที่เกื้อกูล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่มต้น</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันสิ้นสุด</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนวัน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตราลดทอน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ได้</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -109,6 +109,8 @@
                 <EmptyState
                   title="ไม่พบข้อมูล"
                   description="ยังไม่มีข้อมูลการนับเกื้อกูล หรือไม่พบข้อมูลที่ตรงกับการค้นหา"
+                  action-label="เพิ่มรายการ"
+                  @action="openCreate"
                 />
               </td>
             </tr>
@@ -150,7 +152,7 @@
                 @compositionend="onPersonnelCompositionEnd"
                 type="text"
                 placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.personnel_id ? 'border-red-500' : 'border-gray-300'"
               />
               <!-- Autocomplete dropdown -->
@@ -162,7 +164,7 @@
                   v-for="person in personnelResults"
                   :key="person.personnel_id"
                   type="button"
-                  class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors"
+                  class="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 transition-colors"
                   @click="selectPersonnel(person)"
                 >
                   {{ person.full_name }}
@@ -179,7 +181,7 @@
                 <RouterLink
                   v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
                   :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
                 >
                   {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
                 </RouterLink>
@@ -196,7 +198,7 @@
               v-model="formData.primary_series_name"
               type="text"
               placeholder="ระบุสายงานหลัก"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               :class="formErrors.primary_series_name ? 'border-red-500' : 'border-gray-300'"
             />
             <p v-if="formErrors.primary_series_name" class="text-xs text-red-500 mt-1">กรุณาระบุสายงานหลัก</p>
@@ -210,7 +212,7 @@
               v-model="formData.job_series_name"
               type="text"
               placeholder="ระบุสายงานที่เกื้อกูล"
-              class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               :class="formErrors.job_series_name ? 'border-red-500' : 'border-gray-300'"
             />
             <p v-if="formErrors.job_series_name" class="text-xs text-red-500 mt-1">กรุณาระบุสายงานที่เกื้อกูล</p>
@@ -246,7 +248,7 @@
               v-model="formData.description"
               rows="3"
               placeholder="ระบุหมายเหตุ (ถ้ามี)"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
             ></textarea>
           </div>
 
@@ -254,7 +256,7 @@
           <div class="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              class="btn-secondary px-4 py-2 cursor-pointer"
               @click="closeModal"
             >
               ยกเลิก
@@ -262,7 +264,7 @@
             <button
               type="submit"
               :disabled="saving"
-              class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:opacity-50"
+              class="btn-primary px-4 py-2 cursor-pointer"
             >
               {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
             </button>
@@ -494,10 +496,10 @@ async function handleSave() {
   try {
     if (editingRecord.value) {
       await update(editingRecord.value.supportiveId, formData.value)
-      ui.showToast('อัปเดตสำเร็จ', 'success')
+      ui.showToast('อัปเดตแล้ว', 'success')
     } else {
       await create(formData.value)
-      ui.showToast('บันทึกสำเร็จ', 'success')
+      ui.showToast('บันทึกแล้ว', 'success')
     }
     closeModal()
     fetchData()
@@ -517,7 +519,7 @@ async function confirmDelete(id) {
   if (!ok) return
   try {
     await remove(id)
-    ui.showToast('ลบสำเร็จ', 'success')
+    ui.showToast('ลบแล้ว', 'success')
     fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')

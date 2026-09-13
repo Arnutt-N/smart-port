@@ -121,7 +121,8 @@ describe('DiversePage', () => {
     })
   })
 
-  it('loads and renders diverse-experience records on mount', async () => {
+    it('loads and renders diverse-experience records on mount', async () => {
+
     const wrapper = await mountPage()
     expect(wrapper.text()).toContain('สมชาย ใจดี')
     expect(wrapper.text()).toContain('ธุรการ')
@@ -380,5 +381,21 @@ describe('DiversePage', () => {
     expect(wrapper.vm.selectedPersonnelName).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
     expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
+  })
+
+  it('renders empty state via EmptyState and its action opens the create modal', async () => {
+    mockFetchList.mockResolvedValue({
+      success: true,
+      data: [],
+      summary: null,
+      pagination: { total: 0, limit: 20, offset: 0 },
+    })
+    const wrapper = await mountPage()
+    await flushPromises()
+    expect(wrapper.text()).toContain('ยังไม่มีรายการแตกต่าง')
+    const empty = wrapper.findComponent({ name: 'EmptyState' })
+    expect(empty.exists()).toBe(true)
+    await empty.vm.$emit('action')
+    expect(wrapper.vm.showModal).toBe(true)
   })
 })

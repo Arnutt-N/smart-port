@@ -153,6 +153,22 @@ describe('MultiplierPage', () => {
     expect(links.some((l) => l.props('to') === '/settings/special-areas')).toBe(false)
   })
 
+  it('hides delete action from operator but keeps edit', async () => {
+    const wrapper = await mountPage({ role: 'operator' })
+    expect(wrapper.findAll('button[title="ลบ"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[title="แก้ไข"]').length).toBeGreaterThan(0)
+  })
+
+  it('shows success toast after save', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreateModal()
+    await wrapper.vm.$nextTick()
+    fillValidForm(wrapper)
+    await wrapper.vm.handleSubmit()
+    const { useUiStore } = await import('@/stores/ui.js')
+    expect(useUiStore().toasts.some((t) => t.message === 'บันทึกรายการแล้ว')).toBe(true)
+  })
+
   it('shows the settings link to admins', async () => {
     const wrapper = await mountPage({ role: 'admin' })
     const links = wrapper.findAllComponents(RouterLinkStub)

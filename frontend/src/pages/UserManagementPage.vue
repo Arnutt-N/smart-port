@@ -8,7 +8,7 @@
       </div>
       <button
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+        class="btn-primary flex items-center gap-2 px-4 py-2"
       >
         <Plus class="w-4 h-4" />
         เพิ่มผู้ใช้
@@ -33,7 +33,7 @@
 
       <div v-else-if="error" class="py-12 text-center">
         <p class="text-sm text-red-600 mb-3">{{ error }}</p>
-        <button @click="fetchData" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors cursor-pointer">
+        <button @click="fetchData" class="btn-primary px-4 py-2">
           ลองใหม่
         </button>
       </div>
@@ -43,19 +43,21 @@
         :icon="Users"
         title="ไม่พบผู้ใช้"
         :description="searchQuery ? 'ไม่พบผู้ใช้ที่ตรงกับคำค้นหา' : 'ยังไม่มีผู้ใช้ในระบบ'"
+        action-label="เพิ่มผู้ใช้"
+        @action="openCreate"
       />
 
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อผู้ใช้</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อีเมล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สิทธิ์</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เข้าใช้ล่าสุด</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อผู้ใช้</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อีเมล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สิทธิ์</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เข้าใช้ล่าสุด</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
@@ -74,7 +76,7 @@
                   class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full"
                   :class="{
                     'bg-purple-100 text-purple-700': row.role === 'superadmin',
-                    'bg-blue-100 text-blue-700': row.role === 'admin',
+                    'bg-primary-100 text-primary-700': row.role === 'admin',
                     'bg-amber-100 text-amber-700': row.role === 'viewer',
                     'bg-gray-100 text-gray-600': row.role === 'operator',
                   }"
@@ -118,13 +120,13 @@
         <!-- N47: ครอบ <form> — native email validation + Enter submit ทำงาน -->
         <form class="space-y-3" @submit.prevent="submitForm">
           <div>
-            <label for="user-username" class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
+            <label for="user-username" class="label">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
             <input
               id="user-username"
               v-model="formData.username"
               type="text"
               :disabled="!!editingUser"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              class="input disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="เช่น somchai.j"
             />
             <p v-if="editingUser" class="text-xs text-gray-400 mt-1">ชื่อผู้ใช้แก้ไขไม่ได้</p>
@@ -132,57 +134,57 @@
 
           <template v-if="!editingUser">
             <div>
-              <label for="user-password" class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
+              <label for="user-password" class="label">รหัสผ่าน <span class="text-red-500">*</span></label>
               <input
                 id="user-password"
                 v-model="formData.password"
                 type="password"
                 autocomplete="new-password"
-                class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="input"
                 placeholder="อย่างน้อย 8 ตัวอักษร"
               />
             </div>
             <div>
-              <label for="user-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
+              <label for="user-password-confirm" class="label">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
               <input
                 id="user-password-confirm"
                 v-model="formData.passwordConfirm"
                 type="password"
                 autocomplete="new-password"
-                class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="input"
               />
             </div>
           </template>
 
           <div>
-            <label for="user-full-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-สกุล <span class="text-red-500">*</span></label>
+            <label for="user-full-name" class="label">ชื่อ-สกุล <span class="text-red-500">*</span></label>
             <input
               id="user-full-name"
               v-model="formData.fullName"
               type="text"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
               placeholder="เช่น สมชาย ใจดี"
             />
           </div>
 
           <div>
-            <label for="user-email" class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+            <label for="user-email" class="label">อีเมล</label>
             <input
               id="user-email"
               v-model="formData.email"
               type="email"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
               placeholder="(ไม่บังคับ)"
             />
           </div>
 
           <div>
-            <label for="user-role" class="block text-sm font-medium text-gray-700 mb-1">สิทธิ์ <span class="text-red-500">*</span></label>
+            <label for="user-role" class="label">สิทธิ์ <span class="text-red-500">*</span></label>
             <select
               id="user-role"
               v-model="formData.role"
               :disabled="isSelfEditing"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              class="input disabled:bg-gray-100 disabled:text-gray-500"
             >
               <option value="viewer">Viewer — อ่านอย่างเดียว</option>
               <option value="operator">Operator — บันทึกข้อมูล</option>
@@ -191,20 +193,20 @@
             </select>
             <p v-if="isSelfEditing" class="text-xs text-gray-400 mt-1">ไม่สามารถแก้ไขสิทธิ์ของตนเองได้</p>
           </div>
-        </form>
 
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" @click="closeFormModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
-            ยกเลิก
-          </button>
-          <button
-            type="submit"
-            :disabled="saving"
-            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            {{ saving ? 'กำลังบันทึก...' : (editingUser ? 'บันทึก' : 'สร้างผู้ใช้') }}
-          </button>
-        </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" @click="closeFormModal" class="btn-secondary px-4 py-2">
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              :disabled="saving"
+              class="btn-primary px-4 py-2"
+            >
+              {{ saving ? 'กำลังบันทึก...' : (editingUser ? 'บันทึก' : 'สร้างผู้ใช้') }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -220,30 +222,30 @@
 
         <div class="space-y-3">
           <div>
-            <label for="user-reset-password" class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label for="user-reset-password" class="label">รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
               id="user-reset-password"
               v-model="resetForm.password"
               type="password"
               autocomplete="new-password"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
               placeholder="อย่างน้อย 8 ตัวอักษร"
             />
           </div>
           <div>
-            <label for="user-reset-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label for="user-reset-password-confirm" class="label">ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
               id="user-reset-password-confirm"
               v-model="resetForm.passwordConfirm"
               type="password"
               autocomplete="new-password"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="input"
             />
           </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="closeResetModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+          <button @click="closeResetModal" class="btn-secondary px-4 py-2">
             ยกเลิก
           </button>
           <button
@@ -270,7 +272,7 @@
           <template v-if="togglingUser?.isActive">ผู้ใช้นี้จะไม่สามารถเข้าสู่ระบบได้จนกว่าจะเปิดใช้งานอีกครั้ง</template>
         </p>
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="showToggleConfirm = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+          <button @click="showToggleConfirm = false" class="btn-secondary px-4 py-2">
             ยกเลิก
           </button>
           <button
@@ -464,7 +466,7 @@ async function submitForm() {
         email: formData.value.email || null,
         role: formData.value.role,
       })
-      ui.showToast('บันทึกข้อมูลผู้ใช้สำเร็จ', 'success')
+      ui.showToast('บันทึกข้อมูลผู้ใช้แล้ว', 'success')
     } else {
       await create({
         username: formData.value.username.trim(),
@@ -473,7 +475,7 @@ async function submitForm() {
         email: formData.value.email || null,
         role: formData.value.role,
       })
-      ui.showToast('สร้างผู้ใช้สำเร็จ', 'success')
+      ui.showToast('สร้างผู้ใช้แล้ว', 'success')
     }
     closeFormModal()
     fetchData()
@@ -509,7 +511,7 @@ async function submitResetPassword() {
   saving.value = true
   try {
     await update(resettingUser.value.userId, { password: resetForm.value.password })
-    ui.showToast('รีเซ็ตรหัสผ่านสำเร็จ — ผู้ใช้ต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป', 'success')
+    ui.showToast('รีเซ็ตรหัสผ่านแล้ว — ผู้ใช้ต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป', 'success')
     closeResetModal()
     fetchData()
   } catch (e) {
@@ -531,7 +533,7 @@ async function submitToggleActive() {
   try {
     const activating = !togglingUser.value.isActive
     await update(togglingUser.value.userId, { isActive: activating })
-    ui.showToast(activating ? 'เปิดใช้งานบัญชีสำเร็จ' : 'ปิดบัญชีสำเร็จ', 'success')
+    ui.showToast(activating ? 'เปิดใช้งานบัญชีแล้ว' : 'ปิดบัญชีแล้ว', 'success')
     showToggleConfirm.value = false
     togglingUser.value = null
     fetchData()
