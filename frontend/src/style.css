@@ -89,6 +89,12 @@ body {
   html {
     scroll-behavior: smooth;
   }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  select:not(:disabled),
+  summary:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* Custom Components */
@@ -122,6 +128,9 @@ body {
   }
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+  .dropdown-trigger {
+    @apply ml-1 pl-2 border-l border-government-200 text-government-400 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-r-md min-w-11 min-h-11 inline-flex items-center justify-center transition-colors disabled:opacity-50 disabled:pointer-events-none;
   }
   .sidebar {
     @apply w-64 bg-white shadow-sm border-r border-gray-200 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300;

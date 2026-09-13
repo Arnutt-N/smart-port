@@ -27,7 +27,7 @@
           <select
             id="audit-filter-table"
             v-model="filters.table"
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            class="input"
             @change="onFilterChange"
           >
             <option value="">ทั้งหมด</option>
@@ -44,7 +44,7 @@
           <select
             id="audit-filter-action"
             v-model="filters.action"
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            class="input"
             @change="onFilterChange"
           >
             <option value="">ทั้งหมด</option>
@@ -60,7 +60,7 @@
             v-model.number="filters.userId"
             type="number"
             placeholder="User ID"
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            class="input"
             @input="onUserIdInput"
           />
         </div>
@@ -69,7 +69,7 @@
           <select
             id="audit-filter-limit"
             v-model="pagination.limit"
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            class="input"
             @change="onFilterChange"
           >
             <option :value="20">20</option>
@@ -89,7 +89,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -101,12 +101,12 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เวลา</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ผู้ดำเนินการ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การกระทำ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตาราง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เวลา</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ผู้ดำเนินการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">การกระทำ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตาราง</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Record ID</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -304,7 +304,7 @@ function actionLabel(action) {
 function actionBadgeClass(action) {
   const classes = {
     CREATE: 'bg-green-100 text-green-800',
-    UPDATE: 'bg-blue-100 text-blue-800',
+    UPDATE: 'bg-primary-100 text-primary-800',
     DELETE: 'bg-red-100 text-red-800',
   }
   return classes[action] || 'bg-gray-100 text-gray-800'

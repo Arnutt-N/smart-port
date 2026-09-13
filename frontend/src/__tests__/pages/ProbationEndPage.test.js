@@ -172,4 +172,21 @@ describe('ProbationEndPage', () => {
     const wrapper = await mountPage()
     await vi.waitFor(() => expect(wrapper.text()).toContain('ไม่พบข้อมูล'))
   })
+
+  it('edit modal uses token buttons and passes errors to date pickers', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openEdit(sampleRow)
+    await wrapper.vm.$nextTick()
+
+    const cancelBtn = [...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent.trim() === 'ยกเลิก')
+    expect(cancelBtn.className).toContain('btn-secondary')
+    const saveBtn = document.body.querySelector('button[type="submit"]')
+    expect(saveBtn.textContent).toContain('บันทึก')
+    expect(saveBtn.className).toContain('btn-primary')
+
+    wrapper.vm.formErrors = { start_date: 'กรุณาระบุวันเริ่มทดลอง' }
+    await wrapper.vm.$nextTick()
+    expect(document.body.textContent).toContain('กรุณาระบุวันเริ่มทดลอง')
+  })
 })

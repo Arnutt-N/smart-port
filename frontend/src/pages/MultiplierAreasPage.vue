@@ -16,7 +16,7 @@
         </p>
       </div>
       <button
-        class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+        class="btn-primary inline-flex items-center justify-center gap-2 px-4 py-2"
         @click="openCreateModal"
       >
         <Plus class="w-4 h-4" />
@@ -68,7 +68,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -83,13 +83,13 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">พื้นที่</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ฐานประกาศ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อัตรา</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ช่วงมีผล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อ้างอิง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ฐานประกาศ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตรา</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงมีผล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อ้างอิง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -173,7 +173,7 @@
                 id="multiplier-areas-province"
                 v-model="formData.province"
                 type="text"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.province ? 'border-red-500' : 'border-gray-300'"
               />
               <p v-if="formErrors.province" class="text-xs text-red-500 mt-1">กรุณาระบุจังหวัด</p>
@@ -184,7 +184,7 @@
                 id="multiplier-areas-district"
                 v-model="formData.district"
                 type="text"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 placeholder="เว้นว่าง = ทั้งจังหวัด"
               />
             </div>
@@ -198,7 +198,7 @@
                 v-model="formData.basis_type"
                 type="text"
                 list="basis-type-options"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.basis_type ? 'border-red-500' : 'border-gray-300'"
                 placeholder="เช่น MARTIAL_LAW"
               />
@@ -216,7 +216,7 @@
                 min="100"
                 max="999.99"
                 step="0.01"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.multiplier_ratio ? 'border-red-500' : 'border-gray-300'"
               />
               <div class="flex gap-2 mt-2">
@@ -265,7 +265,7 @@
               v-model="formData.legal_reference"
               type="text"
               maxlength="300"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               placeholder="ประกาศ/คำสั่งที่รองรับอัตรานี้ — เว้นว่างจะติดสถานะรอเอกสาร"
             />
           </div>
@@ -277,7 +277,7 @@
               v-model="formData.source_reference"
               type="text"
               maxlength="500"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              class="input"
               placeholder="เอกสาร/หนังสือเวียน/ลิงก์อ้างอิง"
             />
           </div>
@@ -296,7 +296,7 @@
             </button>
             <button
               type="submit"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              class="btn-primary px-4 py-2"
               :disabled="saving"
             >
               {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}

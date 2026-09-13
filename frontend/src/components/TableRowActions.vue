@@ -3,7 +3,7 @@
     <template v-if="useMenu">
       <button
         type="button"
-        class="p-1 text-government-400 hover:text-primary-600 transition-colors cursor-pointer rounded"
+        class="p-1 text-government-400 hover:text-primary-600 transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         title="จัดการ"
         aria-label="จัดการ"
         aria-haspopup="menu"
@@ -26,7 +26,7 @@
           <button
             type="button"
             role="menuitem"
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+            class="flex w-full items-center gap-2 px-3 py-2 min-h-11 text-left text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             :class="menuItemClass(action)"
             :title="action.label"
             :disabled="action.disabled"
@@ -43,7 +43,7 @@
         v-for="action in visibleActions"
         :key="action.key"
         type="button"
-        class="p-1 transition-colors cursor-pointer rounded disabled:opacity-50 disabled:pointer-events-none"
+        class="p-2 min-w-11 min-h-11 inline-flex items-center justify-center transition-colors cursor-pointer rounded disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         :class="iconButtonClass(action)"
         :title="action.label"
         :aria-label="action.label"

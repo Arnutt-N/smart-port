@@ -10,7 +10,7 @@
       </div>
       <button
         @click="openCreate"
-        class="flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+        class="btn-primary flex items-center gap-1.5 px-4 py-2"
       >
         <Plus class="w-4 h-4" /> ยื่นคำขอใหม่
       </button>
@@ -69,7 +69,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -82,14 +82,14 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่งจริง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เทียบเป็น</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่ขอ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่อนุมัติ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่งจริง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เทียบเป็น</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ขอ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่อนุมัติ</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -125,6 +125,8 @@
                 <EmptyState
                   title="ไม่พบข้อมูล"
                   description="ยังไม่มีคำขอเทียบตำแหน่ง หรือไม่พบข้อมูลที่ตรงกับการค้นหา"
+                  action-label="ยื่นคำขอใหม่"
+                  @action="openCreate"
                 />
               </td>
             </tr>
@@ -164,7 +166,7 @@
                   type="text"
                   id="equivalence-personnel-search"
                   placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="input"
                   :class="[
                     formErrors.personnel_id ? 'border-red-300' : 'border-gray-300',
                     editingRecord ? 'bg-gray-100 cursor-not-allowed' : ''
@@ -194,7 +196,7 @@
                   <RouterLink
                     v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
                     :to="PERSONNEL_MASTER_CREATE_TO"
-                    class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                    class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
                   >
                     {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
                   </RouterLink>
@@ -210,7 +212,7 @@
                 v-model="formData.actual_position"
                 type="text"
                 id="equivalence-actual-position"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.actual_position ? 'border-red-300' : 'border-gray-300'"
               />
               <p v-if="formErrors.actual_position" class="text-xs text-red-500 mt-1">{{ formErrors.actual_position }}</p>
@@ -223,7 +225,7 @@
                 v-model="formData.equivalent_type"
                 type="text"
                 id="equivalence-equivalent-type"
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="formErrors.equivalent_type ? 'border-red-300' : 'border-gray-300'"
               />
               <p v-if="formErrors.equivalent_type" class="text-xs text-red-500 mt-1">{{ formErrors.equivalent_type }}</p>
@@ -258,21 +260,21 @@
                 v-model="formData.approval_order_ref"
                 type="text"
                 id="equivalence-approval-order-ref"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
               />
             </div>
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
             <button
               @click="closeModal"
-              class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              class="btn-secondary px-4 py-2 cursor-pointer"
             >
               ยกเลิก
             </button>
             <button
               @click="handleSave"
               :disabled="saving"
-              class="px-4 py-2 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              class="btn-primary px-4 py-2 cursor-pointer"
             >
               {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
             </button>
@@ -668,10 +670,10 @@ async function handleSave() {
   try {
     if (editingRecord.value) {
       await update(editingRecord.value.equivalenceId, formData.value)
-      ui.showToast('อัปเดตสำเร็จ', 'success')
+      ui.showToast('อัปเดตแล้ว', 'success')
     } else {
       await create(formData.value)
-      ui.showToast('ยื่นคำขอสำเร็จ', 'success')
+      ui.showToast('ยื่นคำขอแล้ว', 'success')
     }
     closeModal()
     await fetchData()
@@ -711,7 +713,7 @@ async function handleApprove() {
       approvedStartDate: approveForm.value.approved_start_date,
       approvedEndDate: approveForm.value.approved_end_date,
     })
-    ui.showToast('อนุมัติสำเร็จ', 'success')
+    ui.showToast('อนุมัติแล้ว', 'success')
     showApproveModal.value = false
     approvingRecord.value = null
     await fetchData()
@@ -735,7 +737,7 @@ async function confirmReject(id) {
   saving.value = true
   try {
     await reject(id)
-    ui.showToast('ดำเนินการสำเร็จ', 'success')
+    ui.showToast('ดำเนินการแล้ว', 'success')
     await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')

@@ -23,7 +23,7 @@
             type="password"
             autocomplete="current-password"
             required
-            class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input mt-1"
           />
         </div>
 
@@ -37,7 +37,7 @@
             minlength="8"
             required
             aria-describedby="password-help"
-            class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input mt-1"
           />
           <p id="password-help" class="mt-1 text-xs text-gray-500">อย่างน้อย 8 ตัวอักษร และต้องไม่ซ้ำกับรหัสผ่านเดิม</p>
         </div>
@@ -51,14 +51,14 @@
             autocomplete="new-password"
             minlength="8"
             required
-            class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            class="input mt-1"
           />
         </div>
 
         <button
           type="submit"
           :disabled="submitting"
-          class="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          class="btn-primary w-full px-4 py-2.5 disabled:cursor-not-allowed"
         >
           {{ submitting ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่' }}
         </button>
@@ -101,7 +101,7 @@ async function submit() {
     // T4: เปลี่ยนรหัส = revoke ทุก session (รวม session ปัจจุบัน) — ต้อง login
     // ใหม่ด้วยรหัสผ่านใหม่ จึงบังคับออกจากระบบแทน push /dashboard
     auth.logout()
-    ui.showToast('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
+    ui.showToast('เปลี่ยนรหัสผ่านแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
     await router.push('/login')
   } catch (error) {
     errorMessage.value = error?.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้'

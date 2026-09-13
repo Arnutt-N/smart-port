@@ -2,7 +2,7 @@
   <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%)">
     <!-- #3: Background floating orbs for depth -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute top-1/4 -left-20 w-72 h-72 bg-blue-500/8 rounded-full blur-3xl animate-pulse"></div>
+      <div class="absolute top-1/4 -left-20 w-72 h-72 bg-primary-500/8 rounded-full blur-3xl animate-pulse"></div>
       <div class="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-500/6 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
       <div class="absolute top-3/4 left-1/3 w-48 h-48 bg-cyan-500/5 rounded-full blur-2xl animate-pulse" style="animation-delay: 2s;"></div>
     </div>
@@ -13,7 +13,7 @@
       <div class="rounded-3xl p-6 w-full shadow-2xl" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2);">
         <!-- Header -->
         <div class="text-center mb-6">
-          <div class="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+          <div class="mx-auto w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
             <Shield class="w-8 h-8 text-white" />
           </div>
           <h1 class="text-2xl font-bold text-gray-800 mb-2">ระบบสมุดพก</h1>
@@ -38,7 +38,7 @@
                 id="login-username"
                 v-model="form.username"
                 type="text"
-                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-3 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-3 text-gray-900 transition-shadow duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 placeholder="กรุณาใส่ชื่อผู้ใช้ของคุณ"
                 autocomplete="username"
               />
@@ -55,7 +55,7 @@
                 id="login-password"
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
-                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-10 text-gray-900 transition-shadow duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                class="block w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-10 text-gray-900 transition-shadow duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 placeholder="กรุณาใส่รหัสผ่านของคุณ"
                 autocomplete="current-password"
               />
@@ -73,12 +73,12 @@
           <!-- spacing like jsk-app: space-y-5 (20px) + submit mt-4 (16px) => 36px to button -->
           <div class="flex items-center justify-between gap-3 px-1">
             <label class="flex cursor-pointer items-center gap-2.5">
-              <input id="login-remember-me" type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <input id="login-remember-me" type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
               <span class="text-sm text-gray-600">จดจำฉัน</span>
             </label>
             <button
               type="button"
-              class="cursor-pointer shrink-0 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              class="cursor-pointer shrink-0 text-sm text-primary-600 hover:text-primary-700 hover:underline"
               @click="showAccountHelp('forgot')"
             >
               ลืมรหัสผ่าน?
@@ -98,8 +98,8 @@
           <button
             type="submit"
             :disabled="loading"
-            class="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/30 active:translate-y-0 disabled:opacity-50"
-            style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);"
+            class="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/30 active:translate-y-0 disabled:opacity-50"
+            style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);"
           >
             <Loader2 v-if="loading" class="h-5 w-5 animate-spin" />
             {{ loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ' }}
@@ -109,7 +109,7 @@
             ยังไม่มีบัญชี?
             <button
               type="button"
-              class="cursor-pointer font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              class="cursor-pointer font-medium text-primary-600 hover:text-primary-700 hover:underline"
               @click="showAccountHelp('register')"
             >
               สร้างบัญชีใหม่

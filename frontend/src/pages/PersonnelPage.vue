@@ -9,7 +9,7 @@
         v-if="isAdmin"
         type="button"
         @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer self-start"
+        class="btn-primary flex items-center gap-2 px-4 py-2 self-start"
       >
         <Plus class="w-4 h-4" />
         เพิ่มบุคลากร
@@ -31,7 +31,7 @@
             id="personnel-include-inactive"
             v-model="includeInactive"
             type="checkbox"
-            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             @change="onIncludeInactiveChange"
           />
           แสดงที่ปิดใช้งาน
@@ -47,7 +47,7 @@
         <button
           type="button"
           @click="fetchData"
-          class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors cursor-pointer"
+          class="btn-primary px-4 py-2"
         >
           ลองใหม่
         </button>
@@ -64,13 +64,13 @@
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เลขบัตร</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสพนักงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ตำแหน่ง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">หน่วยงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-              <th v-if="isAdmin" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เลขบัตร</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รหัสพนักงาน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่ง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">หน่วยงาน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th v-if="isAdmin" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
@@ -78,7 +78,7 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <RouterLink
                   :to="`/profile/${row.personnelId}`"
-                  class="text-sm font-medium text-blue-600 hover:text-blue-800"
+                  class="text-sm font-medium text-primary-600 hover:text-primary-700"
                 >
                   {{ row.fullName }}
                 </RouterLink>
@@ -118,16 +118,17 @@
       <div class="absolute inset-0 bg-black/40" @click="closeFormModal"></div>
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
         <h2 class="text-lg font-semibold text-gray-900">
-          {{ editingRow ? 'แก้ไขบุคลากร' : 'เพิ่มบุคลากรใหม่' }}
+          {{ viewingRow ? 'ดูข้อมูลบุคลากร' : (editingRow ? 'แก้ไขบุคลากร' : 'เพิ่มบุคลากรใหม่') }}
         </h2>
 
         <div class="space-y-3">
           <div>
-            <label for="personnel-prefix" class="block text-sm font-medium text-gray-700 mb-1">คำนำหน้า</label>
+            <label for="personnel-prefix" class="label">คำนำหน้า</label>
             <select
               id="personnel-prefix"
               v-model="formData.prefixId"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :disabled="!!viewingRow"
+              class="input"
             >
               <option :value="null">— ไม่ระบุ —</option>
               <option v-for="p in prefixes" :key="p.prefix_id" :value="Number(p.prefix_id)">
@@ -137,28 +138,30 @@
           </div>
 
           <div>
-            <label for="personnel-first-name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อ <span class="text-red-500">*</span></label>
+            <label for="personnel-first-name" class="label">ชื่อ <span class="text-red-500">*</span></label>
             <input
               id="personnel-first-name"
               v-model="formData.firstName"
               type="text"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :disabled="!!viewingRow"
+              class="input"
             />
           </div>
 
           <div>
-            <label for="personnel-last-name" class="block text-sm font-medium text-gray-700 mb-1">นามสกุล <span class="text-red-500">*</span></label>
+            <label for="personnel-last-name" class="label">นามสกุล <span class="text-red-500">*</span></label>
             <input
               id="personnel-last-name"
               v-model="formData.lastName"
               type="text"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :disabled="!!viewingRow"
+              class="input"
             />
           </div>
 
           <div>
-            <label for="personnel-citizen-id" class="block text-sm font-medium text-gray-700 mb-1">
-              เลขบัตรประชาชน <span v-if="!editingRow" class="text-red-500">*</span>
+            <label for="personnel-citizen-id" class="label">
+              เลขบัตรประชาชน <span v-if="!editingRow && !viewingRow" class="text-red-500">*</span>
             </label>
             <input
               id="personnel-citizen-id"
@@ -166,20 +169,21 @@
               type="text"
               maxlength="13"
               inputmode="numeric"
-              :disabled="!!editingRow"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+              :disabled="!!editingRow || !!viewingRow"
+              class="input disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="13 หลัก"
             />
             <p v-if="editingRow" class="text-xs text-gray-400 mt-1">เลขบัตรแก้ไขไม่ได้ — หากผิดให้ปิดใช้งานแล้วสร้างใหม่</p>
           </div>
 
           <div>
-            <label for="personnel-employee-id" class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน</label>
+            <label for="personnel-employee-id" class="label">รหัสพนักงาน</label>
             <input
               id="personnel-employee-id"
               v-model="formData.employeeId"
               type="text"
-              class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              :disabled="!!viewingRow"
+              class="input"
               placeholder="(ไม่บังคับ)"
             />
           </div>
@@ -187,20 +191,30 @@
 
         <div class="flex justify-end gap-2 pt-2">
           <button
+            v-if="viewingRow"
             type="button"
             @click="closeFormModal"
-            class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+            class="btn-secondary px-4 py-2"
           >
-            ยกเลิก
+            ปิด
           </button>
-          <button
-            type="button"
-            @click="submitForm"
-            :disabled="saving"
-            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            {{ saving ? 'กำลังบันทึก...' : (editingRow ? 'บันทึก' : 'สร้างบุคลากร') }}
-          </button>
+          <template v-else>
+            <button
+              type="button"
+              @click="closeFormModal"
+              class="btn-secondary px-4 py-2"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              @click="submitForm"
+              :disabled="saving"
+              class="btn-primary px-4 py-2"
+            >
+              {{ saving ? 'กำลังบันทึก...' : (editingRow ? 'บันทึก' : 'สร้างบุคลากร') }}
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -223,7 +237,7 @@
           <button
             type="button"
             @click="showToggleConfirm = false"
-            class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+            class="btn-secondary px-4 py-2"
           >
             ยกเลิก
           </button>
@@ -282,6 +296,7 @@ const { run: scheduleSearch } = useDebouncedCallback(() => {
 
 const showFormModal = ref(false)
 const editingRow = ref(null)
+const viewingRow = ref(null)
 const saving = ref(false)
 
 const defaultFormData = () => ({
@@ -298,6 +313,7 @@ const togglingRow = ref(null)
 
 function rowActions(row) {
   return [
+    { key: 'view', label: 'ดูรายละเอียด', onClick: () => openView(row) },
     { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
     {
       key: 'toggle',
@@ -347,12 +363,27 @@ function onIncludeInactiveChange() {
 
 function openCreate() {
   editingRow.value = null
+  viewingRow.value = null
   formData.value = defaultFormData()
+  showFormModal.value = true
+}
+
+function openView(row) {
+  viewingRow.value = row
+  editingRow.value = null
+  formData.value = {
+    prefixId: row.prefixId != null ? Number(row.prefixId) : null,
+    firstName: row.firstName || '',
+    lastName: row.lastName || '',
+    citizenId: row.citizenId || '',
+    employeeId: row.employeeId || '',
+  }
   showFormModal.value = true
 }
 
 function openEdit(row) {
   editingRow.value = row
+  viewingRow.value = null
   formData.value = {
     prefixId: row.prefixId != null ? Number(row.prefixId) : null,
     firstName: row.firstName || '',
@@ -366,6 +397,7 @@ function openEdit(row) {
 function closeFormModal() {
   showFormModal.value = false
   editingRow.value = null
+  viewingRow.value = null
 }
 
 function validateForm() {
@@ -384,6 +416,7 @@ function validateForm() {
 }
 
 async function submitForm() {
+  if (viewingRow.value) return
   if (!validateForm()) return
   saving.value = true
   try {
@@ -394,7 +427,7 @@ async function submitForm() {
         employeeId: formData.value.employeeId.trim(),
         prefixId: formData.value.prefixId,
       })
-      ui.showToast('บันทึกข้อมูลบุคลากรสำเร็จ', 'success')
+      ui.showToast('บันทึกข้อมูลบุคลากรแล้ว', 'success')
     } else {
       await create({
         firstName: formData.value.firstName.trim(),
@@ -403,7 +436,7 @@ async function submitForm() {
         employeeId: formData.value.employeeId.trim(),
         prefixId: formData.value.prefixId,
       })
-      ui.showToast('สร้างบุคลากรสำเร็จ', 'success')
+      ui.showToast('สร้างบุคลากรแล้ว', 'success')
     }
     closeFormModal()
     fetchData()
@@ -424,7 +457,7 @@ async function submitToggleActive() {
   try {
     const activating = !togglingRow.value.isActive
     await update(togglingRow.value.personnelId, { isActive: activating })
-    ui.showToast(activating ? 'เปิดใช้งานสำเร็จ' : 'ปิดใช้งานสำเร็จ', 'success')
+    ui.showToast(activating ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว', 'success')
     showToggleConfirm.value = false
     togglingRow.value = null
     fetchData()
@@ -442,10 +475,17 @@ onMounted(async () => {
     prefixes.value = []
     ui.showToast('โหลดรายการคำนำหน้าไม่สำเร็จ', 'error')
   }
-  fetchData()
-  if (isAdmin.value && shouldOpenPersonnelMasterCreate(route.query)) {
-    openCreate()
-    router.replace({ query: {} })
+  const q = String(route.query.search ?? '').trim()
+  if (q) {
+    searchQuery.value = q
+    pagination.value.offset = 0
   }
+      fetchData()
+      if (isAdmin.value && shouldOpenPersonnelMasterCreate(route.query)) {
+        openCreate()
+        router.replace({ query: {} })
+      } else if (q) {
+        router.replace({ query: {} })
+      }
 })
 </script>

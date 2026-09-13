@@ -5,7 +5,7 @@
         <h1 class="text-2xl font-bold text-gray-900">การวิเคราะห์ข้อมูล</h1>
         <p class="text-sm text-gray-500 mt-1">ภาพรวมเชิงสถิติของข้อมูลบุคลากรและผลงาน</p>
       </div>
-      <button @click="fetchData" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+      <button @click="fetchData" class="btn-primary flex items-center space-x-2 px-4 py-2">
         <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
         <span>รีเฟรช</span>
       </button>
@@ -20,7 +20,7 @@
       :description="error"
     >
       <button
-        class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        class="btn-primary mt-4"
         @click="fetchData"
       >
         ลองใหม่อีกครั้ง
@@ -56,7 +56,7 @@ import { Users, Award, Medal, FileText, CalendarClock, RefreshCw, AlertCircle } 
 
 // Inline distribution bar card — CSS bars, no chart library.
 const DistributionCard = {
-  props: { title: String, items: Array, barClass: { type: String, default: 'bg-blue-500' } },
+  props: { title: String, items: Array, barClass: { type: String, default: 'bg-primary-500' } },
   setup(props) {
     const max = computed(() => Math.max(1, ...props.items.map(i => i.count)))
     return () => h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6' }, [

@@ -50,14 +50,14 @@
           <div class="mt-6 flex justify-end gap-3">
             <button
               type="button"
-              class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              class="btn-secondary px-4 py-2"
               @click="cancel"
             >
               {{ state.cancelLabel }}
             </button>
             <button
               type="button"
-              class="rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer"
+              class="rounded-md px-4 py-2 text-sm font-medium text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
               :class="confirmBtnClass"
               @click="accept"
             >
@@ -85,19 +85,19 @@ const icon = computed(() => {
 })
 
 const iconWrapClass = computed(() => {
-  if (state.variant === 'primary') return 'bg-blue-100'
+  if (state.variant === 'primary') return 'bg-primary-100'
   if (state.variant === 'warning') return 'bg-amber-100'
   return 'bg-red-100'
 })
 
 const iconClass = computed(() => {
-  if (state.variant === 'primary') return 'text-blue-600'
+  if (state.variant === 'primary') return 'text-primary-600'
   if (state.variant === 'warning') return 'text-amber-600'
   return 'text-red-600'
 })
 
 const confirmBtnClass = computed(() => {
-  if (state.variant === 'primary') return 'bg-blue-600 hover:bg-blue-700'
+  if (state.variant === 'primary') return 'bg-primary-500 hover:bg-primary-600'
   if (state.variant === 'warning') return 'bg-amber-600 hover:bg-amber-700'
   return 'bg-red-600 hover:bg-red-700'
 })

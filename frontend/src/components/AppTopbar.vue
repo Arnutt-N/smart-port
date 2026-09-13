@@ -15,8 +15,10 @@
     <div class="relative" ref="dropdownRef">
       <button
         @click="dropdownOpen = !dropdownOpen"
-        class="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+        class="flex items-center gap-2 p-1 min-h-11 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         aria-label="เมนูผู้ใช้"
+        aria-haspopup="menu"
+        :aria-expanded="dropdownOpen"
       >
         <div class="relative">
           <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
@@ -45,14 +47,14 @@
           <div class="py-1">
             <button
               @click="navigateTo('/profile')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <User class="w-4 h-4 text-gray-400" />
               โปรไฟล์
             </button>
             <button
               @click="navigateTo('/settings/account')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <Settings class="w-4 h-4 text-gray-400" />
               ตั้งค่า
@@ -60,7 +62,7 @@
             <button
               v-if="auth.isAdmin"
               @click="navigateTo('/users')"
-              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <Shield class="w-4 h-4 text-gray-400" />
               ผู้ดูแล
@@ -71,7 +73,7 @@
           <div class="border-t border-gray-100 py-1">
             <button
               @click="handleLogout"
-              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+              class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
             >
               <LogOut class="w-4 h-4" />
               ออกจากระบบ

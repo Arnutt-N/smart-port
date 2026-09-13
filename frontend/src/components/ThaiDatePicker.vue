@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="rootRef" class="relative w-full">
     <div
-      class="flex items-center gap-1 w-full px-2 py-2 border rounded-lg text-sm bg-white transition-colors focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+      class="flex items-center gap-1 w-full px-2 py-2 text-sm bg-white transition-colors input focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500"
       :class="displayError ? 'border-red-300' : 'border-gray-300'"
     >
       <input
@@ -259,11 +259,11 @@ onBeforeUnmount(() => {
         class="flex-1 min-w-[3rem] text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
         @input="onInput('year', $event)" @blur="onBlur" @focus="isEditing = true"
       />
-      <div class="flex items-center gap-0.5 shrink-0">
+      <div class="flex items-center shrink-0">
         <Check v-if="hasValue && !isEditing && !localError" class="w-4 h-4 text-emerald-500" aria-hidden="true" />
         <button
           v-if="hasValue" type="button" :disabled="disabled" aria-label="ล้างวันที่"
-          class="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+          class="dropdown-trigger"
           @click="clearValue"
         >
           <X class="w-4 h-4" />
@@ -271,8 +271,8 @@ onBeforeUnmount(() => {
         <button
           type="button" :disabled="disabled" aria-haspopup="dialog" :aria-expanded="isOpen"
           aria-label="เปิดปฏิทินเลือกวันที่"
-          class="p-1 rounded transition-colors disabled:opacity-50"
-          :class="isOpen ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'"
+          class="dropdown-trigger"
+          :class="isOpen ? 'bg-primary-500 text-white' : ''"
           @click="openCalendar"
         >
           <Calendar class="w-[18px] h-[18px]" />
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
             class="flex-1 mx-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors font-semibold text-gray-900"
             @click="openYearView"
           >
-            {{ viewMonthLabel }} <span class="text-blue-600">{{ viewYearBE }}</span>
+            {{ viewMonthLabel }} <span class="text-primary-600">{{ viewYearBE }}</span>
           </button>
           <button
             v-else type="button" aria-label="กลับมุมมองวัน"
@@ -332,11 +332,11 @@ onBeforeUnmount(() => {
               <div v-if="cell.pad" />
               <button
                 v-else type="button"
-                class="h-9 w-9 rounded-lg text-sm font-medium transition-colors"
+                class="h-9 w-9 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 :class="cell.isSel
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-primary-600 text-white'
                   : cell.isToday
-                    ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-200'
+                    ? 'bg-primary-50 text-primary-600 ring-1 ring-primary-200'
                     : 'text-gray-700 hover:bg-gray-100'"
                 :aria-label="`${cell.day} ${viewMonthLabel} ${viewYearBE}`"
                 :aria-current="cell.isToday ? 'date' : undefined"
@@ -348,11 +348,11 @@ onBeforeUnmount(() => {
         <div v-else class="grid grid-cols-4 gap-2 py-1">
           <button
             v-for="yc in yearCells" :key="yc.be" type="button"
-            class="h-11 rounded-lg text-sm font-medium transition-colors"
+            class="h-11 rounded-lg text-sm font-medium transition-colors cursor-pointer"
             :class="yc.isSel
-              ? 'bg-blue-600 text-white'
+              ? 'bg-primary-600 text-white'
               : yc.isCurrent
-                ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-200'
+                ? 'bg-primary-50 text-primary-600 ring-1 ring-primary-200'
                 : 'text-gray-700 hover:bg-gray-100'"
             :aria-label="`พ.ศ. ${yc.be}`"
             @click="pickYear(yc.be)"
@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
         <div class="mt-3 pt-2 border-t border-gray-100 flex justify-center">
           <button
             type="button"
-            class="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
             @click="pickToday"
           >วันนี้ ({{ todayLabel }})</button>
         </div>

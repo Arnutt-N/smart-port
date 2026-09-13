@@ -9,7 +9,7 @@
       </div>
       <button
         @click="openCreateModal"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+        class="btn-primary flex items-center gap-2 px-4 py-2"
       >
         <Plus class="w-4 h-4" />
         เพิ่มรายการ
@@ -69,13 +69,13 @@
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จาก</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ไป</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนต่าง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันครบ 3 ต่าง</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จาก</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ไป</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนต่าง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันครบ 3 ต่าง</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -103,10 +103,13 @@
               </td>
             </tr>
             <tr v-if="rows.length === 0 && !loading">
-              <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                <FileText class="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p class="font-medium">ไม่พบข้อมูล</p>
-                <p class="text-sm mt-1">ยังไม่มีรายการแตกต่าง หรือไม่พบข้อมูลที่ตรงกับการค้นหา</p>
+              <td colspan="7" class="px-0 py-0">
+                <EmptyState
+                  title="ไม่พบข้อมูล"
+                  description="ยังไม่มีรายการแตกต่าง หรือไม่พบข้อมูลที่ตรงกับการค้นหา"
+                  action-label="เพิ่มรายการ"
+                  @action="openCreateModal"
+                />
               </td>
             </tr>
           </tbody>
@@ -149,7 +152,7 @@
                 type="text"
                 id="diverse-personnel-search"
                 placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="input"
                 :class="{ 'border-red-500': validationErrors.personnel_id }"
               />
               <!-- Autocomplete dropdown -->
@@ -179,7 +182,7 @@
                 <RouterLink
                   v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
                   :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-blue-600 hover:text-blue-800 underline"
+                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
                 >
                   {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
                 </RouterLink>
@@ -200,22 +203,22 @@
                   v-model="formData.from_job_series"
                   type="text"
                   id="diverse-from-job-series"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="input"
                   :class="{ 'border-red-500': validationErrors.from_job_series }"
                 />
                 <p v-if="validationErrors.from_job_series" class="text-red-500 text-xs mt-1">{{ validationErrors.from_job_series }}</p>
               </div>
               <div>
                 <label for="diverse-from-work-group" class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
-                <input v-model="formData.from_work_group" id="diverse-from-work-group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.from_work_group" id="diverse-from-work-group" type="text" class="input" />
               </div>
               <div>
                 <label for="diverse-from-division" class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
-                <input v-model="formData.from_division" id="diverse-from-division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.from_division" id="diverse-from-division" type="text" class="input" />
               </div>
               <div>
                 <label for="diverse-from-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
-                <input v-model="formData.from_province" id="diverse-from-province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.from_province" id="diverse-from-province" type="text" class="input" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
@@ -246,22 +249,22 @@
                   v-model="formData.to_job_series"
                   type="text"
                   id="diverse-to-job-series"
-                  class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="input"
                   :class="{ 'border-red-500': validationErrors.to_job_series }"
                 />
                 <p v-if="validationErrors.to_job_series" class="text-red-500 text-xs mt-1">{{ validationErrors.to_job_series }}</p>
               </div>
               <div>
                 <label for="diverse-to-work-group" class="block text-sm font-medium text-gray-700 mb-1">กลุ่มงาน</label>
-                <input v-model="formData.to_work_group" id="diverse-to-work-group" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.to_work_group" id="diverse-to-work-group" type="text" class="input" />
               </div>
               <div>
                 <label for="diverse-to-division" class="block text-sm font-medium text-gray-700 mb-1">ส่วน/ฝ่าย</label>
-                <input v-model="formData.to_division" id="diverse-to-division" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.to_division" id="diverse-to-division" type="text" class="input" />
               </div>
               <div>
                 <label for="diverse-to-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด</label>
-                <input v-model="formData.to_province" id="diverse-to-province" type="text" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input v-model="formData.to_province" id="diverse-to-province" type="text" class="input" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น <span class="text-red-500">*</span></label>
@@ -289,19 +292,19 @@
             <h4 class="font-medium text-gray-700 mb-3">ความแตกต่าง 4 มิติ</h4>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex items-center gap-2">
-                <input id="diverse-diff-job-series" type="checkbox" v-model="formData.is_diff_job_series" class="rounded text-blue-500">
+                <input id="diverse-diff-job-series" type="checkbox" v-model="formData.is_diff_job_series" class="rounded text-primary-600">
                 <span>สายงานต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input id="diverse-diff-org" type="checkbox" v-model="formData.is_diff_org" class="rounded text-blue-500">
+                <input id="diverse-diff-org" type="checkbox" v-model="formData.is_diff_org" class="rounded text-primary-600">
                 <span>หน่วยงานต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input id="diverse-diff-location" type="checkbox" v-model="formData.is_diff_location" class="rounded text-blue-500">
+                <input id="diverse-diff-location" type="checkbox" v-model="formData.is_diff_location" class="rounded text-primary-600">
                 <span>พื้นที่ต่างกัน</span>
               </label>
               <label class="flex items-center gap-2">
-                <input id="diverse-diff-work-nature" type="checkbox" v-model="formData.is_diff_work_nature" class="rounded text-blue-500">
+                <input id="diverse-diff-work-nature" type="checkbox" v-model="formData.is_diff_work_nature" class="rounded text-primary-600">
                 <span>ลักษณะงานต่างกัน</span>
               </label>
             </div>
@@ -325,7 +328,7 @@
             <button
               type="submit"
               :disabled="submitting"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+              class="btn-primary px-4 py-2"
             >
               {{ submitting ? 'กำลังบันทึก...' : (editingRow ? 'บันทึกการแก้ไข' : 'บันทึก') }}
             </button>
@@ -603,10 +606,10 @@ async function handleSubmit() {
 
     if (editingRow.value) {
       await update(editingRow.value.experienceId, payload)
-      ui.showToast('แก้ไขรายการสำเร็จ', 'success')
+      ui.showToast('แก้ไขรายการแล้ว', 'success')
     } else {
       await create(payload)
-      ui.showToast('เพิ่มรายการสำเร็จ', 'success')
+      ui.showToast('เพิ่มรายการแล้ว', 'success')
     }
     closeModal()
     await fetchData()
@@ -628,7 +631,7 @@ async function confirmDelete(row) {
   submitting.value = true
   try {
     await remove(row.experienceId)
-    ui.showToast('ลบรายการสำเร็จ', 'success')
+    ui.showToast('ลบรายการแล้ว', 'success')
     await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'ไม่สามารถลบรายการได้', 'error')

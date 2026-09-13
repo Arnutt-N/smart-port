@@ -254,29 +254,30 @@ describe('CandidateListsPage', () => {
     wrapper.unmount()
   })
 
-  it('provides view/edit/delete actions for admin and navigates edit to profile', async () => {
+  it('provides view-only action for every role', async () => {
     mockFetchByLevel.mockResolvedValue(byLevelPayload)
-    const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
-    await flushPromises()
-
-    const keys = wrapper.vm.rowActions(byLevelPayload.data[0]).map((a) => a.key)
-    expect(keys).toEqual(['view', 'edit', 'delete'])
-
-    wrapper.vm.openEdit(byLevelPayload.data[0])
-    expect(mockPush).toHaveBeenCalledWith('/profile/10')
+    for (const role of ['admin', 'operator', 'viewer']) {
+      setActivePinia(createPinia())
+      useAuthStore().user = { id: 1, role }
+      const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
+      await flushPromises()
+      expect(wrapper.vm.rowActions(byLevelPayload.data[0]).map((a) => a.key)).toEqual(['view'])
+      wrapper.unmount()
+    }
   })
 
-  it('deactivates personnel after delete confirmation', async () => {
+  it('deep link navigates to personnel with the search query', async () => {
     mockFetchByLevel.mockResolvedValue(byLevelPayload)
-    mockDeactivatePersonnel.mockResolvedValue({ success: true })
     const wrapper = mount(CandidateListsPage, { props: { section: 'general' } })
     await flushPromises()
-    mockFetchByLevel.mockClear()
 
-    await wrapper.vm.confirmDelete(byLevelPayload.data[0])
-    expect(mockConfirmDelete).toHaveBeenCalled()
-    expect(mockDeactivatePersonnel).toHaveBeenCalledWith(10)
-    expect(mockFetchByLevel).toHaveBeenCalled()
+    wrapper.vm.openView(byLevelPayload.data[0])
+    await nextTick()
+    wrapper.vm.goToPersonnelMaster()
+    expect(mockPush).toHaveBeenCalledWith({
+      path: '/personnel',
+      query: { search: byLevelPayload.data[0].name },
+    })
   })
 
   it('changes page via PaginationBar and fetches with new offset', async () => {

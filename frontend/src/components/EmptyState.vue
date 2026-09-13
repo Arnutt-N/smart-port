@@ -8,7 +8,7 @@
     <slot />
     <button
       v-if="actionLabel"
-      class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+      class="btn-primary mt-4"
       @click="emit('action')"
     >
       {{ actionLabel }}

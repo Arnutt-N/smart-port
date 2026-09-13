@@ -60,7 +60,7 @@ describe('ChangePasswordPage', () => {
     expect(changePassword).toHaveBeenCalledWith('temporary-password', 'new-secure-password')
     // T4: เปลี่ยนรหัส = revoke ทุก session — บังคับ login ใหม่พร้อม toast แจ้ง
     expect(logout).toHaveBeenCalledTimes(1)
-    expect(showToast).toHaveBeenCalledWith('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
+    expect(showToast).toHaveBeenCalledWith('เปลี่ยนรหัสผ่านแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')
     expect(push).toHaveBeenCalledWith('/login')
   })
 
