@@ -133,3 +133,6 @@ document-ocr/input/
 document-ocr/output/
 # worktree ของ agent ภายนอก (delegate-cli-agents) — ไม่ใช่ส่วนหนึ่งของ repo
 .worktrees/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/
