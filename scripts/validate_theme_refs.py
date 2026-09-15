@@ -25,7 +25,7 @@ def collect_defs(theme_paths):
     for tp in theme_paths:
         p = Path(tp)
         if p.is_file():
-            for m in DEF.finditer(p.read_text()):
+            for m in DEF.finditer(p.read_text(encoding="utf-8")):
                 defined.add(m.group(1))
     return defined
 
@@ -58,7 +58,7 @@ def main(argv):
     missing = []
     for f in iter_files(code_paths):
         try:
-            text = f.read_text()
+            text = f.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
         for n, line in enumerate(text.splitlines(), 1):

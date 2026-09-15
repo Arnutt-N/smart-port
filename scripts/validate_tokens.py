@@ -80,7 +80,7 @@ def main(argv=()):
     parsed = {}
     for f in files:
         try:
-            data = json.loads(f.read_text())
+            data = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
             errors.append(f"{f.name}: invalid JSON — {e}")
             continue

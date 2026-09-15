@@ -123,7 +123,7 @@ def check_rules():
         if not (TPL / m).exists():
             issues.append(f"rules: CLAUDE.md points at {m}, which does not exist")
     for rule in sorted((TPL / ".claude" / "rules").glob("*.md")):
-        for script in re.findall(r"scripts/([a-z_]+\.(?:mjs|py))", rule.read_text(encoding="utf-8")):
+        for script in re.findall(r"scripts/([a-z0-9_-]+\.(?:mjs|py))", rule.read_text(encoding="utf-8")):
             if not (ROOT / "scripts" / script).exists():
                 issues.append(f"rules: {rule.name} points at scripts/{script}, which does not exist")
     return issues

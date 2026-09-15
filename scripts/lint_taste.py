@@ -43,7 +43,7 @@ def iter_files(paths):
 def lint(f):
     out = []
     try:
-        text = f.read_text()
+        text = f.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return out
     for n, line in enumerate(text.splitlines(), 1):

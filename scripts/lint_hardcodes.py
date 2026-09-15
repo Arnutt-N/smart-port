@@ -108,7 +108,7 @@ def main(argv):
     violations = 0
     for f in files:
         try:
-            text = f.read_text()
+            text = f.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
         in_allow = False
