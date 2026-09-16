@@ -8,3 +8,6 @@ Dockerfile* text eol=lf
 # assert SQL ถูกส่งเข้า mysql client ผ่าน `docker exec -i` stdin ทั้งจาก Linux runner และ
 # Windows — คง LF กันเส้นทาง encoding/line-ending เพี้ยนต่างกันระหว่างสองฝั่ง
 scripts/sql/*.sql text eol=lf
+# vendored axe-core ต้องคง bytes เดิมเสมอ — axe_audit.mjs pin sha256 ของไฟล์นี้ไว้
+# CRLF conversion เปลี่ยน bytes → hash mismatch → gate ล้มบน fresh clone
+scripts/vendor/*.min.js -text
