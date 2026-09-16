@@ -15,6 +15,7 @@ RapidOCR); conversion runs in a worker thread so /health stays responsive.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import tempfile
 import time
@@ -61,14 +62,25 @@ def _purge_stale_tmp() -> None:
 
 _purge_stale_tmp()
 
+# Issue #147: service นี้เป็น public URL บน Render — auth gate อยู่ใน ocr_auth.py
+# (fail-closed: ไม่ตั้ง OCR_SHARED_SECRET = ปฏิเสธทุก /convert; /health เปิดไว้
+# เพราะ Render healthCheckPath ต้องเข้าถึงได้ ตอบแค่สถานะ ไม่พิน pointer อะไร)
+from ocr_auth import auth_state, request_authorized  # noqa: E402
+
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "auth": auth_state()}
 
 
 @app.post("/convert")
 async def convert(request: Request):
+    if not request_authorized(request.headers.get):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "unauthorized: missing or wrong X-OCR-Secret header",
+                     "code": "OCR_UNAUTHORIZED"},
+        )
     filename = request.headers.get("x-filename", "upload.pdf")
     content = await request.body()
     if not content:
@@ -160,8 +172,9 @@ def _run_chain(pdf_path: Path, original_name: str) -> dict:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--host", default="127.0.0.1")
-    p.add_argument("--port", type=int, default=8100)
+    p.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
+    # Render ใส่ PORT มาให้ใน env — default ของ CLI ยังเป็น 8100 เหมือนเดิมสำหรับ local
+    p.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8100")))
     args = p.parse_args()
     uvicorn.run(app, host=args.host, port=args.port)
 

@@ -106,3 +106,35 @@ services:
       # ต้องยาว >= 32 ตัวอักษร ไม่งั้นถูกปฏิเสธเป็น 503 เหมือนกัน (backend/routes/csp_summary.php)
       - key: CSP_SUMMARY_TOKEN
         sync: false
+      # Issue #147: ชี้ไป OCR service — ค่าจริง (https://smartport-ocr.onrender.com)
+      # ตั้งบน dashboard เท่านั้น sync: false; ไม่ตั้ง = /ocr/* ตอบ 503 OCR_NOT_CONFIGURED
+      - key: OCR_SERVER_URL
+        sync: false
+      # shared secret ที่ ocr.php ใส่เป็น header X-OCR-Secret — ต้องตรงกับฝั่ง smartport-ocr
+      - key: OCR_SHARED_SECRET
+        sync: false
+
+  # Issue #147: OCR service (FastAPI — document-ocr/) ที่ backend ส่งต่อ PDF เข้าไป
+  # Chain: Docling (ไม่ติดตั้งใน image — ตก tier ถัดไปเอง) → pypdfium2 text-layer → RapidOCR
+  # Free plan = sleep หลัง 15 นาทีไม่มี request → cold start ~1 นาทีครั้งแรกหลังตื่น
+  # (PHP convert timeout 3600s รอไหว / health 5s จะเห็น 503 ช่วงปลุก — รีเทสต์อีกรอบคือวิธีใช้)
+  - type: web
+    name: smartport-ocr
+    runtime: docker
+    branch: main
+    region: singapore
+    plan: free
+    rootDir: document-ocr
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - document-ocr/**
+        - render.yaml
+    envVars:
+      # ไม่ตั้ง = service ปฏิเสธทุก /convert (fail-closed ฝั่ง Python เช่นกัน)
+      # ต้องตรงกับ OCR_SHARED_SECRET ของ smartport-backend
+      - key: OCR_SHARED_SECRET
+        sync: false
