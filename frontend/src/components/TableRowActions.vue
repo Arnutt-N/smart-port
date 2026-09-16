@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootEl" class="relative inline-flex items-center justify-end gap-1" data-table-row-actions>
+  <div ref="rootEl" class="relative inline-flex items-center justify-end gap-0.5" data-table-row-actions>
     <template v-if="useMenu">
       <button
         type="button"
@@ -43,7 +43,7 @@
         v-for="action in visibleActions"
         :key="action.key"
         type="button"
-        class="p-2 min-w-11 min-h-11 inline-flex items-center justify-center transition-colors cursor-pointer rounded disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        class="p-1.5 min-w-11 min-h-11 inline-flex items-center justify-center transition-colors cursor-pointer rounded disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         :class="iconButtonClass(action)"
         :title="action.label"
         :aria-label="action.label"
@@ -88,26 +88,33 @@ function resolveIcon(action) {
   return action.icon || DEFAULT_ICONS[action.key] || Eye
 }
 
+function variantOf(action) {
+  if (action.variant) return action.variant
+  if (action.key === 'delete') return 'danger'
+  if (action.key === 'edit') return 'edit'
+  return 'default'
+}
+
+// สี hover ตาม intent ของ action (token BY INTENT): ดู=น้ำเงิน, แก้ไข=เหลืองอำพัน, ลบ=แดง
 function iconButtonClass(action) {
-  const variant = action.variant || (action.key === 'delete' ? 'danger' : 'default')
-  if (variant === 'danger') return 'text-government-400 hover:text-red-600'
-  if (variant === 'success') return 'text-government-400 hover:text-green-600'
-  if (variant === 'warning') return 'text-government-400 hover:text-amber-600'
-  return 'text-government-400 hover:text-primary-600'
+  const variant = variantOf(action)
+  if (variant === 'danger') return 'text-government-400 hover:text-red-600 hover:bg-red-50'
+  if (variant === 'success') return 'text-government-400 hover:text-green-600 hover:bg-green-50'
+  if (variant === 'warning' || variant === 'edit') return 'text-government-400 hover:text-amber-600 hover:bg-amber-50'
+  return 'text-government-400 hover:text-primary-600 hover:bg-primary-50'
 }
 
 function menuItemClass(action) {
-  const variant = action.variant || (action.key === 'delete' ? 'danger' : 'default')
+  const variant = variantOf(action)
   if (variant === 'danger') return 'text-red-600 hover:bg-red-50'
   if (variant === 'success') return 'text-green-700 hover:bg-green-50'
-  if (variant === 'warning') return 'text-amber-700 hover:bg-amber-50'
+  if (variant === 'warning' || variant === 'edit') return 'text-amber-700 hover:bg-amber-50'
   return 'text-government-700 hover:bg-primary-50'
 }
 
 function showSeparatorBefore(action, index) {
   if (index === 0) return false
-  const variant = action.variant || (action.key === 'delete' ? 'danger' : 'default')
-  return variant === 'danger'
+  return variantOf(action) === 'danger'
 }
 
 function runAction(action) {
