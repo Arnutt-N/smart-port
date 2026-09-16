@@ -85,7 +85,7 @@
             <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
               <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
             </div>
-            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-700"></div>
+            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900"></div>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
