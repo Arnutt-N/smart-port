@@ -1,10 +1,10 @@
 <template>
   <aside
-    class="w-64 bg-gray-800 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out flex flex-col sidebar-scroll overflow-y-auto"
+    class="w-64 bg-gray-900 h-screen fixed left-0 top-0 z-30 transform transition-transform duration-300 ease-in-out flex flex-col sidebar-scroll overflow-y-auto"
     :class="open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
   >
     <!-- Header: logo ชิดซ้าย, ชื่อแบรนด์กึ่งกลาง -->
-    <div class="relative flex items-center h-16 min-h-16 bg-gray-900">
+    <div class="relative flex items-center h-16 min-h-16 border-b border-white/5">
       <div class="absolute left-4">
         <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
           <BookOpen class="w-4 h-4 text-white" />
@@ -26,7 +26,7 @@
           {{ section.label }}
         </div>
 
-        <div class="space-y-2 mb-2">
+        <div class="space-y-1 mb-2">
           <template v-for="item in section.items" :key="item.id">
             <!-- Item with submenu -->
             <div v-if="item.children">
@@ -35,7 +35,7 @@
                 class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 :class="isParentActive(item)
                   ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
-                  : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
+                  : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
               >
                 <component :is="item.icon" class="w-5 h-5 mr-3" />
                 <span class="text-sm font-medium flex-1">{{ item.label }}</span>
@@ -52,7 +52,7 @@
                   class="w-full flex items-center px-3 py-2 min-h-11 text-left rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   :class="route.path === child.to
                     ? 'bg-blue-500/10 text-blue-400 font-medium'
-                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'"
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'"
                 >
                   <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
                   <span class="text-xs font-medium">{{ child.label }}</span>
@@ -67,7 +67,7 @@
               class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
                 ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
-                : 'text-gray-300 hover:bg-gray-700/50 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
+                : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
             >
               <component :is="item.icon" class="w-5 h-5 mr-3" />
               <span class="text-sm font-medium">{{ item.label }}</span>
@@ -78,8 +78,8 @@
     </nav>
 
     <!-- User Card -->
-    <div class="p-4">
-      <div class="bg-gray-700 rounded-lg p-4">
+    <div class="p-4 border-t border-white/5">
+      <div class="bg-white/5 rounded-lg p-4">
         <div class="flex items-center space-x-3">
           <div class="relative">
             <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
