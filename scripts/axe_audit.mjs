@@ -8,11 +8,14 @@
  * Usage: node scripts/axe_audit.mjs <file.html> [--dark]
  * Exit 1 if any serious/critical violation (or any AA violation).
  *
- * Requires Playwright (skips cleanly if absent). axe-core is injected from
- * node_modules if present, else from a pinned CDN build (Chrome has network).
+ * Requires Playwright (skips cleanly if absent). axe-core loads from
+ * node_modules if present, else the vendored copy in scripts/vendor/ (pinned
+ * to 4.10.2, sha256-checked at load) — no CDN, no network trust.
  */
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 let chromium;
 try { ({ chromium } = await import('playwright')); }
 catch {
@@ -34,12 +37,23 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 await page.goto('file://' + resolve(file), { waitUntil: 'networkidle' }).catch(() => {});
 if (dark) await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
 
+const VENDORED_AXE = resolve(dirname(fileURLToPath(import.meta.url)), 'vendor', 'axe.min.js');
+const VENDORED_AXE_SHA256 = 'b511cd9dec01c76f4b2ad1723b66b6db37d4c2eb4ed199076e1829d9ee7b75e3'; // axe-core 4.10.2
+
 const localAxe = resolve('node_modules/axe-core/axe.min.js');
 try {
-  if (existsSync(localAxe)) await page.addScriptTag({ path: localAxe });
-  else await page.addScriptTag({ url: 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js' });
-} catch {
-  console.log('axe_audit: could not load axe-core (no local copy + no network) — SKIPPED');
+  if (existsSync(localAxe)) {
+    await page.addScriptTag({ path: localAxe });
+  } else {
+    // vendored copy: verify the pin before injecting — a corrupted or swapped
+    // vendor file must fail loudly, not silently audit with the wrong ruleset
+    const buf = readFileSync(VENDORED_AXE);
+    const hash = createHash('sha256').update(buf).digest('hex');
+    if (hash !== VENDORED_AXE_SHA256) throw new Error(`vendor sha256 mismatch: ${hash}`);
+    await page.addScriptTag({ content: buf.toString('utf8') });
+  }
+} catch (e) {
+  console.log(`axe_audit: could not load axe-core (${e.message || e}) — SKIPPED`);
   await browser.close(); process.exit(0);
 }
 
