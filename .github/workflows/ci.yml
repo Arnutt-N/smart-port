@@ -145,6 +145,34 @@ jobs:
       - name: Script regressions (offline mock servers)
         run: node --test scripts/tests/*.test.mjs
 
+  # Design-system gates (PR #195 follow-up) — mirror ของบล็อก design gates ใน
+  # .githooks/pre-push (ที่บังคับจริงทุก push ขณะ auto-trigger ปิดอยู่) + smoke
+  # ว่า build_tokens.mjs emit ครบทุกกลุ่ม ไม่ใช่เฉพาะสี (regression ของ HIGH รอบ review)
+  design-gates:
+    name: Design System Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Token, contrast, spec, template, surface, and emoji gates
+        run: |
+          python scripts/validate_tokens.py
+          python scripts/validate_contrast.py
+          python scripts/validate_component_spec.py
+          python scripts/validate_theme_refs.py
+          python scripts/validate_template.py
+          python scripts/validate_instruction_surface.py
+          python scripts/check_no_emoji.py
+      - name: Token build smoke (full var set, not colours-only)
+        run: |
+          node scripts/build_tokens.mjs --out /tmp/theme.css
+          grep -q -- '--space-4' /tmp/theme.css
+          grep -q -- '--text-sm' /tmp/theme.css
+          grep -q -- '--radius-card' /tmp/theme.css
+          grep -q -- '--duration-fast' /tmp/theme.css
+
   # A2 (review finding 2026-08-20): tidb-init.sql คือ bootstrap ตัวจริงของ production
   # (Render ตั้ง RUN_MIGRATIONS=0) แต่ไม่เคยถูก execute จริง — validator เทียบชื่อเป็น
   # สตริงเท่านั้น จับ syntax error / FK ลำดับ / INSERT seed พัง / view compile ไม่ได้
