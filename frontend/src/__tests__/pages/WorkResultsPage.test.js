@@ -1,16 +1,27 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth.js'
 
 const mockFetchList = vi.fn()
+const mockCreate = vi.fn()
+const mockUpdate = vi.fn()
+const mockRemove = vi.fn()
 
 vi.mock('@/composables/useWorkResults.js', () => ({
-  useWorkResults: () => ({ fetchList: mockFetchList }),
+  useWorkResults: () => ({
+    fetchList: mockFetchList,
+    create: mockCreate,
+    update: mockUpdate,
+    remove: mockRemove,
+  }),
 }))
 
 const WorkResultsPage = (await import('@/pages/WorkResultsPage.vue')).default
 
 const sampleRow = {
   proposalId: 1,
+  personnelId: 5,
   title: 'ผลงานเด่น',
   personnelName: 'สมชาย ใจดี',
   proposalType: 'improvement',
@@ -26,7 +37,10 @@ function resolvedData(rows = [sampleRow]) {
   })
 }
 
-async function mountPage() {
+async function mountPage(role = 'admin') {
+  setActivePinia(createPinia())
+  const auth = useAuthStore()
+  auth.user = { id: 1, role }
   const wrapper = mount(WorkResultsPage)
   await vi.waitFor(() => expect(mockFetchList).toHaveBeenCalled())
   await wrapper.vm.$nextTick()
@@ -48,6 +62,26 @@ describe('WorkResultsPage', () => {
     const wrapper = await mountPage()
     expect(wrapper.text()).toContain('ผลงานเด่น')
     expect(wrapper.text()).toContain('สมชาย ใจดี')
+  })
+
+  it('shows add button for admin and opens create modal', async () => {
+    const wrapper = await mountPage('admin')
+    expect(wrapper.text()).toContain('เพิ่มผลงาน')
+    wrapper.vm.openCreate()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.showFormModal).toBe(true)
+  })
+
+  it('shows add button for superadmin', async () => {
+    const wrapper = await mountPage('superadmin')
+    expect(wrapper.vm.isAdmin).toBe(true)
+    expect(wrapper.text()).toContain('เพิ่มผลงาน')
+  })
+
+  it('hides add button for non-admin', async () => {
+    const wrapper = await mountPage('operator')
+    expect(wrapper.vm.isAdmin).toBe(false)
+    expect(wrapper.text()).not.toContain('เพิ่มผลงาน')
   })
 
   it('shows error state with retry when loading fails', async () => {

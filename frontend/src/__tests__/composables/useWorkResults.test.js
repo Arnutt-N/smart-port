@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGet = vi.fn()
+const mockPost = vi.fn()
+const mockPut = vi.fn()
+const mockDel = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({ get: mockGet }),
+  useApi: () => ({ get: mockGet, post: mockPost, put: mockPut, del: mockDel }),
 }))
 
 const { useWorkResults } = await import('@/composables/useWorkResults.js')
@@ -10,13 +13,18 @@ const { useWorkResults } = await import('@/composables/useWorkResults.js')
 describe('useWorkResults', () => {
   beforeEach(() => {
     mockGet.mockReset()
+    mockPost.mockReset()
+    mockPut.mockReset()
+    mockDel.mockReset()
   })
 
-  it('exposes read-only functions', () => {
+  it('exposes CRUD functions', () => {
     const api = useWorkResults()
     expect(typeof api.fetchList).toBe('function')
     expect(typeof api.fetchDetail).toBe('function')
-    expect(api.create).toBeUndefined()
+    expect(typeof api.create).toBe('function')
+    expect(typeof api.update).toBe('function')
+    expect(typeof api.remove).toBe('function')
   })
 
   it('fetchList passes status filter and maps rows', async () => {
@@ -54,5 +62,36 @@ describe('useWorkResults', () => {
     const { fetchDetail } = useWorkResults()
     const result = await fetchDetail(9)
     expect(result.data).toBeNull()
+  })
+
+  it('create maps camelCase payload to snake_case', async () => {
+    mockPost.mockResolvedValue({ success: true })
+    const { create } = useWorkResults()
+    await create({
+      personnelId: 3,
+      title: 'A',
+      proposalType: 'innovation',
+      submissionDate: '2024-05-05',
+      status: 'draft',
+      description: 'd',
+    })
+    expect(mockPost).toHaveBeenCalledWith('/work-results', {
+      personnel_id: 3,
+      title: 'A',
+      proposal_type: 'innovation',
+      submission_date: '2024-05-05',
+      status: 'draft',
+      description: 'd',
+    })
+  })
+
+  it('update and remove target the id', async () => {
+    mockPut.mockResolvedValue({ success: true })
+    mockDel.mockResolvedValue({ success: true })
+    const { update, remove } = useWorkResults()
+    await update(7, { title: 'B' })
+    expect(mockPut).toHaveBeenCalledWith('/work-results/7', { title: 'B' })
+    await remove(7)
+    expect(mockDel).toHaveBeenCalledWith('/work-results/7')
   })
 })
