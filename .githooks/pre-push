@@ -46,6 +46,28 @@ node --test "${ROOT}"/scripts/tests/*.test.mjs
 echo "[pre-push] schema parity (node scripts/validate-schema-parity.mjs) ..."
 node "${ROOT}/scripts/validate-schema-parity.mjs"
 
+# Design-system gates (PR #195 follow-up) — python-only ไม่ต้อง Docker → fail-closed เมื่อมี python
+# (อ้างอิงโดย .claude/rules/tokens-and-color.md §4 — Actions ปิด auto-trigger อยู่ hook นี้
+# คือที่เดียวที่บังคับ gate พวกนี้ได้จริงทุก push; ci.yml มี design-gates job ชุดเดียวกัน)
+echo "[pre-push] design gates (tokens/contrast/spec/theme-refs/template/surface/emoji) ..."
+if command -v python >/dev/null 2>&1; then
+  PY="python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="python3"
+else
+  PY=""
+  echo "[pre-push] SKIP  design gates: ไม่พบ python/python3 ใน PATH — ติดตั้ง Python แล้ว push ใหม่ถ้าต้องการให้ gate นี้ตรวจ"
+fi
+if [[ -n "${PY}" ]]; then
+  "${PY}" "${ROOT}/scripts/validate_tokens.py"
+  "${PY}" "${ROOT}/scripts/validate_contrast.py"
+  "${PY}" "${ROOT}/scripts/validate_component_spec.py"
+  "${PY}" "${ROOT}/scripts/validate_theme_refs.py"
+  "${PY}" "${ROOT}/scripts/validate_template.py"
+  "${PY}" "${ROOT}/scripts/validate_instruction_surface.py"
+  "${PY}" "${ROOT}/scripts/check_no_emoji.py"
+fi
+
 # CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ
 # ให้ใครรัน · Actions ปิด auto-trigger อยู่ hook นี้จึงเป็นที่เดียวที่บังคับได้จริง
 #
