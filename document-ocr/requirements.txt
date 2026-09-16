@@ -1,0 +1,8 @@
+# document-ocr server (Issue #147 — Render deploy, no Docling)
+# Docling ถูกตัดออกโดยเจตนา: chain ตกไป pypdfium2 text-layer -> RapidOCR
+# เองเมื่อ docling binary หาย (spawn ลูก fail ทันที) — เพิ่มกลับได้เมื่อ
+# ย้ายขึ้น plan ที่มี RAM >= 2GB พร้อม deps ของ docling ในไฟล์นี้
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pypdfium2>=4.30,<5
+rapidocr[onnxruntime]>=2.0,<3

@@ -31,6 +31,20 @@ function respondOcrNotConfigured(): void
 }
 
 /**
+ * Shared secret สำหรับ OCR service (public URL บน Render) — ส่งเป็น header
+ * X-OCR-Secret ทุกคำขอถ้าตั้ง OCR_SHARED_SECRET ไว้ (convert_server ปฏิเสธ 401 ถ้าไม่ตรง)
+ * @return string[] curl headers เพิ่มเติม (ว่างเมื่อไม่ได้ตั้ง secret)
+ */
+function ocrSecretHeaders(): array
+{
+    $secret = getenv('OCR_SHARED_SECRET');
+    if ($secret === false || trim($secret) === '') {
+        return [];
+    }
+    return ['X-OCR-Secret: ' . trim($secret)];
+}
+
+/**
  * POST /ocr/convert — upload PDF, forward to document-ocr FastAPI server.
  * GET  /ocr/health  — check OCR server availability.
  */
@@ -49,6 +63,10 @@ function handleOcr(PDO $pdo, string $method, array $path): void
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 5,
+            CURLOPT_HTTPHEADER => array_merge(
+                ['Content-Type: application/json'],
+                ocrSecretHeaders()
+            ),
         ]);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -95,16 +113,20 @@ function handleOcr(PDO $pdo, string $method, array $path): void
         }
 
         $pdfBytes = file_get_contents($file['tmp_name']);
-        $filename = basename($file['name']);
+        // strip CR/LF ก่อนเข้า header — ชื่อไฟล์ที่ฝัง \r\n ฉีด header เข้า upstream ได้
+        $filename = str_replace(["\r", "\n"], '', basename($file['name']));
 
         $ch = curl_init("$ocrBase/convert");
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $pdfBytes,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/octet-stream',
-                "X-Filename: $filename",
-            ],
+            CURLOPT_HTTPHEADER => array_merge(
+                [
+                    'Content-Type: application/octet-stream',
+                    "X-Filename: $filename",
+                ],
+                ocrSecretHeaders()
+            ),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 3600,
         ]);
