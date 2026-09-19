@@ -8,11 +8,12 @@
         <RouterLink to="/dashboard" class="text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="กลับหน้า Dashboard">
           <Home class="w-5 h-5" />
         </RouterLink>
-        <span class="text-gray-400" aria-hidden="true">/</span>
+        <span v-if="trail.length" class="text-gray-400" aria-hidden="true">/</span>
         <template v-for="(crumb, idx) in trail" :key="`${idx}-${crumb}`">
           <span v-if="idx > 0" class="text-gray-400" aria-hidden="true">/</span>
           <span
             :class="idx === trail.length - 1 ? 'text-gray-900 font-medium truncate max-w-[40vw] sm:max-w-none' : 'text-gray-500 hidden sm:inline'"
+            :aria-current="idx === trail.length - 1 ? 'page' : undefined"
           >{{ crumb }}</span>
         </template>
       </nav>

@@ -167,18 +167,31 @@ export const useAuthStore = defineStore('auth', () => {
 
   // N4 — ดึง effective matrix ของตัวเอง (GET /settings/permissions/self)
   // ล้มเงียบได้: can() ยัง fallback เทียบ role ตาม intents เดิม
+  // single-flight กัน guard ยิงซ้ำตอน grants==null (แบบเดียวกับ refreshPromise) —
+  // assign ก่อน await ใด ๆ (dynamic import อยู่ข้างใน IIFE) ไม่งั้น concurrent calls หลุด guard พร้อมกัน
+  let grantsPromise = null
+  // กัน response ข้าม session — login/logout เพิ่มรุ่นแล้ว IIFE ทิ้งผลที่ไม่ตรงรุ่น
+  let grantsGeneration = 0
   async function fetchPermissionGrants() {
     if (!token.value || isSuperAdmin.value) return
-    const { useApi } = await import('@/composables/useApi.js')
-    const api = useApi()
-    try {
-      const result = await api.get('/settings/permissions/self')
-      if (result?.data?.grants) {
-        permissionGrants.value = result.data.grants
+    if (grantsPromise) return grantsPromise
+    const inflight = (async () => {
+      try {
+        const gen = grantsGeneration
+        const { useApi } = await import('@/composables/useApi.js')
+        const result = await useApi().get('/settings/permissions/self')
+        if (gen !== grantsGeneration) return
+        if (result?.data?.grants) {
+          permissionGrants.value = result.data.grants
+        }
+      } catch {
+        // ปล่อย null — fallback ทำงานแทน ไม่ล็อกผู้ใช้ออกจากหน้า
+      } finally {
+        if (grantsPromise === inflight) grantsPromise = null
       }
-    } catch {
-      // ปล่อย null — fallback ทำงานแทน ไม่ล็อกผู้ใช้ออกจากหน้า
-    }
+    })()
+    grantsPromise = inflight
+    return grantsPromise
   }
 
   // N44: default remember=false — refresh token เก็บ sessionStorage ไม่ localStorage
@@ -188,6 +201,8 @@ export const useAuthStore = defineStore('auth', () => {
     const api = useApi()
     const data = await api.post('/auth/login', credentials)
     setAuth(data, { remember })
+    grantsPromise = null
+    grantsGeneration++
     return data
   }
 
@@ -204,7 +219,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     const API_BASE = import.meta.env.VITE_API_URL || '/api'
-    refreshPromise = (async () => {
+    const startedRefreshToken = refreshToken.value
+    const staleRefreshError = () => Object.assign(new Error('เซสชันเปลี่ยนระหว่างต่ออายุโทเค็น'), { code: 'SESSION_CHANGED' })
+    const flight = (async () => {
       const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -214,9 +231,14 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('Refresh failed')
       }
       const data = await response.json()
+      if (refreshToken.value !== startedRefreshToken) throw staleRefreshError()
       setAuth(data)
       return data
     })()
+    refreshPromise = flight.catch((e) => {
+      if (e?.code !== 'SESSION_CHANGED' && refreshToken.value !== startedRefreshToken) throw staleRefreshError()
+      throw e
+    })
 
     try {
       return await refreshPromise
@@ -297,6 +319,9 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = ''
     csrfToken.value = ''
     user.value = null
+    permissionGrants.value = null
+    grantsPromise = null
+    grantsGeneration++
     // เคลียร์ทั้งสอง storage — session อาจถูก persist แบบ remember หรือไม่ก็ได้
     for (const storage of [localStorage, sessionStorage]) {
       for (const key of [...AUTH_STORAGE_KEYS, ...LEGACY_AUTH_STORAGE_KEYS]) {

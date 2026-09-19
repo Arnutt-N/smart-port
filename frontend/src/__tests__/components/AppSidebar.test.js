@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 
 let userVal = null
+let grantsVal = null
 
 vi.mock('@/stores/auth.js', () => ({
   useAuthStore: () => ({
     get user() { return userVal },
     get isAdmin() {
-      return userVal?.role === 'admin' || userVal?.role === 'superadmin'
+      if (userVal?.role === 'superadmin') return true
+      if (grantsVal) return (grantsVal.delete || []).length > 0
+      return userVal?.role === 'admin'
     },
     get isSuperAdmin() {
       return userVal?.role === 'superadmin'
@@ -31,6 +34,7 @@ function mountSidebar() {
 describe('AppSidebar', () => {
   beforeEach(() => {
     userVal = { name: 'สมชาย', email: 'somchai@example.go.th', role: 'operator' }
+    grantsVal = null
     currentPath = '/dashboard'
   })
 
@@ -118,12 +122,41 @@ describe('AppSidebar', () => {
     expect(text).toContain('รางวัล/ความดีความชอบ')
   })
 
-  it('renders TASKS items (การจัดการงาน, ผลงานและข้อเสนอ) for every role', () => {
+  it('shows การจัดการงาน in TASKS only for admin, ผลงานและข้อเสนอ for every role', () => {
+    userVal = { name: 'admin', role: 'admin' }
+    let wrapper = mountSidebar()
+    expect(wrapper.text()).toContain('TASKS')
+    expect(wrapper.text()).toContain('การจัดการงาน')
+    expect(wrapper.text()).toContain('ผลงานและข้อเสนอ')
+    wrapper.unmount()
+
+    userVal = { name: 'op', role: 'operator' }
+    wrapper = mountSidebar()
+    expect(wrapper.text()).toContain('TASKS')
+    expect(wrapper.text()).toContain('ผลงานและข้อเสนอ')
+    expect(wrapper.text()).not.toContain('การจัดการงาน')
+  })
+
+  it('follows loaded grants over role for TASKS gating', () => {
+    userVal = { name: 'op', role: 'operator' }
+    grantsVal = { read: ['*'], create: [], update: [], delete: ['multiplier'] }
+    let wrapper = mountSidebar()
+    expect(wrapper.text()).toContain('การจัดการงาน')
+    wrapper.unmount()
+
+    userVal = { name: 'admin', role: 'admin' }
+    grantsVal = { read: ['*'], create: [], update: [], delete: [] }
+    wrapper = mountSidebar()
+    expect(wrapper.text()).not.toContain('การจัดการงาน')
+    expect(wrapper.text()).toContain('ผลงานและข้อเสนอ')
+  })
+
+  it('shows TASKS without ADMIN section for operator', () => {
     userVal = { name: 'op', role: 'operator' }
     const wrapper = mountSidebar()
     const text = wrapper.text()
     expect(text).toContain('TASKS')
-    expect(text).toContain('การจัดการงาน')
+    expect(text).not.toContain('ADMIN')
     expect(text).toContain('ผลงานและข้อเสนอ')
   })
 
@@ -188,7 +221,7 @@ describe('AppSidebar', () => {
   it('shows "A" fallback initial when user has no name', () => {
     userVal = { name: '', role: 'operator' }
     const wrapper = mountSidebar()
-    expect(wrapper.text()).toContain('A')
+    expect(wrapper.find('.bg-primary-700 span').text()).toBe('A')
   })
 
   it('hides sidebar off-canvas when open=false (translate-x-full on mobile)', () => {

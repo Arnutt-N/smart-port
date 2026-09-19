@@ -84,6 +84,7 @@ describe('useApi', () => {
   beforeEach(() => {
     api = useApi()
     mockPush.mockReset()
+    delete authMock.state.isAuthenticated
     uiMock.showToast.mockReset()
     authMock.state.token = 'fake-jwt-token'
     authMock.state.csrfToken = 'fake-csrf'
@@ -244,6 +245,50 @@ describe('useApi', () => {
       await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
       expect(authMock.state.refresh).toHaveBeenCalledTimes(1)
       expect(authMock.state.logout).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not logout when refresh reports a session change with a new session active', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      const stale = new Error('Session changed during refresh')
+      stale.code = 'SESSION_CHANGED'
+      authMock.state.refresh = vi.fn().mockRejectedValue(stale)
+      authMock.state.isAuthenticated = true
+      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await expect(api.get('/protected')).rejects.toThrow('Session changed during refresh')
+      expect(authMock.state.logout).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
+      delete authMock.state.isAuthenticated
+    })
+
+    it('does not logout on SESSION_CHANGED when only the refresh token survives', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      const stale = new Error('Session changed during refresh')
+      stale.code = 'SESSION_CHANGED'
+      authMock.state.refresh = vi.fn().mockRejectedValue(stale)
+      authMock.state.isAuthenticated = false
+      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await expect(api.get('/protected')).rejects.toThrow('Session changed during refresh')
+      expect(authMock.state.logout).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
+      delete authMock.state.isAuthenticated
+    })
+
+    it('logs out when refresh reports a session change with no active session', async () => {
+      authMock.state.refreshToken = 'refresh-abc'
+      const stale = new Error('Session changed during refresh')
+      stale.code = 'SESSION_CHANGED'
+      authMock.state.refresh = vi.fn().mockRejectedValue(stale)
+      authMock.state.isAuthenticated = false
+      authMock.state.refreshToken = ''
+      // true logged-out: no token either
+      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
+
+      await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
+      expect(authMock.state.logout).toHaveBeenCalledTimes(1)
+      expect(mockPush).toHaveBeenCalledWith('/login')
+      delete authMock.state.isAuthenticated
     })
 
     it('logs out immediately when there is no refresh token', async () => {
