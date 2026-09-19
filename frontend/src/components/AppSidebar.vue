@@ -163,7 +163,9 @@ const menuSections = computed(() => [
     id: 'tasks',
     label: 'TASKS',
     items: [
-      { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
+      ...(auth.isAdmin
+        ? [{ id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' }]
+        : []),
       { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/work-results' },
     ],
   },

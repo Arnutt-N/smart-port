@@ -3,9 +3,10 @@ import { setActivePinia, createPinia } from 'pinia'
 import { decodeJwtPayload, useAuthStore } from '@/stores/auth.js'
 
 const mockPost = vi.fn()
+const mockGet = vi.fn()
 
 vi.mock('@/composables/useApi.js', () => ({
-  useApi: () => ({ post: mockPost }),
+  useApi: () => ({ post: mockPost, get: mockGet }),
 }))
 
 function makeJwt(expSeconds) {
@@ -28,6 +29,7 @@ describe('auth store', () => {
     sessionStorage.clear()
     setActivePinia(createPinia())
     mockPost.mockReset()
+    mockGet.mockReset()
   })
 
   it('starts unauthenticated with empty storage', () => {
@@ -73,6 +75,179 @@ describe('auth store', () => {
       auth.setAuth(authData()) // admin, grants = null
       expect(auth.isAdmin).toBe(true)
     })
+  })
+
+  it('fetchPermissionGrants fires concurrent calls only once (single-flight)', async () => {
+    mockGet.mockReset()
+    mockGet.mockImplementation(() => new Promise((resolve) => {
+      setTimeout(() => resolve({ data: { grants: { read: ['*'], create: [], update: [], delete: [] } } }), 20)
+    }))
+    const auth = useAuthStore()
+    auth.setAuth(authData())
+    await Promise.all([auth.fetchPermissionGrants(), auth.fetchPermissionGrants()])
+    expect(mockGet).toHaveBeenCalledTimes(1)
+    expect(mockGet).toHaveBeenCalledWith('/settings/permissions/self')
+  })
+
+  it('fetchPermissionGrants recovers after failure and refetches next time', async () => {
+    mockGet.mockReset()
+    mockGet.mockRejectedValueOnce(new Error('offline'))
+    const auth = useAuthStore()
+    auth.setAuth(authData())
+    await auth.fetchPermissionGrants()
+    expect(auth.permissionGrants).toBeNull()
+    mockGet.mockResolvedValue({ data: { grants: { read: ['*'], create: [], update: [], delete: [] } } })
+    await auth.fetchPermissionGrants()
+    expect(mockGet).toHaveBeenCalledTimes(2)
+    expect(auth.permissionGrants).toEqual({ read: ['*'], create: [], update: [], delete: [] })
+  })
+
+  it('logout clears grants so isAdmin/can stop answering for the old session', () => {
+    const auth = useAuthStore()
+    auth.setAuth(authData())
+    auth.permissionGrants = { read: ['*'], create: [], update: [], delete: ['x'] }
+    expect(auth.isAdmin).toBe(true)
+    auth.logout()
+    expect(auth.permissionGrants).toBeNull()
+    expect(auth.isAdmin).toBe(false)
+    expect(auth.can('delete', 'x')).toBe(false)
+  })
+
+  it('discards grants response that resolves after session change', async () => {
+    let resolveFetch
+    mockGet.mockReset()
+    mockGet.mockImplementation(() => new Promise((resolve) => { resolveFetch = resolve }))
+    const auth = useAuthStore()
+    auth.setAuth(authData())
+    const p = auth.fetchPermissionGrants()
+    await vi.waitFor(() => {
+      expect(mockGet).toHaveBeenCalledTimes(1)
+    })
+    mockPost.mockReset()
+    mockPost.mockResolvedValue({ ...authData(), user: { ...authData().user, username: 'b' } })
+    await auth.login({ username: 'b', password: 'x' })
+    resolveFetch({ data: { grants: { read: ['*'], create: [], update: [], delete: ['x'] } } })
+    await p
+    expect(auth.permissionGrants).toBeNull()
+  })
+
+  it('preserves grants fetch across same-session setAuth (token refresh)', async () => {
+    let resolveFetch
+    mockGet.mockReset()
+    mockGet.mockImplementation(() => new Promise((resolve) => { resolveFetch = resolve }))
+    const auth = useAuthStore()
+    const data = authData()
+    auth.setAuth(data)
+    const p = auth.fetchPermissionGrants()
+    await vi.waitFor(() => { expect(mockGet).toHaveBeenCalledTimes(1) })
+    auth.setAuth({ ...data, token: data.token })
+    resolveFetch({ data: { grants: { read: ['*'], create: [], update: [], delete: [] } } })
+    await p
+    expect(auth.permissionGrants).toEqual({ read: ['*'], create: [], update: [], delete: [] })
+  })
+
+  it('does not resurrect the session when logout lands mid-refresh', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      let resolveRefresh
+      globalThis.fetch = vi.fn((url) => {
+        if (String(url).includes('/auth/refresh')) {
+          return new Promise((resolve) => { resolveRefresh = resolve })
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      })
+      const auth = useAuthStore()
+      const data = authData()
+      auth.setAuth({ ...data, refresh_token: 'refresh-1' })
+      const p = auth.refresh()
+      auth.logout()
+      resolveRefresh(new Response(JSON.stringify({ ...data, token: validToken(), refresh_token: 'refresh-2' }), { status: 200 }))
+      await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
+      expect(auth.token).toBe('')
+      expect(auth.user).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('does not let a stale refresh overwrite a newer login session', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      let resolveRefresh
+      globalThis.fetch = vi.fn((url) => {
+        if (String(url).includes('/auth/refresh')) {
+          return new Promise((resolve) => { resolveRefresh = resolve })
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      })
+      const auth = useAuthStore()
+      const dataA = authData()
+      auth.setAuth({ ...dataA, refresh_token: 'refresh-1' })
+      const p = auth.refresh()
+      const userB = { user_id: 2, username: 'b-operator', name: 'B', role: 'operator', must_change_password: false }
+      const dataB = { ...authData(), token: validToken(), refresh_token: 'refresh-2', user: userB }
+      mockPost.mockReset()
+      mockPost.mockResolvedValue(dataB)
+      await auth.login({ username: 'b-operator', password: 'x' })
+      resolveRefresh(new Response(JSON.stringify({ ...dataA, token: validToken(), refresh_token: 'refresh-9' }), { status: 200 }))
+      await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
+      expect(auth.token).toBe(dataB.token)
+      expect(auth.user.username).toBe('b-operator')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('reports SESSION_CHANGED (not Refresh failed) when refresh 401s after login', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      let resolveRefresh
+      globalThis.fetch = vi.fn((url) => {
+        if (String(url).includes('/auth/refresh')) {
+          return new Promise((resolve) => { resolveRefresh = resolve })
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      })
+      const auth = useAuthStore()
+      const dataA = authData()
+      auth.setAuth({ ...dataA, refresh_token: 'refresh-1' })
+      const p = auth.refresh()
+      const userB = { user_id: 2, username: 'b-operator', name: 'B', role: 'operator', must_change_password: false }
+      const dataB = { ...authData(), token: validToken(), refresh_token: 'refresh-2', user: userB }
+      mockPost.mockReset()
+      mockPost.mockResolvedValue(dataB)
+      await auth.login({ username: 'b-operator', password: 'x' })
+      resolveRefresh(new Response('{}', { status: 401 }))
+      await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
+      expect(auth.token).toBe(dataB.token)
+      expect(auth.user.username).toBe('b-operator')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('keeps the newer fetch handle when a stale grants fetch settles', async () => {
+    const resolvers = []
+    mockGet.mockReset()
+    mockGet.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve) }))
+    const auth = useAuthStore()
+    const dataA = authData()
+    auth.setAuth(dataA)
+    const pA = auth.fetchPermissionGrants()
+    await vi.waitFor(() => { expect(mockGet).toHaveBeenCalledTimes(1) })
+    const userB = { user_id: 2, username: 'b-operator', name: 'B', role: 'operator', must_change_password: false }
+    mockPost.mockReset()
+    mockPost.mockResolvedValue({ ...authData(), user: userB })
+    await auth.login({ username: 'b-operator', password: 'x' })
+    const pB = auth.fetchPermissionGrants()
+    await vi.waitFor(() => { expect(mockGet).toHaveBeenCalledTimes(2) })
+    resolvers[0]({ data: { grants: { read: ['*'], create: [], update: [], delete: ['a'] } } })
+    await pA
+    const pC = auth.fetchPermissionGrants()
+    expect(mockGet).toHaveBeenCalledTimes(2)
+    resolvers[1]({ data: { grants: { read: ['*'], create: [], update: [], delete: ['b'] } } })
+    await Promise.all([pB, pC])
+    expect(auth.permissionGrants).toEqual({ read: ['*'], create: [], update: [], delete: ['b'] })
   })
 
   it('setAuth persists token/user/csrf and authenticates', () => {

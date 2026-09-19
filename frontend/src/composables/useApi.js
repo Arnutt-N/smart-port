@@ -52,7 +52,8 @@ async function authenticatedFetch(url, options = {}, retried = false) {
       try {
         await auth.refresh()
         return authenticatedFetch(url, options, true)
-      } catch {
+      } catch (e) {
+        if (e?.code === 'SESSION_CHANGED' && (auth.isAuthenticated || auth.refreshToken)) throw e
         // refresh ล้มเหลว — ตกไป logout ด้านล่าง
       }
     }

@@ -213,6 +213,10 @@ $frontendBuilt = $false
 if (-not $SkipFrontend) {
   Write-Step 'Frontend Build & Test'
   Push-Location (Join-Path $Root 'frontend')
+  # native stderr (npm notice, Vue warn in vitest) must not become terminating error
+  # same pattern as tidb-init block above; verdict is by $LASTEXITCODE
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
   try {
     if (-not $SkipInstall) {
       Write-Host 'npm ci ...'
@@ -245,6 +249,7 @@ if (-not $SkipFrontend) {
     Write-Fail $_.Exception.Message
     $failed += 'frontend'
   } finally {
+    $ErrorActionPreference = $prevEap
     Pop-Location
   }
 } else {
@@ -292,6 +297,9 @@ if (-not $SkipE2E) {
     Write-Fail 'E2E requires a local .env file for Docker Compose'
     $failed += 'e2e'
   } else {
+    # same reason as frontend block: docker/playwright write stderr normally
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
       docker compose --project-directory $Root up -d --build db backend
       if ($LASTEXITCODE -ne 0) { throw "docker compose up exited $LASTEXITCODE" }
@@ -322,6 +330,8 @@ if (-not $SkipE2E) {
     } catch {
       Write-Fail $_.Exception.Message
       $failed += 'e2e'
+    } finally {
+      $ErrorActionPreference = $prevEap
     }
   }
 } else {
@@ -337,6 +347,9 @@ if (-not $SkipBackend) {
     $failed += 'backend'
   } else {
     Write-Host "using: $bashExe"
+    # same reason as frontend block: run.sh output may go through stderr
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
       # D:\foo\bar → /d/foo/bar (Git Bash path; works with spaces)
       $rootUnix = '/' + $Root.Substring(0, 1).ToLowerInvariant() + ($Root.Substring(2) -replace '\\', '/')
@@ -346,6 +359,8 @@ if (-not $SkipBackend) {
     } catch {
       Write-Fail $_.Exception.Message
       $failed += 'backend'
+    } finally {
+      $ErrorActionPreference = $prevEap
     }
   }
 } else {
@@ -360,6 +375,9 @@ if (-not $SkipDocker) {
     Write-Fail 'docker not found on PATH'
     $failed += 'docker'
   } else {
+    # same reason as frontend block: docker build writes progress to stderr
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
       Write-Host 'docker build frontend ...'
       docker build -t smartport-frontend:ci (Join-Path $Root 'frontend')
@@ -373,6 +391,8 @@ if (-not $SkipDocker) {
     } catch {
       Write-Fail $_.Exception.Message
       $failed += 'docker'
+    } finally {
+      $ErrorActionPreference = $prevEap
     }
   }
 } else {

@@ -26,19 +26,6 @@ vi.mock('vue-router', () => ({
   RouterLink: { template: '<a :href="to"><slot /></a>', props: ['to'] },
 }))
 
-vi.mock('@/utils/breadcrumb.js', () => ({
-  resolveTrail: (route) => {
-    if (route.name === 'candidates') {
-      const labels = { overview: 'ภาพรวม', general: 'ทั่วไป', academic: 'วิชาการ', support: 'อำนวยการ', management: 'บริหาร' }
-      const label = labels[String(route.params?.section ?? '')]
-      return label ? ['Candidate Lists', label] : ['Candidate Lists']
-    }
-    const base = route.meta?.breadcrumb
-    if (Array.isArray(base) && base.length > 0) return base.map(String)
-    return []
-  },
-}))
-
 let currentPath = '/dashboard'
 let currentName = 'dashboard'
 let currentParams = {}
@@ -76,6 +63,7 @@ describe('AppTopbar', () => {
     setRoute({ path: '/users', name: 'users', meta: { title: 'จัดการผู้ใช้', breadcrumb: ['จัดการผู้ใช้'] } })
     const wrapper = mountTopbar()
     expect(wrapper.text()).toContain('จัดการผู้ใช้')
+    expect(wrapper.findAll('nav[aria-label="Breadcrumb"] span[aria-hidden="true"]')).toHaveLength(1)
   })
 
   it('renders every former fallback page from its own meta (no Dashboard leak)', () => {
@@ -107,6 +95,7 @@ describe('AppTopbar', () => {
     const wrapper = mountTopbar()
     expect(wrapper.text()).toContain('การนับทวีคูณ')
     expect(wrapper.text()).toContain('จัดการพื้นที่พิเศษ')
+    expect(wrapper.findAll('nav[aria-label="Breadcrumb"] span[aria-hidden="true"]')).toHaveLength(2)
   })
 
   it('renders Home link back to /dashboard', () => {
@@ -193,6 +182,8 @@ describe('AppTopbar', () => {
     const logoutBtn = wrapper.findAll('button').find((b) => b.text().includes('ออกจากระบบ'))
     await logoutBtn.trigger('click')
     await Promise.resolve()
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
 
     expect(confirmLogoutMock).toHaveBeenCalledTimes(1)
     expect(logout).toHaveBeenCalledTimes(1)
@@ -206,6 +197,8 @@ describe('AppTopbar', () => {
     await wrapper.get('button[aria-label="เมนูผู้ใช้"]').trigger('click')
     const logoutBtn = wrapper.findAll('button').find((b) => b.text().includes('ออกจากระบบ'))
     await logoutBtn.trigger('click')
+    await Promise.resolve()
+    await wrapper.vm.$nextTick()
     await Promise.resolve()
 
     expect(confirmLogoutMock).toHaveBeenCalledTimes(1)
@@ -232,6 +225,22 @@ describe('AppTopbar', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.vm.dropdownOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('marks the last breadcrumb crumb with aria-current="page"', () => {
+    setRoute({ path: '/settings/special-areas', name: 'settings-special-areas', meta: { title: 'จัดการพื้นที่พิเศษ', breadcrumb: ['การนับทวีคูณ', 'จัดการพื้นที่พิเศษ'] } })
+    const wrapper = mountTopbar()
+    const current = wrapper.find('[aria-current="page"]')
+    expect(current.exists()).toBe(true)
+    expect(current.text()).toContain('จัดการพื้นที่พิเศษ')
+    wrapper.unmount()
+  })
+
+  it('hides the separator when trail is empty (no dangling slash)', () => {
+    setRoute({ path: '/login', name: 'login', meta: {} })
+    const wrapper = mountTopbar()
+    expect(wrapper.findAll('nav[aria-label="Breadcrumb"] span[aria-hidden="true"]')).toHaveLength(0)
     wrapper.unmount()
   })
 
