@@ -41,7 +41,7 @@ background:
   page: "#ffffff"
   surface: "bg-government-50"
   elevated: "bg-white"
-  sidebar: "bg-government-800"
+  sidebar: "bg-gray-900"
 border:
   default: "border-government-200"
   subtle: "border-government-100"
@@ -315,7 +315,7 @@ user has reduced motion enabled, disable `animate-fade-in`, `animate-slide-up`, 
 
 ## Dark Mode (Sidebar Only)
 
-The sidebar uses a dark theme (`bg-government-800`). The main content area is always light.
+The sidebar uses a dark theme (`bg-gray-900`). The main content area is always light.
 Do not implement full dark mode — only the sidebar is dark.
 
 ## Accessibility

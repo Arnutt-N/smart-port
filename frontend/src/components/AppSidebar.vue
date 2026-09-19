@@ -34,7 +34,7 @@
                 @click="toggleSubmenu(item.id)"
                 class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 :class="isParentActive(item)
-                  ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+                  ? 'bg-blue-600/10 text-blue-400 border-l-[3px] border-blue-400'
                   : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
               >
                 <component :is="item.icon" class="w-5 h-5 mr-3" />
@@ -66,7 +66,7 @@
               :to="item.to"
               class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
-                ? 'bg-blue-600/10 text-blue-400 border-l-3 border-blue-400'
+                ? 'bg-blue-600/10 text-blue-400 border-l-[3px] border-blue-400'
                 : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
             >
               <component :is="item.icon" class="w-5 h-5 mr-3" />

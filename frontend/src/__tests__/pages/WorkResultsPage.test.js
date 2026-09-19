@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
+import TableRowActions from '@/components/TableRowActions.vue'
 
 const mockFetchList = vi.fn()
 const mockCreate = vi.fn()
@@ -82,6 +83,22 @@ describe('WorkResultsPage', () => {
     const wrapper = await mountPage('operator')
     expect(wrapper.vm.isAdmin).toBe(false)
     expect(wrapper.text()).not.toContain('เพิ่มผลงาน')
+  })
+
+  it('shows view/edit/delete row actions for admin', async () => {
+    const wrapper = await mountPage('admin')
+    const rowActions = wrapper.findAllComponents(TableRowActions)
+    expect(rowActions.length).toBeGreaterThan(0)
+    const keys = rowActions[0].props('actions').map((a) => a.key)
+    expect(keys).toEqual(['view', 'edit', 'delete'])
+  })
+
+  it('shows view-only row action for operator (no inline ⋮ menu)', async () => {
+    const wrapper = await mountPage('operator')
+    const rowActions = wrapper.findAllComponents(TableRowActions)
+    expect(rowActions.length).toBeGreaterThan(0)
+    const keys = rowActions[0].props('actions').map((a) => a.key)
+    expect(keys).toEqual(['view'])
   })
 
   it('shows error state with retry when loading fails', async () => {
