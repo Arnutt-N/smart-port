@@ -37,7 +37,9 @@ test('all sidebar menu destinations keep the content area rendered', async ({ pa
     await page.getByRole('button', { name: label }).click()
   }
 
-  const destinations = await page.locator('nav a[href]').evaluateAll((links) => (
+  // เฉพาะ nav ใน sidebar — topbar มี <nav> breadcrumb อีกอัน (ลิงก์ home /dashboard)
+  // ถ้าใช้ selector 'nav a[href]' จะนับลิงก์นั้นแถมมาด้วย
+  const destinations = await page.locator('aside nav a[href]').evaluateAll((links) => (
     links.map((link) => ({
       href: link.getAttribute('href'),
       label: link.textContent?.trim() || link.getAttribute('href'),
@@ -49,7 +51,7 @@ test('all sidebar menu destinations keep the content area rendered', async ({ pa
 
   for (const { href, label } of destinations) {
     await test.step(`${label} (${href})`, async () => {
-      await page.locator(`nav a[href="${href}"]`).click()
+      await page.locator(`aside nav a[href="${href}"]`).click()
       await expect.poll(() => new URL(page.url()).pathname).toBe(href)
       const main = page.locator('main')
       await expect(main).toBeVisible()
