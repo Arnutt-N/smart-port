@@ -1,7 +1,7 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="mb-2">
-      <h1 class="text-2xl font-bold text-gray-900">รายงานการเกษียณอายุ</h1>
+      <h1 class="text-2xl font-bold text-gray-900">รายงานผู้เกษียณ</h1>
       <p class="text-sm text-gray-500 mt-1">ติดตามข้าราชการที่ใกล้ครบกำหนดเกษียณอายุราชการ</p>
     </div>
 

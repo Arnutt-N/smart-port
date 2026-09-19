@@ -160,8 +160,8 @@ describe('AppSidebar', () => {
     currentPath = '/candidates/academic'
     const wrapper = mountSidebar()
     const parentBtn = wrapper.findAll('button').find((b) => b.text().includes('Candidate Lists'))
-    // isParentActive -> parent button has the active class (bg-blue-600/10)
-    expect(parentBtn.classes()).toContain('bg-blue-600/10')
+    // isParentActive -> parent button has the active class (bg-primary-600/10)
+    expect(parentBtn.classes()).toContain('bg-primary-600/10')
   })
 
   it('emits close when mobile X button clicked', async () => {
@@ -241,7 +241,7 @@ describe('AppSidebar', () => {
     const links = wrapper.findAll('a')
     const probationLink = links.find((a) => a.attributes('href') === '/probation-end')
     expect(probationLink).toBeTruthy()
-    expect(probationLink.classes()).toContain('bg-blue-600/10')
+    expect(probationLink.classes()).toContain('bg-primary-600/10')
   })
 
   it('marks flat admin item (จัดการพื้นที่พิเศษ) active when its route is current', () => {
@@ -251,6 +251,6 @@ describe('AppSidebar', () => {
     const links = wrapper.findAll('a')
     const areasLink = links.find((a) => a.attributes('href') === '/settings/special-areas')
     expect(areasLink).toBeTruthy()
-    expect(areasLink.classes()).toContain('bg-blue-600/10')
+    expect(areasLink.classes()).toContain('bg-primary-600/10')
   })
 })

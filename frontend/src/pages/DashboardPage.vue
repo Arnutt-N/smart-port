@@ -28,11 +28,11 @@
     </div>
 
     <!-- Multiplier Summary Section -->
-    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg shadow-sm border border-indigo-100 p-6">
+    <div class="bg-gradient-to-br from-primary-50 to-primary-100 rounded-lg shadow-sm border border-primary-100 p-6">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
-          <div class="p-2 bg-indigo-100 rounded-lg">
-            <Clock class="w-6 h-6 text-indigo-600" />
+          <div class="p-2 bg-primary-100 rounded-lg">
+            <Clock class="w-6 h-6 text-primary-600" />
           </div>
           <div>
             <h3 class="text-lg font-semibold text-gray-900">สรุปการนับทวีคูณ</h3>
@@ -41,7 +41,7 @@
         </div>
         <RouterLink
           to="/time-multiplier"
-          class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+          class="text-sm text-primary-600 hover:text-primary-800 font-medium"
         >
           ดูทั้งหมด →
         </RouterLink>
@@ -54,7 +54,7 @@
         </div>
         <div class="bg-white rounded-lg p-4 shadow-sm">
           <div class="text-sm text-gray-600 mb-1">จำนวนบุคลากร</div>
-          <div class="text-2xl font-bold text-indigo-600">{{ multiplierSummary.distinctPersonnel.toLocaleString() }}</div>
+          <div class="text-2xl font-bold text-primary-600">{{ multiplierSummary.distinctPersonnel.toLocaleString() }}</div>
           <div class="text-xs text-gray-500 mt-1">คน</div>
         </div>
         <div class="bg-white rounded-lg p-4 shadow-sm">

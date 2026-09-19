@@ -4,11 +4,18 @@
       <button @click="$emit('toggle-sidebar')" class="lg:hidden text-gray-600 hover:text-gray-900 transition-colors cursor-pointer" aria-label="เปิด/ปิดเมนู">
         <Menu class="w-6 h-6" />
       </button>
-      <div class="flex items-center space-x-2 text-sm">
-        <Home class="w-5 h-5 text-gray-400 hidden sm:block" />
-        <span class="text-gray-400 hidden sm:inline">/</span>
-        <span class="text-gray-900 font-medium">{{ pageTitle }}</span>
-      </div>
+      <nav class="flex items-center space-x-2 text-sm" aria-label="Breadcrumb">
+        <RouterLink to="/dashboard" class="text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="กลับหน้า Dashboard">
+          <Home class="w-5 h-5" />
+        </RouterLink>
+        <span class="text-gray-400" aria-hidden="true">/</span>
+        <template v-for="(crumb, idx) in trail" :key="`${idx}-${crumb}`">
+          <span v-if="idx > 0" class="text-gray-400" aria-hidden="true">/</span>
+          <span
+            :class="idx === trail.length - 1 ? 'text-gray-900 font-medium truncate max-w-[40vw] sm:max-w-none' : 'text-gray-500 hidden sm:inline'"
+          >{{ crumb }}</span>
+        </template>
+      </nav>
     </div>
 
     <!-- User avatar + dropdown -->
@@ -21,7 +28,7 @@
         :aria-expanded="dropdownOpen"
       >
         <div class="relative">
-          <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+          <div class="w-8 h-8 bg-primary-700 rounded-full flex items-center justify-center">
             <span class="text-white text-sm font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
           </div>
           <!-- Online dot — bottom right -->
@@ -87,9 +94,10 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmLogout } from '@/composables/useConfirm.js'
+import { resolveTrail } from '@/utils/breadcrumb.js'
 import { Menu, Home, ChevronDown, User, Settings, Shield, LogOut } from 'lucide-vue-next'
 
 defineEmits(['toggle-sidebar'])
@@ -100,32 +108,11 @@ const auth = useAuthStore()
 const dropdownOpen = ref(false)
 const dropdownRef = ref(null)
 
-const pageTitles = {
-  '/dashboard': 'Dashboard',
-  '/probation-end': 'พ้นทดลองปฏิบัติราชการ',
-  '/candidates': 'Candidate Lists',
-  '/users': 'จัดการผู้ใช้',
-  '/analytics': 'การวิเคราะห์ข้อมูล',
-  '/admin': 'การจัดการระบบ',
-  '/time-counting': 'การนับเวลาเกื้อกูล',
-  '/time-difference': 'การนับแตกต่าง',
-  '/position-compare': 'การเทียบตำแหน่ง',
-  '/royal-decorations': 'เครื่องราชอิสริยาภรณ์',
-  '/retirement-report': 'รายงานผู้เกษียณ',
-  '/work-results': 'ผลงานและข้อเสนอ',
-  '/awards': 'รางวัล/ความดีความชอบ',
-  '/profile': 'โปรไฟล์ของฉัน',
-  '/settings/account': 'ตั้งค่า',
-  '/settings/permissions': 'สิทธิ์ระบบ',
-  '/settings/special-areas': 'พื้นที่พิเศษ',
-}
+// Breadcrumb trail — single source จาก route.meta (เติม dynamic section ให้ candidates)
+const trail = computed(() => resolveTrail(route))
 
-const pageTitle = computed(() => {
-  for (const [path, title] of Object.entries(pageTitles)) {
-    if (route.path.startsWith(path)) return title
-  }
-  return 'Dashboard'
-})
+// ชื่อหน้าปัจจุบัน = crumb ตัวสุดท้าย (ใช้แสดงบนจอเล็กที่ซ่อน trail ไว้)
+const pageTitle = computed(() => trail.value.at(-1) ?? '')
 
 function navigateTo(path) {
   dropdownOpen.value = false

@@ -12,7 +12,7 @@ function mountPage() {
 describe('AdminPage', () => {
   it('renders the admin hub heading and nav cards', () => {
     const wrapper = mountPage()
-    expect(wrapper.text()).toContain('การจัดการระบบ')
+    expect(wrapper.text()).toContain('การจัดการงาน')
     expect(wrapper.text()).toContain('จัดการผู้ใช้')
     expect(wrapper.text()).toContain('บันทึกการใช้งาน')
     expect(wrapper.text()).toContain('นำเข้าข้อมูล')

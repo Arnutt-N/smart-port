@@ -34,7 +34,7 @@
                 @click="toggleSubmenu(item.id)"
                 class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 :class="isParentActive(item)
-                  ? 'bg-blue-600/10 text-blue-400 border-l-[3px] border-blue-400'
+                  ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
                   : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
               >
                 <component :is="item.icon" class="w-5 h-5 mr-3" />
@@ -51,7 +51,7 @@
                   :to="child.to"
                   class="w-full flex items-center px-3 py-2 min-h-11 text-left rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   :class="route.path === child.to
-                    ? 'bg-blue-500/10 text-blue-400 font-medium'
+                    ? 'bg-primary-500/10 text-primary-400 font-medium'
                     : 'text-gray-400 hover:bg-white/5 hover:text-white'"
                 >
                   <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
@@ -66,7 +66,7 @@
               :to="item.to"
               class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
-                ? 'bg-blue-600/10 text-blue-400 border-l-[3px] border-blue-400'
+                ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
                 : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
             >
               <component :is="item.icon" class="w-5 h-5 mr-3" />
@@ -82,7 +82,7 @@
       <div class="bg-white/5 rounded-lg p-4">
         <div class="flex items-center space-x-3">
           <div class="relative">
-            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+            <div class="w-10 h-10 bg-primary-700 rounded-full flex items-center justify-center">
               <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
             </div>
             <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900"></div>

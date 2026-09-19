@@ -3,8 +3,8 @@
     <!-- #3: Background floating orbs for depth -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-1/4 -left-20 w-72 h-72 bg-primary-500/8 rounded-full blur-3xl animate-pulse"></div>
-      <div class="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-500/6 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
-      <div class="absolute top-3/4 left-1/3 w-48 h-48 bg-cyan-500/5 rounded-full blur-2xl animate-pulse" style="animation-delay: 2s;"></div>
+      <div class="absolute bottom-1/4 -right-20 w-96 h-96 bg-primary-500/6 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+      <div class="absolute top-3/4 left-1/3 w-48 h-48 bg-primary-400/5 rounded-full blur-2xl animate-pulse" style="animation-delay: 2s;"></div>
     </div>
 
     <!-- #4: Entrance animation wrapper -->

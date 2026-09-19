@@ -21,11 +21,35 @@ vi.mock('@/composables/useConfirm.js', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: currentPath }),
+  useRoute: () => ({ path: currentPath, name: currentName, params: currentParams, meta: currentMeta }),
   useRouter: () => ({ push }),
+  RouterLink: { template: '<a :href="to"><slot /></a>', props: ['to'] },
+}))
+
+vi.mock('@/utils/breadcrumb.js', () => ({
+  resolveTrail: (route) => {
+    if (route.name === 'candidates') {
+      const labels = { overview: 'ภาพรวม', general: 'ทั่วไป', academic: 'วิชาการ', support: 'อำนวยการ', management: 'บริหาร' }
+      const label = labels[String(route.params?.section ?? '')]
+      return label ? ['Candidate Lists', label] : ['Candidate Lists']
+    }
+    const base = route.meta?.breadcrumb
+    if (Array.isArray(base) && base.length > 0) return base.map(String)
+    return []
+  },
 }))
 
 let currentPath = '/dashboard'
+let currentName = 'dashboard'
+let currentParams = {}
+let currentMeta = { title: 'Dashboard', breadcrumb: ['Dashboard'] }
+
+function setRoute({ path, name, params = {}, meta = {} }) {
+  currentPath = path
+  currentName = name
+  currentParams = params
+  currentMeta = meta
+}
 
 const AppTopbar = (await import('@/components/AppTopbar.vue')).default
 
@@ -41,29 +65,62 @@ describe('AppTopbar', () => {
     confirmLogoutMock.mockResolvedValue(true)
     userVal = { name: 'สมชาย', email: 'somchai@example.go.th' }
     isAdminVal = false
-    currentPath = '/dashboard'
+    setRoute({ path: '/dashboard', name: 'dashboard', meta: { title: 'Dashboard', breadcrumb: ['Dashboard'] } })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('renders the current page title from route path', () => {
-    currentPath = '/users'
+  it('renders the current page title from route meta', () => {
+    setRoute({ path: '/users', name: 'users', meta: { title: 'จัดการผู้ใช้', breadcrumb: ['จัดการผู้ใช้'] } })
     const wrapper = mountTopbar()
     expect(wrapper.text()).toContain('จัดการผู้ใช้')
   })
 
-  it('falls back to Dashboard title for unknown routes', () => {
-    currentPath = '/unknown/route'
-    const wrapper = mountTopbar()
-    expect(wrapper.text()).toContain('Dashboard')
+  it('renders every former fallback page from its own meta (no Dashboard leak)', () => {
+    const cases = [
+      { path: '/personnel', name: 'personnel', meta: { title: 'ข้อมูลบุคลากร', breadcrumb: ['ข้อมูลบุคลากร'] } },
+      { path: '/audit', name: 'audit', meta: { title: 'ประวัติการเปลี่ยนแปลง', breadcrumb: ['ประวัติการเปลี่ยนแปลง'] } },
+      { path: '/import', name: 'import', meta: { title: 'นำเข้าข้อมูลบุคลากร', breadcrumb: ['นำเข้าข้อมูลบุคลากร'] } },
+      { path: '/ocr', name: 'ocr', meta: { title: 'แปลงเอกสาร PDF', breadcrumb: ['แปลงเอกสาร PDF'] } },
+      { path: '/time-multiplier', name: 'time-multiplier', meta: { title: 'การนับทวีคูณ', breadcrumb: ['การนับทวีคูณ'] } },
+      { path: '/profile/42', name: 'profile', params: { id: '42' }, meta: { title: 'โปรไฟล์ข้าราชการ', breadcrumb: ['โปรไฟล์ข้าราชการ'] } },
+    ]
+    for (const c of cases) {
+      setRoute(c)
+      const wrapper = mountTopbar()
+      expect(wrapper.text()).toContain(c.meta.title)
+      expect(wrapper.text()).not.toContain('Dashboard')
+      wrapper.unmount()
+    }
   })
 
-  it('matches the longest path prefix (e.g. /candidates/overview -> Candidate Lists)', () => {
-    currentPath = '/candidates/overview'
+  it('shows locked การจัดการงาน title for /admin', () => {
+    setRoute({ path: '/admin', name: 'admin', meta: { title: 'การจัดการงาน', breadcrumb: ['การจัดการงาน'] } })
+    const wrapper = mountTopbar()
+    expect(wrapper.text()).toContain('การจัดการงาน')
+  })
+
+  it('renders two-level trail for special-areas', () => {
+    setRoute({ path: '/settings/special-areas', name: 'settings-special-areas', meta: { title: 'จัดการพื้นที่พิเศษ', breadcrumb: ['การนับทวีคูณ', 'จัดการพื้นที่พิเศษ'] } })
+    const wrapper = mountTopbar()
+    expect(wrapper.text()).toContain('การนับทวีคูณ')
+    expect(wrapper.text()).toContain('จัดการพื้นที่พิเศษ')
+  })
+
+  it('renders Home link back to /dashboard', () => {
+    const wrapper = mountTopbar()
+    const home = wrapper.find('a[aria-label="กลับหน้า Dashboard"]')
+    expect(home.exists()).toBe(true)
+    expect(home.attributes('href')).toBe('/dashboard')
+  })
+
+  it('expands candidates trail with dynamic section label', () => {
+    setRoute({ path: '/candidates/overview', name: 'candidates', params: { section: 'overview' }, meta: { title: 'Candidate Lists', breadcrumb: ['Candidate Lists'] } })
     const wrapper = mountTopbar()
     expect(wrapper.text()).toContain('Candidate Lists')
+    expect(wrapper.text()).toContain('ภาพรวม')
   })
 
   it('shows user name initial and full name', () => {

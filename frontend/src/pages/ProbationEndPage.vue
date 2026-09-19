@@ -1,7 +1,5 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <PageBreadcrumb label="พ้นทดลองปฏิบัติราชการ" />
-
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-gray-900">ติดตามพ้นทดลองปฏิบัติราชการ</h1>
       <p class="text-sm text-gray-500 mt-1">ติดตามสถานะการทดลองปฏิบัติราชการของข้าราชการบรรจุใหม่</p>
