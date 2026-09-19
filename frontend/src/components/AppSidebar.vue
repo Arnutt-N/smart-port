@@ -156,9 +156,15 @@ const menuSections = computed(() => [
       },
       { id: 'royal-decorations', label: 'เครื่องราชอิสริยาภรณ์', icon: Award, to: '/royal-decorations' },
       { id: 'retirement-report', label: 'รายงานผู้เกษียณ', icon: UserMinus, to: '/retirement-report' },
+      { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/awards' },
+    ],
+  },
+  {
+    id: 'tasks',
+    label: 'TASKS',
+    items: [
       { id: 'work-management', label: 'การจัดการงาน', icon: Briefcase, to: '/admin' },
       { id: 'work-results', label: 'ผลงานและข้อเสนอ', icon: FileText, to: '/work-results' },
-      { id: 'awards', label: 'รางวัล/ความดีความชอบ', icon: Trophy, to: '/awards' },
     ],
   },
   ...(auth.isAdmin

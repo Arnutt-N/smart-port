@@ -34,22 +34,32 @@ describe('AppSidebar', () => {
     currentPath = '/dashboard'
   })
 
-  it('renders 3 section labels for operator (ภาพรวม, MAIN, no ADMIN)', () => {
+  it('renders 4 section labels for operator (ภาพรวม, MAIN, TASKS, no ADMIN)', () => {
     userVal = { name: 'op', role: 'operator' }
     const wrapper = mountSidebar()
     const text = wrapper.text()
     expect(text).toContain('ภาพรวม')
     expect(text).toContain('MAIN')
+    expect(text).toContain('TASKS')
     expect(text).not.toContain('ADMIN')
   })
 
-  it('renders all 3 section labels (ภาพรวม, MAIN, ADMIN) for admin', () => {
+  it('renders all 4 section labels (ภาพรวม, MAIN, TASKS, ADMIN) for admin', () => {
     userVal = { name: 'admin', role: 'admin' }
     const wrapper = mountSidebar()
     const text = wrapper.text()
     expect(text).toContain('ภาพรวม')
     expect(text).toContain('MAIN')
+    expect(text).toContain('TASKS')
     expect(text).toContain('ADMIN')
+  })
+
+  it('orders TASKS after MAIN and before ADMIN', () => {
+    userVal = { name: 'admin', role: 'admin' }
+    const wrapper = mountSidebar()
+    const text = wrapper.text()
+    expect(text.indexOf('MAIN') < text.indexOf('TASKS')).toBe(true)
+    expect(text.indexOf('TASKS') < text.indexOf('ADMIN')).toBe(true)
   })
 
   it('renders ADMIN section for superadmin (isAdmin)', () => {
@@ -95,7 +105,7 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).toContain('Dashboard')
   })
 
-  it('renders all MAIN items for every role', () => {
+  it('renders MAIN items for every role (without task items moved to TASKS)', () => {
     userVal = { name: 'op', role: 'operator' }
     const wrapper = mountSidebar()
     const text = wrapper.text()
@@ -105,9 +115,16 @@ describe('AppSidebar', () => {
     expect(text).toContain('การนับเวลาเพิ่มเติม')
     expect(text).toContain('เครื่องราชอิสริยาภรณ์')
     expect(text).toContain('รายงานผู้เกษียณ')
+    expect(text).toContain('รางวัล/ความดีความชอบ')
+  })
+
+  it('renders TASKS items (การจัดการงาน, ผลงานและข้อเสนอ) for every role', () => {
+    userVal = { name: 'op', role: 'operator' }
+    const wrapper = mountSidebar()
+    const text = wrapper.text()
+    expect(text).toContain('TASKS')
     expect(text).toContain('การจัดการงาน')
     expect(text).toContain('ผลงานและข้อเสนอ')
-    expect(text).toContain('รางวัล/ความดีความชอบ')
   })
 
   it('collapses single-child admin-settings submenu into a flat จัดการพื้นที่พิเศษ item', () => {
