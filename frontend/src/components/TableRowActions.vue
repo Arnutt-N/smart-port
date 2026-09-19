@@ -3,7 +3,7 @@
     <template v-if="useMenu">
       <button
         type="button"
-        class="p-1 text-government-400 hover:text-primary-600 transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        class="p-1 min-h-11 min-w-11 inline-flex items-center justify-center text-government-400 hover:text-primary-600 transition-colors cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         title="จัดการ"
         aria-label="จัดการ"
         aria-haspopup="menu"

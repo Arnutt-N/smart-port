@@ -93,4 +93,15 @@ describe('PaginationBar', () => {
     const page5 = wrapper.findAll('button').find((b) => b.text() === '5')
     expect(page5.attributes('aria-current')).toBe('page')
   })
+
+  // F1: limit ผิดปกติต้อง fallback ปลอดภัย — limit=1, หน้าแรก, ไม่มี Infinity/NaN
+  it.each([0, NaN, -5])('falls back to safe limit when limit is %s', (limit) => {
+    const wrapper = mount(PaginationBar, { props: { total: 50, limit, offset: 0 } })
+    const text = wrapper.text()
+    expect(text).not.toContain('Infinity')
+    expect(text).not.toContain('NaN')
+    expect(text).toContain('แสดง 1 ถึง 1 จาก 50 รายการ')
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].attributes('disabled')).toBeDefined()
+  })
 })

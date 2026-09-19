@@ -98,6 +98,14 @@ describe('auth store', () => {
     expect(auth.isAuthenticated).toBe(false)
   })
 
+  it('decodes Thai (non-ASCII) payload segment without throwing', () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({ sub: 1, name: 'สมชาย ใจดี', exp: 9999999999 }))
+    let binary = ''
+    bytes.forEach((b) => { binary += String.fromCharCode(b) })
+    const segment = btoa(binary).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+    expect(decodeJwtPayload(segment)).toEqual({ sub: 1, name: 'สมชาย ใจดี', exp: 9999999999 })
+  })
+
   it('login posts credentials and stores the session', async () => {
     mockPost.mockResolvedValue(authData())
     const auth = useAuthStore()
@@ -173,9 +181,12 @@ describe('auth store', () => {
   }
 
   it('decodeJwtPayload normalizes - and _ and restores missing padding', () => {
-    // '\u00FA' (ú) bytes ทำให้ base64 มี '+' แน่นอน → segment มี '-'
-    const plusPayload = { u: '\u00FA\u00FA\u00FA' }
-    const plusSegment = toBase64UrlSegment(btoa(JSON.stringify(plusPayload)))
+    // '>>>' UTF-8 bytes ทำให้ base64 มี '+' แน่นอน → segment มี '-'
+    const plusPayload = { u: '>>>' }
+    const plusBytes = new TextEncoder().encode(JSON.stringify(plusPayload))
+    let plusBinary = ''
+    plusBytes.forEach((b) => { plusBinary += String.fromCharCode(b) })
+    const plusSegment = toBase64UrlSegment(btoa(plusBinary))
     expect(plusSegment).toContain('-')
     expect(decodeJwtPayload(plusSegment)).toEqual(plusPayload)
 

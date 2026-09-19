@@ -56,7 +56,12 @@ export function decodeJwtPayload(segment) {
     .replace(/-/g, '+')
     .replace(/_/g, '/')
     .padEnd(segment.length + (4 - (segment.length % 4)) % 4, '=')
-  return JSON.parse(atob(base64))
+  const binary = atob(base64)
+  // UTF-8 bytes → text ก่อน JSON.parse เสมอ (ASCII ผ่าน path นี้ได้เหมือนเดิม) —
+  // เดิม parse บน binary string ตรง ๆ ได้ mojibake กับ non-Latin1 (เช่น ชื่อไทย)
+  // โดยไม่ throw → isTokenValid อ่าน exp/name ผิด ไม่ใช่แค่ logout ผิด
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
 }
 
 export const useAuthStore = defineStore('auth', () => {

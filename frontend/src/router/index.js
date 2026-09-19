@@ -185,7 +185,17 @@ router.beforeEach(async (to) => {
   // N4: โหลด effective grants ของ role ตัวเองครั้งเดียวต่อ session (grants=null หลัง
   // login/refresh เสมอ) — ล้มเงียบได้เพราะ can() fallback เทียบ role ตาม intents เดิม
   if (auth.isAuthenticated && !auth.permissionGrants && !auth.isSuperAdmin) {
-    auth.fetchPermissionGrants().catch(() => {})
+    // F2: หน้า admin-gated ต้องรอ grants ก่อนตัดสินใจ — ไม่งั้น nav แรกหลัง login
+    // ใช้ stale role fallback (admin ที่ถูก override ปิด delete จะหลุดเข้าไปได้)
+    if (to.meta.requiresAdmin || to.meta.requiresSuperAdmin) {
+      try {
+        await auth.fetchPermissionGrants()
+      } catch {
+        // ล้มเงียบเหมือนเดิม — fallback role ตัดสินแทน
+      }
+    } else {
+      auth.fetchPermissionGrants().catch(() => {})
+    }
   }
 
   if (auth.isAuthenticated && auth.mustChangePassword && to.path !== '/change-password') {
