@@ -7,6 +7,12 @@ const mockAuth = {
   permissionGrants: null,
   fetchPermissionGrants: vi.fn(async () => {}),
   get isAdmin() {
+    // mirror real store (auth.js): superadmin → true; grants loaded → delete grants;
+    // grants null → role fallback
+    if (this.user?.role === 'superadmin') return true
+    if (this.permissionGrants) {
+      return (this.permissionGrants.delete || []).length > 0
+    }
     return this.user?.role === 'admin' || this.user?.role === 'superadmin'
   },
   get isSuperAdmin() {
@@ -34,6 +40,9 @@ describe('router auth guards', () => {
     mockAuth.isAuthenticated = false
     mockAuth.mustChangePassword = false
     mockAuth.user = null
+    mockAuth.permissionGrants = null
+    mockAuth.fetchPermissionGrants.mockReset()
+    mockAuth.fetchPermissionGrants.mockImplementation(async () => {})
   })
 
   it('redirects unauthenticated users away from protected routes', async () => {
@@ -66,6 +75,36 @@ describe('router auth guards', () => {
 
     await router.push('/import')
     expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
+
+  // F2: nav แรกหลัง login ต้องรอ grants — admin ที่ถูก override ปิด delete
+  // ต้องถูกเด้งกลับ แม้ role จะเป็น admin
+  it('blocks admin-gated nav when loaded grants revoke delete', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'admin', must_change_password: false }
+    mockAuth.permissionGrants = null
+    mockAuth.fetchPermissionGrants.mockImplementationOnce(async () => {
+      mockAuth.permissionGrants = { read: ['*'], create: [], update: [], delete: [] }
+    })
+
+    await router.push('/dashboard')
+    await router.push('/import')
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
+
+  it('allows admin-gated nav when loaded grants keep delete', async () => {
+    mockAuth.isAuthenticated = true
+    mockAuth.mustChangePassword = false
+    mockAuth.user = { role: 'admin', must_change_password: false }
+    mockAuth.permissionGrants = null
+    mockAuth.fetchPermissionGrants.mockImplementationOnce(async () => {
+      mockAuth.permissionGrants = { read: ['*'], create: [], update: [], delete: ['multiplier'] }
+    })
+
+    await router.push('/dashboard')
+    await router.push('/import')
+    expect(router.currentRoute.value.path).toBe('/import')
   })
 
   it('allows admin users to reach admin-only routes', async () => {

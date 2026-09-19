@@ -94,4 +94,21 @@ describe('TableRowActions', () => {
     expect(btn.classes()).toContain('focus-visible:ring-2')
     expect(btn.classes()).toContain('min-h-11')
   })
+
+  // F3: ปุ่ม ⋮ (menu mode) ต้องมี touch target 44px เท่า inline
+  it('has 44px touch target on overflow menu trigger', () => {
+    const wrapper = mount(TableRowActions, {
+      props: {
+        maxInline: 1,
+        actions: [
+          { key: 'view', label: 'ดูรายละเอียด' },
+          { key: 'edit', label: 'แก้ไข' },
+        ],
+      },
+    })
+    const trigger = wrapper.find('button[aria-label="จัดการ"]')
+    expect(trigger.exists()).toBe(true)
+    expect(trigger.classes()).toContain('min-h-11')
+    expect(trigger.classes()).toContain('min-w-11')
+  })
 })

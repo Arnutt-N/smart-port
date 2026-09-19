@@ -47,10 +47,22 @@ const props = defineProps({
 
 const emit = defineEmits(['update:offset'])
 
-const from = computed(() => props.total === 0 ? 0 : props.offset + 1)
-const to = computed(() => Math.min(props.offset + props.limit, props.total))
-const currentPage = computed(() => Math.floor(props.offset / props.limit) + 1)
-const totalPages = computed(() => Math.ceil(props.total / props.limit) || 1)
+// F1: sanitize ตัวเลขก่อนหาร — limit=0/NaN ทำให้หารเป็น Infinity/NaN แล้ว UI
+// เพจจิ้งพัง (ปุ่มไม่ disable, เลขหน้าเพี้ยน) — fallback เป็น 1 เสมอ
+const safeLimit = computed(() =>
+  Number.isFinite(props.limit) && props.limit > 0 ? props.limit : 1,
+)
+const safeOffset = computed(() =>
+  Number.isFinite(props.offset) && props.offset >= 0 ? props.offset : 0,
+)
+const safeTotal = computed(() =>
+  Number.isFinite(props.total) && props.total >= 0 ? props.total : 0,
+)
+
+const from = computed(() => safeTotal.value === 0 ? 0 : safeOffset.value + 1)
+const to = computed(() => Math.min(safeOffset.value + safeLimit.value, safeTotal.value))
+const currentPage = computed(() => Math.floor(safeOffset.value / safeLimit.value) + 1)
+const totalPages = computed(() => Math.ceil(safeTotal.value / safeLimit.value) || 1)
 
 const visiblePages = computed(() => {
   const pages = []
@@ -77,6 +89,6 @@ const visiblePages = computed(() => {
 
 function goToPage(page) {
   if (page < 1 || page > totalPages.value) return
-  emit('update:offset', (page - 1) * props.limit)
+  emit('update:offset', (page - 1) * safeLimit.value)
 }
 </script>
