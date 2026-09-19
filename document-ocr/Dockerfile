@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY scripts/convert_server.py scripts/convert.py scripts/extract_textlayer.py \
-     scripts/fallback_rapidocr.py scripts/
+     scripts/fallback_rapidocr.py scripts/ocr_auth.py scripts/
 
 # โมเดล RapidOCR โหลดครั้งแรกตอนใช้งาน — ให้ tmp ของเราอยู่ใน volume ที่เขียนได้
 ENV TMPDIR=/app/tmp
