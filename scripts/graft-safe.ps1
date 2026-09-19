@@ -123,6 +123,16 @@ try {
         $copiedCount++
     }
 
+    # Graft honors .gitignore walking up to the enclosing repo - and this repo
+    # ignores /smart-port-graft-safe-*/ - so without intervention every snapshot
+    # file is ignored and the build parses 0 files. A bare git init (no commits,
+    # no identity needed) makes the snapshot its own repo root with empty ignore
+    # rules; .git never leaves the temp dir (only graft/ is published back).
+    & git -C $tempRoot init -q
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to initialize snapshot repo for graft file discovery.'
+    }
+
     # The PowerShell Env: provider can fail when a host injects case-variant names.
     $savedEnvironment = [Environment]::GetEnvironmentVariables([EnvironmentVariableTarget]::Process)
     $environmentChanged = $true
@@ -139,7 +149,16 @@ try {
     Push-Location $tempRoot
     try {
         # Fixed invocation: never forward user arguments to the CLI.
-        & $graftCommand build .
+        # Native stderr (shim notices, progress lines) must not become a terminating
+        # error under $ErrorActionPreference='Stop' - the verdict is $LASTEXITCODE
+        # below (same pattern as the tidb-init block in ci-local.ps1).
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            & $graftCommand build .
+        } finally {
+            $ErrorActionPreference = $prevEap
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "Graft exited with code $LASTEXITCODE."
         }
