@@ -1,7 +1,5 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <PageBreadcrumb label="การนับเกื้อกูล" />
-
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">การนับเกื้อกูล</h1>

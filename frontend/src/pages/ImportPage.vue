@@ -21,7 +21,7 @@
         <a
           :href="templateUrl"
           download
-          class="shrink-0 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+          class="shrink-0 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
         >
           <Download class="w-4 h-4" />
           ดาวน์โหลดเทมเพลต
@@ -39,10 +39,10 @@
         tabindex="0"
         :aria-label="file ? `ไฟล์ที่เลือก: ${file.name}` : 'เลือกหรือลากไฟล์ .xlsx มาวางที่นี่'"
         :aria-disabled="busy"
-        class="border-2 border-dashed rounded-xl px-6 py-10 text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        class="border-2 border-dashed rounded-xl px-6 py-10 text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         :class="[
           busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
-          dragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50',
+          dragging ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-300 hover:bg-gray-50',
         ]"
         @click="!busy && openPicker()"
         @keydown.enter.prevent="!busy && openPicker()"

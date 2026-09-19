@@ -1,12 +1,5 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
-      <Home class="w-4 h-4" />
-      <span>/</span>
-      <span>{{ currentConfig.breadcrumb }}</span>
-    </nav>
-
     <!-- Page Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -390,7 +383,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
 import {
-  Users, UserCheck, AlertCircle, Clock, Timer, Loader, Home,
+  Users, UserCheck, AlertCircle, Clock, Timer, Loader,
   Briefcase, Building2
 } from 'lucide-vue-next'
 

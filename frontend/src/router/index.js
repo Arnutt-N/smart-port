@@ -6,6 +6,10 @@ import { useNavProgress } from '@/composables/useNavProgress.js'
 // ไป overview กัน bookmark/URL ผิดแล้วเข้าหน้าเปล่า
 export const KNOWN_CANDIDATE_SECTIONS = ['overview', 'general', 'academic', 'support', 'management']
 
+// re-export เพื่อ compat — single source จริงอยู่ที่ @/utils/breadcrumb.js
+// (แยกไฟล์เพื่อตัด circular import: Topbar → breadcrumb → router)
+export { CANDIDATE_SECTION_LABELS } from '@/utils/breadcrumb.js'
+
 const routes = [
   {
     path: '/login',
@@ -29,6 +33,7 @@ const routes = [
         path: 'dashboard',
         name: 'dashboard',
         component: () => import('@/pages/DashboardPage.vue'),
+        meta: { title: 'Dashboard', breadcrumb: ['Dashboard'] },
       },
       {
         path: 'candidates',
@@ -39,92 +44,104 @@ const routes = [
         name: 'candidates',
         component: () => import('@/pages/CandidateListsPage.vue'),
         props: true,
+        // trail ต่อท้ายด้วยชื่อ section แบบ dynamic — Topbar เติมให้จาก CANDIDATE_SECTION_LABELS
+        meta: { title: 'Candidate Lists', breadcrumb: ['Candidate Lists'] },
       },
       {
         path: 'probation-end',
         name: 'probation-end',
         component: () => import('@/pages/ProbationEndPage.vue'),
+        meta: { title: 'พ้นทดลองปฏิบัติราชการ', breadcrumb: ['พ้นทดลองปฏิบัติราชการ'] },
       },
       {
         path: 'personnel',
         name: 'personnel',
         component: () => import('@/pages/PersonnelPage.vue'),
+        meta: { title: 'ข้อมูลบุคลากร', breadcrumb: ['ข้อมูลบุคลากร'] },
       },
       {
         path: 'profile',
         name: 'my-profile',
         component: () => import('@/pages/ProfilePage.vue'),
+        meta: { title: 'โปรไฟล์ของฉัน', breadcrumb: ['โปรไฟล์ของฉัน'] },
       },
       {
         path: 'profile/:id',
         name: 'profile',
         component: () => import('@/pages/ProfilePage.vue'),
+        meta: { title: 'โปรไฟล์ข้าราชการ', breadcrumb: ['โปรไฟล์ข้าราชการ'] },
       },
       {
         path: 'work-results',
         name: 'work-results',
         component: () => import('@/pages/WorkResultsPage.vue'),
+        meta: { title: 'ผลงานและข้อเสนอ', breadcrumb: ['ผลงานและข้อเสนอ'] },
       },
       {
         path: 'awards',
         name: 'awards',
         component: () => import('@/pages/AwardsPage.vue'),
+        meta: { title: 'รางวัล/ความดีความชอบ', breadcrumb: ['รางวัล/ความดีความชอบ'] },
       },
       {
         path: 'analytics',
         name: 'analytics',
         component: () => import('@/pages/AnalyticsPage.vue'),
+        meta: { title: 'การวิเคราะห์ข้อมูล', breadcrumb: ['การวิเคราะห์ข้อมูล'] },
       },
       {
         path: 'admin',
         name: 'admin',
         component: () => import('@/pages/AdminPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'การจัดการงาน', breadcrumb: ['การจัดการงาน'] },
       },
       {
         path: 'users',
         name: 'users',
         component: () => import('@/pages/UserManagementPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'จัดการผู้ใช้', breadcrumb: ['จัดการผู้ใช้'] },
       },
       {
         path: 'audit',
         name: 'audit',
         component: () => import('@/pages/AuditLogPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'ประวัติการเปลี่ยนแปลง', breadcrumb: ['ประวัติการเปลี่ยนแปลง'] },
       },
       {
         path: 'import',
         name: 'import',
         component: () => import('@/pages/ImportPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'นำเข้าข้อมูลบุคลากร', breadcrumb: ['นำเข้าข้อมูลบุคลากร'] },
       },
       {
         path: 'ocr',
         name: 'ocr',
         component: () => import('@/pages/OcrPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'แปลงเอกสาร PDF', breadcrumb: ['แปลงเอกสาร PDF'] },
       },
       {
         path: 'time-counting',
         name: 'time-counting',
         component: () => import('@/pages/SupportivePage.vue'),
+        meta: { title: 'การนับเกื้อกูล', breadcrumb: ['การนับเกื้อกูล'] },
       },
       {
         path: 'time-multiplier',
         name: 'time-multiplier',
         component: () => import('@/pages/MultiplierPage.vue'),
+        meta: { title: 'การนับทวีคูณ', breadcrumb: ['การนับทวีคูณ'] },
       },
       {
         path: 'settings/account',
         name: 'settings-account',
         component: () => import('@/pages/SettingsPage.vue'),
+        meta: { title: 'ตั้งค่า', breadcrumb: ['ตั้งค่า'] },
       },
       {
         path: 'settings/permissions',
         name: 'settings-permissions',
         component: () => import('@/pages/SettingsPage.vue'),
-        meta: { requiresSuperAdmin: true },
+        meta: { requiresSuperAdmin: true, title: 'สิทธิ์ระบบ', breadcrumb: ['สิทธิ์ระบบ'] },
       },
       {
         // path เดิมก่อนย้ายเข้าเมนูแอดมิน — คง redirect ไว้กัน bookmark เก่าพัง
@@ -135,27 +152,31 @@ const routes = [
         path: 'settings/special-areas',
         name: 'settings-special-areas',
         component: () => import('@/pages/MultiplierAreasPage.vue'),
-        meta: { requiresAdmin: true },
+        meta: { requiresAdmin: true, title: 'จัดการพื้นที่พิเศษ', breadcrumb: ['การนับทวีคูณ', 'จัดการพื้นที่พิเศษ'] },
       },
       {
         path: 'time-difference',
         name: 'time-difference',
         component: () => import('@/pages/DiversePage.vue'),
+        meta: { title: 'การนับแตกต่าง', breadcrumb: ['การนับแตกต่าง'] },
       },
       {
         path: 'position-compare',
         name: 'position-compare',
         component: () => import('@/pages/EquivalencePage.vue'),
+        meta: { title: 'การเทียบตำแหน่ง', breadcrumb: ['การเทียบตำแหน่ง'] },
       },
       {
         path: 'royal-decorations',
         name: 'royal-decorations',
         component: () => import('@/pages/RoyalDecorationsPage.vue'),
+        meta: { title: 'เครื่องราชอิสริยาภรณ์', breadcrumb: ['เครื่องราชอิสริยาภรณ์'] },
       },
       {
         path: 'retirement-report',
         name: 'retirement-report',
         component: () => import('@/pages/RetirementReportPage.vue'),
+        meta: { title: 'รายงานผู้เกษียณ', breadcrumb: ['รายงานผู้เกษียณ'] },
       },
     ],
   },

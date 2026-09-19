@@ -1,11 +1,5 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
-    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
-      <Home class="w-4 h-4" />
-      <span>/</span>
-      <span>ประวัติการเปลี่ยนแปลง</span>
-    </nav>
-
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">ประวัติการเปลี่ยนแปลง (Audit Log)</h1>
@@ -208,7 +202,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { Home, RefreshCw, AlertCircle, X } from 'lucide-vue-next'
+import { RefreshCw, AlertCircle, X } from 'lucide-vue-next'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'

@@ -14,6 +14,7 @@ vi.mock('@/utils/chunkGuard.js', () => ({
 }))
 
 const router = (await import('@/router/index.js')).default
+const { CANDIDATE_SECTION_LABELS } = await import('@/router/index.js')
 
 describe('formerly-placeholder routes now resolve to real pages', () => {
   it.each([
@@ -47,5 +48,46 @@ describe('formerly-placeholder routes now resolve to real pages', () => {
 
   it('admin route requires admin', () => {
     expect(router.resolve('/admin').meta.requiresAdmin).toBe(true)
+  })
+
+  it('every app-shell page route carries title + breadcrumb meta (no Dashboard fallback needed)', () => {
+    const expected = {
+      '/dashboard': ['Dashboard'],
+      '/probation-end': ['พ้นทดลองปฏิบัติราชการ'],
+      '/personnel': ['ข้อมูลบุคลากร'],
+      '/profile': ['โปรไฟล์ของฉัน'],
+      '/profile/42': ['โปรไฟล์ข้าราชการ'],
+      '/work-results': ['ผลงานและข้อเสนอ'],
+      '/awards': ['รางวัล/ความดีความชอบ'],
+      '/analytics': ['การวิเคราะห์ข้อมูล'],
+      '/admin': ['การจัดการงาน'],
+      '/users': ['จัดการผู้ใช้'],
+      '/audit': ['ประวัติการเปลี่ยนแปลง'],
+      '/import': ['นำเข้าข้อมูลบุคลากร'],
+      '/ocr': ['แปลงเอกสาร PDF'],
+      '/time-counting': ['การนับเกื้อกูล'],
+      '/time-multiplier': ['การนับทวีคูณ'],
+      '/settings/account': ['ตั้งค่า'],
+      '/settings/permissions': ['สิทธิ์ระบบ'],
+      '/settings/special-areas': ['การนับทวีคูณ', 'จัดการพื้นที่พิเศษ'],
+      '/time-difference': ['การนับแตกต่าง'],
+      '/position-compare': ['การเทียบตำแหน่ง'],
+      '/royal-decorations': ['เครื่องราชอิสริยาภรณ์'],
+      '/retirement-report': ['รายงานผู้เกษียณ'],
+    }
+    for (const [path, breadcrumb] of Object.entries(expected)) {
+      const resolved = router.resolve(path)
+      expect(resolved.meta.title, `${path} title`).toBe(breadcrumb.at(-1))
+      expect(resolved.meta.breadcrumb, `${path} breadcrumb`).toEqual(breadcrumb)
+    }
+  })
+
+  it('candidates routes carry the Candidate Lists base trail (section label appended by Topbar)', () => {
+    for (const section of ['overview', 'general', 'academic', 'support', 'management']) {
+      const resolved = router.resolve(`/candidates/${section}`)
+      expect(resolved.meta.breadcrumb).toEqual(['Candidate Lists'])
+      expect(CANDIDATE_SECTION_LABELS[section]).toBeTruthy()
+    }
+    expect(CANDIDATE_SECTION_LABELS.overview).toBe('ภาพรวม')
   })
 })
