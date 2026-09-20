@@ -140,3 +140,6 @@ graft/
 # ยกเว้น: starter template ต้อง ship .claude ของตัวเอง (scripts/validate_template.py LAYOUT)
 !templates/product-design/.claude/
 !templates/product-design/.claude/**
+
+# SDD agent scratch (ledgers, briefs, review packages)
+.superpowers/
