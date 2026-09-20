@@ -8,12 +8,12 @@ include_once __DIR__ . '/helpers.php';
 
 function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startDateStr, string $endDateStr): array
 {
-    // ใช้ format ที่มี '|' ต่อท้าย เพื่อ reset เวลาเป็น 00:00:00 (ไม่งั้น createFromFormat
-    // จะเติมเวลาปัจจุบัน ทำให้ diff กับวันที่จาก DB (00:00:00) คลาดเคลื่อน ±1 วัน)
-    $startDate = DateTime::createFromFormat('Y-m-d|', $startDateStr);
-    $endDate = DateTime::createFromFormat('Y-m-d|', $endDateStr);
+    // strictDate ใช้ format 'Y-m-d|' reset เวลาเป็น 00:00:00 (ไม่งั้นเวลาปัจจุบัน
+    // ถูกเติม ทำให้ diff กับวันที่จาก DB (00:00:00) คลาดเคลื่อน ±1 วัน)
+    $startDate = strictDate($startDateStr);
+    $endDate = strictDate($endDateStr);
 
-    if (!$startDate || !$endDate) {
+    if ($startDate === null || $endDate === null) {
         throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง');
     }
     if ($endDate < $startDate) {
@@ -223,14 +223,6 @@ function validateAreaInput(array $data): array
 
 function parseStrictDate(string $value): ?DateTime
 {
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
+    return strictDate($value);
 }
 

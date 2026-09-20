@@ -399,8 +399,7 @@ class ImportService
             }
             return;
         }
-        $d = \DateTime::createFromFormat('Y-m-d', $val);
-        if (!$d || $d->format('Y-m-d') !== $val) {
+        if (strictDate($val) === null) {
             $errors[] = "{$label}: รูปแบบวันที่ต้องเป็น YYYY-MM-DD (พบ '{$val}')";
         }
     }
