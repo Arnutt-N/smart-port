@@ -20,25 +20,6 @@ include_once __DIR__ . '/../audit.php';
 const PROBATION_OVERALL_STATUSES = ['IN_PROGRESS', 'COMPLETED', 'FAILED', 'EXTENDED'];
 
 /**
- * parse Y-m-d แบบเข้ม (pattern เดียวกับ diverseStrictDate) — คืน null ถ้า format ผิดหรือ overflow
- */
-function probationStrictDate(string $value): ?DateTime
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
-}
-
-/**
  * N14 — ตรวจ payload PUT พ้นทดลอง: whitelist status, ห้ามเปิด CANCELLED, end≥start (merge กับแถวเดิม)
  *
  * @param array<string, mixed> $data
@@ -85,7 +66,7 @@ function probationUpdateValidationError(array $data, array $existing): ?string
         && is_string($data['extension_end_date'])
         && $data['extension_end_date'] !== ''
     ) {
-        $ext = probationStrictDate($data['extension_end_date']);
+        $ext = strictDate($data['extension_end_date']);
         if ($ext !== null && $ext < $end) {
             return 'extension_end_date must be greater than or equal to end_date';
         }
@@ -97,7 +78,7 @@ function probationUpdateValidationError(array $data, array $existing): ?string
 /**
  * F2 — ตรวจวัน optional ของ PUT พ้นทดลอง (`final_result_date`, `extension_end_date`):
  * ไม่ส่งมา/`''`/JSON null = ล้างเป็น NULL ได้ (คง contract แถว coerce ใน update);
- * นอกนั้นต้องเป็น string ผ่าน `probationStrictDate` มิฉะนั้น 400
+ * นอกนั้นต้องเป็น string ผ่าน `strictDate` มิฉะนั้น 400
  *
  * @param array<string, mixed> $data
  */
@@ -113,7 +94,7 @@ function probationUpdateOptionalDateError(array $data, string $field): ?string
     if (!is_string($val)) {
         return 'Invalid date format';
     }
-    return probationStrictDate($val) === null ? 'Invalid date format' : null;
+    return strictDate($val) === null ? 'Invalid date format' : null;
 }
 
 /**
@@ -127,7 +108,7 @@ function probationUpdateResolvedDate(array $data, array $existing, string $field
         if (!is_string($data[$field])) {
             return 'Invalid date format';
         }
-        return probationStrictDate($data[$field]) ?? 'Invalid date format';
+        return strictDate($data[$field]) ?? 'Invalid date format';
     }
     $raw = $existing[$field] ?? null;
     if ($raw === null || $raw === '') {
@@ -136,7 +117,7 @@ function probationUpdateResolvedDate(array $data, array $existing, string $field
     if (!is_string($raw)) {
         return 'Invalid date format';
     }
-    return probationStrictDate($raw) ?? 'Invalid date format';
+    return strictDate($raw) ?? 'Invalid date format';
 }
 
 /** N17 — POST create ใช้ parse เข้มชุดเดียวกับ PUT */
@@ -145,8 +126,8 @@ function probationCreateDateError(mixed $start, mixed $end): ?string
     if (!is_string($start) || !is_string($end)) {
         return 'Invalid date format';
     }
-    $startDate = probationStrictDate($start);
-    $endDate = probationStrictDate($end);
+    $startDate = strictDate($start);
+    $endDate = strictDate($end);
     if ($startDate === null || $endDate === null) {
         return 'Invalid date format';
     }

@@ -15,14 +15,14 @@ final class DiverseStrictDateTest extends TestCase
     #[Test]
     public function malformed_and_overflow_are_null(): void
     {
-        self::assertNull(diverseStrictDate('abc'));
-        self::assertNull(diverseStrictDate('2026-02-30'));
+        self::assertNull(strictDate('abc'));
+        self::assertNull(strictDate('2026-02-30'));
     }
 
     #[Test]
     public function valid_date_is_datetime(): void
     {
-        $d = diverseStrictDate('2026-01-15');
+        $d = strictDate('2026-01-15');
         self::assertInstanceOf(DateTime::class, $d);
         self::assertSame('2026-01-15', $d->format('Y-m-d'));
     }
@@ -30,15 +30,15 @@ final class DiverseStrictDateTest extends TestCase
     #[Test]
     public function unpadded_dates_are_null(): void
     {
-        // F1: ต้องเข้มเท่า probationStrictDate — ไม่มี zero-pad = format ผิด
-        self::assertNull(diverseStrictDate('2026-1-15'));
-        self::assertNull(diverseStrictDate('2026-01-5'));
+        // F1: ต้องเข้มเท่า strictDate — ไม่มี zero-pad = format ผิด
+        self::assertNull(strictDate('2026-1-15'));
+        self::assertNull(strictDate('2026-01-5'));
     }
 
     #[Test]
     public function datetime_suffix_is_null(): void
     {
-        self::assertNull(diverseStrictDate('2026-01-15 00:00:00'));
+        self::assertNull(strictDate('2026-01-15 00:00:00'));
     }
 
     #[Test]

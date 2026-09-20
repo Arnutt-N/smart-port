@@ -16,50 +16,6 @@
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
-/**
- * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine.php:224 / supportiveStrictDate)
- * เพื่อไม่ต้อง include engine ทั้งไฟล์ — คืน null ถ้า format ผิดหรือมี overflow
- * F1: preg guard ให้ตรง probationStrictDate/supportiveStrictDate (กัน '2026-1-15' หลุด)
- */
-function diverseStrictDate(string $value): ?DateTime
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
-}
-
-/**
- * U1 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
- * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
- *
- * @param array<string,mixed> $data
- * @param list<string> $fields
- */
-function diverseDateFieldError(mixed $data, array $fields): ?string
-{
-    if (!is_array($data)) {
-        return 'รูปแบบข้อมูลไม่ถูกต้อง';
-    }
-    foreach ($fields as $field) {
-        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
-            continue;
-        }
-        if (!is_string($data[$field]) || diverseStrictDate($data[$field]) === null) {
-            return 'รูปแบบวันที่ไม่ถูกต้อง';
-        }
-    }
-    return null;
-}
-
 /** @var list<string> ฟิลด์วันที่ของ diverse ที่ต้องผ่าน strict parse เมื่อส่งมา */
 const DIVERSE_DATE_FIELDS = ['from_start_date', 'from_end_date', 'to_start_date', 'to_end_date'];
 
@@ -274,7 +230,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // U1: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
-    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    $dateError = dateFieldError($data, DIVERSE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -290,8 +246,8 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
-        $fromStart = diverseStrictDate((string) $data['from_start_date']);
-        $fromEnd = diverseStrictDate((string) $data['from_end_date']);
+        $fromStart = strictDate((string) $data['from_start_date']);
+        $fromEnd = strictDate((string) $data['from_end_date']);
         if ($fromStart === null || $fromEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -307,8 +263,8 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 
     $toTotalDays = null;
     if (!empty($data['to_start_date']) && !empty($data['to_end_date'])) {
-        $toStart = diverseStrictDate((string) $data['to_start_date']);
-        $toEnd = diverseStrictDate((string) $data['to_end_date']);
+        $toStart = strictDate((string) $data['to_start_date']);
+        $toEnd = strictDate((string) $data['to_end_date']);
         if ($toStart === null || $toEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -410,7 +366,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // U1: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
-    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    $dateError = dateFieldError($data, DIVERSE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -454,8 +410,8 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $fromStartDate = $data['from_start_date'] ?? $existing['from_start_date'];
     $fromEndDate = $data['from_end_date'] ?? $existing['from_end_date'];
     if (!empty($fromStartDate) && !empty($fromEndDate)) {
-        $fromStart = diverseStrictDate((string) $fromStartDate);
-        $fromEnd = diverseStrictDate((string) $fromEndDate);
+        $fromStart = strictDate((string) $fromStartDate);
+        $fromEnd = strictDate((string) $fromEndDate);
         if ($fromStart === null || $fromEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -477,8 +433,8 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $toStartDate = $data['to_start_date'] ?? $existing['to_start_date'];
     $toEndDate = $data['to_end_date'] ?? $existing['to_end_date'];
     if (!empty($toStartDate) && !empty($toEndDate)) {
-        $toStart = diverseStrictDate((string) $toStartDate);
-        $toEnd = diverseStrictDate((string) $toEndDate);
+        $toStart = strictDate((string) $toStartDate);
+        $toEnd = strictDate((string) $toEndDate);
         if ($toStart === null || $toEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);

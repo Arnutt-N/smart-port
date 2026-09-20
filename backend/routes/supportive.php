@@ -192,17 +192,6 @@ function getSupportiveDetail(PDO $pdo, int $id): void
 }
 
 /**
- * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine::parseStrictDate มาไว้ที่นี่
- * เพื่อไม่ต้อง include engine ทั้งไฟล์) — คืน null ถ้า format ผิดหรือมี overflow
- * (เดือน 13, วัน 45) — 'Y-m-d|' reset เวลาเป็น 00:00:00 กันคลาดเคลื่อน ±1 วัน
- */
-/** N15 — DECIMAL(5,2) ต้องเป็น float ไม่ใช่ intval ที่ตัดทศนิยม */
-function supportiveRatioPercent(int|float|string $raw): float
-{
-    return (float) $raw;
-}
-
-/**
  * U2 — ฟิลด์ string ที่ส่งมาต้องเป็น string จริง (กัน array จาก JSON ทำ TypeError 500
  * ใน computeSupportiveFields ที่รับ string) — ข้ามค่าที่ไม่ส่งมา/null
  *
@@ -217,23 +206,6 @@ function supportiveStringFieldError(array $data, array $fields): ?string
         }
     }
     return null;
-}
-
-function supportiveStrictDate(string $value): ?DateTime
-{
-    // F1: preg guard ให้ตรง probationStrictDate (กัน '2026-1-15' หลุด)
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
 }
 
 /**
@@ -252,8 +224,8 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
 {
     // F11: parse แบบเข้มงวด — เดิมใช้ new DateTime() หลวม และ end < start ยังได้
     // total_days positive ที่ผิดความหมาย
-    $startDate = supportiveStrictDate($startDateStr);
-    $endDate = supportiveStrictDate($endDateStr);
+    $startDate = strictDate($startDateStr);
+    $endDate = strictDate($endDateStr);
     if ($startDate === null || $endDate === null) {
         throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
     }
@@ -276,7 +248,7 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
         $ratioStmt->execute([$primarySeriesName, $jobSeriesName]);
         $ratioRow = $ratioStmt->fetch(PDO::FETCH_ASSOC);
         if ($ratioRow) {
-            $ratioPercent = supportiveRatioPercent($ratioRow['ratio_percent']);
+            $ratioPercent = (float) $ratioRow['ratio_percent'];
         }
     }
 

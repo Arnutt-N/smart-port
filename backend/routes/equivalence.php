@@ -18,30 +18,6 @@
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 
-/**
- * U6 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
- * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
- * mirror `diverseDateFieldError` (diverse.php) ต่างแค่ชื่อ/const
- *
- * @param array<string,mixed> $data
- * @param list<string> $fields
- */
-function equivalenceDateFieldError(mixed $data, array $fields): ?string
-{
-    if (!is_array($data)) {
-        return 'รูปแบบข้อมูลไม่ถูกต้อง';
-    }
-    foreach ($fields as $field) {
-        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
-            continue;
-        }
-        if (!is_string($data[$field]) || equivalenceStrictDate($data[$field]) === null) {
-            return 'รูปแบบวันที่ไม่ถูกต้อง';
-        }
-    }
-    return null;
-}
-
 /** @var list<string> ฟิลด์วันที่ของ equivalence ที่ต้องผ่าน strict parse เมื่อส่งมา */
 const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
 
@@ -258,7 +234,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // U6: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
-    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    $dateError = dateFieldError($data, EQUIVALENCE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -277,9 +253,9 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     $requestTotalDays = null;
     if (!empty($data['request_start_date']) && !empty($data['request_end_date'])) {
         $startDate = is_string($data['request_start_date'])
-            ? equivalenceStrictDate($data['request_start_date']) : null;
+            ? strictDate($data['request_start_date']) : null;
         $endDate = is_string($data['request_end_date'])
-            ? equivalenceStrictDate($data['request_end_date']) : null;
+            ? strictDate($data['request_end_date']) : null;
         if ($startDate === null || $endDate === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -322,33 +298,13 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
 }
 
 /**
- * U3 — parse Y-m-d แบบเข้ม (mirror probationStrictDate) — คืน null ถ้า format ผิดหรือ overflow
- * (กัน '2026-1-15'/datetime suffix หลุดผ่าน new DateTime ตรง ๆ)
- */
-function equivalenceStrictDate(string $value): ?DateTime
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
-}
-
-/**
  * Inclusive day count for an approved date range.
  * Throws InvalidArgumentException when end < start (message matches MultiplierEngine.php:20).
  */
 function approvedRangeTotalDays(string $start, string $end): int
 {
-    $approvedStart = equivalenceStrictDate($start);
-    $approvedEnd = equivalenceStrictDate($end);
+    $approvedStart = strictDate($start);
+    $approvedEnd = strictDate($end);
     if ($approvedStart === null || $approvedEnd === null) {
         throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง');
     }
@@ -489,7 +445,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
 
     // Regular field update (ไม่มีการเปลี่ยนสถานะ)
     // U6: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
-    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    $dateError = dateFieldError($data, EQUIVALENCE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -518,8 +474,8 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $endDate = $data['request_end_date'] ?? $current['request_end_date'];
     if ((isset($data['request_start_date']) || isset($data['request_end_date'])) && !empty($startDate) && !empty($endDate)) {
         // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
-        $start = is_string($startDate) ? equivalenceStrictDate($startDate) : null;
-        $end = is_string($endDate) ? equivalenceStrictDate($endDate) : null;
+        $start = is_string($startDate) ? strictDate($startDate) : null;
+        $end = is_string($endDate) ? strictDate($endDate) : null;
         if ($start === null || $end === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
