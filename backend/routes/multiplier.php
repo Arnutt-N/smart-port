@@ -25,6 +25,9 @@ const MULTIPLIER_OVERLAP_EXCLUDE_SQL = 'SELECT COUNT(*) FROM multiplier_experien
           AND eligible_start_date <= ?
           AND eligible_end_date >= ?';
 
+/** @var list<string> ฟิลด์วันที่ของ multiplier ที่ต้องผ่าน strict parse เมื่อส่งมา */
+const MULTIPLIER_DATE_FIELDS = ['start_date', 'end_date'];
+
 /**
  * N10 — เขียน master พื้นที่พิเศษ = admin/superadmin (UI requiresAdmin)
  *
@@ -319,9 +322,9 @@ function getMultiplierList(PDO $pdo): void
     ]);
 }
 
-function createMultiplier(PDO $pdo, array $user): void
+function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
 {
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = $input ?? json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) {
         http_response_code(400);
         echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
@@ -360,6 +363,15 @@ function createMultiplier(PDO $pdo, array $user): void
         echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
         return;
     }
+
+    // T3.4: ตรวจวันรายฟิลด์ก่อน compute (placement เดียวกับ diverse guard)
+    $dateError = dateFieldError($data, MULTIPLIER_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
+
     try {
         $computed = computeMultiplierFields(
             $pdo,
@@ -637,6 +649,14 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
             echo json_encode(['error' => 'ไม่พบบุคลากรตามรหัสที่ระบุ']);
             return;
         }
+    }
+
+    // T3.4: ตรวจวันรายฟิลด์ที่ส่งมาก่อน compute (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
+    $dateError = dateFieldError($data, MULTIPLIER_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
     }
 
     // คำนวณ fields ใหม่
