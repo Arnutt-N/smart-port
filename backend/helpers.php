@@ -245,3 +245,53 @@ function computeNetBreakdown(DateTime $startDate, int $effectiveDays): array
         'net_day_remainder' => $netDayRemainder,
     ];
 }
+
+/**
+ * parse Y-m-d strict shared helper (mirror diverseStrictDate)
+ * Returns null for non-string, bad format, or overflow (e.g. 2026-02-30).
+ *
+ * mixed param is deliberate (not string): callers may pass arrays from JSON.
+ * Closes the TypeError hole in diverseStrictDate(string).
+ * The Y-m-d pipe resets time to 00:00:00 (prevents off-by-one day).
+ */
+function strictDate(mixed $value): ?DateTime
+{
+    if (!is_string($value)) {
+        return null;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return null;
+    }
+    $date = DateTime::createFromFormat('Y-m-d|', $value);
+    $errors = DateTime::getLastErrors();
+    if (
+        $date === false
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+    ) {
+        return null;
+    }
+    return $date;
+}
+
+/**
+ * Per-field date check shared helper (mirror diverseDateFieldError).
+ * Any supplied non-empty date field must pass strict parsing.
+ *
+ * @param array<string,mixed> $data
+ * @param list<string> $fields
+ */
+function dateFieldError(mixed $data, array $fields): ?string
+{
+    if (!is_array($data)) {
+        return 'รูปแบบข้อมูลไม่ถูกต้อง';
+    }
+    foreach ($fields as $field) {
+        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
+            continue;
+        }
+        if (strictDate($data[$field]) === null) {
+            return 'รูปแบบวันที่ไม่ถูกต้อง';
+        }
+    }
+    return null;
+}
