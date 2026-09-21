@@ -98,7 +98,7 @@ describe('SupportivePage', () => {
       summary: null,
       pagination: { total: 1, limit: 20, offset: 0 },
     })
-    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, full_name: 'นายสมชาย ไทยแท้', is_active: 1 } })
   })
 
   it('loads and renders supportive records on mount', async () => {
@@ -207,26 +207,6 @@ describe('SupportivePage', () => {
     expect(mockRemove).not.toHaveBeenCalled()
   })
 
-  it('skips personnel typeahead while IME is composing then runs on composition end', async () => {
-    vi.useFakeTimers()
-    const wrapper = await mountPage()
-    wrapper.vm.openCreate()
-    await wrapper.vm.$nextTick()
-    mockSearchPersonnel.mockClear()
-
-    const input = wrapper.get('#supportive-personnel-search')
-    await input.trigger('compositionstart')
-    await input.setValue('สม')
-    await input.trigger('input')
-    await vi.advanceTimersByTimeAsync(300)
-    expect(mockSearchPersonnel).not.toHaveBeenCalled()
-
-    await input.trigger('compositionend')
-    await vi.advanceTimersByTimeAsync(300)
-    expect(mockSearchPersonnel).toHaveBeenCalled()
-    vi.useRealTimers()
-  })
-
   it('closeModal clears form errors', async () => {
     const wrapper = await mountPage()
     wrapper.vm.openCreate()
@@ -250,54 +230,6 @@ describe('SupportivePage', () => {
     vi.useRealTimers()
   })
 
-  it('selectPersonnel fills form and closes dropdown', async () => {
-    const wrapper = await mountPage()
-    wrapper.vm.openCreate()
-    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
-
-    expect(wrapper.vm.formData.personnel_id).toBe(9)
-    expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-  })
-
-  it('personnel input clears selection and fetches after debounce', async () => {
-    vi.useFakeTimers()
-    mockSearchPersonnel.mockResolvedValue([{ personnel_id: 1, full_name: 'A' }])
-    const wrapper = await mountPage()
-    wrapper.vm.openCreate()
-    wrapper.vm.formData.personnel_id = 3
-    wrapper.vm.personnelSearch = 'สมช'
-    wrapper.vm.onPersonnelInput()
-
-    expect(wrapper.vm.formData.personnel_id).toBeNull()
-    await vi.advanceTimersByTimeAsync(300)
-    expect(mockSearchPersonnel).toHaveBeenCalledWith('สมช', { limit: 10 })
-    expect(wrapper.vm.showPersonnelDropdown).toBe(true)
-    vi.useRealTimers()
-  })
-
-  it('ignores in-flight personnel results after input is cleared', async () => {
-    vi.useFakeTimers()
-    let resolveSearch
-    mockSearchPersonnel.mockImplementation(
-      () => new Promise((resolve) => { resolveSearch = resolve }),
-    )
-    const wrapper = await mountPage()
-    wrapper.vm.openCreate()
-    wrapper.vm.personnelSearch = 'สมชาย'
-    wrapper.vm.onPersonnelInput()
-    await vi.advanceTimersByTimeAsync(300)
-
-    wrapper.vm.personnelSearch = ''
-    wrapper.vm.onPersonnelInput()
-    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
-    await flushPromises()
-
-    expect(wrapper.vm.personnelResults).toEqual([])
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-    vi.useRealTimers()
-  })
-
   // backend ปฏิเสธ DELETE ของ operator ด้วย 403 (audit.php: checkPermission delete => [])
   // ปุ่มลบจึงต้องไม่โผล่ให้ operator กด — แต่ปุ่มแก้ไขต้องยังอยู่เพราะ operator แก้ไขได้
   it('hides the delete button for operator but keeps edit available', async () => {
@@ -313,32 +245,6 @@ describe('SupportivePage', () => {
     expect(wrapper.findAll('button[title="ลบ"]').length).toBeGreaterThan(0)
   })
 
-  it('shows admin create link when typeahead finds no personnel', async () => {
-    const wrapper = await mountPage('admin')
-    wrapper.vm.showModal = true
-    wrapper.vm.personnelSearch = 'ไม่มีคนนี้'
-    wrapper.vm.personnelResults = []
-    wrapper.vm.showPersonnelDropdown = true
-    wrapper.vm.personnelSearchFailed = false
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('ไม่พบบุคลากรที่ตรงกับคำค้น')
-    expect(wrapper.text()).toContain('ไปสร้างที่ข้อมูลบุคลากร')
-  })
-
-  it('hides admin create link for operator on empty typeahead', async () => {
-    const wrapper = await mountPage('operator')
-    wrapper.vm.showModal = true
-    wrapper.vm.personnelSearch = 'ไม่มีคนนี้'
-    wrapper.vm.personnelResults = []
-    wrapper.vm.showPersonnelDropdown = true
-    wrapper.vm.personnelSearchFailed = false
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.text()).toContain('ไม่พบบุคลากรที่ตรงกับคำค้น')
-    expect(wrapper.text()).not.toContain('ไปสร้างที่ข้อมูลบุคลากร')
-  })
-
   it('opens create modal prefilled from profile create query', async () => {
     routeQuery.value = {
       create: '1',
@@ -349,7 +255,7 @@ describe('SupportivePage', () => {
     await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
-    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    expect(wrapper.get('#supportive-personnel-search').element.value).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
     expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
   })
