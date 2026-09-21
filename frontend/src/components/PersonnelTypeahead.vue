@@ -147,6 +147,7 @@ watch(
 
 // Personnel autocomplete
 function onPersonnelInput() {
+  if (props.disabled) return
   if (isComposingPersonnel.value) return
   if (selectedId.value != null || props.modelValue != null) {
     selectedId.value = null
