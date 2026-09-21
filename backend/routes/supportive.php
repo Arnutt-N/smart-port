@@ -15,6 +15,7 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
+include_once __DIR__ . '/../TimeEntryCrud.php';
 
 /**
  * จัดการ request สำหรับ supportive experience endpoints
@@ -25,12 +26,27 @@ include_once __DIR__ . '/../audit.php';
  */
 function handleSupportive(PDO $pdo, string $method, array $path): void
 {
-    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
-    if (isset($actionMap[$method])) {
-        requirePermission($actionMap[$method], 'supportive');
+    $action = timeEntryAction($method);
+    if ($action === null) {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
     }
-    $user = getAuthenticatedUser();
 
+    $user = resolveSupportiveUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+
+    // NOTE: permission resource คือ 'supportive' (short name ตาม authz grants/tests)
+    // ไม่ใช่ชื่อตาราง 'supportive_experience' — PRP Rev5 เขียนชื่อตารางมาผิด
+    $denied = timeEntryDenied($action, 'supportive', $user, $pdo);
+    if ($denied !== null) {
+        timeEntryEmit(['http' => $denied['status'], 'body' => $denied['body']]);
+        return;
+    }
     switch ($method) {
         case 'GET':
             $id = $path[1] ?? null;
@@ -82,84 +98,7 @@ function handleSupportive(PDO $pdo, string $method, array $path): void
  */
 function getSupportiveList(PDO $pdo): void
 {
-    $personnelId = $_GET['personnel_id'] ?? null;
-    $search = trim($_GET['search'] ?? '');
-    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
-
-    $baseQuery = "SELECT se.*, " . sqlPersonnelFullName() . " AS full_name
-                  FROM supportive_experience se
-                  LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
-                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
-
-    $countQuery = "SELECT COUNT(*) AS total
-                   FROM supportive_experience se
-                   LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
-                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
-
-    $conditions = [];
-    $params = [];
-
-    if ($personnelId !== null && $personnelId !== '') {
-        $conditions[] = 'se.personnel_id = ?';
-        $params[] = intval($personnelId);
-    }
-
-    if ($search !== '') {
-        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR " . sqlPersonnelFullName() . " LIKE ?
-                          OR se.job_series_name LIKE ?)";
-        $term = "%{$search}%";
-        array_push($params, $term, $term, $term, $term);
-    }
-
-    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-
-    // Data query with ordering and pagination
-    $sql = $baseQuery . $where . " ORDER BY se.start_date DESC LIMIT {$limit} OFFSET {$offset}";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Count query for pagination
-    $countStmt = $pdo->prepare($countQuery . $where);
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
-
-    // เพิ่มวันที่ภาษาไทย
-    foreach ($rows as &$row) {
-        $row['start_date_thai'] = formatThaiDate($row['start_date']);
-        $row['end_date_thai'] = formatThaiDate($row['end_date']);
-    }
-    unset($row);
-
-    // Summary จาก full dataset (ไม่ใช่ current page)
-    // recent_count = รายการที่ start_date อยู่ในเดือนปัจจุบัน — FE ใช้แสดงการ์ด «เพิ่มล่าสุด» (N27)
-    $summaryStmt = $pdo->query("
-        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
-               SUM(effective_days) AS total_effective_days,
-               SUM(CASE WHEN YEAR(start_date) = YEAR(CURDATE()) AND MONTH(start_date) = MONTH(CURDATE())
-                        THEN 1 ELSE 0 END) AS recent_count
-        FROM supportive_experience
-    ");
-    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        'success' => true,
-        'data' => $rows,
-        'summary' => [
-            'total' => $total,
-            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
-            'total_effective_days' => (float) ($summaryRow['total_effective_days'] ?? 0),
-            'recent_count' => (int) ($summaryRow['recent_count'] ?? 0),
-        ],
-        'pagination' => [
-            'total' => $total,
-            'limit' => $limit,
-            'offset' => $offset,
-            'has_more' => ($offset + $limit) < $total
-        ]
-    ]);
+    timeEntryEmit(timeEntryList($pdo, supportiveTimeEntryCfg()));
 }
 
 /**
@@ -167,28 +106,61 @@ function getSupportiveList(PDO $pdo): void
  */
 function getSupportiveDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT se.*, " . sqlPersonnelFullName() . " AS full_name
-            FROM supportive_experience se
-            LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-            WHERE se.supportive_id = ?";
+    $cfg = supportiveTimeEntryCfg();
+    $cfg['dateFields'] = ['start_date', 'end_date', 'net_end_date'];
+    timeEntryEmit(timeEntryDetail($pdo, $cfg, $id, 'ไม่พบรายการนับเกื้อกูล'));
+}
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id]);
-    $record = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$record) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการนับเกื้อกูล']);
-        return;
+/**
+ * N23/N56: test hook — pattern เดียวกับ resolveImportUser (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveSupportiveUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
     }
+    return getAuthenticatedUser();
+}
 
-    // เพิ่มวันที่ภาษาไทย
-    $record['start_date_thai'] = formatThaiDate($record['start_date']);
-    $record['end_date_thai'] = formatThaiDate($record['end_date']);
-    $record['net_end_date_thai'] = formatThaiDate($record['net_end_date']);
-
-    echo json_encode(['success' => true, 'data' => $record]);
+/**
+ * Route cfg สำหรับ TimeEntryCrud cores (list/detail ใช้ชุดเดียวกัน;
+ * detail ขยาย dateFields ด้วย net_end_date ตอนเรียก)
+ */
+function supportiveTimeEntryCfg(): array
+{
+    return [
+        'table' => 'supportive_experience',
+        'alias' => 'se',
+        'idCol' => 'se.supportive_id',
+        'joins' => ' LEFT JOIN personnel p ON se.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id',
+        'selectExtra' => sqlPersonnelFullName() . ' AS full_name',
+        'searchSql' => [
+            'p.first_name LIKE ?',
+            'p.last_name LIKE ?',
+            '(' . sqlPersonnelFullName() . ') LIKE ?',
+            'se.job_series_name LIKE ?',
+        ],
+        'orderBy' => 'se.start_date DESC',
+        'summarySql' => "
+            SELECT
+                COUNT(*) AS distinct_personnel,
+                COALESCE(SUM(effective_days), 0) AS total_effective_days,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS recent_count
+            FROM supportive_experience
+        ",
+        'summaryMap' => function (array $summaryRow, int $total): array {
+            return [
+                'total' => $total,
+                'distinct_personnel' => intval($summaryRow['distinct_personnel'] ?? 0),
+                'total_effective_days' => floatval($summaryRow['total_effective_days'] ?? 0),
+                'recent_count' => intval($summaryRow['recent_count'] ?? 0),
+            ];
+        },
+        'dateFields' => ['start_date', 'end_date'],
+    ];
 }
 
 /**
@@ -358,7 +330,7 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
     $afterStmt->execute([$supportiveId]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
 
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'CREATE',
@@ -368,8 +340,7 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
         $after ?: null
     );
 
-    http_response_code(201);
-    echo json_encode(['success' => true, 'supportive_id' => $supportiveId]);
+    timeEntryEmit(['http' => 201, 'body' => ['success' => true, 'supportive_id' => $supportiveId]]);
 }
 
 /**
@@ -490,7 +461,7 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
     $afterStmt = $pdo->prepare('SELECT * FROM supportive_experience WHERE supportive_id = ?');
     $afterStmt->execute([$id]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'UPDATE',
@@ -500,7 +471,7 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
         $after ?: null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }
 
 /**
@@ -520,7 +491,7 @@ function deleteSupportive(PDO $pdo, int $id, array $user): void
     $stmt = $pdo->prepare("DELETE FROM supportive_experience WHERE supportive_id = ?");
     $stmt->execute([$id]);
 
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'DELETE',
@@ -530,5 +501,5 @@ function deleteSupportive(PDO $pdo, int $id, array $user): void
         null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }
