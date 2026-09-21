@@ -251,4 +251,36 @@ final class HelpersTest extends TestCase
             'string data' => ['x', ['start_date'], 'รูปแบบข้อมูลไม่ถูกต้อง'],
         ];
     }
+
+    // ------------------------------------------------------------------
+    // computeNetBreakdown boundaries
+    // ------------------------------------------------------------------
+
+    #[Test]
+    #[DataProvider('netBreakdownBoundaryProvider')]
+    public function it_computes_net_breakdown_boundaries(int $effective, string $expectedEnd, int $y, int $m, int $d): void
+    {
+        $result = computeNetBreakdown(new DateTime('2026-01-01'), $effective);
+        self::assertSame($expectedEnd, $result['net_end_date']);
+        self::assertSame($y, $result['net_years']);
+        self::assertSame($m, $result['net_months']);
+        self::assertSame($d, $result['net_day_remainder']);
+    }
+
+    /**
+     * @return array<string, array{int, string, int, int, int}>
+     */
+    public static function netBreakdownBoundaryProvider(): array
+    {
+        return [
+            'zero days' => [0, '2026-01-01', 0, 0, 0],
+            'one day' => [1, '2026-01-01', 0, 0, 1],
+            'thirty days' => [30, '2026-01-30', 0, 1, 0],
+            'thirty-one days' => [31, '2026-01-31', 0, 1, 1],
+            'one year' => [365, '2026-12-31', 1, 0, 0],
+            'one year one day' => [366, '2027-01-01', 1, 0, 1],
+            // negative: pins current PHP floor/mod behavior — callers must never send negative
+            'negative pinned' => [-5, '2026-01-01', -1, -1, -5],
+        ];
+    }
 }
