@@ -295,3 +295,6 @@ function dateFieldError(mixed $data, array $fields): ?string
     }
     return null;
 }
+
+/** จำนวนวันสูงสุดที่นับว่าใกล้ครบกำหนดทดลองงาน (near_deadline = 0..30 หลัง T5.2) */
+const PROBATION_NEAR_THRESHOLD_DAYS = 30;

@@ -303,7 +303,7 @@ function getProbationList(PDO $pdo): void
         $summaryStmt = $pdo->query("
             SELECT
                 SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) > 0 THEN 1 ELSE 0 END) AS in_progress,
-                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) BETWEEN 1 AND 30 THEN 1 ELSE 0 END) AS near_deadline,
+                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) BETWEEN 1 AND " . PROBATION_NEAR_THRESHOLD_DAYS . " THEN 1 ELSE 0 END) AS near_deadline,
                 SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) < 0 THEN 1 ELSE 0 END) AS overdue
             FROM probation_enrollment
             WHERE overall_status = 'IN_PROGRESS'
@@ -317,7 +317,7 @@ function getProbationList(PDO $pdo): void
         foreach ($rows as $r) {
             $rem = intval($r['remaining_days'] ?? 0);
             if ($rem > 0) $inProgress++;
-            if ($rem >= 1 && $rem <= 30) $nearDeadline++;
+            if ($rem >= 1 && $rem <= PROBATION_NEAR_THRESHOLD_DAYS) $nearDeadline++;
             if ($rem < 0) $overdue++;
         }
     }
