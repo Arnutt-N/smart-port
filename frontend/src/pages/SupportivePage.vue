@@ -455,10 +455,12 @@ onMounted(() => {
     route,
     router,
     openCreate,
-    formData,
-    personnelSearch: prefillName,
     get: (url) => api.get(url),
     onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
+  }).then((person) => {
+    if (!person) return
+    formData.value.personnel_id = person.personnel_id
+    prefillName.value = person.full_name ?? ''
   })
 })
 </script>
