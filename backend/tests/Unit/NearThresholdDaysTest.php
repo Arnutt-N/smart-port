@@ -19,4 +19,10 @@ final class NearThresholdDaysTest extends TestCase
     {
         self::assertSame(90, QualificationEngine::NEAR_THRESHOLD_DAYS);
     }
+
+    #[Test]
+    public function probation_near_threshold_is_thirty_days(): void
+    {
+        self::assertSame(30, PROBATION_NEAR_THRESHOLD_DAYS);
+    }
 }

@@ -140,6 +140,8 @@ describe('useProbation', () => {
         { enrollment_id: 2, personnel_id: 2, full_name: 'B', status: 'IN_PROGRESS', remaining_days: 15 },
         { enrollment_id: 3, personnel_id: 3, full_name: 'C', status: 'IN_PROGRESS', remaining_days: 0 },
         { enrollment_id: 4, personnel_id: 4, full_name: 'D', status: 'IN_PROGRESS', remaining_days: -3 },
+        { enrollment_id: 5, personnel_id: 5, full_name: 'E', status: 'IN_PROGRESS', remaining_days: 30 },
+        { enrollment_id: 6, personnel_id: 6, full_name: 'F', status: 'IN_PROGRESS', remaining_days: 31 },
       ],
       pagination: {},
     })
@@ -147,7 +149,7 @@ describe('useProbation', () => {
     const { fetchList } = useProbation()
     const result = await fetchList()
 
-    expect(result.data.map((r) => r.status)).toEqual(['NOT_DUE', 'NEAR_DEADLINE', 'READY', 'OVERDUE'])
+    expect(result.data.map((r) => r.status)).toEqual(['NOT_DUE', 'NEAR_DEADLINE', 'READY', 'OVERDUE', 'NEAR_DEADLINE', 'NOT_DUE'])
   })
 
   it('returns empty data array when API omits data field', async () => {
