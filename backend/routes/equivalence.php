@@ -17,6 +17,7 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
+include_once __DIR__ . '/../TimeEntryCrud.php';
 
 /** @var list<string> ฟิลด์วันที่ของ equivalence ที่ต้องผ่าน strict parse เมื่อส่งมา */
 const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
@@ -30,11 +31,26 @@ const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
  */
 function handleEquivalence(PDO $pdo, string $method, array $path): void
 {
-    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update'];
-    if (isset($actionMap[$method])) {
-        requirePermission($actionMap[$method], 'equivalence');
+    // equivalence ไม่มี DELETE (actionMap เดิมมีแค่ GET/POST/PUT) — DELETE ตก 405 แบบเดิม
+    $action = ($method === 'DELETE') ? null : timeEntryAction($method);
+    if ($action === null) {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
     }
-    $user = getAuthenticatedUser();
+
+    $user = resolveEquivalenceUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+
+    $denied = timeEntryDenied($action, 'equivalence', $user, $pdo);
+    if ($denied !== null) {
+        timeEntryEmit(['http' => $denied['status'], 'body' => $denied['body']]);
+        return;
+    }
 
     switch ($method) {
         case 'GET':
@@ -71,100 +87,71 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
 }
 
 /**
+ * N23/N56: test hook — pattern เดียวกับ resolveImportUser (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveEquivalenceUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * Route cfg สำหรับ TimeEntryCrud cores (list/detail ใช้ชุดเดียวกัน)
+ * หมายเหตุ: count query ต้นฉบับไม่ join users (แต่ LEFT JOIN ไม่เปลี่ยนจำนวนแถว
+ * เพราะ user_id เป็น PK — ผลลัพธ์เท่ากันทุกประการ)
+ */
+function equivalenceTimeEntryCfg(): array
+{
+    return [
+        'table' => 'position_equivalence',
+        'alias' => 'pe',
+        'idCol' => 'pe.equivalence_id',
+        'joins' => ' LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+                  LEFT JOIN users u ON pe.approved_by = u.user_id',
+        'selectExtra' => sqlPersonnelFullName() . " AS full_name,\n                         u.username AS approved_by_name",
+        'searchSql' => [
+            'p.first_name LIKE ?',
+            'p.last_name LIKE ?',
+            '(' . sqlPersonnelFullName() . ') LIKE ?',
+            'pe.actual_position LIKE ?',
+            'pe.equivalent_type LIKE ?',
+            'pe.approval_order_ref LIKE ?',
+        ],
+        'orderBy' => 'pe.created_at DESC',
+        'summarySql' => "
+            SELECT COUNT(DISTINCT CASE WHEN approval_status = 'APPROVED' THEN personnel_id END) AS distinct_personnel,
+                   SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days,
+                   SUM(CASE WHEN approval_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
+                   SUM(CASE WHEN approval_status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count,
+                   SUM(CASE WHEN approval_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_count
+            FROM position_equivalence
+        ",
+        'summaryMap' => function (array $summaryRow, int $total): array {
+            return [
+                'total' => $total,
+                'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+                'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
+                'pending_count' => (int) ($summaryRow['pending_count'] ?? 0),
+                'approved_count' => (int) ($summaryRow['approved_count'] ?? 0),
+                'rejected_count' => (int) ($summaryRow['rejected_count'] ?? 0),
+            ];
+        },
+        'dateFields' => ['request_start_date', 'request_end_date', 'approved_start_date', 'approved_end_date'],
+    ];
+}
+
+/**
  * GET /equivalence — รายการเทียบตำแหน่ง พร้อม pagination
  * filter ตาม personnel_id และค้นหาด้วย search (ชื่อ-สกุล, ตำแหน่งจริง, ประเภทที่เทียบ, เลขที่คำสั่ง)
  */
 function getEquivalenceList(PDO $pdo): void
 {
-    $personnelId = $_GET['personnel_id'] ?? null;
-    $search = trim($_GET['search'] ?? '');
-    // clamp กัน limit มหาศาล / offset ติดลบ
-    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
-
-    $baseQuery = "SELECT pe.*,
-                         " . sqlPersonnelFullName() . " AS full_name,
-                         u.username AS approved_by_name
-                  FROM position_equivalence pe
-                  LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-                  LEFT JOIN users u ON pe.approved_by = u.user_id";
-
-    // count ต้อง join personnel + prefixes ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่งชื่อเต็ม
-    $countQuery = "SELECT COUNT(*) AS total
-                   FROM position_equivalence pe
-                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
-
-    $conditions = [];
-    $params = [];
-
-    if ($personnelId !== null && $personnelId !== '') {
-        $conditions[] = 'pe.personnel_id = ?';
-        $params[] = intval($personnelId);
-    }
-
-    if ($search !== '') {
-        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR " . sqlPersonnelFullName() . " LIKE ?
-                          OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
-                          OR pe.approval_order_ref LIKE ?)";
-        $term = "%{$search}%";
-        array_push($params, $term, $term, $term, $term, $term, $term);
-    }
-
-    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-
-    // Data query with ordering and pagination
-    $sql = $baseQuery . $where . " ORDER BY pe.created_at DESC LIMIT {$limit} OFFSET {$offset}";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Count query for pagination
-    $countStmt = $pdo->prepare($countQuery . $where);
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
-
-    // เพิ่มวันที่ภาษาไทย
-    foreach ($rows as &$row) {
-        $row['request_start_date_thai'] = formatThaiDate($row['request_start_date']);
-        $row['request_end_date_thai'] = formatThaiDate($row['request_end_date']);
-        $row['approved_start_date_thai'] = formatThaiDate($row['approved_start_date']);
-        $row['approved_end_date_thai'] = formatThaiDate($row['approved_end_date']);
-    }
-    unset($row);
-
-    // Summary จาก full dataset — แยกนับตามสถานะอนุมัติ
-    // distinct_personnel นับเฉพาะคนที่มีรายการ APPROVED จริง (ไม่นับ PENDING/REJECTED)
-    $summaryStmt = $pdo->query("
-        SELECT COUNT(DISTINCT CASE WHEN approval_status = 'APPROVED' THEN personnel_id END) AS distinct_personnel,
-               SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days,
-               SUM(CASE WHEN approval_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
-               SUM(CASE WHEN approval_status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count,
-               SUM(CASE WHEN approval_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_count
-        FROM position_equivalence
-    ");
-    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        'success' => true,
-        'data' => $rows,
-        'summary' => [
-            'total' => $total,
-            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
-            'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
-            'pending_count' => (int) ($summaryRow['pending_count'] ?? 0),
-            'approved_count' => (int) ($summaryRow['approved_count'] ?? 0),
-            'rejected_count' => (int) ($summaryRow['rejected_count'] ?? 0),
-        ],
-        'pagination' => [
-            'total' => $total,
-            'limit' => $limit,
-            'offset' => $offset,
-            'has_more' => ($offset + $limit) < $total
-        ]
-    ]);
+    timeEntryEmit(timeEntryList($pdo, equivalenceTimeEntryCfg()));
 }
 
 /**
@@ -172,32 +159,7 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT pe.*,
-                   " . sqlPersonnelFullName() . " AS full_name,
-                   u.username AS approved_by_name
-            FROM position_equivalence pe
-            LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-            LEFT JOIN users u ON pe.approved_by = u.user_id
-            WHERE pe.equivalence_id = ?";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id]);
-    $record = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$record) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการเทียบตำแหน่ง']);
-        return;
-    }
-
-    // เพิ่มวันที่ภาษาไทย
-    $record['request_start_date_thai'] = formatThaiDate($record['request_start_date']);
-    $record['request_end_date_thai'] = formatThaiDate($record['request_end_date']);
-    $record['approved_start_date_thai'] = formatThaiDate($record['approved_start_date']);
-    $record['approved_end_date_thai'] = formatThaiDate($record['approved_end_date']);
-
-    echo json_encode(['success' => true, 'data' => $record]);
+    timeEntryEmit(timeEntryDetail($pdo, equivalenceTimeEntryCfg(), $id, 'ไม่พบรายการเทียบตำแหน่ง'));
 }
 
 /**
@@ -283,7 +245,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $afterStmt->execute([$equivalenceId]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'CREATE',
@@ -293,8 +255,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
         $after ?: null
     );
 
-    http_response_code(201);
-    echo json_encode(['success' => true, 'equivalence_id' => $equivalenceId]);
+    timeEntryEmit(['http' => 201, 'body' => ['success' => true, 'equivalence_id' => $equivalenceId]]);
 }
 
 /**
@@ -347,8 +308,14 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
 
     if ($newStatus !== null) {
         // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (resource แยกจาก 'equivalence' ปกติที่ operator แก้ field ได้)
-        requirePermission('update', 'equivalence_approval');
-        $approver = getAuthenticatedUser();
+        $approvalDenied = timeEntryDenied('update', 'equivalence_approval', $user, $pdo);
+        if ($approvalDenied !== null) {
+            timeEntryEmit(['http' => $approvalDenied['status'], 'body' => $approvalDenied['body']]);
+            return;
+        }
+        // ใช้ $user ที่ dispatcher ส่งมา (prod = ค่าเดียวกับ getAuthenticatedUser;
+        // direct-call test ฉีด user ได้โดยไม่พึ่ง JWT/exit)
+        $approver = $user;
 
         // ตรวจสอบ transition ที่อนุญาต
         $validTransitions = ['PENDING' => ['APPROVED', 'REJECTED']];
@@ -400,7 +367,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
                 $id
             ]);
 
-            logAudit(
+            timeEntryWriteAudit(
                 $pdo,
                 $userId,
                 'UPDATE',
@@ -428,7 +395,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id]);
 
-            logAudit(
+            timeEntryWriteAudit(
                 $pdo,
                 $userId,
                 'UPDATE',
@@ -439,7 +406,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             );
         }
 
-        echo json_encode(['success' => true]);
+        timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
         return;
     }
 
@@ -500,7 +467,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $afterStmt->execute([$id]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'UPDATE',
@@ -510,5 +477,5 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
         $after ?: null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }

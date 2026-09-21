@@ -35,7 +35,11 @@ function timeEntryDenied(string $action, string $resource, ?array $user, PDO $pd
  *   selectExtra extra SELECT fragment after "{alias}.* ,", e.g. full-name SQL + ' AS full_name'
  *   personnelCol personnel filter column; default "{alias}.personnel_id"
  *   searchSql   list of LIKE condition fragments, ONE ? placeholder each —
- *               each receives one "%term%" param (mirror supportive 4-term search)
+ *               each receives one "%term%" param (mirror supportive 4-term search);
+ *               empty array = route has no search (filter ignored like source)
+ *   maxLimit    upper limit clamp; default 200 (multiplier pins 100)
+ *   decorate    optional callable (&$row) applied after dateFields
+ *               (e.g. 'decorateMultiplierRow' — casts + area_label)
  *   orderBy     ORDER BY fragment without keyword, e.g. 'se.start_date DESC'
  *   summarySql  full-dataset summary query (NOT page-scoped — N27)
  *   summaryMap  callable (array $summaryRow, int $total): array → summary shape (per-route casts)
@@ -51,7 +55,8 @@ function timeEntryList(PDO $pdo, array $cfg, ?array $query = null): array
     $alias = $cfg['alias'];
     $personnelId = $query['personnel_id'] ?? null;
     $search = trim((string) ($query['search'] ?? ''));
-    $limit = max(1, min(intval($query['limit'] ?? 20), 200));
+    $maxLimit = $cfg['maxLimit'] ?? 200;
+    $limit = max(1, min(intval($query['limit'] ?? 20), $maxLimit));
     $offset = max(0, intval($query['offset'] ?? 0));
 
     $baseQuery = "SELECT {$alias}.*, {$cfg['selectExtra']}
@@ -68,7 +73,7 @@ function timeEntryList(PDO $pdo, array $cfg, ?array $query = null): array
         $params[] = intval($personnelId);
     }
 
-    if ($search !== '') {
+    if ($search !== '' && ($cfg['searchSql'] ?? []) !== []) {
         $conditions[] = '(' . implode(' OR ', $cfg['searchSql']) . ')';
         $term = "%{$search}%";
         foreach ($cfg['searchSql'] as $fragment) {
@@ -89,6 +94,10 @@ function timeEntryList(PDO $pdo, array $cfg, ?array $query = null): array
     foreach ($rows as &$row) {
         foreach ($cfg['dateFields'] as $field) {
             $row[$field . '_thai'] = formatThaiDate($row[$field] ?? null);
+        }
+        if (isset($cfg['decorate'])) {
+            $decorator = $cfg['decorate'];
+            $decorator($row);
         }
     }
     unset($row);
@@ -131,6 +140,10 @@ function timeEntryDetail(PDO $pdo, array $cfg, int $id, string $notFoundMsg): ar
 
     foreach ($cfg['dateFields'] as $field) {
         $record[$field . '_thai'] = formatThaiDate($record[$field] ?? null);
+    }
+    if (isset($cfg['decorate'])) {
+        $decorator = $cfg['decorate'];
+        $decorator($record);
     }
 
     return ['http' => 200, 'body' => ['success' => true, 'data' => $record]];
