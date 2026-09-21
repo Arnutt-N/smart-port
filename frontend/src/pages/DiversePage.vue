@@ -141,51 +141,12 @@
           <!-- Personnel Autocomplete -->
           <div>
             <label for="diverse-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
-            <div class="relative">
-              <input
-                v-model="personnelSearch"
-                @input="onPersonnelSearch"
-                @compositionstart="isComposingPersonnel = true"
-                @compositionend="onPersonnelCompositionEnd"
-                type="text"
-                id="diverse-personnel-search"
-                placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                class="input"
-                :class="{ 'border-red-500': validationErrors.personnel_id }"
-              />
-              <!-- Autocomplete dropdown -->
-              <div
-                v-if="personnelResults.length > 0 && showPersonnelDropdown"
-                class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-              >
-                <button
-                  v-for="person in personnelResults"
-                  :key="person.personnel_id"
-                  type="button"
-                  @click="selectPersonnel(person)"
-                  class="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
-                >
-                  <span class="font-medium">{{ person.full_name }}</span>
-                  <span class="text-gray-400 text-xs">{{ person.current_position || '' }}</span>
-                </button>
-              </div>
-              <div
-                v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
-                class="text-xs mt-1"
-                :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
-              >
-                <p>
-                  {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-                </p>
-                <RouterLink
-                  v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
-                  :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
-                >
-                  {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
-                </RouterLink>
-              </div>
-            </div>
+            <PersonnelTypeahead
+              v-model="formData.personnel_id"
+              :display-name="prefillName"
+              input-id="diverse-personnel-search"
+              placeholder="พิมพ์ชื่อเพื่อค้นหา..."
+            />
             <p v-if="validationErrors.personnel_id" class="text-red-500 text-xs mt-1">{{ validationErrors.personnel_id }}</p>
             <p v-if="formData.personnel_id && selectedPersonnelName" class="text-green-600 text-xs mt-1">เลือกแล้ว: {{ selectedPersonnelName }}</p>
           </div>
@@ -339,23 +300,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useDiverse } from '@/composables/useDiverse.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useApi } from '@/composables/useApi.js'
-import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import {
-  PERSONNEL_MASTER_CREATE_LINK_LABEL,
-  PERSONNEL_MASTER_CREATE_TO,
-  personnelCreateLinkVisible,
-} from '@/utils/personnelTypeaheadEmpty.js'
 import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -365,6 +320,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
+import PersonnelTypeahead from '@/components/PersonnelTypeahead.vue'
 import {
   Plus, FileText, CheckCircle, AlertTriangle,
   AlertCircle, X
@@ -372,13 +328,11 @@ import {
 
 const { fetchList, create, update, remove } = useDiverse()
 const api = useApi()
-const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
-const { next: nextPersonnelRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -443,65 +397,9 @@ const diffCountPreview = computed(() => {
        + (formData.value.is_diff_work_nature ? 1 : 0)
 })
 
-// Personnel autocomplete
-const personnelSearch = ref('')
-const personnelResults = ref([])
-const showPersonnelDropdown = ref(false)
-const personnelSearchFailed = ref(false)
-const selectedPersonnelName = ref('')
-const isComposingPersonnel = ref(false)
-const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
-  const req = nextPersonnelRequest()
-  const query = personnelSearch.value.trim()
-  if (query.length < 2) {
-    if (!req.isCurrent()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  try {
-    const rowsFound = await searchPersonnel(query, { limit: 10 })
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = rowsFound
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = false
-  } catch {
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = true
-  }
-}, 300)
-
-function onPersonnelSearch() {
-  if (isComposingPersonnel.value) return
-  const query = personnelSearch.value.trim()
-  if (query.length < 2) {
-    nextPersonnelRequest() // invalidate in-flight autocomplete
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-  }
-  schedulePersonnelSearch()
-}
-
-function onPersonnelCompositionEnd() {
-  isComposingPersonnel.value = false
-  onPersonnelSearch()
-}
-
-function selectPersonnel(person) {
-  formData.value.personnel_id = person.personnel_id
-  selectedPersonnelName.value = person.full_name
-  personnelSearch.value = person.full_name
-  personnelResults.value = []
-  showPersonnelDropdown.value = false
-  personnelSearchFailed.value = false
-  validationErrors.value.personnel_id = ''
-}
+// Prefill display name for PersonnelTypeahead (edit modal + ?create=1 flow; narrowed in T1.3)
+const prefillName = ref('')
+const selectedPersonnelName = ref('') // feeds the kept "เลือกแล้ว" line (M2)
 
 // Fetch data
 async function fetchData() {
@@ -530,7 +428,7 @@ async function fetchData() {
 function openCreateModal() {
   editingRow.value = null
   formData.value = defaultFormData()
-  personnelSearch.value = ''
+  prefillName.value = ''
   selectedPersonnelName.value = ''
   validationErrors.value = {}
   showModal.value = true
@@ -557,7 +455,7 @@ function openEditModal(row) {
     is_diff_location: !!row.isDiffLocation,
     is_diff_work_nature: !!row.isDiffWorkNature,
   }
-  personnelSearch.value = row.fullName || ''
+  prefillName.value = row.fullName || ''
   selectedPersonnelName.value = row.fullName || ''
   validationErrors.value = {}
   showModal.value = true
@@ -645,7 +543,7 @@ onMounted(() => {
     router,
     openCreate: openCreateModal,
     formData,
-    personnelSearch,
+    personnelSearch: prefillName,
     selectedPersonnelName,
     get: (url) => api.get(url),
     onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),

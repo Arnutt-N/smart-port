@@ -141,51 +141,14 @@
             <div v-if="editingRecord" class="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700">
               {{ editingRecord.fullName }}
             </div>
-            <div v-else class="relative">
-              <input
-                id="supportive-personnel-search"
-                v-model="personnelSearch"
-                @input="onPersonnelInput"
-                @compositionstart="isComposingPersonnel = true"
-                @compositionend="onPersonnelCompositionEnd"
-                type="text"
-                placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
-                class="input"
-                :class="formErrors.personnel_id ? 'border-red-500' : 'border-gray-300'"
-              />
-              <!-- Autocomplete dropdown -->
-              <div
-                v-if="showPersonnelDropdown && personnelResults.length > 0"
-                class="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-              >
-                <button
-                  v-for="person in personnelResults"
-                  :key="person.personnel_id"
-                  type="button"
-                  class="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 transition-colors"
-                  @click="selectPersonnel(person)"
-                >
-                  {{ person.full_name }}
-                </button>
-              </div>
-              <div
-                v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
-                class="text-xs mt-1"
-                :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
-              >
-                <p>
-                  {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-                </p>
-                <RouterLink
-                  v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
-                  :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
-                >
-                  {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
-                </RouterLink>
-              </div>
-              <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
-            </div>
+            <PersonnelTypeahead
+              v-else
+              v-model="formData.personnel_id"
+              :display-name="prefillName"
+              input-id="supportive-personnel-search"
+              placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
+            />
+            <p v-if="!editingRecord && formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
           </div>
 
           <!-- สายงานหลัก -->
@@ -277,23 +240,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSupportive } from '@/composables/useSupportive.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useApi } from '@/composables/useApi.js'
-import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import {
-  PERSONNEL_MASTER_CREATE_LINK_LABEL,
-  PERSONNEL_MASTER_CREATE_TO,
-  personnelCreateLinkVisible,
-} from '@/utils/personnelTypeaheadEmpty.js'
 import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -303,17 +260,16 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
+import PersonnelTypeahead from '@/components/PersonnelTypeahead.vue'
 import { Plus, FileText, Users, Clock, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useSupportive()
 const api = useApi()
-const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
 const { next: nextRequest } = useRequestSeq()
-const { next: nextPersonnelRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -356,37 +312,8 @@ const defaultFormData = () => ({
 const formData = ref(defaultFormData())
 const formErrors = ref({})
 
-// Personnel autocomplete state
-const personnelSearch = ref('')
-const personnelResults = ref([])
-const showPersonnelDropdown = ref(false)
-const personnelSearchFailed = ref(false)
-const isComposingPersonnel = ref(false)
-const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
-  const req = nextPersonnelRequest()
-  const val = personnelSearch.value.trim()
-  if (val.length < 2) {
-    if (!req.isCurrent()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  try {
-    const rowsFound = await searchPersonnel(val, { limit: 10 })
-    if (!req.isCurrent()) return
-    if (val !== personnelSearch.value.trim()) return
-    personnelResults.value = rowsFound
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = false
-  } catch {
-    if (!req.isCurrent()) return
-    if (val !== personnelSearch.value.trim()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = true
-  }
-}, 300)
+// Prefill display name for PersonnelTypeahead (set by ?create=1 flow; narrowed in T1.3)
+const prefillName = ref('')
 
 // Delete confirmation uses global ConfirmDialog (useConfirm)
 const distinctPersonnelCount = computed(() => {
@@ -442,9 +369,7 @@ function openCreate() {
   editingRecord.value = null
   formData.value = defaultFormData()
   formErrors.value = {}
-  personnelSearch.value = ''
-  personnelResults.value = []
-  showPersonnelDropdown.value = false
+  prefillName.value = ''
   showModal.value = true
 }
 
@@ -524,35 +449,6 @@ async function confirmDelete(id) {
   }
 }
 
-// Personnel autocomplete
-function onPersonnelInput() {
-  if (isComposingPersonnel.value) return
-  formData.value.personnel_id = null
-  const val = personnelSearch.value.trim()
-  if (val.length < 2) {
-    nextPersonnelRequest() // invalidate in-flight autocomplete
-    cancelPersonnelSearch()
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  schedulePersonnelSearch()
-}
-
-function onPersonnelCompositionEnd() {
-  isComposingPersonnel.value = false
-  onPersonnelInput()
-}
-
-function selectPersonnel(person) {
-  formData.value.personnel_id = person.personnel_id
-  personnelSearch.value = person.full_name
-  personnelResults.value = []
-  showPersonnelDropdown.value = false
-  personnelSearchFailed.value = false
-}
-
 onMounted(() => {
   fetchData()
   void applyPersonnelCreateQuery({
@@ -560,7 +456,7 @@ onMounted(() => {
     router,
     openCreate,
     formData,
-    personnelSearch,
+    personnelSearch: prefillName,
     get: (url) => api.get(url),
     onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
   })
