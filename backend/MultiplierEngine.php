@@ -175,7 +175,7 @@ function validateAreaInput(array $data): array
         return ['error' => 'multiplier_ratio ต้องอยู่ระหว่าง 100 ถึง 999.99', 'values' => null];
     }
 
-    $start = parseStrictDate((string) ($data['effective_start_date'] ?? ''));
+    $start = strictDate((string) ($data['effective_start_date'] ?? ''));
     if ($start === null) {
         return ['error' => 'effective_start_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
     }
@@ -183,7 +183,7 @@ function validateAreaInput(array $data): array
     $end = null;
     $endRaw = trim((string) ($data['effective_end_date'] ?? ''));
     if ($endRaw !== '') {
-        $end = parseStrictDate($endRaw);
+        $end = strictDate($endRaw);
         if ($end === null) {
             return ['error' => 'effective_end_date ต้องเป็นรูปแบบ YYYY-MM-DD', 'values' => null];
         }
@@ -214,15 +214,5 @@ function validateAreaInput(array $data): array
         'legal_reference' => $legal === '' ? null : $legal,
         'source_reference' => $source === '' ? null : $source,
     ]];
-}
-
-/**
- * parse Y-m-d แบบเข้มงวด — คืน null ถ้า format ผิดหรือมี overflow (เดือน 13, วัน 45)
- * ('Y-m-d|' reset เวลาเป็น 00:00:00 ตาม pattern เดิมใน computeMultiplierFields)
- */
-
-function parseStrictDate(string $value): ?DateTime
-{
-    return strictDate($value);
 }
 

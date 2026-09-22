@@ -247,11 +247,11 @@ function computeNetBreakdown(DateTime $startDate, int $effectiveDays): array
 }
 
 /**
- * parse Y-m-d strict shared helper (mirror diverseStrictDate)
+ * parse Y-m-d strict shared helper (replaces per-route copies)
  * Returns null for non-string, bad format, or overflow (e.g. 2026-02-30).
  *
  * mixed param is deliberate (not string): callers may pass arrays from JSON.
- * Closes the TypeError hole in diverseStrictDate(string).
+ * Closes the TypeError hole in string-typed parsers.
  * The Y-m-d pipe resets time to 00:00:00 (prevents off-by-one day).
  */
 function strictDate(mixed $value): ?DateTime
