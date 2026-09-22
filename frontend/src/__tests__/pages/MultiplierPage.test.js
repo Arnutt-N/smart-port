@@ -130,7 +130,7 @@ describe('MultiplierPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
-    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, full_name: 'นายสมชาย ไทยแท้', is_active: 1 } })
     resolvedData()
   })
 
@@ -298,38 +298,6 @@ describe('MultiplierPage', () => {
     expect(wrapper.vm.showModal).toBe(false)
   })
 
-  it('selectPersonnel fills form and closes dropdown', async () => {
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
-
-    expect(wrapper.vm.formData.personnel_id).toBe(9)
-    expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-  })
-
-  it('ignores in-flight personnel results after query is cleared', async () => {
-    vi.useFakeTimers()
-    let resolveSearch
-    mockSearchPersonnel.mockImplementation(
-      () => new Promise((resolve) => { resolveSearch = resolve }),
-    )
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.personnelSearch = 'สมชาย'
-    wrapper.vm.queuePersonnelSearch()
-    await vi.advanceTimersByTimeAsync(300)
-
-    wrapper.vm.personnelSearch = ''
-    wrapper.vm.queuePersonnelSearch()
-    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
-    await flushPromises()
-
-    expect(wrapper.vm.personnelResults).toEqual([])
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-    vi.useRealTimers()
-  })
-
   it('opens create modal prefilled from profile create query', async () => {
     routeQuery.value = {
       create: '1',
@@ -340,7 +308,7 @@ describe('MultiplierPage', () => {
     await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
-    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    expect(wrapper.get('#multiplier-personnel-search').element.value).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
     expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
   })

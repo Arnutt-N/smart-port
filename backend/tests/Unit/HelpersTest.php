@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use DateTime;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -172,5 +173,114 @@ final class HelpersTest extends TestCase
     public function it_falls_back_to_empty_string_for_empty_code(): void
     {
         self::assertSame('', getLevelName(''));
+    }
+
+    // ------------------------------------------------------------------
+    // strictDate
+    // ------------------------------------------------------------------
+
+    #[Test]
+    #[DataProvider('strictDateValidProvider')]
+    public function it_parses_a_valid_date_to_midnight(string $input, string $expected): void
+    {
+        $d = strictDate($input);
+        self::assertInstanceOf(DateTime::class, $d);
+        self::assertSame($expected, $d->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function strictDateValidProvider(): array
+    {
+        return [
+            // valid case preserved from legacy Supportive/Equivalence/Diverse StrictDateTests
+            'legacy valid' => ['2026-01-15', '2026-01-15 00:00:00'],
+            'T3.5 valid' => ['2026-03-15', '2026-03-15 00:00:00'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('strictDateNullProvider')]
+    public function it_returns_null_for_non_strict_date(mixed $input): void
+    {
+        self::assertNull(strictDate($input));
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function strictDateNullProvider(): array
+    {
+        return [
+            'unpadded month' => ['2026-1-15'],
+            'unpadded day' => ['2026-01-5'],
+            'overflow day' => ['2026-02-30'],
+            'overflow month' => ['2026-13-01'],
+            'not a date' => ['not-a-date'],
+            'short garbage' => ['abc'],
+            'empty string' => [''],
+            'datetime suffix' => ['2026-01-15 00:00:00'],
+            'null' => [null],
+            'array' => [['x']],
+            'int' => [123],
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // dateFieldError
+    // ------------------------------------------------------------------
+
+    #[Test]
+    #[DataProvider('dateFieldErrorProvider')]
+    public function it_validates_date_fields(mixed $data, array $fields, ?string $expected): void
+    {
+        self::assertSame($expected, dateFieldError($data, $fields));
+    }
+
+    /**
+     * @return array<string, array{mixed, list<string>, ?string}>
+     */
+    public static function dateFieldErrorProvider(): array
+    {
+        return [
+            'overflow date' => [['start_date' => '2026-02-30'], ['start_date'], 'รูปแบบวันที่ไม่ถูกต้อง'],
+            'valid date' => [['start_date' => '2026-03-01'], ['start_date'], null],
+            'empty skipped' => [['start_date' => ''], ['start_date'], null],
+            'null data' => [null, ['start_date'], 'รูปแบบข้อมูลไม่ถูกต้อง'],
+            'string data' => ['x', ['start_date'], 'รูปแบบข้อมูลไม่ถูกต้อง'],
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // computeNetBreakdown boundaries
+    // ------------------------------------------------------------------
+
+    #[Test]
+    #[DataProvider('netBreakdownBoundaryProvider')]
+    public function it_computes_net_breakdown_boundaries(int $effective, string $expectedEnd, int $y, int $m, int $d): void
+    {
+        $result = computeNetBreakdown(new DateTime('2026-01-01'), $effective);
+        self::assertSame($expectedEnd, $result['net_end_date']);
+        self::assertSame($y, $result['net_years']);
+        self::assertSame($m, $result['net_months']);
+        self::assertSame($d, $result['net_day_remainder']);
+    }
+
+    /**
+     * @return array<string, array{int, string, int, int, int}>
+     */
+    public static function netBreakdownBoundaryProvider(): array
+    {
+        return [
+            'zero days' => [0, '2026-01-01', 0, 0, 0],
+            'one day' => [1, '2026-01-01', 0, 0, 1],
+            'thirty days' => [30, '2026-01-30', 0, 1, 0],
+            'thirty-one days' => [31, '2026-01-31', 0, 1, 1],
+            'one year' => [365, '2026-12-31', 1, 0, 0],
+            'one year one day' => [366, '2027-01-01', 1, 0, 1],
+            // negative: pins current PHP floor/mod behavior — callers must never send negative
+            'negative pinned' => [-5, '2026-01-01', -1, -1, -5],
+        ];
     }
 }

@@ -521,7 +521,7 @@ switch ($path[0]) {
                 $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days > 0");
                 $probationInProgress = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 1 AND 30");
+                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS);
                 $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
                 $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0");
@@ -539,7 +539,7 @@ switch ($path[0]) {
                     $stmt = $pdo->query("
                         SELECT COUNT(*) as c FROM probation_enrollment
                         WHERE overall_status = 'IN_PROGRESS'
-                        AND DATEDIFF(end_date, CURDATE()) BETWEEN 1 AND 30
+                        AND DATEDIFF(end_date, CURDATE()) BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS . "
                     ");
                     $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 

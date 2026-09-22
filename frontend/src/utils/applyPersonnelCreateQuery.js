@@ -3,20 +3,17 @@ import { parsePersonnelCreateQuery } from '@/utils/personnelCreateQuery.js'
 /**
  * Profile shortcut → open create modal with personnel prefilled, then clear query.
  * Inactive / missing personnel do not open the modal.
- * @returns {Promise<boolean>} true if a create query was applied
+ * @returns {Promise<object|null>} fetched person when applied, else null (caller prefills)
  */
 export async function applyPersonnelCreateQuery({
   route,
   router,
   openCreate,
-  formData,
-  personnelSearch,
-  selectedPersonnelName = null,
   get,
   onUnavailable,
 }) {
   const prefill = parsePersonnelCreateQuery(route.query)
-  if (!prefill) return false
+  if (!prefill) return null
 
   router.replace({ query: {} })
 
@@ -30,17 +27,14 @@ export async function applyPersonnelCreateQuery({
 
   if (!person) {
     onUnavailable?.('missing')
-    return false
+    return null
   }
 
   if (!Number(person.is_active)) {
     onUnavailable?.('inactive')
-    return false
+    return null
   }
 
   openCreate()
-  formData.value.personnel_id = prefill.personnelId
-  personnelSearch.value = prefill.fullName
-  if (selectedPersonnelName) selectedPersonnelName.value = prefill.fullName
-  return true
+  return person
 }

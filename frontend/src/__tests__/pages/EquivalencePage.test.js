@@ -11,7 +11,7 @@ const mockReject = vi.fn()
 const mockReplace = vi.fn()
 const routeQuery = { value: {} }
 
-vi.mock('@/composables/useEquivalence.js', () => ({
+vi.mock('@/composables/timeEntryCrud.js', () => ({
   useEquivalence: () => ({
     fetchList: mockFetchList,
     create: mockCreate,
@@ -94,7 +94,7 @@ describe('EquivalencePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
-    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, full_name: 'นายสมชาย ไทยแท้', is_active: 1 } })
     mockFetchList.mockResolvedValue({
       success: true,
       data: [sampleRow],
@@ -247,16 +247,6 @@ describe('EquivalencePage', () => {
     vi.useRealTimers()
   })
 
-  it('selectPersonnel fills form and closes dropdown', async () => {
-    const wrapper = await mountPage()
-    wrapper.vm.openCreate()
-    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
-
-    expect(wrapper.vm.formData.personnel_id).toBe(9)
-    expect(wrapper.vm.personnelSearch).toBe('สมหญิง รักงาน')
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-  })
-
   it('opens create modal prefilled from profile create query', async () => {
     routeQuery.value = {
       create: '1',
@@ -265,10 +255,14 @@ describe('EquivalencePage', () => {
     }
     const wrapper = await mountPage()
     await flushPromises()
+    await wrapper.vm.$nextTick()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
-    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
+    // modal อยู่ใน Teleport to=body + มี modal ค้างจาก test ก่อนหน้า — หา module ของ wrapper นี้โดยตรง
+    const typeahead = wrapper.findComponent({ name: 'PersonnelTypeahead' })
+    expect(typeahead.find('input').element.value).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
     expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
+    wrapper.unmount()
   })
 })
