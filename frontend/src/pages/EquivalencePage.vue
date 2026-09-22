@@ -379,7 +379,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEquivalence } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
-import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useApi } from '@/composables/useApi.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -402,12 +402,25 @@ import {
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, approve, reject } = useEquivalence()
+const {
+  loading,
+  error,
+  rows,
+  summary,
+  pagination,
+  searchQuery,
+  showModal,
+  editingRecord,
+  fetchData,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal,
+} = useListPage({ fetcher: { fetchList } })
 const api = useApi()
 const ui = useUiStore()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-const { next: nextRequest } = useRequestSeq()
 
 function rowActions(row) {
   if (row.approvalStatus === 'PENDING') {
@@ -427,21 +440,13 @@ function rowActions(row) {
 }
 
 // Data state
-const loading = ref(false)
-const error = ref(null)
-const rows = ref([])
-const summary = ref(null)
-const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-const searchQuery = ref('')
 const { run: scheduleSearch } = useDebouncedCallback(() => {
   pagination.value.offset = 0
   fetchData()
 }, 300)
 
 // Create/Edit modal state
-const showModal = ref(false)
-const editingRecord = ref(null)
 const saving = ref(false)
 const formErrors = ref({})
 
@@ -487,29 +492,6 @@ const statusCounts = computed(() => {
 // คำขอทั้งหมด — full dataset จาก summary เพื่อให้สอดคล้องกับ 3 cards ข้างบนเมื่อมี search
 const totalCount = computed(() => summary.value?.total ?? pagination.value.total)
 
-// ==================== Data fetching ====================
-
-async function fetchData() {
-  const req = nextRequest()
-  loading.value = true
-  error.value = null
-  try {
-    const result = await fetchList({
-      search: searchQuery.value,
-      limit: pagination.value.limit,
-      offset: pagination.value.offset,
-    })
-    if (!req.isCurrent()) return
-    rows.value = result.data
-    summary.value = result.summary || null
-    pagination.value = result.pagination
-  } catch (err) {
-    if (!req.isCurrent()) return
-    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-  } finally {
-    if (req.isCurrent()) loading.value = false
-  }
-}
 
 // ==================== Search ====================
 
@@ -520,15 +502,13 @@ function onSearchInput() {
 // ==================== Create/Edit modal ====================
 
 function openCreate() {
-  editingRecord.value = null
   formData.value = defaultFormData()
   formErrors.value = {}
   prefillName.value = ''
-  showModal.value = true
+  shellOpenCreate()
 }
 
 function openEdit(record) {
-  editingRecord.value = record
   formData.value = {
     personnel_id: record.personnelId,
     actual_position: record.actualPosition,
@@ -539,13 +519,9 @@ function openEdit(record) {
   }
   formErrors.value = {}
   prefillName.value = record.fullName
-  showModal.value = true
+  shellOpenEdit(record)
 }
 
-function closeModal() {
-  showModal.value = false
-  editingRecord.value = null
-}
 
 function validateForm() {
   const errors = {}

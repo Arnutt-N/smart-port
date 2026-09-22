@@ -243,7 +243,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSupportive } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
-import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useApi } from '@/composables/useApi.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -264,12 +264,26 @@ import PersonnelTypeahead from '@/components/PersonnelTypeahead.vue'
 import { Plus, FileText, Users, Clock, AlertCircle } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useSupportive()
+const {
+  loading,
+  error,
+  rows,
+  summary,
+  pagination,
+  searchQuery,
+  showModal,
+  editingRecord,
+  fetchData,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal: shellCloseModal,
+  removeAndRefetch,
+} = useListPage({ fetcher: { fetchList, remove } })
 const api = useApi()
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
-const { next: nextRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -282,22 +296,11 @@ function rowActions(row) {
   })
 }
 
-// Data state
-const loading = ref(false)
-const error = ref(null)
-const rows = ref([])
-const summary = ref(null)
-const pagination = ref({ total: 0, limit: 20, offset: 0 })
-
-const searchQuery = ref('')
 const { run: scheduleSearch } = useDebouncedCallback(() => {
   pagination.value.offset = 0
   fetchData()
 }, 300)
 
-// Modal state
-const showModal = ref(false)
-const editingRecord = ref(null)
 const saving = ref(false)
 
 const defaultFormData = () => ({
@@ -337,45 +340,20 @@ const recentCount = computed(() => {
   }).length
 })
 
-// Fetch data
-async function fetchData() {
-  const req = nextRequest()
-  loading.value = true
-  error.value = null
-  try {
-    const result = await fetchList({
-      search: searchQuery.value,
-      limit: pagination.value.limit,
-      offset: pagination.value.offset,
-    })
-    if (!req.isCurrent()) return
-    rows.value = result.data
-    summary.value = result.summary || null
-    pagination.value = result.pagination
-  } catch (err) {
-    if (!req.isCurrent()) return
-    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-  } finally {
-    if (req.isCurrent()) loading.value = false
-  }
-}
-
 function onSearchInput() {
   scheduleSearch()
 }
 
 // Modal: Create
 function openCreate() {
-  editingRecord.value = null
   formData.value = defaultFormData()
   formErrors.value = {}
   prefillName.value = ''
-  showModal.value = true
+  shellOpenCreate()
 }
 
 // Modal: Edit
 function openEdit(record) {
-  editingRecord.value = record
   formData.value = {
     personnel_id: record.personnelId,
     primary_series_name: record.primarySeriesName || '',
@@ -385,13 +363,13 @@ function openEdit(record) {
     description: record.description || '',
   }
   formErrors.value = {}
-  showModal.value = true
+  shellOpenEdit(record)
 }
 
 // Modal: Close
 function closeModal() {
-  showModal.value = false
   formErrors.value = {}
+  shellCloseModal()
 }
 
 // Form validation
@@ -441,9 +419,8 @@ async function confirmDelete(id) {
   })
   if (!ok) return
   try {
-    await remove(id)
+    await removeAndRefetch(id)
     ui.showToast('ลบแล้ว', 'success')
-    fetchData()
   } catch (err) {
     ui.showToast(err.message || 'เกิดข้อผิดพลาด', 'error')
   }

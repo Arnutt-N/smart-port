@@ -243,7 +243,7 @@ describe('DiversePage', () => {
     wrapper.vm.openEditModal(sampleRow)
     wrapper.vm.closeModal()
     expect(wrapper.vm.showModal).toBe(false)
-    expect(wrapper.vm.editingRow).toBeNull()
+    expect(wrapper.vm.editingRecord).toBeNull()
   })
 
   it('debounces search and refetches after 300ms', async () => {

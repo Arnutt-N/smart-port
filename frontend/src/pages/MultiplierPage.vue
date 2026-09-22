@@ -332,6 +332,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useMultiplier } from '@/composables/useMultiplier.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
@@ -357,6 +358,19 @@ import {
 
 const api = useApi()
 const { fetchList, fetchAreas, create, update, remove } = useMultiplier()
+const {
+  loading,
+  error,
+  rows,
+  pagination,
+  showModal,
+  editingRecord,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal: shellCloseModal,
+} = useListPage({ fetcher: { fetchList, remove } })
+const isEditMode = computed(() => editingRecord.value !== null)
+const editingId = computed(() => editingRecord.value?.multiplierId ?? null)
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
@@ -364,19 +378,12 @@ const router = useRouter()
 const isAdmin = computed(() => auth.isAdmin)
 const { next: nextRequest } = useRequestSeq()
 
-const loading = ref(false)
 const saving = ref(false)
-const error = ref(null)
 const submitError = ref('')
-const rows = ref([])
 const areas = ref([])
 const recordSummary = ref({ total: 0, distinct_personnel: 0, total_effective_days: 0, total_bonus_days: 0 })
 const areaSummary = ref({ total: 0, source_pending: 0 })
-const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 const areaSearchQuery = ref('')
-const showModal = ref(false)
-const isEditMode = ref(false)
-const editingId = ref(null)
 const formErrors = ref({})
 // Prefill display name for PersonnelTypeahead (edit modal + ?create=1 flow; narrowed in T1.3)
 const prefillName = ref('')
@@ -428,18 +435,14 @@ function onPageChange(offset) {
 }
 
 function openCreateModal() {
-  isEditMode.value = false
-  editingId.value = null
   formData.value = emptyForm()
   prefillName.value = ''
   formErrors.value = {}
   submitError.value = ''
-  showModal.value = true
+  shellOpenCreate()
 }
 
 function openEditModal(row) {
-  isEditMode.value = true
-  editingId.value = row.multiplierId
   formData.value = {
     personnel_id: row.personnelId,
     area_multiplier_id: row.areaMultiplierId,
@@ -451,7 +454,7 @@ function openEditModal(row) {
   prefillName.value = row.fullName || ''
   formErrors.value = {}
   submitError.value = ''
-  showModal.value = true
+  shellOpenEdit(row)
 }
 
 async function openDeleteConfirm(row) {
@@ -484,9 +487,7 @@ async function openDeleteConfirm(row) {
 
 function closeModal() {
   if (saving.value) return
-  showModal.value = false
-  isEditMode.value = false
-  editingId.value = null
+  shellCloseModal()
 }
 
 async function handleSubmit() {

@@ -130,7 +130,7 @@
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <h3 class="text-lg font-semibold text-gray-900">
-            {{ editingRow ? 'แก้ไขรายการแตกต่าง' : 'เพิ่มรายการแตกต่าง' }}
+            {{ editingRecord ? 'แก้ไขรายการแตกต่าง' : 'เพิ่มรายการแตกต่าง' }}
           </h3>
           <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
             <X class="w-5 h-5" />
@@ -289,7 +289,7 @@
               :disabled="submitting"
               class="btn-primary px-4 py-2"
             >
-              {{ submitting ? 'กำลังบันทึก...' : (editingRow ? 'บันทึกการแก้ไข' : 'บันทึก') }}
+              {{ submitting ? 'กำลังบันทึก...' : (editingRecord ? 'บันทึกการแก้ไข' : 'บันทึก') }}
             </button>
           </div>
         </form>
@@ -303,7 +303,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDiverse } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
-import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useApi } from '@/composables/useApi.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -327,12 +327,26 @@ import {
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useDiverse()
+const {
+  loading,
+  error,
+  rows,
+  summary,
+  pagination,
+  searchQuery,
+  showModal,
+  editingRecord,
+  fetchData,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal: shellCloseModal,
+  removeAndRefetch,
+} = useListPage({ fetcher: { fetchList, remove } })
 const api = useApi()
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
-const { next: nextRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -346,11 +360,6 @@ function rowActions(row) {
 }
 
 // List state
-const loading = ref(false)
-const error = ref(null)
-const rows = ref([])
-const summary = ref(null)
-const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
 // Stat counts — ใช้ summary จาก backend (full dataset) ถ้ามี
 const passCount = computed(() => {
@@ -362,7 +371,6 @@ const notYetCount = computed(() => {
   return rows.value.filter(r => r.diffCount < 3).length
 })
 
-const searchQuery = ref('')
 const { run: scheduleSearch } = useDebouncedCallback(() => {
   pagination.value.offset = 0
   fetchData()
@@ -372,9 +380,6 @@ function onSearchInput() {
   scheduleSearch()
 }
 
-// Modal state
-const showModal = ref(false)
-const editingRow = ref(null)
 const submitting = ref(false)
 const validationErrors = ref({})
 
@@ -401,41 +406,17 @@ const diffCountPreview = computed(() => {
 const prefillName = ref('')
 const selectedPersonnelName = ref('') // feeds the kept "เลือกแล้ว" line (M2)
 
-// Fetch data
-async function fetchData() {
-  const req = nextRequest()
-  loading.value = true
-  error.value = null
-  try {
-    const result = await fetchList({
-      search: searchQuery.value,
-      limit: pagination.value.limit,
-      offset: pagination.value.offset,
-    })
-    if (!req.isCurrent()) return
-    rows.value = result.data
-    summary.value = result.summary || null
-    pagination.value = result.pagination
-  } catch (err) {
-    if (!req.isCurrent()) return
-    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-  } finally {
-    if (req.isCurrent()) loading.value = false
-  }
-}
 
 // Modal actions
 function openCreateModal() {
-  editingRow.value = null
   formData.value = defaultFormData()
   prefillName.value = ''
   selectedPersonnelName.value = ''
   validationErrors.value = {}
-  showModal.value = true
+  shellOpenCreate()
 }
 
 function openEditModal(row) {
-  editingRow.value = row
   formData.value = {
     personnel_id: row.personnelId,
     from_job_series: row.fromJobSeries || '',
@@ -458,13 +439,12 @@ function openEditModal(row) {
   prefillName.value = row.fullName || ''
   selectedPersonnelName.value = row.fullName || ''
   validationErrors.value = {}
-  showModal.value = true
+  shellOpenEdit(row)
 }
 
 function closeModal() {
-  showModal.value = false
-  editingRow.value = null
   validationErrors.value = {}
+  shellCloseModal()
 }
 
 function validateForm() {
@@ -483,7 +463,7 @@ function validateForm() {
 async function handleSubmit() {
   if (!validateForm()) return
 
-  if (editingRow.value) {
+  if (editingRecord.value) {
     const ok = await confirmSave({
       message: 'คุณต้องการบันทึกการแก้ไขรายการแตกต่างนี้หรือไม่?',
     })
@@ -500,8 +480,8 @@ async function handleSubmit() {
     payload.is_diff_work_nature = payload.is_diff_work_nature ? 1 : 0
     // CRITICAL: Never send diff_count -- it's a GENERATED column
 
-    if (editingRow.value) {
-      await update(editingRow.value.experienceId, payload)
+    if (editingRecord.value) {
+      await update(editingRecord.value.experienceId, payload)
       ui.showToast('แก้ไขรายการแล้ว', 'success')
     } else {
       await create(payload)
@@ -526,9 +506,8 @@ async function confirmDelete(row) {
   if (!ok) return
   submitting.value = true
   try {
-    await remove(row.experienceId)
+    await removeAndRefetch(row.experienceId)
     ui.showToast('ลบรายการแล้ว', 'success')
-    await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'ไม่สามารถลบรายการได้', 'error')
   } finally {
