@@ -13,6 +13,9 @@ require_once __DIR__ . '/../../routes/diverse.php';
 require_once __DIR__ . '/../../routes/multiplier.php';
 require_once __DIR__ . '/../../routes/equivalence.php';
 
+// T2.4-R4: time-entry CRUD paths call logAudit() via timeEntryWriteAudit()
+// (TimeEntryCrud.php); multiplier area endpoints log directly (out of scope).
+// logAudit() stays the single source of audit shape.
 final class ProductionReadinessAuditTest extends TestCase
 {
     private static ?PDO $pdo = null;
