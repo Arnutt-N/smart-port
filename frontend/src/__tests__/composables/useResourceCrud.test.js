@@ -57,4 +57,39 @@ describe('useResourceCrud', () => {
     expect(mockPut).toHaveBeenCalledWith('/royal-decorations/9', { snake: 2 })
     expect(mockDel).toHaveBeenCalledWith('/royal-decorations/9')
   })
+
+  it('fetchList passes summary through raw (may be undefined)', async () => {
+    mockGet.mockResolvedValueOnce({
+      success: true,
+      data: [],
+      summary: { total: 3 },
+      pagination: { total: 0 },
+    })
+    mockGet.mockResolvedValueOnce({
+      success: true,
+      data: [],
+      pagination: { total: 0 },
+    })
+
+    const crud = useResourceCrud({ path: 'supportive', mapRow: (r) => r })
+
+    const withSummary = await crud.fetchList()
+    expect(withSummary.summary).toEqual({ total: 3 })
+
+    const withoutSummary = await crud.fetchList()
+    expect(withoutSummary.summary).toBeUndefined()
+  })
+
+  it('create/update send data raw when toPayload is omitted', async () => {
+    mockPost.mockResolvedValue({ success: true })
+    mockPut.mockResolvedValue({ success: true })
+
+    const crud = useResourceCrud({ path: 'supportive', mapRow: (r) => r })
+
+    await crud.create({ a: 1 })
+    await crud.update(7, { b: 2 })
+
+    expect(mockPost).toHaveBeenCalledWith('/supportive', { a: 1 })
+    expect(mockPut).toHaveBeenCalledWith('/supportive/7', { b: 2 })
+  })
 })
