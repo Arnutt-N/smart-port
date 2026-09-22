@@ -12,7 +12,7 @@ const mockRemove = vi.fn()
 const mockReplace = vi.fn()
 const routeQuery = { value: {} }
 
-vi.mock('@/composables/useSupportive.js', () => ({
+vi.mock('@/composables/timeEntryCrud.js', () => ({
   useSupportive: () => ({
     fetchList: mockFetchList,
     create: mockCreate,

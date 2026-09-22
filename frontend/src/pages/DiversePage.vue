@@ -301,7 +301,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useDiverse } from '@/composables/useDiverse.js'
+import { useDiverse } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useApi } from '@/composables/useApi.js'

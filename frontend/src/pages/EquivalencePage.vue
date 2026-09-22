@@ -377,7 +377,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useEquivalence } from '@/composables/useEquivalence.js'
+import { useEquivalence } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
 import { useRequestSeq } from '@/composables/useRequestSeq.js'
 import { useApi } from '@/composables/useApi.js'

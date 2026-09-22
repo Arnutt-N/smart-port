@@ -11,7 +11,7 @@ const mockReject = vi.fn()
 const mockReplace = vi.fn()
 const routeQuery = { value: {} }
 
-vi.mock('@/composables/useEquivalence.js', () => ({
+vi.mock('@/composables/timeEntryCrud.js', () => ({
   useEquivalence: () => ({
     fetchList: mockFetchList,
     create: mockCreate,
