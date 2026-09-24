@@ -3,15 +3,15 @@
     <input
       :id="inputId"
       v-model="personnelSearch"
-      @input="onPersonnelInput"
-      @compositionstart="isComposingPersonnel = true"
-      @compositionend="onPersonnelCompositionEnd"
       type="text"
       :placeholder="placeholder"
       :aria-label="ariaLabel"
       :disabled="disabled"
       class="input"
-    />
+      @input="onPersonnelInput"
+      @compositionstart="isComposingPersonnel = true"
+      @compositionend="onPersonnelCompositionEnd"
+    >
     <!-- Autocomplete dropdown -->
     <div
       v-if="showPersonnelDropdown && personnelResults.length > 0"

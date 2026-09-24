@@ -321,14 +321,22 @@
           @submit.prevent="handleSubmit"
         >
           <div>
-            <label for="multiplier-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <label
+              for="multiplier-personnel-search"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >บุคลากร <span class="text-red-500">*</span></label>
             <PersonnelTypeahead
               v-model="formData.personnel_id"
               :display-name="prefillName"
               input-id="multiplier-personnel-search"
               placeholder="พิมพ์ชื่อเพื่อค้นหา..."
             />
-            <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
+            <p
+              v-if="formErrors.personnel_id"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาเลือกบุคลากร
+            </p>
           </div>
 
           <div>

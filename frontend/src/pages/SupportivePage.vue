@@ -214,7 +214,12 @@
               input-id="supportive-personnel-search"
               placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
             />
-            <p v-if="!editingRecord && formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
+            <p
+              v-if="!editingRecord && formErrors.personnel_id"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาเลือกบุคลากร
+            </p>
           </div>
 
           <!-- สายงานหลัก -->
@@ -342,7 +347,6 @@ import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'

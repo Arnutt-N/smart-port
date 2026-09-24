@@ -190,15 +190,28 @@
         >
           <!-- Personnel Autocomplete -->
           <div>
-            <label for="diverse-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <label
+              for="diverse-personnel-search"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >บุคลากร <span class="text-red-500">*</span></label>
             <PersonnelTypeahead
               v-model="formData.personnel_id"
               :display-name="prefillName"
               input-id="diverse-personnel-search"
               placeholder="พิมพ์ชื่อเพื่อค้นหา..."
             />
-            <p v-if="validationErrors.personnel_id" class="text-red-500 text-xs mt-1">{{ validationErrors.personnel_id }}</p>
-            <p v-if="formData.personnel_id && selectedPersonnelName" class="text-green-600 text-xs mt-1">เลือกแล้ว: {{ selectedPersonnelName }}</p>
+            <p
+              v-if="validationErrors.personnel_id"
+              class="text-red-500 text-xs mt-1"
+            >
+              {{ validationErrors.personnel_id }}
+            </p>
+            <p
+              v-if="formData.personnel_id && selectedPersonnelName"
+              class="text-green-600 text-xs mt-1"
+            >
+              เลือกแล้ว: {{ selectedPersonnelName }}
+            </p>
           </div>
 
           <!-- Two-column From/To layout -->
@@ -451,7 +464,6 @@ import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
