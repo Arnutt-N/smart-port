@@ -23,7 +23,6 @@ test.describe('role guards (router)', () => {
     for (const userId of createdUserIds) {
       await request.put(`${apiBase()}/users/${userId}`, {
         headers: {
-          Authorization: `Bearer ${admin.token}`,
           'X-CSRF-Token': admin.csrf_token,
         },
         data: { is_active: 0 },
@@ -34,7 +33,7 @@ test.describe('role guards (router)', () => {
   test('operator is bounced from every admin-only route', async ({ page, request }) => {
     const creds = await createUserViaApi(request, {
       username: `e2e_guard_op_${stamp}`,
-      password: 'GuardOp1!',
+      password: 'GuardOp-11-x!',
       role: 'operator',
       fullName: 'E2E Guard Operator',
     })
@@ -75,7 +74,7 @@ test.describe('role guards (router)', () => {
   test('admin opens admin routes but is bounced from superadmin-only settings', async ({ page, request }) => {
     const creds = await createUserViaApi(request, {
       username: `e2e_guard_adm_${stamp}`,
-      password: 'GuardAdm1!',
+      password: 'GuardAdm-11!',
       role: 'admin',
       fullName: 'E2E Guard Admin',
     })
@@ -90,7 +89,7 @@ test.describe('role guards (router)', () => {
 
     await page.goto('/admin')
     await expect(page).toHaveURL(/\/admin/)
-    await expect(page.getByRole('heading', { name: 'การจัดการระบบ' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'การจัดการงาน' })).toBeVisible()
 
     await page.goto('/settings/permissions')
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 })

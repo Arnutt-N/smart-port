@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// mutable auth mock (hoisted) — ปรับ refreshToken/refresh ต่อ test เพื่อทดสอบ 401 -> refresh -> retry
+// mutable auth mock (hoisted) — ปรับ isAuthenticated/refresh ต่อ test เพื่อทดสอบ 401 -> refresh -> retry
 const authMock = vi.hoisted(() => ({
   state: {
-    token: 'fake-jwt-token',
     csrfToken: 'fake-csrf',
-    refreshToken: '',
+    isAuthenticated: false,
     logout: () => {},
     setMustChangePassword: () => {},
     refresh: () => Promise.resolve({}),
@@ -30,7 +29,7 @@ vi.mock('@/router', () => ({
   default: { push: (...args) => mockPush(...args) },
 }))
 
-const { useApi, apiAssetUrl } = await import('@/composables/useApi.js')
+const { useApi, getSignedPhotoUrl } = await import('@/composables/useApi.js')
 
 function mockFetch(response) {
   return vi.fn().mockResolvedValue(response)
@@ -58,23 +57,60 @@ function htmlResponse(html, status = 500) {
   }
 }
 
-describe('apiAssetUrl', () => {
-  it('prefixes a relative backend path with the API base', () => {
-    expect(apiAssetUrl('uploads/photo_abc.jpg')).toBe('/api/uploads/photo_abc.jpg')
+describe('getSignedPhotoUrl', () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn()
   })
 
-  it('does not double the slash when the path already starts with one', () => {
-    expect(apiAssetUrl('/uploads/photo_abc.jpg')).toBe('/api/uploads/photo_abc.jpg')
+  it('requests a signed URL and prefixes it with the API base', async () => {
+    global.fetch = mockFetch(jsonResponse({ url: '/uploads/photo_abc.jpg?exp=999&sig=deadbeef' }))
+    const url = await getSignedPhotoUrl('photo_abc.jpg')
+    expect(url).toBe('/api/uploads/photo_abc.jpg?exp=999&sig=deadbeef')
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch.mock.calls[0][0]).toContain('/photos/sign?file=photo_abc.jpg')
   })
 
-  it('leaves absolute URLs untouched', () => {
-    expect(apiAssetUrl('https://cdn.example.com/a.jpg')).toBe('https://cdn.example.com/a.jpg')
+  it('serves repeat views from cache without refetching', async () => {
+    global.fetch = mockFetch(jsonResponse({ url: '/uploads/cached.jpg?exp=999&sig=x' }))
+    const first = await getSignedPhotoUrl('cached.jpg')
+    const second = await getSignedPhotoUrl('cached.jpg')
+    expect(second).toBe(first)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('returns null for empty input so callers can hide the image', () => {
-    expect(apiAssetUrl(null)).toBeNull()
-    expect(apiAssetUrl('')).toBeNull()
-    expect(apiAssetUrl(undefined)).toBeNull()
+  it('refetches after the cache entry expires', async () => {
+    global.fetch = mockFetch(jsonResponse({ url: '/uploads/aging.jpg?exp=999&sig=x' }))
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000000)
+    await getSignedPhotoUrl('aging.jpg')
+    nowSpy.mockReturnValue(1000000 + 840001)
+    await getSignedPhotoUrl('aging.jpg')
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    nowSpy.mockRestore()
+  })
+
+  it('returns null for empty input or missing url without fetching', async () => {
+    global.fetch = mockFetch(jsonResponse({}))
+    await expect(getSignedPhotoUrl(null)).resolves.toBeNull()
+    await expect(getSignedPhotoUrl('')).resolves.toBeNull()
+    await expect(getSignedPhotoUrl(undefined)).resolves.toBeNull()
+    await expect(getSignedPhotoUrl('ghost.jpg')).resolves.toBeNull()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('no direct uploads composition (grep guard)', () => {
+  it('composables never build /uploads/ URLs inline and apiAssetUrl is gone', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { fileURLToPath } = await import('node:url')
+    const { dirname, resolve } = await import('node:path')
+    const here = dirname(fileURLToPath(import.meta.url))
+    for (const rel of ['../../composables/useApi.js', '../../composables/useProfile.js']) {
+      const src = readFileSync(resolve(here, rel), 'utf8')
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
+      expect(code).not.toContain('uploads/')
+    }
+    const mod = await import('@/composables/useApi.js')
+    expect('apiAssetUrl' in mod).toBe(false)
   })
 })
 
@@ -84,11 +120,9 @@ describe('useApi', () => {
   beforeEach(() => {
     api = useApi()
     mockPush.mockReset()
-    delete authMock.state.isAuthenticated
     uiMock.showToast.mockReset()
-    authMock.state.token = 'fake-jwt-token'
     authMock.state.csrfToken = 'fake-csrf'
-    authMock.state.refreshToken = ''
+    authMock.state.isAuthenticated = false
     authMock.state.logout = vi.fn()
     authMock.state.setMustChangePassword = vi.fn()
     authMock.state.refresh = vi.fn().mockResolvedValue({})
@@ -165,7 +199,7 @@ describe('useApi', () => {
   })
 
   describe('methods and uploads', () => {
-    it('adds authentication and CSRF headers without overriding multipart content type', async () => {
+    it('attaches cookies with CSRF headers without overriding multipart content type', async () => {
       const response = new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +215,8 @@ describe('useApi', () => {
       const [, options] = globalThis.fetch.mock.calls[0]
       expect(options.method).toBe('POST')
       expect(options.body).toBe(form)
-      expect(options.headers.Authorization).toBe('Bearer fake-jwt-token')
+      expect(options.credentials).toBe('include')
+      expect(options.headers).not.toHaveProperty('Authorization')
       expect(options.headers['X-CSRF-Token']).toBe('fake-csrf')
       expect(options.headers).not.toHaveProperty('Content-Type')
     })
@@ -222,7 +257,7 @@ describe('useApi', () => {
 
   describe('401 and 403 handling', () => {
     it('refreshes then retries the original request once on 401', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.isAuthenticated = true
       const payload = { ok: true, value: 42 }
       global.fetch = vi
         .fn()
@@ -238,7 +273,7 @@ describe('useApi', () => {
     })
 
     it('logs out when refresh fails', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.isAuthenticated = true
       authMock.state.refresh = vi.fn().mockRejectedValue(new Error('Refresh failed'))
       global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
 
@@ -248,7 +283,7 @@ describe('useApi', () => {
     })
 
     it('does not logout when refresh reports a session change with a new session active', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.isAuthenticated = true
       const stale = new Error('Session changed during refresh')
       stale.code = 'SESSION_CHANGED'
       authMock.state.refresh = vi.fn().mockRejectedValue(stale)
@@ -258,41 +293,23 @@ describe('useApi', () => {
       await expect(api.get('/protected')).rejects.toThrow('Session changed during refresh')
       expect(authMock.state.logout).not.toHaveBeenCalled()
       expect(mockPush).not.toHaveBeenCalled()
-      delete authMock.state.isAuthenticated
-    })
-
-    it('does not logout on SESSION_CHANGED when only the refresh token survives', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
-      const stale = new Error('Session changed during refresh')
-      stale.code = 'SESSION_CHANGED'
-      authMock.state.refresh = vi.fn().mockRejectedValue(stale)
-      authMock.state.isAuthenticated = false
-      global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
-
-      await expect(api.get('/protected')).rejects.toThrow('Session changed during refresh')
-      expect(authMock.state.logout).not.toHaveBeenCalled()
-      expect(mockPush).not.toHaveBeenCalled()
-      delete authMock.state.isAuthenticated
     })
 
     it('logs out when refresh reports a session change with no active session', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.isAuthenticated = true
       const stale = new Error('Session changed during refresh')
       stale.code = 'SESSION_CHANGED'
       authMock.state.refresh = vi.fn().mockRejectedValue(stale)
       authMock.state.isAuthenticated = false
-      authMock.state.refreshToken = ''
-      // true logged-out: no token either
       global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
 
       await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
       expect(authMock.state.logout).toHaveBeenCalledTimes(1)
       expect(mockPush).toHaveBeenCalledWith('/login')
-      delete authMock.state.isAuthenticated
     })
 
-    it('logs out immediately when there is no refresh token', async () => {
-      authMock.state.refreshToken = ''
+    it('logs out immediately when not authenticated', async () => {
+      authMock.state.isAuthenticated = false
       global.fetch = mockFetch(jsonResponse({ error: 'Unauthorized' }, 401))
 
       await expect(api.get('/protected')).rejects.toThrow('Unauthorized')
@@ -302,7 +319,7 @@ describe('useApi', () => {
     })
 
     it('shows the Thai expired-session toast once before redirecting on 401', async () => {
-      authMock.state.refreshToken = ''
+      authMock.state.isAuthenticated = false
       // เรียกสำเร็จ 1 ครั้งก่อน — เคลียร์ latch (หลังเข้าสู่ระบบใหม่ flag จะถูกรีเซ็ต)
       global.fetch = vi
         .fn()
@@ -318,7 +335,7 @@ describe('useApi', () => {
     })
 
     it('does not repeat the expired-session toast for follow-up 401s before re-login', async () => {
-      authMock.state.refreshToken = ''
+      authMock.state.isAuthenticated = false
       // เรียกสำเร็จ 1 ครั้งก่อน — เคลียร์ latch (หลังเข้าสู่ระบบใหม่ flag จะถูกรีเซ็ต)
       global.fetch = vi
         .fn()
@@ -329,14 +346,14 @@ describe('useApi', () => {
       await expect(api.get('/first')).rejects.toThrow('Unauthorized')
       await expect(api.get('/second')).rejects.toThrow('Unauthorized')
 
-      // 401 สองครั้งติดกัน (token ตกครั้งเดียว) — toast ต้องโชว์ครั้งเดียว ไม่ซ้ำ
+      // 401 สองครั้งติดกัน (session ตกครั้งเดียว) — toast ต้องโชว์ครั้งเดียว ไม่ซ้ำ
       expect(uiMock.showToast).toHaveBeenCalledTimes(1)
       expect(uiMock.showToast).toHaveBeenCalledWith('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'error')
       expect(authMock.state.logout).toHaveBeenCalledTimes(2)
     })
 
     it('does not refresh on /auth/login 401 (shows API error instead)', async () => {
-      authMock.state.refreshToken = 'refresh-abc'
+      authMock.state.isAuthenticated = true
       global.fetch = mockFetch(jsonResponse({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }, 401))
 
       await expect(api.post('/auth/login', {})).rejects.toThrow('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
@@ -357,6 +374,36 @@ describe('useApi', () => {
 
       expect(authMock.state.setMustChangePassword).toHaveBeenCalledWith(true)
       expect(mockPush).toHaveBeenCalledWith('/change-password')
+    })
+  })
+
+  describe('cookie transport (D3)', () => {
+    it('sends cookies with every request and never an Authorization header', async () => {
+      global.fetch = mockFetch(jsonResponse({ ok: true }))
+      await api.get('/test')
+      const [, options] = global.fetch.mock.calls[0]
+      expect(options.credentials).toBe('include')
+      expect(options.headers).not.toHaveProperty('Authorization')
+    })
+
+    it('attaches the CSRF header on state-changing requests', async () => {
+      global.fetch = mockFetch(jsonResponse({ ok: true }))
+      await api.post('/test', { a: 1 })
+      const [, options] = global.fetch.mock.calls[0]
+      expect(options.credentials).toBe('include')
+      expect(options.headers['X-CSRF-Token']).toBe('fake-csrf')
+    })
+  })
+
+  describe('empty success responses', () => {
+    it('resolves null on 204 No Content instead of throwing', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+      await expect(api.del('/anything')).resolves.toBeNull()
+    })
+
+    it('resolves null on 205 Reset Content', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 205 }))
+      await expect(api.get('/test')).resolves.toBeNull()
     })
   })
 })

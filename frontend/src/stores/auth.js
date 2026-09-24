@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-// คีย์ที่ persist ทั้งสอง storage — remember=true → localStorage, remember=false → sessionStorage
-const AUTH_STORAGE_KEYS = ['auth_token', 'refresh_token', 'csrf_token', 'user']
-// คียยุคเก่าที่เคยใช้ — เคลียร์ตอน logout ด้วย
-const LEGACY_AUTH_STORAGE_KEYS = ['authToken', 'refreshToken']
+// D3: tokens อยู่ใน httpOnly cookies แล้ว — storage เก็บแค่ csrf_token + user
+const AUTH_STORAGE_KEYS = ['csrf_token', 'user']
+// คีย์ยุค localStorage/session token — ลบทิ้งตอน load (migration ครั้งเดียว ไม่ย้ายค่า) + ตอน logout
+const LEGACY_AUTH_STORAGE_KEYS = ['authToken', 'refreshToken', 'auth_token', 'refresh_token']
 
 // hydrate จาก localStorage ก่อน แล้ว fallback ไป sessionStorage — session แบบ
 // "ไม่จดจำฉัน" (remember=false) ถูกเก็บไว้ใน sessionStorage เท่านั้น
@@ -48,34 +48,27 @@ function readStoredJson(key, fallback = null) {
   return fallback
 }
 
-// token segment เป็น base64url ('-' / '_') และไม่มี padding '=' — normalize เป็น base64
-// ก่อน atob ไม่งั้น payload ที่มีตัวอักษร url-safe ทำให้ atob พัง → isTokenValid false
-// → ระบบ logout เองทั้งที่ token ยังใช้ได้
-export function decodeJwtPayload(segment) {
-  const base64 = segment
-    .replace(/-/g, '+')
-    .replace(/_/g, '/')
-    .padEnd(segment.length + (4 - (segment.length % 4)) % 4, '=')
-  const binary = atob(base64)
-  // UTF-8 bytes → text ก่อน JSON.parse เสมอ (ASCII ผ่าน path นี้ได้เหมือนเดิม) —
-  // เดิม parse บน binary string ตรง ๆ ได้ mojibake กับ non-Latin1 (เช่น ชื่อไทย)
-  // โดยไม่ throw → isTokenValid อ่าน exp/name ผิด ไม่ใช่แค่ logout ผิด
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
-  return JSON.parse(new TextDecoder().decode(bytes))
+// D3: ลบ token keys ค้างจากยุค localStorage (migration ครั้งเดียว — ไม่ย้ายค่า)
+function clearLegacyTokenKeys() {
+  for (const storage of authStorages()) {
+    for (const key of LEGACY_AUTH_STORAGE_KEYS) {
+      storage.removeItem(key)
+    }
+  }
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(readStoredString('auth_token'))
-  const refreshToken = ref(readStoredString('refresh_token'))
+  clearLegacyTokenKeys()
   const csrfToken = ref(readStoredString('csrf_token'))
   const user = ref(readStoredJson('user'))
+  // D3: server-checked — true หลัง login/checkSession สำเร็จเท่านั้น (ไม่ decode JWT อีก)
+  const isAuthenticated = ref(false)
 
   // N4: effective permission grants ของ role ตัวเอง (จาก GET /settings/permissions/self)
   // — FE คำนวณปุ่มจาก matrix จริงรวม role_permission_overrides แทน hardcode role เทียบ
   // null = ยังไม่โหลด → fallback เทียบ role ขา intents เดิม (กันล็อก UI ตอน endpoint มีปัญหา)
   const permissionGrants = ref(null)
 
-  const isAuthenticated = computed(() => !!token.value && isTokenValid())
   const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
   // N4: "admin" = สิทธิ์ delete อะไรได้ก็ได้ตาม matrix จริง (รวม override) —
   // grants ยังไม่โหลด → fallback เทียบ role ตาม intents เดิม (admin/superadmin)
@@ -105,26 +98,16 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value?.role === 'operator'
   })
 
-  function isTokenValid() {
-    if (!token.value) return false
-    try {
-      const payload = decodeJwtPayload(token.value.split('.')[1])
-      return payload.exp * 1000 > Date.now()
-    } catch {
-      return false
-    }
-  }
-
   // session ปัจจุบันอยู่ storage ไหน — ใช้ตอน refresh (ไม่ส่ง remember มา) ให้คงที่เดิม
   function preferredStorage() {
-    if (!localStorage.getItem('auth_token') && sessionStorage.getItem('auth_token')) {
+    if (!localStorage.getItem('user') && sessionStorage.getItem('user')) {
       return sessionStorage
     }
     return localStorage
   }
 
   // remember=true → localStorage (อยู่รอดหลังปิดเบราว์เซอร์)
-  // remember=false → sessionStorage (ปิดเบราว์เซอร์แล้ว session จบ)
+  // remember=false → sessionStorage (csrf/user หายเมื่อปิดแท็บ — อายุ cookies เป็น server TTL)
   // ไม่ระบุ (เช่นตอน refresh) → คง storage เดิมของ session
   function persistAuthStorage(remember) {
     const storage = remember === false
@@ -134,17 +117,11 @@ export const useAuthStore = defineStore('auth', () => {
         : preferredStorage()
     const other = storage === localStorage ? sessionStorage : localStorage
 
-    storage.setItem('auth_token', token.value)
     storage.setItem('user', JSON.stringify(user.value))
     if (csrfToken.value) {
       storage.setItem('csrf_token', csrfToken.value)
     } else {
       storage.removeItem('csrf_token')
-    }
-    if (refreshToken.value) {
-      storage.setItem('refresh_token', refreshToken.value)
-    } else {
-      storage.removeItem('refresh_token')
     }
     // เคลียร์อีกฝั่ง — กันคีย์ค้างสองที่ (hydrate อ่าน localStorage ก่อน)
     for (const key of AUTH_STORAGE_KEYS) other.removeItem(key)
@@ -154,14 +131,20 @@ export const useAuthStore = defineStore('auth', () => {
     preferredStorage().setItem('user', JSON.stringify(user.value))
   }
 
+  // กัน response ข้าม session (refresh ชน login/logout) — bump ทุก setAuth/logout
+  // (แยกจาก grantsGeneration: grants fetch ต้องรอด same-session setAuth — ดูเทส)
+  let sessionGeneration = 0
+
   function setAuth(data, options = {}) {
-    token.value = data.token
+    // D3: data.token/data.refresh_token (compat-keep จาก backend) ถูกเพิกเฉยโดยตั้งใจ —
+    // session จริงอยู่ใน httpOnly cookies
     csrfToken.value = data.csrf_token || ''
     user.value = data.user
-    refreshToken.value = data.refresh_token || ''
+    isAuthenticated.value = true
     // N4: grants ผูกกับ token — ล้างค่าเก่ากัน role ค้าง (โหลดใหม่โดย router guard)
     // ไม่ยิง fetch ตรงนี้: setAuth ถูกเรียกใน contexts มากกว่า login (เช่น hydrate test)
     permissionGrants.value = null
+    sessionGeneration++
     persistAuthStorage(options.remember)
   }
 
@@ -173,7 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
   // กัน response ข้าม session — login/logout เพิ่มรุ่นแล้ว IIFE ทิ้งผลที่ไม่ตรงรุ่น
   let grantsGeneration = 0
   async function fetchPermissionGrants() {
-    if (!token.value || isSuperAdmin.value) return
+    if (!isAuthenticated.value || isSuperAdmin.value) return
     if (grantsPromise) return grantsPromise
     const inflight = (async () => {
       try {
@@ -194,7 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
     return grantsPromise
   }
 
-  // N44: default remember=false — refresh token เก็บ sessionStorage ไม่ localStorage
+  // N44: default remember=false — csrf/user เก็บ sessionStorage ไม่ localStorage
   // ยกเว้นผู้ใช้ติ๊ก "จดจำฉัน" ที่ LoginPage ส่ง explicit
   async function login(credentials, { remember = false } = {}) {
     const { useApi } = await import('@/composables/useApi.js')
@@ -206,37 +189,84 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  // D3: startup server check — GET /auth/me ตรง (raw fetch ไม่ผ่าน useApi เพื่อเลี่ยง
+  // 401 interceptor: ไม่มี session ตอนเปิดเว็บครั้งแรกคือเรื่องปกติ ไม่ใช่ error —
+  // ห้าม toast/redirect ตรงนี้; runtime หลัง login พึ่ง 401-hook เดิม)
+  let sessionCheckPromise = null
+  async function checkSession() {
+    if (sessionCheckPromise) return sessionCheckPromise
+    sessionCheckPromise = (async () => {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || '/api'
+        // timeout กันตาย: backend ดับต้องได้หน้า login ใน 10 วิ ไม่ใช่ค้างขาว (mount ถูกบล็อกอยู่)
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          credentials: 'include',
+          signal: AbortSignal.timeout(10000),
+        })
+        if (!response.ok) {
+          isAuthenticated.value = false
+          return false
+        }
+        const result = await response.json().catch(() => null)
+        const me = result?.data || result
+        if (!me || !me.id) {
+          isAuthenticated.value = false
+          return false
+        }
+        user.value = {
+          id: me.id,
+          username: me.username,
+          name: me.name ?? me.full_name,
+          full_name: me.full_name,
+          email: me.email,
+          role: me.role,
+          must_change_password: Boolean(me.must_change_password),
+        }
+        isAuthenticated.value = true
+        persistUserStorage()
+        return true
+      } catch {
+        isAuthenticated.value = false
+        return false
+      } finally {
+        sessionCheckPromise = null
+      }
+    })()
+    return sessionCheckPromise
+  }
+
   let refreshPromise = null
 
-  // ต่ออายุ access token ด้วย refresh token — single-flight กัน 401 หลายตัวยิงพร้อมกัน
+  // ต่ออายุ session ด้วย refresh cookie — single-flight กัน 401 หลายตัวยิงพร้อมกัน
   // ใช้ raw fetch (ไม่ผ่าน useApi) เพื่อเลี่ยง recursion กับ 401 interceptor
   async function refresh() {
-    if (!refreshToken.value) {
-      throw new Error('No refresh token')
+    if (!isAuthenticated.value) {
+      throw new Error('No active session')
     }
     if (refreshPromise) {
       return refreshPromise
     }
 
     const API_BASE = import.meta.env.VITE_API_URL || '/api'
-    const startedRefreshToken = refreshToken.value
+    const startedGeneration = sessionGeneration
     const staleRefreshError = () => Object.assign(new Error('เซสชันเปลี่ยนระหว่างต่ออายุโทเค็น'), { code: 'SESSION_CHANGED' })
     const flight = (async () => {
+      // D3: ไม่ส่ง body — backend อ่าน refresh จาก httpOnly cookie
       const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken.value }),
+        credentials: 'include',
       })
       if (!response.ok) {
         throw new Error('Refresh failed')
       }
       const data = await response.json()
-      if (refreshToken.value !== startedRefreshToken) throw staleRefreshError()
+      if (sessionGeneration !== startedGeneration) throw staleRefreshError()
       setAuth(data)
       return data
     })()
     refreshPromise = flight.catch((e) => {
-      if (e?.code !== 'SESSION_CHANGED' && refreshToken.value !== startedRefreshToken) throw staleRefreshError()
+      if (e?.code !== 'SESSION_CHANGED' && sessionGeneration !== startedGeneration) throw staleRefreshError()
       throw e
     })
 
@@ -304,25 +334,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
-    // เพิกถอน refresh token ฝั่ง server แบบ best-effort (ไม่รอผล / ไม่โยน error)
-    if (refreshToken.value) {
+    // เพิกถอน refresh cookie ฝั่ง server แบบ best-effort (ไม่รอผล / ไม่โยน error)
+    // — backend ล้าง cookies คู่ให้ด้วย; ข้ามเมื่อ logout อยู่แล้ว (กันยิงซ้ำจาก 401-hook)
+    if (isAuthenticated.value) {
       const API_BASE = import.meta.env.VITE_API_URL || '/api'
       fetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken.value }),
+        credentials: 'include',
         keepalive: true,
       }).catch(() => {})
     }
 
-    token.value = ''
-    refreshToken.value = ''
     csrfToken.value = ''
     user.value = null
+    isAuthenticated.value = false
     permissionGrants.value = null
     grantsPromise = null
     grantsGeneration++
-    // เคลียร์ทั้งสอง storage — session อาจถูก persist แบบ remember หรือไม่ก็ได้
+    sessionGeneration++
+    // เคลียร์ทั้งสอง storage — รวม legacy token keys (migration รอบสุดท้าย)
     for (const storage of [localStorage, sessionStorage]) {
       for (const key of [...AUTH_STORAGE_KEYS, ...LEGACY_AUTH_STORAGE_KEYS]) {
         storage.removeItem(key)
@@ -331,8 +361,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token,
-    refreshToken,
     csrfToken,
     user,
     isAuthenticated,
@@ -342,10 +370,10 @@ export const useAuthStore = defineStore('auth', () => {
     can,
     permissionGrants,
     fetchPermissionGrants,
-    isTokenValid,
     setAuth,
     setMustChangePassword,
     login,
+    checkSession,
     refresh,
     changePassword,
     fetchMe,

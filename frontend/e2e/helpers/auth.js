@@ -7,8 +7,8 @@ export const adminPass = process.env.E2E_ADMIN_PASS || 'admin123'
 
 export async function loginAs(page, username, password) {
   await page.goto('/login')
-  await page.getByPlaceholder('กรุณาใส่ชื่อผู้ใช้ของคุณ').fill(username)
-  await page.getByPlaceholder('กรุณาใส่รหัสผ่านของคุณ').fill(password)
+  await page.getByPlaceholder('ชื่อผู้ใช้').fill(username)
+  await page.getByPlaceholder('รหัสผ่าน').fill(password)
   await page.getByRole('button', { name: /เข้าสู่ระบบ/i }).click()
 }
 
@@ -65,7 +65,6 @@ export async function createUserViaApi(request, { username, password, role, full
 
   const create = await sendWith429Retry(request, 'post', `${apiBase()}/users`, {
     headers: {
-      Authorization: `Bearer ${admin.token}`,
       'X-CSRF-Token': admin.csrf_token,
     },
     data: {
@@ -85,7 +84,6 @@ export async function createUserViaApi(request, { username, password, role, full
   const first = await apiLogin(request, username, password)
   const changed = await sendWith429Retry(request, 'post', `${apiBase()}/auth/change-password`, {
     headers: {
-      Authorization: `Bearer ${first.token}`,
       'X-CSRF-Token': first.csrf_token,
     },
     data: {

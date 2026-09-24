@@ -109,7 +109,7 @@ describe('CandidateListsPage', () => {
     setActivePinia(createPinia())
     const auth = useAuthStore()
     auth.user = { id: 1, role: 'admin', username: 'tester' }
-    auth.token = 'test-token'
+    auth.isAuthenticated = true
   })
 
   it('renders overview stat cards and top-5 table after fetch', async () => {

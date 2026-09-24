@@ -20,14 +20,13 @@ test.describe('permissions', () => {
   test('operator cannot open admin-only import page', async ({ page, request }) => {
     const stamp = Date.now()
     const username = `e2e_op_${stamp}`
-    const tempPass = 'TempPass1!'
-    const finalPass = 'OperPass1!'
+    const tempPass = 'TempPass-11!'
+    const finalPass = 'OperPass-11!'
 
     const admin = await apiLogin(request, adminUser, adminPass)
 
     const create = await request.post(`${apiBase()}/users`, {
       headers: {
-        Authorization: `Bearer ${admin.token}`,
         'X-CSRF-Token': admin.csrf_token,
       },
       data: {
@@ -45,7 +44,6 @@ test.describe('permissions', () => {
 
     const changed = await request.post(`${apiBase()}/auth/change-password`, {
       headers: {
-        Authorization: `Bearer ${first.token}`,
         'X-CSRF-Token': first.csrf_token,
       },
       data: {

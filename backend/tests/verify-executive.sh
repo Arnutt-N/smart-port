@@ -18,9 +18,11 @@ BASE_URL="${BASE_URL:-http://localhost:8000}"
 USER="${USER:-admin}"
 PASS="${PASS:-admin123}"
 
-TOKEN=""
+TOKEN="" # D3: ใช้เป็นสัญญาณ login สำเร็จเท่านั้น (session จริงอยู่ใน cookie jar)
+JAR="$(mktemp)"
+trap 'rm -f "$JAR"' EXIT
 for i in $(seq 1 8); do
-  TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" -H 'Content-Type: application/json' \
+  TOKEN=$(curl -s -c "$JAR" -X POST "$BASE_URL/auth/login" -H 'Content-Type: application/json' \
     -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}" \
     | grep -oE '"token":"[^"]+"' | sed 's/"token":"//;s/"$//')
   [ -n "$TOKEN" ] && break
@@ -34,7 +36,7 @@ PASS_N=0; FAIL_N=0
 check() {
   local level="$1" id="$2" expected="$3"
   local got
-  got=$(curl -s "$BASE_URL/candidates/$level/$id" -H "Authorization: Bearer $TOKEN" \
+  got=$(curl -s -b "$JAR" "$BASE_URL/candidates/$level/$id" \
     | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const r=JSON.parse(d).data;if(!r){console.log("null");return}console.log(r.status==="check_data"?"check_data":(r.qualification_date||"null"))}catch(e){console.log("parse_err")}})')
   if [ "$got" = "$expected" ]; then
     echo "  PASS  $level/$id => $got"
