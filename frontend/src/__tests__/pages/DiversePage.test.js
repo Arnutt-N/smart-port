@@ -121,7 +121,7 @@ describe('DiversePage', () => {
     })
   })
 
-    it('loads and renders diverse-experience records on mount', async () => {
+  it('loads and renders diverse-experience records on mount', async () => {
 
     const wrapper = await mountPage()
     expect(wrapper.text()).toContain('สมชาย ใจดี')

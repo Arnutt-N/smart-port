@@ -194,4 +194,37 @@ describe('LoginPage', () => {
     await flushPromises()
     expect(wrapper.vm.loading).toBe(false)
   })
+
+  it('announces login errors assertively via role=alert', async () => {
+    login.mockRejectedValue(new Error('รหัสผ่านไม่ถูกต้อง'))
+    const wrapper = mountPage()
+    await wrapper.get('input[autocomplete="username"]').setValue('admin')
+    await wrapper.get('input[autocomplete="current-password"]').setValue('wrong')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('รหัสผ่านไม่ถูกต้อง')
+    expect(alert.find('svg').attributes('aria-hidden')).toBe('true')
+  })
+
+  it('hides decorative icons and spinner from assistive tech', async () => {
+    let resolveLogin
+    login.mockReturnValue(new Promise((resolve) => { resolveLogin = resolve }))
+    const wrapper = mountPage()
+    await wrapper.get('input[autocomplete="username"]').setValue('admin')
+    await wrapper.get('input[autocomplete="current-password"]').setValue('pw')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const svgs = wrapper.findAll('svg')
+    expect(svgs.length).toBeGreaterThan(0)
+    svgs.forEach((svg) => expect(svg.attributes('aria-hidden')).toBe('true'))
+
+    resolveLogin({ token: 't', user: { id: 1 } })
+    await flushPromises()
+  })
 })

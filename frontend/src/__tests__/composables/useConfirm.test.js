@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { confirmAction, confirmDelete, confirmLogout, confirmSave, useConfirm } from '@/composables/useConfirm.js'
 
 describe('useConfirm', () => {

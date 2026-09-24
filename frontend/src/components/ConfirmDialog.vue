@@ -1,5 +1,9 @@
 <template>
-  <Dialog :open="state.open" class="relative z-[100]" @close="cancel">
+  <Dialog
+    :open="state.open"
+    class="relative z-[100]"
+    @close="cancel"
+  >
     <Transition
       enter-active-class="ease-out duration-200"
       enter-from-class="opacity-0"
@@ -8,7 +12,11 @@
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div v-if="state.open" class="fixed inset-0 bg-black/40" aria-hidden="true" />
+      <div
+        v-if="state.open"
+        class="fixed inset-0 bg-black/40"
+        aria-hidden="true"
+      />
     </Transition>
 
     <div class="fixed inset-0 flex items-center justify-center p-4">
@@ -29,7 +37,11 @@
               class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
               :class="iconWrapClass"
             >
-              <component :is="icon" class="h-5 w-5" :class="iconClass" />
+              <component
+                :is="icon"
+                class="h-5 w-5"
+                :class="iconClass"
+              />
             </div>
             <div class="min-w-0 flex-1">
               <DialogTitle class="text-lg font-semibold text-gray-900">

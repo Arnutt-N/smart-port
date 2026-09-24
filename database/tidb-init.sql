@@ -49,10 +49,10 @@ CREATE TABLE civil_servant_photos (
     photo_status VARCHAR(30) DEFAULT 'pending_approval',
     is_primary TINYINT(1) NOT NULL DEFAULT 0,
     upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active TINYINT(1) NOT NULL DEFAULT 1
-    -- FK เดิม (servant_id) -> civil_servants ถูกปลดโดย migration 22 (unify person identity)
-    -- คอลัมน์ rename เป็น personnel_id โดย migration 32 (N60)
-    -- parity gate เทียบ FK pairs — ห้ามใส่กลับ
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    -- FK เดิม (servant_id) -> civil_servants ถูกปลดโดย migration 22 (unify);
+    -- D4 (migration 35) ผูก FK ใหม่กับ personnel หลัง rename 32 แล้ว
+    CONSTRAINT fk_photos_personnel FOREIGN KEY (personnel_id) REFERENCES personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- photo_versions (N5): ตัดออกจากเดิม — Issue #127 แล้ว backend ไม่สร้างแถวซ้ำ
@@ -84,19 +84,20 @@ CREATE TABLE performance_proposals (
     result_unit VARCHAR(50),
     submission_date DATE NOT NULL,
     evaluation_score DECIMAL(3,2), -- 0.00 - 5.00
-    evaluator_id INT,
+    evaluator_id BIGINT,
     evaluation_date DATE,
     status VARCHAR(20) DEFAULT 'draft',
     approval_level VARCHAR(20) DEFAULT 'department',
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    -- FK เดิม (servant_id)/(evaluator_id) -> civil_servants ถูกปลดโดย migration 22
-    -- servant_id rename เป็น personnel_id โดย migration 32 (N60)
-    -- (ตารางนี้ไม่ถูก drop — parity gate เทียบ FK pairs ห้ามใส่กลับ)
+    -- FK เดิม (servant_id)/(evaluator_id) -> civil_servants ถูกปลดโดย migration 22;
+    -- D4 (migration 35) ผูก FK ใหม่กับ personnel (หลัง rename 32 + widen evaluator เป็น BIGINT)
     INDEX idx_personnel_type (personnel_id, proposal_type),
     INDEX idx_status (status),
-    INDEX idx_submission_date (submission_date)
+    INDEX idx_submission_date (submission_date),
+    CONSTRAINT fk_proposals_personnel FOREIGN KEY (personnel_id) REFERENCES personnel (personnel_id),
+    CONSTRAINT fk_proposals_evaluator FOREIGN KEY (evaluator_id) REFERENCES personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ตาราง task_assignments / ml_predictions / career_paths / candidate_lists /
@@ -233,7 +234,8 @@ CREATE TABLE personnel (
     KEY idx_personnel_prefix (prefix_id),
     KEY idx_personnel_retirement (retirement_date),
     FOREIGN KEY (current_position_id) REFERENCES `position`(position_id),
-    FOREIGN KEY (current_org_id) REFERENCES organization(org_id)
+    FOREIGN KEY (current_org_id) REFERENCES organization(org_id),
+    CONSTRAINT fk_personnel_prefix FOREIGN KEY (prefix_id) REFERENCES prefixes (prefix_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ############################################################################
@@ -433,7 +435,8 @@ CREATE TABLE qualification_calculation (
     status VARCHAR(30),                             -- ถึงเกณฑ์นานแล้ว / ยังไม่ถึงเกณฑ์ / Check Data
     remarks TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_qualcalc_personnel FOREIGN KEY (personnel_id) REFERENCES personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_qual_calc_pid ON qualification_calculation(personnel_id);
@@ -1266,7 +1269,8 @@ CREATE TABLE refresh_tokens (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_refresh_token_hash (token_hash),
     KEY idx_refresh_user (user_id),
-    KEY idx_refresh_expires (expires_at)
+    KEY idx_refresh_expires (expires_at),
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -1282,7 +1286,8 @@ CREATE TABLE awards (
     description TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_awards_personnel (personnel_id),
-    KEY idx_awards_date (awarded_date)
+    KEY idx_awards_date (awarded_date),
+    CONSTRAINT fk_awards_personnel FOREIGN KEY (personnel_id) REFERENCES personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -1298,7 +1303,8 @@ CREATE TABLE royal_decorations (
     gazette_ref VARCHAR(255) NULL DEFAULT NULL,
     description TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_decorations_personnel (personnel_id)
+    KEY idx_decorations_personnel (personnel_id),
+    CONSTRAINT fk_decorations_personnel FOREIGN KEY (personnel_id) REFERENCES personnel (personnel_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -1330,5 +1336,18 @@ CREATE TABLE IF NOT EXISTS csp_violation_daily (
     last_seen     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (day, directive, blocked_host)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- FILE: 34-password-history.sql
+-- ============================================
+-- ประวัติรหัสผ่าน 5 รุ่น (D2) — ดู database/34-password-history.sql
+CREATE TABLE IF NOT EXISTS password_history (
+    history_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_password_history_user (user_id, history_id),
+    CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

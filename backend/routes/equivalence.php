@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/equivalence.php
 // Position Equivalence Route Handler — การเทียบตำแหน่ง
@@ -106,19 +107,19 @@ function getEquivalenceList(PDO $pdo): void
     $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
     $offset = max(0, intval($_GET['offset'] ?? 0));
 
-    $baseQuery = "SELECT pe.*,
-                         " . sqlPersonnelFullName() . " AS full_name,
+    $baseQuery = 'SELECT pe.*,
+                         ' . sqlPersonnelFullName() . ' AS full_name,
                          u.username AS approved_by_name
                   FROM position_equivalence pe
                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-                  LEFT JOIN users u ON pe.approved_by = u.user_id";
+                  LEFT JOIN users u ON pe.approved_by = u.user_id';
 
     // count ต้อง join personnel + prefixes ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่งชื่อเต็ม
-    $countQuery = "SELECT COUNT(*) AS total
+    $countQuery = 'SELECT COUNT(*) AS total
                    FROM position_equivalence pe
                    LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 
     $conditions = [];
     $params = [];
@@ -129,10 +130,10 @@ function getEquivalenceList(PDO $pdo): void
     }
 
     if ($search !== '') {
-        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR " . sqlPersonnelFullName() . " LIKE ?
+        $conditions[] = '(p.first_name LIKE ? OR p.last_name LIKE ?
+                          OR ' . sqlPersonnelFullName() . ' LIKE ?
                           OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
-                          OR pe.approval_order_ref LIKE ?)";
+                          OR pe.approval_order_ref LIKE ?)';
         $term = "%{$search}%";
         array_push($params, $term, $term, $term, $term, $term, $term);
     }
@@ -196,14 +197,14 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT pe.*,
-                   " . sqlPersonnelFullName() . " AS full_name,
+    $sql = 'SELECT pe.*,
+                   ' . sqlPersonnelFullName() . ' AS full_name,
                    u.username AS approved_by_name
             FROM position_equivalence pe
             LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
             LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
             LEFT JOIN users u ON pe.approved_by = u.user_id
-            WHERE pe.equivalence_id = ?";
+            WHERE pe.equivalence_id = ?';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
@@ -376,7 +377,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ดึงข้อมูลปัจจุบัน
-    $stmt = $pdo->prepare("SELECT * FROM position_equivalence WHERE equivalence_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $stmt->execute([$id]);
     $current = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -526,7 +527,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             return;
         }
         $requestTotalDays = $end->diff($start)->days + 1;
-        $sets[] = "request_total_days = ?";
+        $sets[] = 'request_total_days = ?';
         $params[] = $requestTotalDays;
     }
 
@@ -537,7 +538,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     }
 
     $params[] = $id;
-    $sql = "UPDATE position_equivalence SET " . implode(', ', $sets) . " WHERE equivalence_id = ?";
+    $sql = 'UPDATE position_equivalence SET ' . implode(', ', $sets) . ' WHERE equivalence_id = ?';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 

@@ -15,6 +15,7 @@ vi.mock('@/utils/chunkGuard.js', () => ({
 
 const router = (await import('@/router/index.js')).default
 const { CANDIDATE_SECTION_LABELS } = await import('@/router/index.js')
+const { syncDocumentTitle } = await import('@/router/index.js')
 
 describe('formerly-placeholder routes now resolve to real pages', () => {
   it.each([
@@ -89,5 +90,33 @@ describe('formerly-placeholder routes now resolve to real pages', () => {
       expect(CANDIDATE_SECTION_LABELS[section]).toBeTruthy()
     }
     expect(CANDIDATE_SECTION_LABELS.overview).toBe('ภาพรวม')
+  })
+
+  describe('not-found route and document titles', () => {
+    it('resolves unknown paths to the not-found page inside the app shell', () => {
+      for (const path of ['/nope', '/a/b/c', '/login/xyz']) {
+        const resolved = router.resolve(path)
+        expect(resolved.name).toBe('not-found')
+        expect(resolved.meta.title).toBe('ไม่พบหน้า')
+        expect(resolved.meta.breadcrumb).toEqual(['ไม่พบหน้า'])
+      }
+    })
+
+    it('keeps known routes away from the catch-all', () => {
+      expect(router.resolve('/login').name).toBe('login')
+      expect(router.resolve('/dashboard').name).toBe('dashboard')
+      expect(router.resolve('/candidates/bogus-section').name).toBe('candidates')
+    })
+
+    it('covers the not-found route with the auth guard via AppLayout meta', () => {
+      expect(router.resolve('/nope').meta.requiresAuth).not.toBe(false)
+    })
+
+    it('syncs document.title from route meta with the brand suffix', () => {
+      syncDocumentTitle({ meta: { title: 'Dashboard' } })
+      expect(document.title).toBe('Dashboard | ระบบสมุดพก')
+      syncDocumentTitle({ meta: {} })
+      expect(document.title).toBe('ระบบสมุดพก')
+    })
   })
 })

@@ -1,12 +1,22 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">ติดตามพ้นทดลองปฏิบัติราชการ</h1>
-      <p class="text-sm text-gray-500 mt-1">ติดตามสถานะการทดลองปฏิบัติราชการของข้าราชการบรรจุใหม่</p>
+      <h1 class="text-2xl font-bold text-gray-900">
+        ติดตามพ้นทดลองปฏิบัติราชการ
+      </h1>
+      <p class="text-sm text-gray-500 mt-1">
+        ติดตามสถานะการทดลองปฏิบัติราชการของข้าราชการบรรจุใหม่
+      </p>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="stat-cards" />
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="stat-cards"
+    />
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+    >
       <StatCard
         label="ทั้งหมด"
         :value="summary.total"
@@ -46,7 +56,11 @@
       />
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -62,20 +76,41 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่ง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">หน่วยงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่มทดลอง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันครบกำหนด</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันคงเหลือ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ลำดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อ-สกุล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ตำแหน่ง
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                หน่วยงาน
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันเริ่มทดลอง
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันครบกำหนด
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันคงเหลือ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สถานะ
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -84,12 +119,24 @@
               :key="row.enrollmentId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.name }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.position }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.department }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.startDate }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.endDate }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ pagination.offset + index + 1 }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ row.name }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.position }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.department }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.startDate }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.endDate }}
+              </td>
               <td class="px-6 py-3 text-sm">
                 <span :class="getRemainingDaysClass(row.remainingDays)">
                   {{ formatRemainingDays(row.remainingDays) }}
@@ -124,46 +171,87 @@
     />
 
     <Teleport to="body">
-      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center" v-bind="viewModalA11yAttrs">
-        <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
+      <div
+        v-if="showViewModal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        v-bind="viewModalA11yAttrs"
+      >
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="showViewModal = false"
+        />
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">รายละเอียดการทดลองปฏิบัติราชการ</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              รายละเอียดการทดลองปฏิบัติราชการ
+            </h2>
           </div>
           <div class="px-6 py-4 space-y-3">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <p class="text-xs text-gray-500">ชื่อ-สกุล</p>
-                <p class="text-sm font-medium text-gray-900">{{ viewingRow?.name }}</p>
+                <p class="text-xs text-gray-500">
+                  ชื่อ-สกุล
+                </p>
+                <p class="text-sm font-medium text-gray-900">
+                  {{ viewingRow?.name }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">สถานะ</p>
-                <StatusBadge v-if="viewingRow" :status="viewingRow.status" />
+                <p class="text-xs text-gray-500">
+                  สถานะ
+                </p>
+                <StatusBadge
+                  v-if="viewingRow"
+                  :status="viewingRow.status"
+                />
               </div>
               <div>
-                <p class="text-xs text-gray-500">ตำแหน่ง</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.position || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ตำแหน่ง
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.position || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">หน่วยงาน</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.department || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  หน่วยงาน
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.department || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันเริ่มทดลอง</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.startDate || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันเริ่มทดลอง
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.startDate || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันครบกำหนด</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.endDate || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันครบกำหนด
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.endDate || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันคงเหลือ</p>
-                <p class="text-sm" :class="getRemainingDaysClass(viewingRow?.remainingDays)">
+                <p class="text-xs text-gray-500">
+                  วันคงเหลือ
+                </p>
+                <p
+                  class="text-sm"
+                  :class="getRemainingDaysClass(viewingRow?.remainingDays)"
+                >
                   {{ formatRemainingDays(viewingRow?.remainingDays) }}
                 </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">ภารกิจ</p>
+                <p class="text-xs text-gray-500">
+                  ภารกิจ
+                </p>
                 <p class="text-sm text-gray-900">
                   {{ viewingRow?.totalTasks != null ? `${viewingRow.completedTasks ?? 0}/${viewingRow.totalTasks} ภารกิจ` : '-' }}
                 </p>
@@ -172,8 +260,8 @@
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
             <button
-              @click="showViewModal = false"
               class="btn-secondary px-4 py-2"
+              @click="showViewModal = false"
             >
               ปิด
             </button>
@@ -183,20 +271,34 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center" v-bind="editModalA11yAttrs">
-        <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
+      <div
+        v-if="showEditModal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        v-bind="editModalA11yAttrs"
+      >
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="closeEditModal"
+        />
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">แก้ไขการทดลองปฏิบัติราชการ</h2>
-            <p class="text-sm text-gray-500 mt-1">{{ editingRow?.name }}</p>
+            <h2 class="text-lg font-semibold text-gray-900">
+              แก้ไขการทดลองปฏิบัติราชการ
+            </h2>
+            <p class="text-sm text-gray-500 mt-1">
+              {{ editingRow?.name }}
+            </p>
           </div>
-          <form @submit.prevent="handleSave" class="px-6 py-4 space-y-4">
+          <form
+            class="px-6 py-4 space-y-4"
+            @submit.prevent="handleSave"
+          >
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="label">วันเริ่มทดลอง <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
-                  v-model="formData.start_date"
                   id="probation-start-date"
+                  v-model="formData.start_date"
                   label="วันเริ่มทดลอง"
                   :error="formErrors.start_date"
                 />
@@ -204,28 +306,42 @@
               <div>
                 <label class="label">วันครบกำหนด <span class="text-red-500">*</span></label>
                 <ThaiDatePicker
-                  v-model="formData.end_date"
                   id="probation-end-date"
+                  v-model="formData.end_date"
                   label="วันครบกำหนด"
                   :error="formErrors.end_date"
                 />
               </div>
             </div>
             <div>
-              <label for="probation-overall-status" class="label">สถานะ</label>
+              <label
+                for="probation-overall-status"
+                class="label"
+              >สถานะ</label>
               <select
                 id="probation-overall-status"
                 v-model="formData.overall_status"
                 class="input"
               >
-                <option value="IN_PROGRESS">กำลังดำเนินการ</option>
-                <option value="COMPLETED">ผ่านทดลอง</option>
-                <option value="FAILED">ไม่ผ่านทดลอง</option>
-                <option value="EXTENDED">ขยายเวลา</option>
+                <option value="IN_PROGRESS">
+                  กำลังดำเนินการ
+                </option>
+                <option value="COMPLETED">
+                  ผ่านทดลอง
+                </option>
+                <option value="FAILED">
+                  ไม่ผ่านทดลอง
+                </option>
+                <option value="EXTENDED">
+                  ขยายเวลา
+                </option>
               </select>
             </div>
             <div>
-              <label for="probation-remarks" class="label">หมายเหตุ</label>
+              <label
+                for="probation-remarks"
+                class="label"
+              >หมายเหตุ</label>
               <textarea
                 id="probation-remarks"
                 v-model="formData.remarks"
@@ -237,8 +353,8 @@
             <div class="pt-2 flex justify-end gap-2 border-t border-gray-200">
               <button
                 type="button"
-                @click="closeEditModal"
                 class="btn-secondary px-4 py-2 cursor-pointer"
+                @click="closeEditModal"
               >
                 ยกเลิก
               </button>
@@ -268,7 +384,6 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
-import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'

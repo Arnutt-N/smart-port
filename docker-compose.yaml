@@ -106,6 +106,9 @@ services:
       - ./database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql
       - ./database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql
       - ./database/32-rename-servant-id.sql:/docker-entrypoint-initdb.d/32-rename-servant-id.sql
+      - ./database/33-drop-photo-versions-and-dead-views.sql:/docker-entrypoint-initdb.d/33-drop-photo-versions-and-dead-views.sql
+      - ./database/34-password-history.sql:/docker-entrypoint-initdb.d/34-password-history.sql
+      - ./database/35-fk-retrofit.sql:/docker-entrypoint-initdb.d/35-fk-retrofit.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 10s

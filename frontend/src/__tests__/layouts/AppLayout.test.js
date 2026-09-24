@@ -43,20 +43,20 @@ describe('AppLayout', () => {
           // Default stub skips the v-slot; opt-in stub exercises Transition + page component
           RouterView: invokeRouterSlot
             ? {
-                name: 'RouterView',
-                template:
+              name: 'RouterView',
+              template:
                   '<div data-testid="router-view"><slot :Component="pageComp" /></div>',
-                setup() {
-                  return {
-                    pageComp: componentAvailable
-                      ? markRaw({
-                          name: 'StubPage',
-                          template: '<div data-testid="slotted-page">หน้าทดสอบ</div>',
-                        })
-                      : null,
-                  }
-                },
-              }
+              setup() {
+                return {
+                  pageComp: componentAvailable
+                    ? markRaw({
+                      name: 'StubPage',
+                      template: '<div data-testid="slotted-page">หน้าทดสอบ</div>',
+                    })
+                    : null,
+                }
+              },
+            }
             : { template: '<div data-testid="router-view" />' },
           RouterLink: RouterLinkStub,
         },

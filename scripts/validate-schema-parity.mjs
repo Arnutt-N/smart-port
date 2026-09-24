@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Schema parity gate — กัน schema drift ระหว่างไฟล์ migration กับไฟล์ bootstrap/init ต่าง ๆ
 //
-// ตรวจ 3 invariant:
+// ตรวจ 6 invariant:
 //   INV-1  ทุกตาราง/view ที่ migration สร้าง ต้องมีใน database/tidb-init.sql ด้วย
 //          (tidb-init.sql คือไฟล์ที่ runbook ใช้ bootstrap TiDB ใหม่ และ production ตั้ง
 //           RUN_MIGRATIONS=0 จึงไม่มีกลไกอัตโนมัติมาเติมทีหลัง)
@@ -11,7 +11,13 @@
 //           จะไม่มี backend container มารัน run-migrations.php ให้)
 //   INV-4  FK pairs ของตารางที่ยังมีอยู่ต้องตรงกันทั้งสองฝั่ง (migration final state
 //          เทียบกับ tidb-init.sql) — FK ของตารางที่ถูก drop พร้อมตาราง (เช่นโดย
-//          migration 24) ไม่เทียบ เพราะฝั่ง migration ไม่มี CREATE ของตารางนั้นให้ extract
+//          migration 22) ไม่เทียบ เพราะฝั่ง migration ไม่มี CREATE ของตารางนั้นให้ extract
+//   INV-5  MIGRATION_BASELINE_THROUGH ใน backend/scripts/migration-lib.php ต้องตรงกับ
+//          migration ล่าสุด (ไม่นับ test-seed) — กัน runner รันไฟล์ที่ init mounts ลงไว้แล้ว
+//          ซ้ำบน fresh volume (ซ้ำรอย Issue #129: baseline ค้าง + re-apply = duplicate column)
+//   INV-6  ไฟล์ฐาน 01/02 (mysql_database_design.sql, photo_management_system.sql) ต้องตรง
+//          hash ที่ pin ไว้ — ไฟล์พวกนี้อยู่นอกสโคป NN-scan ถ้าแก้เงียบ tidb-init จะเบี่ยง
+//          โดยไม่มีอะไรจับ (แก้ไฟล์ → sync tidb-init แล้วอัปเดต pin)
 //
 // ไฟล์ที่ชื่อมี test-seed ถูกยกเว้นโดยตั้งใจ — ควบคุมด้วย APPLY_TEST_SEED_MIGRATIONS ผ่าน runner
 //
@@ -20,13 +26,21 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TIDB_INIT = 'database/tidb-init.sql';
 const CI_WORKFLOW = '.github/workflows/ci.yml';
 const COMPOSE = 'docker-compose.yaml';
-const TEST_SEED_MARKER = 'test-seed';
+export const TEST_SEED_MARKER = 'test-seed';
+
+// INV-6 pins — sha256 ของเนื้อหาที่ normalize line-ending (CRLF→LF) แล้ว
+// คำนวณด้วย: node -e "const{readFileSync}=require('fs'),{createHash}=require('crypto');for(const f of['mysql_database_design.sql','photo_management_system.sql'])console.log(f,createHash('sha256').update(readFileSync(f,'utf8').replace(/\r\n/g,'\n')).digest('hex'))"
+const BASE_FILE_PINS = {
+  'mysql_database_design.sql': '7c7a1f970f57f0e0ebc942013f7f0b66ce02a76b2643e24137f17adf74263bdc',
+  'photo_management_system.sql': 'd52d7978855de0e08ff861bb395174fb854d0ebb2a2eaf4cfa28e4ec3101c20f',
+};
 
 const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 
@@ -98,7 +112,7 @@ function objectsCreatedBy(sql) {
  * ให้จับ) — การ drop ของ migration 22 สะท้อนผ่าน final state: tidb-init.sql ต้อง
  * ไม่มี FK คู่นั้นอีก (INV-4 ฝั่ง init ที่ฝั่ง migration ไม่มี = fail)
  */
-function foreignKeyPairs(sql) {
+export function foreignKeyPairs(sql) {
   const fks = new Set();
   const createRe = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i;
   const alterRe = /\bALTER\s+TABLE\s+`?(\w+)`?/i;
@@ -138,89 +152,154 @@ function migrationFiles() {
     .map((f) => `database/${f}`);
 }
 
-const failures = [];
-const notes = [];
-
-// ---- INV-1: tidb-init.sql ต้องครอบคลุมทุกอ็อบเจกต์ที่ migration สร้าง ------
-const migrations = migrationFiles();
-const applied = migrations.filter((f) => !basename(f).includes(TEST_SEED_MARKER));
-
-const expected = { tables: new Map(), views: new Map(), altered: new Map() }; // name -> ไฟล์ต้นทาง
-for (const rel of applied) {
-  const sql = read(rel);
-  const { tables, views } = objectsCreatedBy(sql);
-  for (const t of tables) if (!expected.tables.has(t)) expected.tables.set(t, rel);
-  for (const v of views) if (!expected.views.has(v)) expected.views.set(v, rel);
-  for (const id of identifiersAddedByAlter(sql)) if (!expected.altered.has(id)) expected.altered.set(id, rel);
-}
-
-const initSql = read(TIDB_INIT);
-const initObjects = objectsCreatedBy(initSql);
-const initLower = initSql.toLowerCase();
-
-for (const [name, src] of expected.tables) {
-  if (!initObjects.tables.has(name)) failures.push(`INV-1 ${TIDB_INIT} ขาดตาราง \`${name}\` (สร้างโดย ${src})`);
-}
-for (const [name, src] of expected.views) {
-  if (!initObjects.views.has(name)) failures.push(`INV-1 ${TIDB_INIT} ขาด view \`${name}\` (สร้างโดย ${src})`);
-}
-for (const [name, src] of expected.altered) {
-  if (!initLower.includes(name)) failures.push(`INV-1b ${TIDB_INIT} ขาด column/key \`${name}\` (เพิ่มโดย ${src})`);
-}
-
-// ---- INV-4: FK parity — FK pairs ของตารางที่ยังมีอยู่ต้องตรงกันทั้งสองฝั่ง ----
-// ขอบเขตคือ FK คู่ของตารางที่ "ยังมีอยู่" เท่านั้น — ข้าม FK ที่ referencing table
-// ไม่มีอยู่ในอีกฝั่ง (dropped-table semantics) เช่น advance_notifications/task_assignments
-// ที่ migration 24 drop พร้อมตาราง หรือตาราง root schema (mysql_database_design.sql)
-// ที่ไม่ได้อยู่ในชุดสแกน migration
-const initFks = foreignKeyPairs(initSql);
-const migFks = new Set();
-for (const rel of applied) {
-  for (const fk of foreignKeyPairs(read(rel))) migFks.add(fk);
-}
-
-const relevantMigFks = [...migFks].filter((fk) => initObjects.tables.has(fk.split('|')[0]));
-const relevantInitFks = [...initFks].filter((fk) => expected.tables.has(fk.split('|')[0]));
-
-for (const fk of relevantMigFks) {
-  if (!initFks.has(fk)) {
-    failures.push(`INV-4 ${TIDB_INIT} ขาด FOREIGN KEY ${fk} (ฝั่ง migration มี)`);
+/**
+ * INV-5 (pure core — เทสได้โดยไม่แตะ fs): baseline ต้องตรง migration ล่าสุด
+ *
+ * @param {string[]} names basenames ของ migration (ควรกรอง seed มาแล้ว แต่ fn กรองซ้ำเองอีกชั้น)
+ * @param {string} baseline ค่า MIGRATION_BASELINE_THROUGH ที่อ่านจาก migration-lib.php
+ * @returns {string|null} null = ผ่าน, string = failure message
+ */
+export function checkBaselineCurrent(names, baseline) {
+  const live = names.filter((n) => !n.includes(TEST_SEED_MARKER));
+  if (live.length === 0) {
+    return 'INV-5 ไม่พบ migration ที่ไม่ใช่ test-seed เลย — ตรวจ baseline ไม่ได้';
   }
-}
-for (const fk of relevantInitFks) {
-  if (!migFks.has(fk)) {
-    failures.push(`INV-4 ${TIDB_INIT} มี FOREIGN KEY ${fk} ที่ฝั่ง migration ไม่มี (ถูก drop ไปแล้ว — ลบออกจาก ${TIDB_INIT})`);
+  const max = [...live].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })).at(-1);
+  if (baseline !== max) {
+    return `INV-5 baseline ${baseline} ไม่ตรง migration ล่าสุด ${max} — ขยับ MIGRATION_BASELINE_THROUGH ใน backend/scripts/migration-lib.php (กัน runner รันไฟล์ที่ init mounts ลงไว้แล้วซ้ำแบบ #129)`;
   }
+  return null;
 }
 
-// ---- INV-2/INV-3: migration ต้องถูก mount ในทั้ง CI และ docker-compose ----
-const ci = read(CI_WORKFLOW);
-const compose = read(COMPOSE);
-
-for (const rel of applied) {
-  const name = basename(rel);
-  if (!ci.includes(rel)) failures.push(`INV-2 ${CI_WORKFLOW} ไม่ได้ mount ${rel}`);
-  if (!compose.includes(rel)) failures.push(`INV-3 ${COMPOSE} ไม่ได้ mount ${rel}`);
-  void name;
+/**
+ * sha256 บนเนื้อหาที่ normalize line-ending แล้ว — กัน CRLF (Windows checkout)
+ * กับ LF (CI) hash ต่างกันทั้งที่เนื้อหาเดียวกัน (ไฟล์ฐานไม่มีกฎ .gitattributes)
+ */
+export function sha256Normalized(text) {
+  return createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex');
 }
 
-const seedOnly = migrations.filter((f) => basename(f).includes(TEST_SEED_MARKER));
-if (seedOnly.length) {
-  notes.push(`ข้าม test-seed migration ${seedOnly.length} ไฟล์ (ควบคุมด้วย APPLY_TEST_SEED_MIGRATIONS): ${seedOnly.join(', ')}`);
+/**
+ * INV-6 (pure core): hash ของไฟล์ฐานต้องตรง pin
+ *
+ * @returns {string|null} null = ผ่าน, string = failure message
+ */
+export function checkFilePin(name, actual, expected) {
+  if (actual !== expected) {
+    return `INV-6 ${name} เปลี่ยนจาก pin ที่บันทึกไว้ — sync database/tidb-init.sql ให้ตรงแล้วอัปเดต BASE_FILE_PINS ใน gate`;
+  }
+  return null;
 }
 
-// ---- รายงานผล --------------------------------------------------------------
-console.log(
-  `schema parity gate — migration ${applied.length} ไฟล์, ${expected.tables.size} ตาราง, ${expected.views.size} view, ${relevantMigFks.length}/${migFks.size} FK pair (ที่เทียบได้/ทั้งหมดฝั่ง migration)`
-);
-for (const n of notes) console.log(`  note: ${n}`);
+function main() {
+  const failures = [];
+  const notes = [];
 
-if (failures.length === 0) {
-  console.log('OK  ไม่พบ schema drift');
-  process.exit(0);
+  // ---- INV-1: tidb-init.sql ต้องครอบคลุมทุกอ็อบเจกต์ที่ migration สร้าง ------
+  const migrations = migrationFiles();
+  const applied = migrations.filter((f) => !basename(f).includes(TEST_SEED_MARKER));
+
+  const expected = { tables: new Map(), views: new Map(), altered: new Map() }; // name -> ไฟล์ต้นทาง
+  for (const rel of applied) {
+    const sql = read(rel);
+    const { tables, views } = objectsCreatedBy(sql);
+    for (const t of tables) if (!expected.tables.has(t)) expected.tables.set(t, rel);
+    for (const v of views) if (!expected.views.has(v)) expected.views.set(v, rel);
+    for (const id of identifiersAddedByAlter(sql)) if (!expected.altered.has(id)) expected.altered.set(id, rel);
+  }
+
+  const initSql = read(TIDB_INIT);
+  const initObjects = objectsCreatedBy(initSql);
+  const initLower = initSql.toLowerCase();
+
+  for (const [name, src] of expected.tables) {
+    if (!initObjects.tables.has(name)) failures.push(`INV-1 ${TIDB_INIT} ขาดตาราง \`${name}\` (สร้างโดย ${src})`);
+  }
+  for (const [name, src] of expected.views) {
+    if (!initObjects.views.has(name)) failures.push(`INV-1 ${TIDB_INIT} ขาด view \`${name}\` (สร้างโดย ${src})`);
+  }
+  for (const [name, src] of expected.altered) {
+    if (!initLower.includes(name)) failures.push(`INV-1b ${TIDB_INIT} ขาด column/key \`${name}\` (เพิ่มโดย ${src})`);
+  }
+
+  // ---- INV-4: FK parity — FK pairs ของตารางที่ยังมีอยู่ต้องตรงกันทั้งสองฝั่ง ----
+  // ขอบเขตคือ FK คู่ของตารางที่ "ยังมีอยู่" เท่านั้น — ข้าม FK ที่ referencing table
+  // ไม่มีอยู่ในอีกฝั่ง (dropped-table semantics) เช่น advance_notifications/task_assignments
+  // ที่ migration 24 drop พร้อมตาราง หรือตาราง root schema (mysql_database_design.sql)
+  // ที่ไม่ได้อยู่ในชุดสแกน migration
+  const initFks = foreignKeyPairs(initSql);
+  const migFks = new Set();
+  for (const rel of applied) {
+    for (const fk of foreignKeyPairs(read(rel))) migFks.add(fk);
+  }
+
+  const relevantMigFks = [...migFks].filter((fk) => initObjects.tables.has(fk.split('|')[0]));
+  const relevantInitFks = [...initFks].filter((fk) => expected.tables.has(fk.split('|')[0]));
+
+  for (const fk of relevantMigFks) {
+    if (!initFks.has(fk)) {
+      failures.push(`INV-4 ${TIDB_INIT} ขาด FOREIGN KEY ${fk} (ฝั่ง migration มี)`);
+    }
+  }
+  for (const fk of relevantInitFks) {
+    if (!migFks.has(fk)) {
+      failures.push(`INV-4 ${TIDB_INIT} มี FOREIGN KEY ${fk} ที่ฝั่ง migration ไม่มี (ถูก drop ไปแล้ว — ลบออกจาก ${TIDB_INIT})`);
+    }
+  }
+
+  // ---- INV-2/INV-3: migration ต้องถูก mount ในทั้ง CI และ docker-compose ----
+  const ci = read(CI_WORKFLOW);
+  const compose = read(COMPOSE);
+
+  for (const rel of applied) {
+    const name = basename(rel);
+    if (!ci.includes(rel)) failures.push(`INV-2 ${CI_WORKFLOW} ไม่ได้ mount ${rel}`);
+    if (!compose.includes(rel)) failures.push(`INV-3 ${COMPOSE} ไม่ได้ mount ${rel}`);
+    void name;
+  }
+
+  // ---- INV-5: baseline runner ต้องตรง migration ล่าสุด -----------------------
+  const baselineMatch = /MIGRATION_BASELINE_THROUGH\s*=\s*'([^']+)'/.exec(
+    read('backend/scripts/migration-lib.php')
+  );
+  if (!baselineMatch) {
+    failures.push('INV-5 อ่าน MIGRATION_BASELINE_THROUGH จาก backend/scripts/migration-lib.php ไม่เจอ');
+  } else {
+    const violation = checkBaselineCurrent(
+      applied.map((f) => basename(f)),
+      baselineMatch[1]
+    );
+    if (violation) failures.push(violation);
+  }
+
+  // ---- INV-6: ไฟล์ฐาน 01/02 ต้องตรง pin -------------------------------------
+  for (const [name, pin] of Object.entries(BASE_FILE_PINS)) {
+    const pinViolation = checkFilePin(name, sha256Normalized(read(name)), pin);
+    if (pinViolation) failures.push(pinViolation);
+  }
+
+  const seedOnly = migrations.filter((f) => basename(f).includes(TEST_SEED_MARKER));
+  if (seedOnly.length) {
+    notes.push(`ข้าม test-seed migration ${seedOnly.length} ไฟล์ (ควบคุมด้วย APPLY_TEST_SEED_MIGRATIONS): ${seedOnly.join(', ')}`);
+  }
+
+  // ---- รายงานผล --------------------------------------------------------------
+  console.log(
+    `schema parity gate — migration ${applied.length} ไฟล์, ${expected.tables.size} ตาราง, ${expected.views.size} view, ${relevantMigFks.length}/${migFks.size} FK pair (ที่เทียบได้/ทั้งหมดฝั่ง migration)`
+  );
+  for (const n of notes) console.log(`  note: ${n}`);
+
+  if (failures.length === 0) {
+    console.log('OK  ไม่พบ schema drift');
+    process.exit(0);
+  }
+
+  console.error(`\nพบ drift ${failures.length} รายการ:`);
+  for (const f of failures) console.error(`  FAIL  ${f}`);
+  console.error('\nวิธีแก้: เติม DDL ที่ขาดลง database/tidb-init.sql และ/หรือ เพิ่ม mount ใน ci.yml / docker-compose.yaml');
+  process.exit(1);
 }
 
-console.error(`\nพบ drift ${failures.length} รายการ:`);
-for (const f of failures) console.error(`  FAIL  ${f}`);
-console.error('\nวิธีแก้: เติม DDL ที่ขาดลง database/tidb-init.sql และ/หรือ เพิ่ม mount ใน ci.yml / docker-compose.yaml');
-process.exit(1);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

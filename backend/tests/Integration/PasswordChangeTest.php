@@ -55,6 +55,7 @@ final class PasswordChangeTest extends TestCase
         self::$pdo->prepare("DELETE FROM audit_log WHERE table_name = 'users' AND record_id = ?")
             ->execute([$this->userId]);
         self::$pdo->prepare('DELETE FROM refresh_tokens WHERE user_id = ?')->execute([$this->userId]);
+        self::$pdo->prepare('DELETE FROM password_history WHERE user_id = ?')->execute([$this->userId]);
         self::$pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$this->userId]);
     }
 
@@ -64,7 +65,7 @@ final class PasswordChangeTest extends TestCase
         ob_start();
         changePassword(self::$pdo, ['user_id' => $this->userId], [
             'current_password' => 'temporary-password',
-            'new_password' => 'new-secure-password',
+            'new_password' => 'New-secure-123!',
         ]);
         $response = json_decode((string) ob_get_clean(), true);
 
@@ -76,7 +77,7 @@ final class PasswordChangeTest extends TestCase
         $stmt->execute([$this->userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         self::assertSame(0, (int) $user['must_change_password']);
-        self::assertTrue(password_verify('new-secure-password', $user['password_hash']));
+        self::assertTrue(password_verify('New-secure-123!', $user['password_hash']));
         self::assertFalse(password_verify('temporary-password', $user['password_hash']));
 
         $audit = self::$pdo->prepare(
@@ -89,7 +90,7 @@ final class PasswordChangeTest extends TestCase
         $row = $audit->fetch(PDO::FETCH_ASSOC);
         self::assertNotFalse($row);
         self::assertStringNotContainsString('temporary-password', (string) $row['before_value']);
-        self::assertStringNotContainsString('new-secure-password', (string) $row['after_value']);
+        self::assertStringNotContainsString('New-secure-123!', (string) $row['after_value']);
         self::assertSame(
             ['must_change_password' => false],
             json_decode($row['after_value'], true)
@@ -121,7 +122,7 @@ final class PasswordChangeTest extends TestCase
         ob_start();
         changePassword(self::$pdo, ['user_id' => $this->userId], [
             'current_password' => 'temporary-password',
-            'new_password' => 'new-secure-password',
+            'new_password' => 'New-secure-123!',
         ]);
         $response = json_decode((string) ob_get_clean(), true);
         self::assertTrue($response['success'] ?? false);
@@ -151,7 +152,7 @@ final class PasswordChangeTest extends TestCase
         ob_start();
         changePassword(self::$pdo, ['user_id' => $this->userId], [
             'current_password' => 'wrong-password',
-            'new_password' => 'new-secure-password',
+            'new_password' => 'New-secure-123!',
         ]);
         $response = json_decode((string) ob_get_clean(), true);
 
@@ -161,5 +162,32 @@ final class PasswordChangeTest extends TestCase
         $stmt = self::$pdo->prepare('SELECT must_change_password FROM users WHERE user_id = ?');
         $stmt->execute([$this->userId]);
         self::assertSame(1, (int) $stmt->fetchColumn());
+    }
+
+    #[Test]
+    public function changed_password_cannot_be_reused_within_history(): void
+    {
+        $change = function (string $current, string $new): array {
+            http_response_code(200);
+            ob_start();
+            changePassword(self::$pdo, ['user_id' => $this->userId], [
+                'current_password' => $current,
+                'new_password' => $new,
+            ]);
+            return json_decode((string) ob_get_clean(), true) ?? [];
+        };
+
+        $first = $change('temporary-password', 'First-new-11!');
+        self::assertTrue($first['success'] ?? false, json_encode($first));
+        $second = $change('First-new-11!', 'Second-new-22!');
+        self::assertTrue($second['success'] ?? false, json_encode($second));
+
+        $count = self::$pdo->prepare('SELECT COUNT(*) FROM password_history WHERE user_id = ?');
+        $count->execute([$this->userId]);
+        self::assertSame(2, (int) $count->fetchColumn());
+
+        $reuse = $change('Second-new-22!', 'First-new-11!');
+        self::assertSame(400, http_response_code());
+        self::assertStringContainsString('ซ้ำ', (string) ($reuse['error'] ?? ''));
     }
 }

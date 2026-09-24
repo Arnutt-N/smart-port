@@ -83,4 +83,59 @@ final class AuditSanitizeTest extends TestCase
         self::assertSame('2026-01-01', $result['start_date']);
         self::assertSame('[REDACTED]', $result['password']);
     }
+
+    #[Test]
+    public function it_redacts_sensitive_keys_in_nested_arrays(): void
+    {
+        $data = [
+            'username' => 'admin',
+            'profile'  => [
+                'full_name' => 'ผู้ดูแลระบบ',
+                'password'  => 'nested-leak',
+                'tokens'    => ['access_token' => 'nested-token', 'label' => 'x'],
+            ],
+        ];
+
+        $result = sanitizeAuditData($data);
+
+        self::assertSame('admin', $result['username']);
+        self::assertSame('ผู้ดูแลระบบ', $result['profile']['full_name']);
+        self::assertSame('[REDACTED]', $result['profile']['password']);
+        self::assertSame('[REDACTED]', $result['profile']['tokens']['access_token']);
+        self::assertSame('x', $result['profile']['tokens']['label']);
+    }
+
+    #[Test]
+    public function it_redacts_sensitive_key_holding_an_array_whole(): void
+    {
+        $result = sanitizeAuditData(['token' => ['nested' => 'no-recurse-into-secrets']]);
+
+        self::assertSame('[REDACTED]', $result['token']);
+    }
+
+    #[Test]
+    public function it_truncates_beyond_max_depth_instead_of_leaking(): void
+    {
+        // ซ้อนลึกเกิน AUDIT_SANITIZE_MAX_DEPTH — ใต้จุดตัดต้องไม่เหลือ secret
+        $deep = ['password' => 'deep-leak'];
+        for ($i = 0; $i < AUDIT_SANITIZE_MAX_DEPTH + 2; $i++) {
+            $deep = ['layer' => $deep];
+        }
+
+        $result = sanitizeAuditData($deep);
+
+        self::assertStringNotContainsString('deep-leak', (string) json_encode($result));
+        self::assertStringContainsString('[TRUNCATED]', (string) json_encode($result));
+    }
+
+    #[Test]
+    public function it_preserves_deep_non_sensitive_data_within_max_depth(): void
+    {
+        $deep = ['note' => 'ยังอยู่ครบ'];
+        for ($i = 0; $i < AUDIT_SANITIZE_MAX_DEPTH - 1; $i++) {
+            $deep = ['layer' => $deep];
+        }
+
+        self::assertSame($deep, sanitizeAuditData($deep));
+    }
 }

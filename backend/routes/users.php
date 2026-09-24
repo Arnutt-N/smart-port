@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/users.php
 // User Management Route Handler — admin / superadmin (matrix + assignableRolesFor)
@@ -13,8 +14,9 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
+require_once __DIR__ . '/../auth.php';
 
-const PASSWORD_MIN_LENGTH = 8;
+// PASSWORD_MIN_LENGTH ถูกรวมเข้ากับ validatePasswordPolicy() แล้ว (D2)
 /** Roles assignable in principle — further gated by assigner's role. */
 const VALID_ROLES = ['superadmin', 'admin', 'operator', 'viewer'];
 
@@ -133,18 +135,18 @@ function getUserList(PDO $pdo, ?array $query = null): void
     $params = [];
 
     if (!empty($search)) {
-        $where = " WHERE (username LIKE ? OR full_name LIKE ?)";
+        $where = ' WHERE (username LIKE ? OR full_name LIKE ?)';
         $searchTerm = "%{$search}%";
         $params = [$searchTerm, $searchTerm];
     }
 
-    $sql = "SELECT " . USER_PUBLIC_COLUMNS . " FROM users"
+    $sql = 'SELECT ' . USER_PUBLIC_COLUMNS . ' FROM users'
         . $where . " ORDER BY user_id LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) AS total FROM users" . $where);
+    $countStmt = $pdo->prepare('SELECT COUNT(*) AS total FROM users' . $where);
     $countStmt->execute($params);
     $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
 
@@ -179,9 +181,16 @@ function createUser(PDO $pdo, ?array $auth, ?array $input = null): void
     }
 
     // N34: password ที่ไม่ใช่ string (array/object จาก JSON) ทำ strlen ระเบิด TypeError 500 → ตอบ 400
-    if (!is_string($data['password']) || strlen($data['password']) < PASSWORD_MIN_LENGTH) {
+    if (!is_string($data['password'])) {
         http_response_code(400);
-        echo json_encode(['error' => 'รหัสผ่านต้องมีความยาวอย่างน้อย ' . PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
+        echo json_encode(['error' => 'รหัสผ่านไม่ถูกต้อง']);
+        return;
+    }
+    // D2: นโยบายเข้ม (ผู้ใช้ใหม่ไม่มี history)
+    $policyError = validatePasswordPolicy($data['password'], []);
+    if ($policyError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $policyError]);
         return;
     }
 
@@ -205,20 +214,23 @@ function createUser(PDO $pdo, ?array $auth, ?array $input = null): void
         return;
     }
 
+    $pdo->beginTransaction();
     try {
+        $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
         $stmt = $pdo->prepare(
-            "INSERT INTO users (username, password_hash, full_name, email, role, is_active, must_change_password)
-             VALUES (?, ?, ?, ?, ?, 1, 1)"
+            'INSERT INTO users (username, password_hash, full_name, email, role, is_active, must_change_password)
+             VALUES (?, ?, ?, ?, ?, 1, 1)'
         );
         $stmt->execute([
             $username,
-            password_hash($data['password'], PASSWORD_DEFAULT),
+            $passwordHash,
             $data['full_name'],
             $data['email'] ?? null,
             $data['role'],
         ]);
     } catch (PDOException $e) {
         // SQLSTATE 23000 = duplicate key (username ซ้ำ)
+        $pdo->rollBack();
         if ($e->getCode() === '23000') {
             http_response_code(409);
             echo json_encode(['error' => 'ชื่อผู้ใช้นี้ถูกใช้งานแล้ว']);
@@ -227,23 +239,35 @@ function createUser(PDO $pdo, ?array $auth, ?array $input = null): void
         throw $e;
     }
 
-    $newUserId = intval($pdo->lastInsertId());
+    try {
+        $newUserId = intval($pdo->lastInsertId());
 
-    // Audit log: บันทึกการสร้างผู้ใช้ — ไม่ใส่ password/password_hash ลง after_value
-    logAudit(
-        $pdo,
-        $auth['user_id'],
-        'CREATE',
-        'users',
-        $newUserId,
-        null,
-        [
-            'username' => $username,
-            'full_name' => $data['full_name'],
-            'email' => $data['email'] ?? null,
-            'role' => $data['role'],
-        ]
-    );
+        // Audit log: บันทึกการสร้างผู้ใช้ — ไม่ใส่ password/password_hash ลง after_value
+        logAudit(
+            $pdo,
+            $auth['user_id'],
+            'CREATE',
+            'users',
+            $newUserId,
+            null,
+            [
+                'username' => $username,
+                'full_name' => $data['full_name'],
+                'email' => $data['email'] ?? null,
+                'role' => $data['role'],
+            ]
+        );
+        // D2: ประวัติแถวแรกของรหัสตั้งต้น (ผู้ใช้ต้องเปลี่ยนอยู่ดีเพราะ must_change_password = 1)
+        $pdo->prepare(
+            'INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)'
+        )->execute([$newUserId, $passwordHash]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     http_response_code(201);
     echo json_encode(['success' => true, 'user_id' => $newUserId]);
@@ -269,7 +293,7 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
         return;
     }
 
-    $stmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
+    $stmt = $pdo->prepare('SELECT ' . USER_PUBLIC_COLUMNS . ' FROM users WHERE user_id = ?');
     $stmt->execute([$id]);
     $beforeRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$beforeRow) {
@@ -325,7 +349,7 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
     }
 
     if (isset($data['is_active'])) {
-        $sets[] = "is_active = ?";
+        $sets[] = 'is_active = ?';
         $params[] = (int) (bool) $data['is_active'];
     }
 
@@ -333,14 +357,27 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
     // N34: password ที่ไม่ใช่ string ทำ strlen ระเบิด TypeError 500 → ตอบ 400
     $passwordReset = false;
     if (isset($data['password']) && $data['password'] !== '') {
-        if (!is_string($data['password']) || strlen($data['password']) < PASSWORD_MIN_LENGTH) {
+        if (!is_string($data['password'])) {
             http_response_code(400);
-            echo json_encode(['error' => 'รหัสผ่านต้องมีความยาวอย่างน้อย ' . PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
+            echo json_encode(['error' => 'รหัสผ่านไม่ถูกต้อง']);
             return;
         }
-        $sets[] = "password_hash = ?";
-        $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
-        $sets[] = "must_change_password = 1";
+        // D2: นโยบายเข้ม (history 5 รุ่นของเจ้าของบัญชี)
+        $historyStmt = $pdo->prepare(
+            'SELECT password_hash FROM password_history
+             WHERE user_id = ? ORDER BY history_id DESC LIMIT ' . PASSWORD_POLICY_HISTORY_KEEP
+        );
+        $historyStmt->execute([$id]);
+        $policyError = validatePasswordPolicy($data['password'], $historyStmt->fetchAll(PDO::FETCH_COLUMN));
+        if ($policyError !== null) {
+            http_response_code(400);
+            echo json_encode(['error' => $policyError]);
+            return;
+        }
+        $resetHash = password_hash($data['password'], PASSWORD_DEFAULT);
+        $sets[] = 'password_hash = ?';
+        $params[] = $resetHash;
+        $sets[] = 'must_change_password = 1';
         $passwordReset = true;
     }
 
@@ -358,11 +395,11 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
         );
 
     $params[] = $id;
-    $sql = "UPDATE users SET " . implode(', ', $sets) . " WHERE user_id = ?";
+    $sql = 'UPDATE users SET ' . implode(', ', $sets) . ' WHERE user_id = ?';
 
+    $pdo->beginTransaction();
     try {
         if ($guardLastSuperadmin) {
-            $pdo->beginTransaction();
             if (countActiveSuperadmins($pdo, true) <= 1) {
                 $pdo->rollBack();
                 http_response_code(400);
@@ -383,18 +420,21 @@ function updateUser(PDO $pdo, int $id, array $auth, ?array $input = null): void
                  SET revoked_at = ?
                  WHERE user_id = ? AND revoked_at IS NULL'
             )->execute([date('Y-m-d H:i:s'), $id]);
+            // D2: บันทึกประวัติรหัสที่ reset + ตัดรุ่นเกิน 5 ใน txn เดียวกัน
+            $pdo->prepare(
+                'INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)'
+            )->execute([$id, $resetHash]);
+            prunePasswordHistory($pdo, $id);
         }
 
-        $afterStmt = $pdo->prepare("SELECT " . USER_PUBLIC_COLUMNS . " FROM users WHERE user_id = ?");
+        $afterStmt = $pdo->prepare('SELECT ' . USER_PUBLIC_COLUMNS . ' FROM users WHERE user_id = ?');
         $afterStmt->execute([$id]);
         $afterRow = $afterStmt->fetch(PDO::FETCH_ASSOC);
 
         // Audit log: บันทึกการแก้ไขผู้ใช้ (before/after ไม่มี password_hash อยู่แล้วเพราะไม่อยู่ใน USER_PUBLIC_COLUMNS)
         logAudit($pdo, $auth['user_id'], 'UPDATE', 'users', $id, $beforeRow, $afterRow);
 
-        if ($guardLastSuperadmin && $pdo->inTransaction()) {
-            $pdo->commit();
-        }
+        $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

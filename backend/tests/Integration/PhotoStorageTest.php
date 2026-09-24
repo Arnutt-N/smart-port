@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../routes/photos.php';
  * Issue #112 — regression สำหรับ photo storage ในฐานข้อมูล (แทน ephemeral filesystem):
  * store/fetch roundtrip, missing/inactive/legacy rows → 404 semantics, filename validation
  *
- * cleanup: ลบแถวที่สร้างเองด้วย file_name prefix 'ptest112_' (photo_versions ก่อนเพราะมี FK)
+ * cleanup: ลบแถวที่สร้างเองด้วย file_name prefix 'ptest112_'
  */
 final class PhotoStorageTest extends TestCase
 {
@@ -50,10 +50,17 @@ final class PhotoStorageTest extends TestCase
         $this->assertGreaterThan(0, $stored['photo_id']);
         $this->assertArrayNotHasKey('versions', $stored);
 
-        // Issue #127: ต้องไม่มีแถว phantom ใน photo_versions (thumb_ ที่ไร้ bytes → 404)
-        $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM photo_versions WHERE photo_id = ?');
-        $stmt->execute([$stored['photo_id']]);
-        $this->assertSame(0, (int) $stmt->fetchColumn());
+        // Issue #127: ต้องไม่มีแถว phantom thumb_ ที่ test นี้สร้าง (ไร้ bytes → 404) —
+        // scope ตาม NAME_PREFIX (ห้าม COUNT ทั้งตาราง: thumb_ เป็นชื่อถูกกฎ volume เก่า
+        // อาจมี legacy rows ทำให้ false-fail)
+        $rows = self::$pdo->query(
+            "SELECT file_name FROM civil_servant_photos WHERE file_name LIKE 'thumb\_%'"
+        )->fetchAll(\PDO::FETCH_COLUMN);
+        $mine = array_values(array_filter(
+            $rows,
+            fn ($n) => str_starts_with((string) $n, 'thumb_' . self::NAME_PREFIX)
+        ));
+        $this->assertSame([], $mine);
 
         $fetched = fetchActivePhoto(self::$pdo, $name);
         $this->assertNotNull($fetched);
@@ -116,9 +123,6 @@ final class PhotoStorageTest extends TestCase
     private function cleanup(): void
     {
         $like = self::NAME_PREFIX . '%';
-        self::$pdo->prepare(
-            "DELETE FROM photo_versions WHERE photo_id IN (SELECT photo_id FROM civil_servant_photos WHERE file_name LIKE ?)"
-        )->execute([$like]);
         self::$pdo->prepare('DELETE FROM civil_servant_photos WHERE file_name LIKE ?')->execute([$like]);
     }
 }

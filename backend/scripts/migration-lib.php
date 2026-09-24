@@ -11,13 +11,16 @@ declare(strict_types=1);
 
 /**
  * Last migration assumed already applied when the DB was provisioned by
- * docker-compose init mounts, CI init mounts, or tidb-init (all include through 32).
+ * docker-compose init mounts, CI init mounts, or tidb-init (all include through 33).
  * Fresh volumes must not re-run non-idempotent files such as 22, 30 or 32
  * (Issue #129: baseline เดิมตัดที่ 25 ทำให้ fresh volume โดน re-apply 30
  *  ซึ่งเป็น ALTER TABLE ADD COLUMN ล้วน ๆ → Duplicate column แล้ว runner พัง;
  *  32 เป็น RENAME ที่ rerun ไม่ได้เช่นกัน — init mounts รันมันแล้ว)
+ * 33 จบด้วย DROP ... IF EXISTS (rerun ได้) แต่ baseline ต้องขยับตามอยู่ดี —
+ * 35 เป็น ADD CONSTRAINT ล้วน (rerun ไม่ได้ถ้า constraint มีแล้ว) — baseline ผ่าน 35
+ * INV-5 ใน gate บังคับ (กันลืมแบบ #129)
  */
-const MIGRATION_BASELINE_THROUGH = '32-rename-servant-id.sql';
+const MIGRATION_BASELINE_THROUGH = '35-fk-retrofit.sql';
 
 function migrationEnv(string $key, string $default = ''): string
 {

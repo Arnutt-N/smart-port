@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // helpers.php
 // Shared utility functions for Smart Port API

@@ -178,11 +178,13 @@ const routes = [
         component: () => import('@/pages/RetirementReportPage.vue'),
         meta: { title: 'รายงานผู้เกษียณ', breadcrumb: ['รายงานผู้เกษียณ'] },
       },
+      {
+        path: ':pathMatch(.*)*',
+        name: 'not-found',
+        component: () => import('@/pages/NotFoundPage.vue'),
+        meta: { title: 'ไม่พบหน้า', breadcrumb: ['ไม่พบหน้า'] },
+      },
     ],
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/dashboard',
   },
 ]
 
@@ -253,8 +255,14 @@ router.beforeEach(async (to) => {
   }
 })
 
-router.afterEach(() => {
+export function syncDocumentTitle(to) {
+  const title = to?.meta?.title
+  document.title = title ? `${title} | ระบบสมุดพก` : 'ระบบสมุดพก'
+}
+
+router.afterEach((to) => {
   isNavigating.value = false
+  syncDocumentTitle(to)
 })
 
 // chunk เก่าหายหลัง deploy ใหม่ → dynamic import พังและ navigation ถูกยกเลิกเงียบๆ

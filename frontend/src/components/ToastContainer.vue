@@ -1,16 +1,32 @@
 <template>
-  <div class="fixed top-4 right-4 z-50 space-y-2" aria-live="polite" aria-atomic="false">
+  <div
+    class="fixed top-4 right-4 z-50 space-y-2"
+    aria-live="polite"
+    aria-atomic="false"
+  >
     <TransitionGroup name="toast">
       <div
         v-for="toast in ui.toasts"
         :key="toast.id"
         class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm min-w-[300px]"
         :class="toastClasses[toast.type]"
+        :role="toast.type === 'error' ? 'alert' : 'status'"
       >
-        <component :is="toastIcons[toast.type]" class="w-5 h-5 shrink-0" />
+        <component
+          :is="toastIcons[toast.type]"
+          class="w-5 h-5 shrink-0"
+          aria-hidden="true"
+        />
         <span class="flex-1">{{ toast.message }}</span>
-        <button @click="ui.removeToast(toast.id)" class="shrink-0 opacity-70 hover:opacity-100 cursor-pointer" aria-label="ปิดการแจ้งเตือน">
-          <X class="w-4 h-4" />
+        <button
+          class="shrink-0 p-1.5 -m-1 rounded-md opacity-70 hover:opacity-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          aria-label="ปิดการแจ้งเตือน"
+          @click="ui.removeToast(toast.id)"
+        >
+          <X
+            class="w-4 h-4"
+            aria-hidden="true"
+          />
         </button>
       </div>
     </TransitionGroup>

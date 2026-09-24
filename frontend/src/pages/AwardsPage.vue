@@ -2,13 +2,17 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">รางวัล/ความดีความชอบ</h1>
-        <p class="text-sm text-gray-500 mt-1">บันทึกและติดตามรางวัลที่ข้าราชการได้รับ</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          รางวัล/ความดีความชอบ
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          บันทึกและติดตามรางวัลที่ข้าราชการได้รับ
+        </p>
       </div>
       <button
         v-if="isAdmin"
-        @click="openCreate"
         class="btn-primary flex items-center gap-2 px-4 py-2"
+        @click="openCreate"
       >
         <Plus class="w-4 h-4" />
         เพิ่มรางวัล
@@ -24,7 +28,11 @@
       />
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -40,18 +48,38 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อรางวัล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ข้าราชการ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ประเภท</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ระดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ได้รับ</th>
-              <th v-if="isAdmin" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ลำดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อรางวัล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ข้าราชการ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ประเภท
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ระดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันที่ได้รับ
+              </th>
+              <th
+                v-if="isAdmin"
+                class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase"
+              >
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -60,15 +88,28 @@
               :key="row.awardId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.awardName }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.personnelName || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ pagination.offset + index + 1 }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ row.awardName }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.personnelName || '-' }}
+              </td>
               <td class="px-6 py-3 text-sm">
                 <StatusBadge :status="row.awardType || 'general'" />
               </td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ awardLevelLabel(row.awardLevel) }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.awardedDate || '-' }}</td>
-              <td v-if="isAdmin" class="px-6 py-3 text-right">
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ awardLevelLabel(row.awardLevel) }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.awardedDate || '-' }}
+              </td>
+              <td
+                v-if="isAdmin"
+                class="px-6 py-3 text-right"
+              >
                 <TableRowActions
                   :actions="[
                     { key: 'edit', label: 'แก้ไข', onClick: () => openEdit(row) },
@@ -79,7 +120,12 @@
             </tr>
             <tr v-if="rows.length === 0 && !loading">
               <td :colspan="isAdmin ? 7 : 6">
-                <EmptyState title="ไม่พบข้อมูล" description="ยังไม่มีข้อมูลรางวัลในระบบ" action-label="เพิ่มรางวัล" @action="openCreate" />
+                <EmptyState
+                  title="ไม่พบข้อมูล"
+                  description="ยังไม่มีข้อมูลรางวัลในระบบ"
+                  action-label="เพิ่มรางวัล"
+                  @action="openCreate"
+                />
               </td>
             </tr>
           </tbody>
@@ -96,63 +142,141 @@
     />
 
     <!-- Create / Edit Modal -->
-    <div v-if="showFormModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="closeFormModal"></div>
+    <div
+      v-if="showFormModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/40"
+        @click="closeFormModal"
+      />
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-gray-900">{{ editing ? 'แก้ไขรางวัล' : 'เพิ่มรางวัลใหม่' }}</h2>
+        <h2 class="text-lg font-semibold text-gray-900">
+          {{ editing ? 'แก้ไขรางวัล' : 'เพิ่มรางวัลใหม่' }}
+        </h2>
 
         <div class="space-y-3">
           <div>
-            <label for="awards-personnel-id" class="label">รหัสข้าราชการ (personnel_id) <span class="text-red-500">*</span></label>
-            <input id="awards-personnel-id" v-model.number="form.personnelId" type="number" min="1" class="input" />
+            <label
+              for="awards-personnel-id"
+              class="label"
+            >รหัสข้าราชการ (personnel_id) <span class="text-red-500">*</span></label>
+            <input
+              id="awards-personnel-id"
+              v-model.number="form.personnelId"
+              type="number"
+              min="1"
+              class="input"
+            >
           </div>
           <div>
-            <label for="awards-award-name" class="label">ชื่อรางวัล <span class="text-red-500">*</span></label>
-            <input id="awards-award-name" v-model="form.awardName" type="text" class="input" />
+            <label
+              for="awards-award-name"
+              class="label"
+            >ชื่อรางวัล <span class="text-red-500">*</span></label>
+            <input
+              id="awards-award-name"
+              v-model="form.awardName"
+              type="text"
+              class="input"
+            >
           </div>
           <div>
-            <label for="awards-type" class="label">ประเภท</label>
-            <select id="awards-type" v-model="form.awardType" class="input">
-              <option value="general">ทั่วไป</option>
-              <option value="performance">ผลการปฏิบัติงาน</option>
-              <option value="service">การบริการ</option>
-              <option value="honor">เกียรติยศ</option>
-              <option value="innovation">นวัตกรรม</option>
+            <label
+              for="awards-type"
+              class="label"
+            >ประเภท</label>
+            <select
+              id="awards-type"
+              v-model="form.awardType"
+              class="input"
+            >
+              <option value="general">
+                ทั่วไป
+              </option>
+              <option value="performance">
+                ผลการปฏิบัติงาน
+              </option>
+              <option value="service">
+                การบริการ
+              </option>
+              <option value="honor">
+                เกียรติยศ
+              </option>
+              <option value="innovation">
+                นวัตกรรม
+              </option>
             </select>
           </div>
           <div>
-            <label for="awards-level" class="label">ระดับ</label>
-            <select id="awards-level" v-model="form.awardLevel" class="input">
-              <option value="">-</option>
-              <option value="department">ระดับกรม</option>
-              <option value="ministry">ระดับกระทรวง</option>
-              <option value="national">ระดับชาติ</option>
-              <option value="international">ระดับนานาชาติ</option>
+            <label
+              for="awards-level"
+              class="label"
+            >ระดับ</label>
+            <select
+              id="awards-level"
+              v-model="form.awardLevel"
+              class="input"
+            >
+              <option value="">
+                -
+              </option>
+              <option value="department">
+                ระดับกรม
+              </option>
+              <option value="ministry">
+                ระดับกระทรวง
+              </option>
+              <option value="national">
+                ระดับชาติ
+              </option>
+              <option value="international">
+                ระดับนานาชาติ
+              </option>
             </select>
           </div>
           <div>
-            <label for="awards-awarded-date" class="label">วันที่ได้รับ</label>
-            <ThaiDatePicker v-model="form.awardedDate" id="awards-awarded-date" label="วันที่ได้รับรางวัล" />
+            <label
+              for="awards-awarded-date"
+              class="label"
+            >วันที่ได้รับ</label>
+            <ThaiDatePicker
+              id="awards-awarded-date"
+              v-model="form.awardedDate"
+              label="วันที่ได้รับรางวัล"
+            />
           </div>
           <div>
-            <label for="awards-description" class="label">รายละเอียด</label>
-            <textarea id="awards-description" v-model="form.description" rows="3" class="input"></textarea>
+            <label
+              for="awards-description"
+              class="label"
+            >รายละเอียด</label>
+            <textarea
+              id="awards-description"
+              v-model="form.description"
+              rows="3"
+              class="input"
+            />
           </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="closeFormModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">ยกเลิก</button>
           <button
-            @click="submitForm"
+            class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            @click="closeFormModal"
+          >
+            ยกเลิก
+          </button>
+          <button
             :disabled="saving"
             class="btn-primary px-4 py-2"
+            @click="submitForm"
           >
             {{ saving ? 'กำลังบันทึก...' : (editing ? 'บันทึก' : 'สร้าง') }}
           </button>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 

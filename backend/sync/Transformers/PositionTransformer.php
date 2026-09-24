@@ -15,7 +15,8 @@ class PositionTransformer
         private PDO $target,
         private SourceAdapterInterface $source,
         private CrosswalkService $crosswalk,
-    ) {}
+    ) {
+    }
 
     public function transform(bool $full = false): array
     {

@@ -5,14 +5,21 @@
     @click="sidebarOpen = false; sidebarTouched = true"
   />
 
-  <AppSidebar :open="sidebarOpen" @close="sidebarOpen = false; sidebarTouched = true" />
+  <AppSidebar
+    :open="sidebarOpen"
+    @close="sidebarOpen = false; sidebarTouched = true"
+  />
 
   <div class="lg:ml-64 transition-all duration-300">
     <AppTopbar @toggle-sidebar="sidebarOpen = !sidebarOpen; sidebarTouched = true" />
     <main class="min-h-[calc(100vh-4rem)] bg-gray-50">
       <!-- แสดง loading แทนพื้นที่ว่างเมื่อ RouterView ยังไม่มี component; ไม่ใช้ out-in -->
       <RouterView v-slot="{ Component }">
-        <component :is="Component" v-if="Component" :key="$route.path" />
+        <component
+          :is="Component"
+          v-if="Component"
+          :key="$route.path"
+        />
         <div
           v-else
           class="flex min-h-[40vh] items-center justify-center px-6 text-sm text-gray-500"

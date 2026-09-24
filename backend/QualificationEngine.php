@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // QualificationEngine.php
 // Core qualification computation for candidate list feature
@@ -212,12 +213,12 @@ class QualificationEngine
     private function buildExecutiveQuery(string $targetLevel): ?array
     {
         // gate: ผ่าน 3 ต่าง (วันครบ = MIN(qualified_date) ที่ diff_count >= 3)
-        $div = "JOIN (
+        $div = 'JOIN (
                     SELECT personnel_id, MIN(qualified_date) AS diverse_date
                     FROM diverse_experience
                     WHERE diff_count >= 3 AND qualified_date IS NOT NULL
                     GROUP BY personnel_id
-                ) dv ON dv.personnel_id = e.personnel_id";
+                ) dv ON dv.personnel_id = e.personnel_id';
         // gate: มีเทียบตำแหน่ง (อำนวยการ) ที่อนุมัติแล้ว
         $eqGate = "JOIN (
                     SELECT personnel_id
@@ -252,7 +253,7 @@ class QualificationEngine
                 ) mst ON mst.personnel_id = e.personnel_id";
 
         // current_level_start_date ต้องไม่ NULL สำหรับ path ที่นับจากระดับปัจจุบัน
-        $curOk = "e.is_active = 1 AND e.current_level_start_date IS NOT NULL";
+        $curOk = 'e.is_active = 1 AND e.current_level_start_date IS NOT NULL';
 
         // S2 backdate combination (Excel: today หักล้าง → start − Σวันหักลบ + 3ปี, พื้น = start+1วัน)
         $s2Backdate = static fn (string $subtractDays): string =>
@@ -398,11 +399,11 @@ class QualificationEngine
             case 'M2':
                 return "CASE p.current_level_code WHEN 'M1' THEN 1.0 WHEN 'K3' THEN 4.0 WHEN 'O3' THEN 7.0 WHEN 'K4' THEN 0.0 ELSE NULL END";
             case 'S1':
-                return "2.0";
+                return '2.0';
             case 'S2':
-                return "1.0";
+                return '1.0';
             default:
-                return "NULL";
+                return 'NULL';
         }
     }
 

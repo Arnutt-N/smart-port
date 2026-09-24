@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/decorations.php
 // Royal Decorations Route Handler — เครื่องราชอิสริยาภรณ์ (ตาราง royal_decorations)
@@ -62,16 +63,16 @@ function handleDecorations(PDO $pdo, string $method, array $path): void
 
 function decorationSelectSql(): string
 {
-    return "d.decoration_id, d.personnel_id, d.decoration_name, d.decoration_class,
-            d.received_year, d.gazette_ref, d.description, d.created_at, "
-            . sqlPersonnelFullName() . " AS personnel_name";
+    return 'd.decoration_id, d.personnel_id, d.decoration_name, d.decoration_class,
+            d.received_year, d.gazette_ref, d.description, d.created_at, '
+            . sqlPersonnelFullName() . ' AS personnel_name';
 }
 
 function decorationBaseQuery(): string
 {
-    return "FROM royal_decorations d
+    return 'FROM royal_decorations d
             LEFT JOIN personnel p ON d.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 }
 
 function getDecorationList(PDO $pdo): void
@@ -83,18 +84,18 @@ function getDecorationList(PDO $pdo): void
     $where = '';
     $params = [];
     if ($search !== '') {
-        $where = " WHERE (d.decoration_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
+        $where = ' WHERE (d.decoration_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)';
         $term = "%{$search}%";
         $params = [$term, $term, $term];
     }
 
-    $sql = "SELECT " . decorationSelectSql() . ' ' . decorationBaseQuery() . $where
+    $sql = 'SELECT ' . decorationSelectSql() . ' ' . decorationBaseQuery() . $where
         . " ORDER BY d.received_year DESC, d.decoration_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) AS total " . decorationBaseQuery() . $where);
+    $countStmt = $pdo->prepare('SELECT COUNT(*) AS total ' . decorationBaseQuery() . $where);
     $countStmt->execute($params);
     $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
 
@@ -112,7 +113,7 @@ function getDecorationList(PDO $pdo): void
 
 function getDecorationDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . decorationSelectSql() . ' ' . decorationBaseQuery() . " WHERE d.decoration_id = ?";
+    $sql = 'SELECT ' . decorationSelectSql() . ' ' . decorationBaseQuery() . ' WHERE d.decoration_id = ?';
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -173,8 +174,8 @@ function createDecoration(PDO $pdo, ?array $auth): void
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO royal_decorations (personnel_id, decoration_name, decoration_class, received_year, gazette_ref, description)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        'INSERT INTO royal_decorations (personnel_id, decoration_name, decoration_class, received_year, gazette_ref, description)
+         VALUES (?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $personnelId,
@@ -199,7 +200,7 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
 {
     $data = json_decode(file_get_contents('php://input'), true) ?: [];
 
-    $stmt = $pdo->prepare("SELECT * FROM royal_decorations WHERE decoration_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM royal_decorations WHERE decoration_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -246,7 +247,7 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
     }
 
     $params[] = $id;
-    $pdo->prepare("UPDATE royal_decorations SET " . implode(', ', $fields) . " WHERE decoration_id = ?")->execute($params);
+    $pdo->prepare('UPDATE royal_decorations SET ' . implode(', ', $fields) . ' WHERE decoration_id = ?')->execute($params);
 
     logAudit($pdo, intval($auth['user_id']), 'UPDATE', 'royal_decorations', $id, $before, $valid);
     echo json_encode(['success' => true, 'decoration_id' => $id]);
@@ -254,7 +255,7 @@ function updateDecoration(PDO $pdo, int $id, ?array $auth): void
 
 function deleteDecoration(PDO $pdo, int $id, ?array $auth): void
 {
-    $stmt = $pdo->prepare("SELECT * FROM royal_decorations WHERE decoration_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM royal_decorations WHERE decoration_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -263,7 +264,7 @@ function deleteDecoration(PDO $pdo, int $id, ?array $auth): void
         return;
     }
 
-    $pdo->prepare("DELETE FROM royal_decorations WHERE decoration_id = ?")->execute([$id]);
+    $pdo->prepare('DELETE FROM royal_decorations WHERE decoration_id = ?')->execute([$id]);
     logAudit($pdo, intval($auth['user_id']), 'DELETE', 'royal_decorations', $id, $before, null);
     echo json_encode(['success' => true, 'decoration_id' => $id]);
 }

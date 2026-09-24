@@ -1,7 +1,15 @@
 <template>
   <main class="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-    <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg" aria-labelledby="change-password-title">
-      <h1 id="change-password-title" class="text-2xl font-bold text-gray-900">เปลี่ยนรหัสผ่าน</h1>
+    <section
+      class="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg"
+      aria-labelledby="change-password-title"
+    >
+      <h1
+        id="change-password-title"
+        class="text-2xl font-bold text-gray-900"
+      >
+        เปลี่ยนรหัสผ่าน
+      </h1>
       <p class="mt-2 text-sm text-gray-600">
         เพื่อความปลอดภัย กรุณาเปลี่ยนรหัสผ่านชั่วคราวก่อนใช้งานระบบ
       </p>
@@ -14,9 +22,15 @@
         {{ errorMessage }}
       </div>
 
-      <form class="mt-6 space-y-4" @submit.prevent="submit">
+      <form
+        class="mt-6 space-y-4"
+        @submit.prevent="submit"
+      >
         <div>
-          <label for="current-password" class="block text-sm font-medium text-gray-700">รหัสผ่านปัจจุบัน</label>
+          <label
+            for="current-password"
+            class="block text-sm font-medium text-gray-700"
+          >รหัสผ่านปัจจุบัน</label>
           <input
             id="current-password"
             v-model="currentPassword"
@@ -24,11 +38,14 @@
             autocomplete="current-password"
             required
             class="input mt-1"
-          />
+          >
         </div>
 
         <div>
-          <label for="new-password" class="block text-sm font-medium text-gray-700">รหัสผ่านใหม่</label>
+          <label
+            for="new-password"
+            class="block text-sm font-medium text-gray-700"
+          >รหัสผ่านใหม่</label>
           <input
             id="new-password"
             v-model="newPassword"
@@ -38,12 +55,20 @@
             required
             aria-describedby="password-help"
             class="input mt-1"
-          />
-          <p id="password-help" class="mt-1 text-xs text-gray-500">อย่างน้อย 8 ตัวอักษร และต้องไม่ซ้ำกับรหัสผ่านเดิม</p>
+          >
+          <p
+            id="password-help"
+            class="mt-1 text-xs text-gray-500"
+          >
+            อย่างน้อย 8 ตัวอักษร และต้องไม่ซ้ำกับรหัสผ่านเดิม
+          </p>
         </div>
 
         <div>
-          <label for="confirm-password" class="block text-sm font-medium text-gray-700">ยืนยันรหัสผ่านใหม่</label>
+          <label
+            for="confirm-password"
+            class="block text-sm font-medium text-gray-700"
+          >ยืนยันรหัสผ่านใหม่</label>
           <input
             id="confirm-password"
             v-model="confirmPassword"
@@ -52,7 +77,7 @@
             minlength="8"
             required
             class="input mt-1"
-          />
+          >
         </div>
 
         <button
@@ -64,7 +89,11 @@
         </button>
       </form>
 
-      <button type="button" class="mt-4 w-full text-sm text-gray-500 hover:text-gray-700" @click="logout">
+      <button
+        type="button"
+        class="mt-4 w-full text-sm text-gray-500 hover:text-gray-700"
+        @click="logout"
+      >
         ออกจากระบบ
       </button>
     </section>

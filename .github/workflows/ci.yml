@@ -48,6 +48,10 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # D5: lint gate — fail เมื่อมี error/warning (exit 0 เท่านั้น)
+      - name: Lint
+        run: npm run lint
+
       - name: Build
         run: npm run build
 
@@ -277,6 +281,9 @@ jobs:
             -v "$PWD/database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql" \
             -v "$PWD/database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql" \
             -v "$PWD/database/32-rename-servant-id.sql:/docker-entrypoint-initdb.d/32-rename-servant-id.sql" \
+            -v "$PWD/database/33-drop-photo-versions-and-dead-views.sql:/docker-entrypoint-initdb.d/33-drop-photo-versions-and-dead-views.sql"
+            -v "$PWD/database/34-password-history.sql:/docker-entrypoint-initdb.d/34-password-history.sql" \
+            -v "$PWD/database/35-fk-retrofit.sql:/docker-entrypoint-initdb.d/35-fk-retrofit.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish
@@ -314,6 +321,8 @@ jobs:
           done
           echo "migrations failed after 3 attempts"; exit 1
 
+      # composer audit --no-dev (prod only, fail-on-any-severity) runs in the chain below —
+      # on failure triage with composer update, or document the exception (mirror npm audit rule)
       - name: Run PHPUnit (unit + integration)
         run: |
           docker run --rm --network host \
@@ -323,6 +332,8 @@ jobs:
             -e MYSQL_PASSWORD=rootpassword \
             -v "$PWD/backend:/app" -v "$PWD/database:/database" -w /app smartport-phpunit:ci \
             sh -c 'composer install --no-interaction --no-progress --ignore-platform-req=ext-gd; \
+              composer audit --no-dev --no-interaction; \
+              php vendor/bin/php-cs-fixer fix --dry-run; \
               php vendor/bin/phpunit'
 
   docker-build:
@@ -347,7 +358,8 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
+          file: ./Dockerfile
           push: false
           tags: smartport-backend:ci
           cache-from: type=gha,scope=backend

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Rate Limiting Middleware
  * Primary: MySQL sliding window (persists across Render restarts)
@@ -108,7 +109,7 @@ function checkRateLimitFile(int $userId, string $method, int $limit, int $window
 
     $content = stream_get_contents($handle);
     $data = $content ? (json_decode($content, true) ?: []) : [];
-    $data['hits'] = array_filter($data['hits'] ?? [], fn($ts) => $ts > $now - $windowSeconds);
+    $data['hits'] = array_filter($data['hits'] ?? [], fn ($ts) => $ts > $now - $windowSeconds);
 
     if (count($data['hits']) >= $limit) {
         flock($handle, LOCK_UN);
@@ -289,7 +290,7 @@ function publicRateLimitWithin(string $bucket, int $limit, int $windowSeconds, ?
 
     $content = stream_get_contents($handle);
     $data = $content ? (json_decode($content, true) ?: []) : [];
-    $data['hits'] = array_filter($data['hits'] ?? [], fn($ts) => $ts > $now - $windowSeconds);
+    $data['hits'] = array_filter($data['hits'] ?? [], fn ($ts) => $ts > $now - $windowSeconds);
 
     $within = count($data['hits']) < $limit;
     if ($within) {

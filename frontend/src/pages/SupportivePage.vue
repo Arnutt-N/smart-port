@@ -2,8 +2,12 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">การนับเกื้อกูล</h1>
-        <p class="text-sm text-gray-500 mt-1">บันทึกวันเกื้อกูลต่อบุคคล</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          การนับเกื้อกูล
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          บันทึกวันเกื้อกูลต่อบุคคล
+        </p>
       </div>
       <button
         class="btn-primary flex items-center gap-2 px-4 py-2"
@@ -15,8 +19,14 @@
     </div>
 
     <!-- Stat Cards -->
-    <SkeletonLoader v-if="loading && rows.length === 0" type="stat-cards" />
-    <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="stat-cards"
+    />
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"
+    >
       <StatCard
         label="รายการทั้งหมด"
         :value="pagination.total"
@@ -50,7 +60,11 @@
     </div>
 
     <!-- Loading State -->
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <!-- Error State -->
     <EmptyState
@@ -68,20 +82,41 @@
     </EmptyState>
 
     <!-- Data Table -->
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สายงานที่เกื้อกูล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่มต้น</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันสิ้นสุด</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนวัน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตราลดทอน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ได้</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ลำดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อ-สกุล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สายงานที่เกื้อกูล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันเริ่มต้น
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันสิ้นสุด
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                จำนวนวัน
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                อัตราลดทอน
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันที่ได้
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -90,14 +125,30 @@
               :key="row.supportiveId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.fullName }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.jobSeriesName }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.startDateThai }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.endDateThai }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.totalDays }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.ratioPercent }}%</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.effectiveDays }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ pagination.offset + index + 1 }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ row.fullName }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.jobSeriesName }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.startDateThai }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.endDateThai }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.totalDays }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.ratioPercent }}%
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.effectiveDays }}
+              </td>
               <td class="px-6 py-3 text-sm text-right">
                 <TableRowActions :actions="rowActions(row)" />
               </td>
@@ -127,32 +178,50 @@
     />
 
     <!-- Create/Edit Modal -->
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="fixed inset-0 bg-black/50" @click="closeModal"></div>
+    <div
+      v-if="showModal"
+      class="fixed inset-0 z-50 flex items-center justify-center"
+    >
+      <div
+        class="fixed inset-0 bg-black/50"
+        @click="closeModal"
+      />
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">
           {{ editingRecord ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่' }}
         </h2>
 
-        <form @submit.prevent="handleSave" class="space-y-4">
+        <form
+          class="space-y-4"
+          @submit.prevent="handleSave"
+        >
           <!-- บุคลากร -->
           <div>
-            <label for="supportive-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร</label>
-            <div v-if="editingRecord" class="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700">
+            <label
+              for="supportive-personnel-search"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >บุคลากร</label>
+            <div
+              v-if="editingRecord"
+              class="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700"
+            >
               {{ editingRecord.fullName }}
             </div>
-            <div v-else class="relative">
+            <div
+              v-else
+              class="relative"
+            >
               <input
                 id="supportive-personnel-search"
                 v-model="personnelSearch"
-                @input="onPersonnelInput"
-                @compositionstart="isComposingPersonnel = true"
-                @compositionend="onPersonnelCompositionEnd"
                 type="text"
                 placeholder="พิมพ์ชื่อเพื่อค้นหาบุคลากร..."
                 class="input"
                 :class="formErrors.personnel_id ? 'border-red-500' : 'border-gray-300'"
-              />
+                @input="onPersonnelInput"
+                @compositionstart="isComposingPersonnel = true"
+                @compositionend="onPersonnelCompositionEnd"
+              >
               <!-- Autocomplete dropdown -->
               <div
                 v-if="showPersonnelDropdown && personnelResults.length > 0"
@@ -184,13 +253,21 @@
                   {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
                 </RouterLink>
               </div>
-              <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
+              <p
+                v-if="formErrors.personnel_id"
+                class="text-xs text-red-500 mt-1"
+              >
+                กรุณาเลือกบุคลากร
+              </p>
             </div>
           </div>
 
           <!-- สายงานหลัก -->
           <div>
-            <label for="supportive-primary-series" class="block text-sm font-medium text-gray-700 mb-1">สายงานหลัก</label>
+            <label
+              for="supportive-primary-series"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >สายงานหลัก</label>
             <input
               id="supportive-primary-series"
               v-model="formData.primary_series_name"
@@ -198,13 +275,21 @@
               placeholder="ระบุสายงานหลัก"
               class="input"
               :class="formErrors.primary_series_name ? 'border-red-500' : 'border-gray-300'"
-            />
-            <p v-if="formErrors.primary_series_name" class="text-xs text-red-500 mt-1">กรุณาระบุสายงานหลัก</p>
+            >
+            <p
+              v-if="formErrors.primary_series_name"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาระบุสายงานหลัก
+            </p>
           </div>
 
           <!-- สายงานที่เกื้อกูล -->
           <div>
-            <label for="supportive-job-series" class="block text-sm font-medium text-gray-700 mb-1">สายงานที่เกื้อกูล</label>
+            <label
+              for="supportive-job-series"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >สายงานที่เกื้อกูล</label>
             <input
               id="supportive-job-series"
               v-model="formData.job_series_name"
@@ -212,42 +297,56 @@
               placeholder="ระบุสายงานที่เกื้อกูล"
               class="input"
               :class="formErrors.job_series_name ? 'border-red-500' : 'border-gray-300'"
-            />
-            <p v-if="formErrors.job_series_name" class="text-xs text-red-500 mt-1">กรุณาระบุสายงานที่เกื้อกูล</p>
+            >
+            <p
+              v-if="formErrors.job_series_name"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาระบุสายงานที่เกื้อกูล
+            </p>
           </div>
 
           <!-- วันเริ่มต้น -->
           <div>
-            <label for="supportive-start-date" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มต้น</label>
+            <label
+              for="supportive-start-date"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >วันเริ่มต้น</label>
             <ThaiDatePicker
               id="supportive-start-date"
-              label="วันเริ่มต้น"
               v-model="formData.start_date"
+              label="วันเริ่มต้น"
               :error="formErrors.start_date ? 'กรุณาระบุวันเริ่มต้น' : ''"
             />
           </div>
 
           <!-- วันสิ้นสุด -->
           <div>
-            <label for="supportive-end-date" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด</label>
+            <label
+              for="supportive-end-date"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >วันสิ้นสุด</label>
             <ThaiDatePicker
               id="supportive-end-date"
-              label="วันสิ้นสุด"
               v-model="formData.end_date"
+              label="วันสิ้นสุด"
               :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''"
             />
           </div>
 
           <!-- หมายเหตุ -->
           <div>
-            <label for="supportive-description" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ (ไม่บังคับ)</label>
+            <label
+              for="supportive-description"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >หมายเหตุ (ไม่บังคับ)</label>
             <textarea
               id="supportive-description"
               v-model="formData.description"
               rows="3"
               placeholder="ระบุหมายเหตุ (ถ้ามี)"
               class="input"
-            ></textarea>
+            />
           </div>
 
           <!-- Footer Buttons -->
@@ -294,7 +393,6 @@ import {
   PERSONNEL_MASTER_CREATE_TO,
   personnelCreateLinkVisible,
 } from '@/utils/personnelTypeaheadEmpty.js'
-import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'

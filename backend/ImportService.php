@@ -326,7 +326,7 @@ class ImportService
     {
         $n = preg_replace('/\s+/u', ' ', trim((string) $name));
         if ($n !== '' && preg_match('/[<>]/', $n)) {
-            throw new RuntimeException("ชื่อหน่วยงาน/ตำแหน่งมีอักขระต้องห้าม (< >)");
+            throw new RuntimeException('ชื่อหน่วยงาน/ตำแหน่งมีอักขระต้องห้าม (< >)');
         }
         return $n;
     }

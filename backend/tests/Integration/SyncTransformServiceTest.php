@@ -6,7 +6,6 @@ namespace Tests\Integration;
 
 use CrosswalkService;
 use PDO;
-use PDOException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SyncTransformService;
@@ -49,7 +48,7 @@ class ArraySourceAdapter implements \SourceAdapterInterface
         $rows = $this->tables[$table] ?? [];
 
         if ($sinceColumn !== null && $sinceValue !== null) {
-            $rows = array_filter($rows, fn($r) => ($r[$sinceColumn] ?? '') > $sinceValue);
+            $rows = array_filter($rows, fn ($r) => ($r[$sinceColumn] ?? '') > $sinceValue);
         }
 
         foreach ($rows as $row) {

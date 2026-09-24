@@ -7,8 +7,8 @@ declare(strict_types=1);
 // Issue #112: เก็บ/เสิร์ฟ bytes ของรูปจากฐานข้อมูล (TiDB) แทน filesystem
 // ของ container — filesystem ของ Render ไม่ persist ข้าม deploy (ADR-0001/0003)
 //
-// การอ่าน (GET /uploads/{file}) เป็น public เหมือนเดิมที่ Apache เคยเสิร์ฟ static —
-// ชื่อไฟล์สร้างจาก CSPRNG (เดาไม่ได้) จึงทำหน้าที่เป็น capability URL
+// การอ่าน (GET /uploads/{file}) ต้องมี ?exp=&sig= จาก GET /photos/sign (D1) —
+// capability URL เดิม (ชื่อไฟล์ CSPRNG อย่างเดียว) ใช้ไม่ได้แล้วหลัง cut over
 // ============================================================================
 
 require_once __DIR__ . '/../helpers.php';
@@ -17,6 +17,33 @@ require_once __DIR__ . '/../helpers.php';
 function isValidPhotoFileName(string $name): bool
 {
     return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/', $name);
+}
+
+/** D1: อายุ signed URL รูป (วินาที) */
+const PHOTO_URL_TTL_SECONDS = 900;
+
+/**
+ * D1: ออก path รูปพร้อมลายเซ็น HMAC — sig ผูกกับชื่อไฟล์ + เวลาหมดอายุ
+ * (ไม่เช็กว่าไฟล์มีจริง — endpoint asset ตอบ 404 เอง กัน existence oracle)
+ */
+function signPhotoUrl(string $fileName, int $issuedAt): string
+{
+    $exp = $issuedAt + PHOTO_URL_TTL_SECONDS;
+    $sig = hash_hmac('sha256', $fileName . '|' . $exp, JWT_SECRET);
+
+    return '/uploads/' . $fileName . '?exp=' . $exp . '&sig=' . $sig;
+}
+
+/**
+ * D1: ตรวจลายเซ็น + วันหมดอายุ — คืน false ทุกกรณีที่ไม่ผ่าน (caller ตอบ 404 ทรงเดียว)
+ */
+function verifyPhotoUrl(string $fileName, string $exp, string $sig, int $now): bool
+{
+    if ($exp === '' || $sig === '' || !ctype_digit($exp) || (int) $exp < $now) {
+        return false;
+    }
+
+    return hash_equals(hash_hmac('sha256', $fileName . '|' . $exp, JWT_SECRET), $sig);
 }
 
 /**
@@ -85,10 +112,30 @@ function fetchActivePhoto(PDO $pdo, string $fileName): ?array
 }
 
 /**
- * GET /uploads/{file} — stream รูปจาก DB (แทน static file ที่เคยเสิร์ฟโดย Apache)
- * public เหมือนเดิม (<img> ไม่ส่ง Authorization header)
+ * D1: GET /photos/sign?file={name} — ออก signed URL (JWT อย่างเดียว, ไม่เช็ก existence)
+ *
+ * @param array<string,mixed>|null $query ใช้ฉีด query จาก test (null = อ่าน $_GET)
  */
-function handleUploadsAsset(PDO $pdo, string $method, array $path): void
+function handlePhotoSign(?array $query = null): void
+{
+    $q = $query ?? $_GET;
+    $fileName = (string) ($q['file'] ?? '');
+    if (!isValidPhotoFileName($fileName)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Not found']);
+        return;
+    }
+
+    echo json_encode(['url' => signPhotoUrl($fileName, time())]);
+}
+
+/**
+ * GET /uploads/{file} — stream รูปจาก DB (แทน static file ที่เคยเสิร์ฟโดย Apache)
+ * D1: ต้องมี ?exp=&sig= ที่ถูกต้อง (cut over — capability URL เดิมใช้ไม่ได้แล้ว)
+ *
+ * @param array<string,mixed>|null $query ใช้ฉีด query จาก test (null = อ่าน $_GET)
+ */
+function handleUploadsAsset(PDO $pdo, string $method, array $path, ?array $query = null): void
 {
     if ($method !== 'GET') {
         respondMethodNotAllowed();
@@ -97,6 +144,14 @@ function handleUploadsAsset(PDO $pdo, string $method, array $path): void
 
     $fileName = basename((string) ($path[1] ?? ''));
     if (!isValidPhotoFileName($fileName)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Not found']);
+        return;
+    }
+
+    // D1: ตรวจลายเซ็นก่อนแตะ DB — ไม่ผ่านทุกกรณีตอบ 404 ทรงเดียว (กัน oracle)
+    $q = $query ?? $_GET;
+    if (!verifyPhotoUrl($fileName, (string) ($q['exp'] ?? ''), (string) ($q['sig'] ?? ''), time())) {
         http_response_code(404);
         echo json_encode(['error' => 'Not found']);
         return;
@@ -113,6 +168,6 @@ function handleUploadsAsset(PDO $pdo, string $method, array $path): void
 
     header('Content-Type: ' . $photo['mime']);
     header('Content-Length: ' . strlen($photo['data']));
-    header('Cache-Control: private, max-age=86400');
+    header('Cache-Control: private, max-age=900');
     echo $photo['data'];
 }

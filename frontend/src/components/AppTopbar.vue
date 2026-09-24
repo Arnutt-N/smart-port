@@ -1,16 +1,38 @@
 <template>
   <header class="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-6">
     <div class="flex items-center space-x-4">
-      <button @click="$emit('toggle-sidebar')" class="lg:hidden text-gray-600 hover:text-gray-900 transition-colors cursor-pointer" aria-label="เปิด/ปิดเมนู">
+      <button
+        class="lg:hidden text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
+        aria-label="เปิด/ปิดเมนู"
+        @click="$emit('toggle-sidebar')"
+      >
         <Menu class="w-6 h-6" />
       </button>
-      <nav class="flex items-center space-x-2 text-sm" aria-label="Breadcrumb">
-        <RouterLink to="/dashboard" class="text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="กลับหน้า Dashboard">
+      <nav
+        class="flex items-center space-x-2 text-sm"
+        aria-label="Breadcrumb"
+      >
+        <RouterLink
+          to="/dashboard"
+          class="text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          aria-label="กลับหน้า Dashboard"
+        >
           <Home class="w-5 h-5" />
         </RouterLink>
-        <span v-if="trail.length" class="text-gray-400" aria-hidden="true">/</span>
-        <template v-for="(crumb, idx) in trail" :key="`${idx}-${crumb}`">
-          <span v-if="idx > 0" class="text-gray-400" aria-hidden="true">/</span>
+        <span
+          v-if="trail.length"
+          class="text-gray-400"
+          aria-hidden="true"
+        >/</span>
+        <template
+          v-for="(crumb, idx) in trail"
+          :key="`${idx}-${crumb}`"
+        >
+          <span
+            v-if="idx > 0"
+            class="text-gray-400"
+            aria-hidden="true"
+          >/</span>
           <span
             :class="idx === trail.length - 1 ? 'text-gray-900 font-medium truncate max-w-[40vw] sm:max-w-none' : 'text-gray-500 hidden sm:inline'"
             :aria-current="idx === trail.length - 1 ? 'page' : undefined"
@@ -20,20 +42,23 @@
     </div>
 
     <!-- User avatar + dropdown -->
-    <div class="relative" ref="dropdownRef">
+    <div
+      ref="dropdownRef"
+      class="relative"
+    >
       <button
-        @click="dropdownOpen = !dropdownOpen"
         class="flex items-center gap-2 p-1 min-h-11 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         aria-label="เมนูผู้ใช้"
         aria-haspopup="menu"
         :aria-expanded="dropdownOpen"
+        @click="dropdownOpen = !dropdownOpen"
       >
         <div class="relative">
           <div class="w-8 h-8 bg-primary-700 rounded-full flex items-center justify-center">
             <span class="text-white text-sm font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
           </div>
           <!-- Online dot — bottom right -->
-          <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+          <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
         </div>
         <span class="hidden sm:inline text-sm text-gray-700 font-medium">{{ auth.user?.name || 'ผู้ใช้' }}</span>
         <ChevronDown class="w-4 h-4 text-gray-400 hidden sm:block" />
@@ -47,30 +72,34 @@
         >
           <!-- User info header -->
           <div class="px-4 py-3 border-b border-gray-100">
-            <p class="text-sm font-medium text-gray-900">{{ auth.user?.name || 'ผู้ใช้' }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">{{ auth.user?.email || auth.user?.username || '' }}</p>
+            <p class="text-sm font-medium text-gray-900">
+              {{ auth.user?.name || 'ผู้ใช้' }}
+            </p>
+            <p class="text-xs text-gray-500 mt-0.5">
+              {{ auth.user?.email || auth.user?.username || '' }}
+            </p>
           </div>
 
           <!-- Menu items -->
           <div class="py-1">
             <button
-              @click="navigateTo('/profile')"
               class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              @click="navigateTo('/profile')"
             >
               <User class="w-4 h-4 text-gray-400" />
               โปรไฟล์
             </button>
             <button
-              @click="navigateTo('/settings/account')"
               class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              @click="navigateTo('/settings/account')"
             >
               <Settings class="w-4 h-4 text-gray-400" />
               ตั้งค่า
             </button>
             <button
               v-if="auth.isAdmin"
-              @click="navigateTo('/users')"
               class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              @click="navigateTo('/users')"
             >
               <Shield class="w-4 h-4 text-gray-400" />
               ผู้ดูแล
@@ -80,8 +109,8 @@
           <!-- Logout -->
           <div class="border-t border-gray-100 py-1">
             <button
-              @click="handleLogout"
               class="w-full flex items-center gap-3 px-4 py-2.5 min-h-11 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+              @click="handleLogout"
             >
               <LogOut class="w-4 h-4" />
               ออกจากระบบ
@@ -111,9 +140,6 @@ const dropdownRef = ref(null)
 
 // Breadcrumb trail — single source จาก route.meta (เติม dynamic section ให้ candidates)
 const trail = computed(() => resolveTrail(route))
-
-// ชื่อหน้าปัจจุบัน = crumb ตัวสุดท้าย (ใช้แสดงบนจอเล็กที่ซ่อน trail ไว้)
-const pageTitle = computed(() => trail.value.at(-1) ?? '')
 
 function navigateTo(path) {
   dropdownOpen.value = false

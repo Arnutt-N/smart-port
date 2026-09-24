@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/settings.php
 // System settings — permission matrix overrides (superadmin only)
@@ -143,7 +144,7 @@ function getPermissionSettings(PDO $pdo): void
             'actions' => $actions,
             'resources' => array_values(array_filter(
                 $resources,
-                static fn($r) => $r !== 'system_permissions'
+                static fn ($r) => $r !== 'system_permissions'
             )),
             'cells' => $cells,
         ],

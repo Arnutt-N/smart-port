@@ -2,14 +2,21 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">ประวัติการเปลี่ยนแปลง (Audit Log)</h1>
-        <p class="text-sm text-gray-500 mt-1">บันทึกการสร้าง แก้ไข และลบข้อมูลสำคัญในระบบ</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          ประวัติการเปลี่ยนแปลง (Audit Log)
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          บันทึกการสร้าง แก้ไข และลบข้อมูลสำคัญในระบบ
+        </p>
       </div>
       <button
         class="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
         @click="fetchData"
       >
-        <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+        <RefreshCw
+          class="w-4 h-4"
+          :class="{ 'animate-spin': loading }"
+        />
         โหลดใหม่
       </button>
     </div>
@@ -17,38 +24,69 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label for="audit-filter-table" class="block text-sm font-medium text-gray-700 mb-1">ตาราง</label>
+          <label
+            for="audit-filter-table"
+            class="block text-sm font-medium text-gray-700 mb-1"
+          >ตาราง</label>
           <select
             id="audit-filter-table"
             v-model="filters.table"
             class="input"
             @change="onFilterChange"
           >
-            <option value="">ทั้งหมด</option>
-            <option value="multiplier_experience">การนับทวีคูณ</option>
-            <option value="special_area_multiplier">พื้นที่พิเศษ</option>
-            <option value="position_equivalence">การเทียบตำแหน่ง</option>
-            <option value="personnel">บุคลากร</option>
-            <option value="users">ผู้ใช้งาน</option>
-            <option value="import">นำเข้าข้อมูล</option>
+            <option value="">
+              ทั้งหมด
+            </option>
+            <option value="multiplier_experience">
+              การนับทวีคูณ
+            </option>
+            <option value="special_area_multiplier">
+              พื้นที่พิเศษ
+            </option>
+            <option value="position_equivalence">
+              การเทียบตำแหน่ง
+            </option>
+            <option value="personnel">
+              บุคลากร
+            </option>
+            <option value="users">
+              ผู้ใช้งาน
+            </option>
+            <option value="import">
+              นำเข้าข้อมูล
+            </option>
           </select>
         </div>
         <div>
-          <label for="audit-filter-action" class="block text-sm font-medium text-gray-700 mb-1">การกระทำ</label>
+          <label
+            for="audit-filter-action"
+            class="block text-sm font-medium text-gray-700 mb-1"
+          >การกระทำ</label>
           <select
             id="audit-filter-action"
             v-model="filters.action"
             class="input"
             @change="onFilterChange"
           >
-            <option value="">ทั้งหมด</option>
-            <option value="CREATE">สร้าง</option>
-            <option value="UPDATE">แก้ไข</option>
-            <option value="DELETE">ลบ</option>
+            <option value="">
+              ทั้งหมด
+            </option>
+            <option value="CREATE">
+              สร้าง
+            </option>
+            <option value="UPDATE">
+              แก้ไข
+            </option>
+            <option value="DELETE">
+              ลบ
+            </option>
           </select>
         </div>
         <div>
-          <label for="audit-filter-user-id" class="block text-sm font-medium text-gray-700 mb-1">ผู้ดำเนินการ</label>
+          <label
+            for="audit-filter-user-id"
+            class="block text-sm font-medium text-gray-700 mb-1"
+          >ผู้ดำเนินการ</label>
           <input
             id="audit-filter-user-id"
             v-model.number="filters.userId"
@@ -56,25 +94,38 @@
             placeholder="User ID"
             class="input"
             @input="onUserIdInput"
-          />
+          >
         </div>
         <div>
-          <label for="audit-filter-limit" class="block text-sm font-medium text-gray-700 mb-1">จำนวนต่อหน้า</label>
+          <label
+            for="audit-filter-limit"
+            class="block text-sm font-medium text-gray-700 mb-1"
+          >จำนวนต่อหน้า</label>
           <select
             id="audit-filter-limit"
             v-model="pagination.limit"
             class="input"
             @change="onFilterChange"
           >
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-            <option :value="100">100</option>
+            <option :value="20">
+              20
+            </option>
+            <option :value="50">
+              50
+            </option>
+            <option :value="100">
+              100
+            </option>
           </select>
         </div>
       </div>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -90,17 +141,32 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เวลา</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ผู้ดำเนินการ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">การกระทำ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตาราง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Record ID</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                เวลา
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ผู้ดำเนินการ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                การกระทำ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ตาราง
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Record ID
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -109,10 +175,16 @@
               :key="row.audit_id"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ formatDateTime(row.created_at) }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ formatDateTime(row.created_at) }}
+              </td>
               <td class="px-6 py-3 text-sm">
-                <div class="text-gray-900 font-medium">{{ row.full_name || row.username || '-' }}</div>
-                <div class="text-xs text-gray-500">ID: {{ row.user_id }}</div>
+                <div class="text-gray-900 font-medium">
+                  {{ row.full_name || row.username || '-' }}
+                </div>
+                <div class="text-xs text-gray-500">
+                  ID: {{ row.user_id }}
+                </div>
               </td>
               <td class="px-6 py-3 text-sm">
                 <span
@@ -122,8 +194,12 @@
                   {{ actionLabel(row.action) }}
                 </span>
               </td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ tableName(row.table_name) }}</td>
-              <td class="px-6 py-3 text-sm text-gray-500">{{ row.record_id || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ tableName(row.table_name) }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-500">
+                {{ row.record_id || '-' }}
+              </td>
               <td class="px-6 py-3 text-sm text-right">
                 <TableRowActions
                   :actions="[{ key: 'view', label: 'ดูรายละเอียด', onClick: () => showDetail(row) }]"
@@ -162,33 +238,58 @@
     >
       <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 id="audit-detail-title" class="text-lg font-semibold text-gray-900">รายละเอียดการเปลี่ยนแปลง</h3>
-          <button @click="selectedRow = null" class="text-gray-400 hover:text-gray-600" aria-label="ปิด">
+          <h3
+            id="audit-detail-title"
+            class="text-lg font-semibold text-gray-900"
+          >
+            รายละเอียดการเปลี่ยนแปลง
+          </h3>
+          <button
+            class="text-gray-400 hover:text-gray-600"
+            aria-label="ปิด"
+            @click="selectedRow = null"
+          >
             <X class="w-5 h-5" />
           </button>
         </div>
         <div class="px-6 py-4 overflow-y-auto max-h-[60vh]">
           <dl class="space-y-3">
             <div>
-              <dt class="text-sm font-medium text-gray-500">เวลา</dt>
-              <dd class="text-sm text-gray-900">{{ formatDateTime(selectedRow.created_at) }}</dd>
+              <dt class="text-sm font-medium text-gray-500">
+                เวลา
+              </dt>
+              <dd class="text-sm text-gray-900">
+                {{ formatDateTime(selectedRow.created_at) }}
+              </dd>
             </div>
             <div>
-              <dt class="text-sm font-medium text-gray-500">ผู้ดำเนินการ</dt>
-              <dd class="text-sm text-gray-900">{{ selectedRow.full_name || selectedRow.username }} (ID: {{ selectedRow.user_id }})</dd>
+              <dt class="text-sm font-medium text-gray-500">
+                ผู้ดำเนินการ
+              </dt>
+              <dd class="text-sm text-gray-900">
+                {{ selectedRow.full_name || selectedRow.username }} (ID: {{ selectedRow.user_id }})
+              </dd>
             </div>
             <div>
-              <dt class="text-sm font-medium text-gray-500">IP Address</dt>
-              <dd class="text-sm text-gray-900">{{ selectedRow.ip_address || '-' }}</dd>
+              <dt class="text-sm font-medium text-gray-500">
+                IP Address
+              </dt>
+              <dd class="text-sm text-gray-900">
+                {{ selectedRow.ip_address || '-' }}
+              </dd>
             </div>
             <div v-if="selectedRow.before_value">
-              <dt class="text-sm font-medium text-gray-500">ก่อนแก้ไข</dt>
+              <dt class="text-sm font-medium text-gray-500">
+                ก่อนแก้ไข
+              </dt>
               <dd class="text-sm text-gray-900 font-mono bg-gray-50 p-3 rounded-lg overflow-x-auto">
                 <pre>{{ JSON.stringify(selectedRow.before_value, null, 2) }}</pre>
               </dd>
             </div>
             <div v-if="selectedRow.after_value">
-              <dt class="text-sm font-medium text-gray-500">หลังแก้ไข</dt>
+              <dt class="text-sm font-medium text-gray-500">
+                หลังแก้ไข
+              </dt>
               <dd class="text-sm text-gray-900 font-mono bg-gray-50 p-3 rounded-lg overflow-x-auto">
                 <pre>{{ JSON.stringify(selectedRow.after_value, null, 2) }}</pre>
               </dd>

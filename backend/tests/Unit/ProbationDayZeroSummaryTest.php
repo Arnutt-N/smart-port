@@ -25,8 +25,9 @@ final class ProbationDayZeroSummaryTest extends TestCase
         $fn = substr($src, $start, $end - $start);
         self::assertStringContainsString('DATEDIFF(end_date, CURDATE()) < 0', $fn);
         self::assertStringNotContainsString('DATEDIFF(end_date, CURDATE()) <= 0', $fn);
-        self::assertStringContainsString('if ($rem < 0) $overdue++', $fn);
-        self::assertStringNotContainsString('if ($rem <= 0) $overdue++', $fn);
+        self::assertStringContainsString('if ($rem < 0)', $fn);
+        self::assertStringContainsString('$overdue++', $fn);
+        self::assertStringNotContainsString('$rem <= 0', $fn);
     }
 
     #[Test]

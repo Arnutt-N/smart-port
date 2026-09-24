@@ -1,4 +1,4 @@
-import { apiAssetUrl, useApi } from '@/composables/useApi.js'
+import { getSignedPhotoUrl, useApi } from '@/composables/useApi.js'
 
 export function useProfile() {
   const api = useApi()
@@ -10,7 +10,10 @@ export function useProfile() {
 
   async function fetchById(id) {
     const result = await api.get(`/profile/${id}`)
-    return { success: result.success, data: result.data ? mapPersonnel(result.data) : null }
+    if (!result.data) return { success: result.success, data: null }
+    const data = mapPersonnel(result.data)
+    data.photoPath = await resolvePhotoUrl(data.photoPath)
+    return { success: result.success, data }
   }
 
   function mapAccount(row) {
@@ -39,8 +42,20 @@ export function useProfile() {
       retirementDate: row.retirement_date,
       servantStatus: row.servant_status,
       isActive: Boolean(Number(row.is_active)),
-      // backend คืน path สัมพัทธ์ (uploads/xxx.jpg) — ต้องประกอบผ่าน API base ก่อนใช้กับ <img>
-      photoPath: apiAssetUrl(row.photo_path),
+      // backend คืน path สัมพัทธ์ (uploads/xxx.jpg) — resolve เป็น signed URL ตอน fetch
+      photoPath: row.photo_path,
+    }
+  }
+
+  // D1: path สัมพัทธ์ → signed URL (absolute URL ใช้ตรงๆ; ล้มเหลว → null = placeholder)
+  async function resolvePhotoUrl(photoPath) {
+    if (!photoPath) return null
+    if (/^https?:\/\//i.test(photoPath)) return photoPath
+    const fileName = String(photoPath).split('/').pop()
+    try {
+      return await getSignedPhotoUrl(fileName)
+    } catch {
+      return null
     }
   }
 

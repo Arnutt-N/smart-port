@@ -105,7 +105,7 @@ final class EquivalenceDateFieldTest extends TestCase
             $end = strpos($src, "\nfunction ", $start + 10);
             $fn = $end === false ? substr($src, $start) : substr($src, $start, $end - $start);
             self::assertStringContainsString('EQUIVALENCE_DATE_FIELDS as $dateField', $fn, $fnName);
-            self::assertStringContainsString("\$data[\$dateField] = null;", $fn, $fnName);
+            self::assertStringContainsString('$data[$dateField] = null;', $fn, $fnName);
         }
     }
 

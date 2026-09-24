@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/work_results.php
 // Work Results Route Handler — ผลงานและข้อเสนอ (ตาราง performance_proposals)
@@ -66,18 +67,18 @@ function handleWorkResults(PDO $pdo, string $method, array $path): void
 
 function workResultSelectSql(): string
 {
-    return "pp.proposal_id, pp.personnel_id, pp.proposal_type, pp.title,
+    return 'pp.proposal_id, pp.personnel_id, pp.proposal_type, pp.title,
             pp.description, pp.impact_description, pp.quantitative_result,
             pp.result_unit, pp.submission_date, pp.evaluation_score,
-            pp.status, pp.approval_level, pp.created_at, "
-            . sqlPersonnelFullName() . " AS personnel_name";
+            pp.status, pp.approval_level, pp.created_at, '
+            . sqlPersonnelFullName() . ' AS personnel_name';
 }
 
 function workResultBaseQuery(): string
 {
-    return "FROM performance_proposals pp
+    return 'FROM performance_proposals pp
             LEFT JOIN personnel p ON pp.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 }
 
 function getWorkResultList(PDO $pdo): void
@@ -90,23 +91,23 @@ function getWorkResultList(PDO $pdo): void
     $conditions = ['pp.is_active = 1'];
     $params = [];
     if ($search !== '') {
-        $conditions[] = "(pp.title LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
+        $conditions[] = '(pp.title LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)';
         $term = "%{$search}%";
         array_push($params, $term, $term, $term);
     }
     if ($status !== '') {
-        $conditions[] = "pp.status = ?";
+        $conditions[] = 'pp.status = ?';
         $params[] = $status;
     }
     $where = ' WHERE ' . implode(' AND ', $conditions);
 
-    $sql = "SELECT " . workResultSelectSql() . ' ' . workResultBaseQuery() . $where
+    $sql = 'SELECT ' . workResultSelectSql() . ' ' . workResultBaseQuery() . $where
         . " ORDER BY pp.submission_date DESC, pp.proposal_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) AS total " . workResultBaseQuery() . $where);
+    $countStmt = $pdo->prepare('SELECT COUNT(*) AS total ' . workResultBaseQuery() . $where);
     $countStmt->execute($params);
     $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
 
@@ -124,7 +125,7 @@ function getWorkResultList(PDO $pdo): void
 
 function getWorkResultDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . workResultSelectSql() . ' ' . workResultBaseQuery() . " WHERE pp.proposal_id = ?";
+    $sql = 'SELECT ' . workResultSelectSql() . ' ' . workResultBaseQuery() . ' WHERE pp.proposal_id = ?';
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -231,11 +232,11 @@ function createWorkResult(PDO $pdo, ?array $auth): void
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO performance_proposals
+        'INSERT INTO performance_proposals
             (personnel_id, proposal_type, title, description, impact_description,
              quantitative_result, result_unit, submission_date, evaluation_score,
              status, approval_level)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $personnelId,
@@ -267,7 +268,7 @@ function updateWorkResult(PDO $pdo, int $id, ?array $auth): void
 {
     $data = json_decode(file_get_contents('php://input'), true) ?: [];
 
-    $stmt = $pdo->prepare("SELECT * FROM performance_proposals WHERE proposal_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM performance_proposals WHERE proposal_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -323,7 +324,7 @@ function updateWorkResult(PDO $pdo, int $id, ?array $auth): void
     }
 
     $params[] = $id;
-    $pdo->prepare("UPDATE performance_proposals SET " . implode(', ', $fields) . " WHERE proposal_id = ?")->execute($params);
+    $pdo->prepare('UPDATE performance_proposals SET ' . implode(', ', $fields) . ' WHERE proposal_id = ?')->execute($params);
 
     logAudit($pdo, intval($auth['user_id']), 'UPDATE', 'work_results', $id, $before, $valid);
     echo json_encode(['success' => true, 'proposal_id' => $id]);
@@ -331,7 +332,7 @@ function updateWorkResult(PDO $pdo, int $id, ?array $auth): void
 
 function deleteWorkResult(PDO $pdo, int $id, ?array $auth): void
 {
-    $stmt = $pdo->prepare("SELECT * FROM performance_proposals WHERE proposal_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM performance_proposals WHERE proposal_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -340,7 +341,7 @@ function deleteWorkResult(PDO $pdo, int $id, ?array $auth): void
         return;
     }
 
-    $pdo->prepare("DELETE FROM performance_proposals WHERE proposal_id = ?")->execute([$id]);
+    $pdo->prepare('DELETE FROM performance_proposals WHERE proposal_id = ?')->execute([$id]);
     logAudit($pdo, intval($auth['user_id']), 'DELETE', 'work_results', $id, $before, null);
     echo json_encode(['success' => true, 'proposal_id' => $id]);
 }

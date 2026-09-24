@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/candidates.php
 // Candidate List Route Handler

@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // MultiplierEngine.php
 // Pure / domain helpers for การนับทวีคูณ — HTTP stays in routes/multiplier.php
@@ -20,12 +21,12 @@ function computeMultiplierFields(PDO $pdo, int $areaMultiplierId, string $startD
         throw new InvalidArgumentException('วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น');
     }
 
-    $areaStmt = $pdo->prepare("
+    $areaStmt = $pdo->prepare('
         SELECT *
         FROM special_area_multiplier
         WHERE area_multiplier_id = ? AND is_active = 1
         LIMIT 1
-    ");
+    ');
     $areaStmt->execute([$areaMultiplierId]);
     $area = $areaStmt->fetch(PDO::FETCH_ASSOC);
     if (!$area) {
@@ -233,4 +234,3 @@ function parseStrictDate(string $value): ?DateTime
     }
     return $date;
 }
-

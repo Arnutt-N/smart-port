@@ -6,10 +6,10 @@
 .DESCRIPTION
   Local gates:
     0) Fast gates: schema parity + multiplier validator regression
-    1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run build
+    1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run lint + npm run build
     1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
     2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
-    3) Backend:   bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
+    3) Backend:   php-cs-fixer (docker) + bash backend/tests/run.sh  (Docker PHPUnit; needs Git Bash)
     4) Docker:    build frontend + backend images (no push)
 
   Prerequisites:
@@ -72,9 +72,9 @@ Usage: .\scripts\ci-local.ps1 [-SkipInstall] [-SkipFrontend] [-SkipE2E] [-SkipBa
 Mirrors .github/workflows/ci.yml locally (no GitHub Actions minutes):
   0) Fast gates schema parity + multiplier validator regression
   0.5) tidb-init.sql bootstrap smoke (Docker MySQL 8, skippable -SkipTidbBootstrap)
-  1) Frontend   npm ci + npm audit (prod, high+) + vitest (forks/2) + build
+  1) Frontend   npm ci + npm audit (prod, high+) + vitest (forks/2) + lint + build
   2) E2E        Docker db/backend + Playwright Chromium (all sidebar menus)
-  3) Backend    bash backend/tests/run.sh
+  3) Backend    php-cs-fixer (docker) + bash backend/tests/run.sh
   4) Docker     build frontend + backend images
 
 E2E prerequisites: Docker Desktop, frontend dependencies, Playwright Chromium,
@@ -239,6 +239,10 @@ if (-not $SkipFrontend) {
     npx vitest run --reporter=dot
     if ($LASTEXITCODE -ne 0) { throw "vitest exited $LASTEXITCODE" }
 
+    Write-Host 'npm run lint ...'
+    npm run lint
+    if ($LASTEXITCODE -ne 0) { throw "eslint exited $LASTEXITCODE" }
+
     Write-Host 'npm run build ...'
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "vite build exited $LASTEXITCODE" }
@@ -341,6 +345,10 @@ if (-not $SkipE2E) {
 # ---- 3) Backend PHPUnit ----------------------------------------------------
 if (-not $SkipBackend) {
   Write-Step 'Backend PHPUnit (via backend/tests/run.sh)'
+  # D5: backend lint ผ่าน composer image (host ไม่มี php; platform pin ใน composer.json คุมเวอร์ชัน)
+  Write-Host 'php-cs-fixer (dry-run) ...'
+  docker run --rm -v "$Root/backend:/app" -w /app composer:2 sh -c 'composer install --no-interaction --no-progress --ignore-platform-req=ext-gd && php vendor/bin/php-cs-fixer fix --dry-run'
+  if ($LASTEXITCODE -ne 0) { $failed += 'backend-lint'; Write-Fail 'php-cs-fixer found violations' } else { Write-Ok 'backend lint' }
   $bashExe = Resolve-GitBash
   if (-not $bashExe) {
     Write-Fail 'Git Bash not found (need LocalAppData\Programs\Git\bin\bash.exe — WSL bash.exe is not enough)'
@@ -384,7 +392,7 @@ if (-not $SkipDocker) {
       if ($LASTEXITCODE -ne 0) { throw "frontend image build exited $LASTEXITCODE" }
 
       Write-Host 'docker build backend ...'
-      docker build -t smartport-backend:ci (Join-Path $Root 'backend')
+      docker build -t smartport-backend:ci -f (Join-Path $Root 'Dockerfile') $Root
       if ($LASTEXITCODE -ne 0) { throw "backend image build exited $LASTEXITCODE" }
 
       Write-Ok 'docker images built'

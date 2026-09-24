@@ -286,4 +286,45 @@ describe('AppSidebar', () => {
     expect(areasLink).toBeTruthy()
     expect(areasLink.classes()).toContain('bg-primary-600/10')
   })
+
+  it('exposes submenu expand state via aria-expanded and aria-controls', async () => {
+    const wrapper = mountSidebar()
+    const parentBtn = wrapper.findAll('button').find((b) => b.text().includes('Candidate Lists'))
+    expect(parentBtn.attributes('aria-expanded')).toBe('false')
+    expect(parentBtn.attributes('aria-controls')).toBe('sidebar-submenu-candidates')
+    expect(wrapper.find('#sidebar-submenu-candidates').exists()).toBe(true)
+
+    await parentBtn.trigger('click')
+    expect(parentBtn.attributes('aria-expanded')).toBe('true')
+  })
+
+  it('marks the current link with aria-current="page"', async () => {
+    currentPath = '/candidates/academic'
+    const wrapper = mountSidebar()
+    const parentBtn = wrapper.findAll('button').find((b) => b.text().includes('Candidate Lists'))
+    await parentBtn.trigger('click')
+    await nextTick()
+
+    const links = wrapper.findAll('a')
+    const active = links.find((a) => a.attributes('href') === '/candidates/academic')
+    expect(active.attributes('aria-current')).toBe('page')
+    const inactive = links.find((a) => a.attributes('href') === '/dashboard')
+    expect(inactive.attributes('aria-current')).toBeUndefined()
+  })
+
+  it('labels the nav landmark and hides decorative icons and status dot', () => {
+    const wrapper = mountSidebar()
+    expect(wrapper.find('nav').attributes('aria-label')).toBe('เมนูหลัก')
+    const svgs = wrapper.findAll('svg')
+    expect(svgs.length).toBeGreaterThan(0)
+    svgs.forEach((svg) => expect(svg.attributes('aria-hidden')).toBe('true'))
+    expect(wrapper.find('.bg-green-500').attributes('aria-hidden')).toBe('true')
+  })
+
+  it('gives the mobile close button a 24px+ target and visible focus', () => {
+    const wrapper = mountSidebar()
+    const closeBtn = wrapper.find('button[aria-label="ปิดเมนู"]')
+    expect(closeBtn.classes()).toContain('p-1')
+    expect(closeBtn.classes()).toContain('focus-visible:ring-2')
+  })
 })
