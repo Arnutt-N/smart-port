@@ -26,7 +26,6 @@ async function createTargetUser(request, username) {
   const admin = await apiLogin(request, adminUser, adminPass)
   const create = await sendWith429Retry(request, 'post', `${apiBase()}/users`, {
     headers: {
-      Authorization: `Bearer ${admin.token}`,
       'X-CSRF-Token': admin.csrf_token,
     },
     data: {
@@ -45,7 +44,6 @@ async function createTargetUser(request, username) {
   const first = await apiLogin(request, username, 'CrudTarget1!')
   await sendWith429Retry(request, 'post', `${apiBase()}/auth/change-password`, {
     headers: {
-      Authorization: `Bearer ${first.token}`,
       'X-CSRF-Token': first.csrf_token,
     },
     data: {
@@ -79,16 +77,13 @@ test.describe('users CRUD (admin UI)', () => {
     // best-effort: ปิดบัญชีที่ test สร้างทั้งหมด (กันสะสมข้ามรอบ)
     try {
       const admin = await apiLogin(request, adminUser, adminPass)
-      const list = await request.get(`${apiBase()}/users?limit=200`, {
-        headers: { Authorization: `Bearer ${admin.token}` },
-      })
+      const list = await request.get(`${apiBase()}/users?limit=200`)
       if (!list.ok()) return
       const body = await list.json()
       const mine = (body.data || []).filter((u) => String(u.username).startsWith('e2e_crud_'))
       for (const u of mine) {
         await sendWith429Retry(request, 'put', `${apiBase()}/users/${u.user_id}`, {
           headers: {
-            Authorization: `Bearer ${admin.token}`,
             'X-CSRF-Token': admin.csrf_token,
           },
           data: { is_active: 0 },
@@ -106,14 +101,14 @@ test.describe('users CRUD (admin UI)', () => {
     await expect(page.getByText('เพิ่มผู้ใช้ใหม่')).toBeVisible()
 
     await page.locator('#user-username').fill(username)
-    await page.locator('#user-password').fill('NewUser1!')
-    await page.locator('#user-password-confirm').fill('NewUser1!')
+    await page.locator('#user-password').fill('NewUser11-Pass!')
+    await page.locator('#user-password-confirm').fill('NewUser11-Pass!')
     await page.locator('#user-full-name').fill('ทดสอบ สร้างใหม่')
     await page.locator('#user-role').selectOption({ label: 'Operator — บันทึกข้อมูล' })
 
     await page.getByRole('button', { name: 'สร้างผู้ใช้' }).click()
 
-    await expect(page.getByText('สร้างผู้ใช้สำเร็จ')).toBeVisible()
+    await expect(page.getByText('สร้างผู้ใช้แล้ว')).toBeVisible()
     await searchUser(page, username)
     await expect(rowOf(page, username)).toBeVisible()
   })
@@ -131,7 +126,7 @@ test.describe('users CRUD (admin UI)', () => {
     await page.locator('#user-full-name').fill('เป้าหมาย แก้ไขแล้ว')
     await page.getByRole('button', { name: 'บันทึก' }).click()
 
-    await expect(page.getByText('บันทึกข้อมูลผู้ใช้สำเร็จ')).toBeVisible()
+    await expect(page.getByText('บันทึกข้อมูลผู้ใช้แล้ว')).toBeVisible()
   })
 
   test('admin resets a user password', async ({ page, request }) => {
@@ -143,13 +138,13 @@ test.describe('users CRUD (admin UI)', () => {
 
     // heading ของ modal ('รีเซ็ตรหัสผ่าน' h2) กับปุ่มชื่อเดียวกัน — ใช้ heading role เฉพาะ
     await expect(page.getByRole('heading', { name: 'รีเซ็ตรหัสผ่าน' })).toBeVisible()
-    await page.locator('#user-reset-password').fill('ResetNew1!')
-    await page.locator('#user-reset-password-confirm').fill('ResetNew1!')
+    await page.locator('#user-reset-password').fill('ResetNew11-Pass!')
+    await page.locator('#user-reset-password-confirm').fill('ResetNew11-Pass!')
 
     // ปุ่ม confirm ใน modal ชื่้เดียวกับปุ่มใน row — scope ด้วย .fixed
     await page.locator('.fixed').getByRole('button', { name: 'รีเซ็ตรหัสผ่าน' }).click()
 
-    await expect(page.getByText(/รีเซ็ตรหัสผ่านสำเร็จ/)).toBeVisible()
+    await expect(page.getByText('รีเซ็ตรหัสผ่านแล้ว')).toBeVisible()
   })
 
   test('admin deactivates then reactivates a user', async ({ page, request }) => {
@@ -164,7 +159,7 @@ test.describe('users CRUD (admin UI)', () => {
     await expect(page.getByText('ยืนยันการปิดบัญชี')).toBeVisible()
     await page.locator('.fixed').getByRole('button', { name: 'ปิดบัญชี' }).click()
 
-    await expect(page.getByText('ปิดบัญชีสำเร็จ')).toBeVisible()
+    await expect(page.getByText('ปิดบัญชีแล้ว')).toBeVisible()
     await expect(row.getByText('ปิดใช้งาน', { exact: true })).toBeVisible()
 
     // เปิดกลับ — ปุ่ม row เปลี่ยนชื่อเป็น 'เปิดใช้งานบัญชี' ปุ่ม modal คือ 'เปิดใช้งาน'
@@ -172,7 +167,7 @@ test.describe('users CRUD (admin UI)', () => {
     await expect(page.getByText('ยืนยันการเปิดใช้งานบัญชี')).toBeVisible()
     await page.locator('.fixed').getByRole('button', { name: 'เปิดใช้งาน' }).click()
 
-    await expect(page.getByText('เปิดใช้งานบัญชีสำเร็จ')).toBeVisible()
+    await expect(page.getByText('เปิดใช้งานบัญชีแล้ว')).toBeVisible()
     await expect(row.getByText('ใช้งาน', { exact: true })).toBeVisible()
   })
 

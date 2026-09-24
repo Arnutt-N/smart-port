@@ -4,10 +4,10 @@
 #
 # Local gates:
 #   0) Fast gates: schema parity + multiplier validator regression
-#   1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + build
+#   1) Frontend:  npm ci (optional) + npm audit (prod, high+) + npm test + npm run lint + build
 #   1.5) CSP audit: bundle ตรวจว่าไม่มีอะไรชน CSP หลัง enforce (อ่าน frontend/dist)
 #   2) E2E:       Playwright Chromium checks all sidebar menus (Docker db + backend)
-#   3) Backend:   bash backend/tests/run.sh
+#   3) Backend:   php-cs-fixer (docker) + bash backend/tests/run.sh
 #   4) Docker:    build frontend + backend images (no push)
 #
 # Usage:
@@ -178,6 +178,9 @@ frontend_gate() {
   echo 'npm test (vitest) ...'
   npx vitest run --reporter=dot || return 1
 
+  echo 'npm run lint ...'
+  npm run lint || return 1
+
   echo 'npm run build ...'
   npm run build || return 1
 }
@@ -266,6 +269,13 @@ fi
 # ---- 3) Backend ------------------------------------------------------------
 if [[ "${SKIP_BACKEND}" -eq 0 ]]; then
   step 'Backend PHPUnit (via backend/tests/run.sh)'
+  # D5: backend lint via composer image (no host php; composer.json platform pin controls versions)
+  echo 'php-cs-fixer (dry-run) ...'
+  if docker run --rm -v "${ROOT}/backend:/app" -w /app composer:2 sh -c 'composer install --no-interaction --no-progress --ignore-platform-req=ext-gd && php vendor/bin/php-cs-fixer fix --dry-run'; then
+    ok 'backend lint'
+  else
+    fail 'backend-lint'
+  fi
   if bash "${ROOT}/backend/tests/run.sh"; then
     ok 'backend PHPUnit'
   else
@@ -286,7 +296,7 @@ if [[ "${SKIP_DOCKER}" -eq 0 ]]; then
       echo 'docker build frontend ...'
       docker build -t smartport-frontend:ci "${ROOT}/frontend"
       echo 'docker build backend ...'
-      docker build -t smartport-backend:ci "${ROOT}/backend"
+      docker build -t smartport-backend:ci -f "${ROOT}/Dockerfile" "${ROOT}"
     ) && ok 'docker images built' || fail 'docker'
   fi
 else

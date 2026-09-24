@@ -44,7 +44,9 @@ Single-context repo: use root `CONTEXT.md` and `docs/adr/`. See `docs/agents/dom
 - `cd frontend && npm run dev`: serve on `http://localhost:5174`; `/api` proxies to `http://localhost:8000`.
 - `cd frontend && npm test`: run the Vitest suite in `jsdom`.
 - `cd frontend && npm run build`: create the production bundle in `frontend/dist`.
-- `docker build -t smartport-frontend ./frontend` and `docker build -t smartport-backend ./backend`: match CI image checks.
+- `cd frontend && npm run lint`: ESLint gate (exit 0 required; config `frontend/eslint.config.js`).
+- Backend lint: `composer lint` inside `backend/` (php-cs-fixer dry-run; host without PHP: run via `docker run --rm -v ./backend:/app -w /app composer:2 sh -c 'composer install --ignore-platform-req=ext-gd && composer lint'`).
+- `docker build -t smartport-frontend ./frontend` and `docker build -t smartport-backend .` (root context — `backend/Dockerfile` คือ fallback): match CI image checks.
 - **Local CI (no GitHub Actions):** `.\scripts\ci-local.ps1` (Windows) or `bash scripts/ci-local.sh` — frontend test+build, backend PHPUnit via `backend/tests/run.sh`, Docker image builds. Use `-SkipInstall` / `--skip-install` when `node_modules` is already current; `-SkipDocker` / `--skip-docker` for a faster gate.
 - **act (run `ci.yml` locally):** install `nektos/act` (`winget install nektos.act`), Docker running, then `.\scripts\ci-act.ps1` or `-Job frontend-build` (prefer single job first). Config: `.actrc`.
 - **Pre-push hook:** `.\scripts\install-git-hooks.ps1` sets local `core.hooksPath=.githooks` (frontend vitest on push). Skip: `SKIP_PRE_PUSH=1 git push` or `git push --no-verify`.
@@ -112,6 +114,8 @@ Database name: `civil_service_mgmt`. Connection config is in `backend/config.php
 (bootstrap ตัวจริงของ production — prod ตั้ง `RUN_MIGRATIONS=0` จึงไม่มีอะไรมาเติมให้ทีหลัง) · เพิ่ม mount
 ใน `docker-compose.yaml` และ `.github/workflows/ci.yml` — ตรวจด้วย `node scripts/validate-schema-parity.mjs`
 (exit 0 = ผ่าน) เหตุผลเต็มอยู่ใน `docs/adr/0002-schema-parity-gate.md`
+ขยับ `MIGRATION_BASELINE_THROUGH` ใน `backend/scripts/migration-lib.php` ให้ตรงไฟล์ล่าสุดด้วย
+(INV-5 ใน gate บังคับ — กัน re-apply แบบ #129)
 
 ## Architecture
 

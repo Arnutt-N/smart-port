@@ -11,9 +11,9 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../../middleware/csrf.php';
 
 /**
- * Unit tests สำหรับ generateCSRFToken()/validateCSRFToken() ใน backend/middleware/csrf.php
- * — pure functions, ไม่ต้อง DB/JWT (requireCSRFToken() ที่ exit() เมื่อไม่ผ่าน ไม่ครอบในไฟล์นี้
- * เพราะต้อง mock getAuthenticatedUser()/DB และ exit() ทำให้ทดสอบ control-flow ตรงๆ ไม่ได้)
+ * Unit tests สำหรับ generateCSRFToken()/validateCSRFToken()/csrfCheckResult()
+ * ใน backend/middleware/csrf.php — pure functions, ไม่ต้อง DB/JWT
+ * (requireCSRFToken() ที่ exit() ครอบผ่าน csrfCheckResult pure core แทน — D3)
  */
 final class CsrfTest extends TestCase
 {
@@ -28,7 +28,7 @@ final class CsrfTest extends TestCase
     #[Test]
     public function generated_tokens_are_not_predictable_or_repeated(): void
     {
-        $tokens = array_map(fn() => generateCSRFToken(), range(1, 20));
+        $tokens = array_map(fn () => generateCSRFToken(), range(1, 20));
 
         // สุ่มจาก random_bytes(32) — 20 ครั้งไม่ควรชนกันเลย
         self::assertCount(20, array_unique($tokens));
@@ -64,5 +64,32 @@ final class CsrfTest extends TestCase
             'case mismatch'              => [strtoupper($real), $real],
             'truncated token'            => [substr($real, 0, 63), $real],
         ];
+    }
+
+    #[Test]
+    public function check_result_passes_on_matching_token(): void
+    {
+        $token = generateCSRFToken();
+
+        self::assertNull(csrfCheckResult(['csrf_token' => $token], $token));
+    }
+
+    #[Test]
+    public function check_result_rejects_unauthenticated_with_401(): void
+    {
+        self::assertSame(
+            ['code' => 401, 'error' => 'Unauthorized'],
+            csrfCheckResult(null, generateCSRFToken())
+        );
+    }
+
+    #[Test]
+    #[DataProvider('mismatchProvider')]
+    public function check_result_rejects_mismatch_with_403(string $token, string $expected): void
+    {
+        self::assertSame(
+            ['code' => 403, 'error' => 'CSRF token validation failed'],
+            csrfCheckResult(['csrf_token' => $expected], $token)
+        );
     }
 }

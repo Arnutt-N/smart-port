@@ -32,7 +32,6 @@ async function createPersonnelViaApi(request, firstName, lastName, citizenId) {
   const admin = await apiLogin(request, adminUser, adminPass)
   const create = await request.post(`${apiBase()}/personnel`, {
     headers: {
-      Authorization: `Bearer ${admin.token}`,
       'X-CSRF-Token': admin.csrf_token,
     },
     data: {
@@ -51,7 +50,6 @@ async function deactivatePersonnel(request, personnelId) {
     const admin = await apiLogin(request, adminUser, adminPass)
     await request.put(`${apiBase()}/personnel/${personnelId}`, {
       headers: {
-        Authorization: `Bearer ${admin.token}`,
         'X-CSRF-Token': admin.csrf_token,
       },
       data: { is_active: false },
@@ -81,7 +79,7 @@ test.describe('personnel CRUD (admin UI)', () => {
 
     await page.getByRole('button', { name: 'สร้างบุคลากร' }).click()
 
-    await expect(page.getByText('สร้างบุคลากรสำเร็จ')).toBeVisible()
+    await expect(page.getByText('สร้างบุคลากรแล้ว')).toBeVisible()
 
     // แถวใหม่โผล่ในตาราง (ตอน modal ปิดแล้ว list refresh)
     await searchPersonnel(page, lastName)
@@ -117,7 +115,7 @@ test.describe('personnel CRUD (admin UI)', () => {
     await page.locator('#personnel-last-name').fill(`${lastName}จบ`)
     await page.getByRole('button', { name: 'บันทึก' }).click()
 
-    await expect(page.getByText('บันทึกข้อมูลบุคลากรสำเร็จ')).toBeVisible()
+    await expect(page.getByText('บันทึกข้อมูลบุคลากรแล้ว')).toBeVisible()
 
     await deactivatePersonnel(request, personnelId)
   })
@@ -135,7 +133,7 @@ test.describe('personnel CRUD (admin UI)', () => {
     await expect(page.getByText('ยืนยันการปิดใช้งาน')).toBeVisible()
     await page.locator('.fixed').getByRole('button', { name: 'ปิดใช้งาน' }).click()
 
-    await expect(page.getByText('ปิดใช้งานสำเร็จ')).toBeVisible()
+    await expect(page.getByText('ปิดใช้งานแล้ว')).toBeVisible()
     // แถวหายจาก default list (ค่าเริ่มต้นไม่แสดงที่ปิดใช้งาน)
     await expect(row).toHaveCount(0)
 
@@ -149,7 +147,7 @@ test.describe('personnel CRUD (admin UI)', () => {
     await expect(page.getByText('ยืนยันการเปิดใช้งาน')).toBeVisible()
     await page.locator('.fixed').getByRole('button', { name: 'เปิดใช้งาน' }).click()
 
-    await expect(page.getByText('เปิดใช้งานสำเร็จ')).toBeVisible()
+    await expect(page.getByText('เปิดใช้งานแล้ว')).toBeVisible()
     await expect(row.getByText('ใช้งาน', { exact: true })).toBeVisible()
 
     // cleanup — ปิดกลับเพื่อไม่สะสม

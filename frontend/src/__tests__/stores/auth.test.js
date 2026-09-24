@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { decodeJwtPayload, useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 const mockPost = vi.fn()
 const mockGet = vi.fn()
@@ -9,19 +9,36 @@ vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ post: mockPost, get: mockGet }),
 }))
 
-function makeJwt(expSeconds) {
-  const b64 = (obj) => btoa(JSON.stringify(obj)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
-  return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: 1, role: 'admin', exp: expSeconds })}.sig`
-}
-
-const validToken = () => makeJwt(Math.floor(Date.now() / 1000) + 3600)
-const expiredToken = () => makeJwt(Math.floor(Date.now() / 1000) - 10)
-
+// backend response shape หลัง login/refresh (D3 compat-keep: token fields ยังส่งมา
+// แต่ store เพิกเฉย — session จริงอยู่ใน httpOnly cookies)
 const authData = () => ({
-  token: validToken(),
+  token: 'compat-jwt-ignored',
   csrf_token: 'csrf-123',
+  refresh_token: 'compat-refresh-ignored',
   user: { user_id: 1, username: 'admin', name: 'Admin', role: 'admin', must_change_password: false },
 })
+
+// GET /auth/me response shape (getAuthMe: { success, data })
+const meResponse = (overrides = {}) => ({
+  success: true,
+  data: {
+    id: 1,
+    username: 'admin',
+    name: 'Admin',
+    full_name: 'Admin',
+    email: 'admin@example.t',
+    role: 'admin',
+    must_change_password: false,
+    ...overrides,
+  },
+})
+
+function mockFetchJson(body, status = 200) {
+  return vi.fn().mockResolvedValue(new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  }))
+}
 
 describe('auth store', () => {
   beforeEach(() => {
@@ -140,7 +157,7 @@ describe('auth store', () => {
     auth.setAuth(data)
     const p = auth.fetchPermissionGrants()
     await vi.waitFor(() => { expect(mockGet).toHaveBeenCalledTimes(1) })
-    auth.setAuth({ ...data, token: data.token })
+    auth.setAuth({ ...data })
     resolveFetch({ data: { grants: { read: ['*'], create: [], update: [], delete: [] } } })
     await p
     expect(auth.permissionGrants).toEqual({ read: ['*'], create: [], update: [], delete: [] })
@@ -157,13 +174,12 @@ describe('auth store', () => {
         return Promise.resolve(new Response('{}', { status: 200 }))
       })
       const auth = useAuthStore()
-      const data = authData()
-      auth.setAuth({ ...data, refresh_token: 'refresh-1' })
+      auth.setAuth(authData())
       const p = auth.refresh()
       auth.logout()
-      resolveRefresh(new Response(JSON.stringify({ ...data, token: validToken(), refresh_token: 'refresh-2' }), { status: 200 }))
+      resolveRefresh(new Response(JSON.stringify(authData()), { status: 200 }))
       await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
-      expect(auth.token).toBe('')
+      expect(auth.isAuthenticated).toBe(false)
       expect(auth.user).toBeNull()
     } finally {
       globalThis.fetch = realFetch
@@ -181,17 +197,15 @@ describe('auth store', () => {
         return Promise.resolve(new Response('{}', { status: 200 }))
       })
       const auth = useAuthStore()
-      const dataA = authData()
-      auth.setAuth({ ...dataA, refresh_token: 'refresh-1' })
+      auth.setAuth(authData())
       const p = auth.refresh()
       const userB = { user_id: 2, username: 'b-operator', name: 'B', role: 'operator', must_change_password: false }
-      const dataB = { ...authData(), token: validToken(), refresh_token: 'refresh-2', user: userB }
       mockPost.mockReset()
-      mockPost.mockResolvedValue(dataB)
+      mockPost.mockResolvedValue({ ...authData(), user: userB })
       await auth.login({ username: 'b-operator', password: 'x' })
-      resolveRefresh(new Response(JSON.stringify({ ...dataA, token: validToken(), refresh_token: 'refresh-9' }), { status: 200 }))
+      resolveRefresh(new Response(JSON.stringify(authData()), { status: 200 }))
       await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
-      expect(auth.token).toBe(dataB.token)
+      expect(auth.isAuthenticated).toBe(true)
       expect(auth.user.username).toBe('b-operator')
     } finally {
       globalThis.fetch = realFetch
@@ -209,17 +223,15 @@ describe('auth store', () => {
         return Promise.resolve(new Response('{}', { status: 200 }))
       })
       const auth = useAuthStore()
-      const dataA = authData()
-      auth.setAuth({ ...dataA, refresh_token: 'refresh-1' })
+      auth.setAuth(authData())
       const p = auth.refresh()
       const userB = { user_id: 2, username: 'b-operator', name: 'B', role: 'operator', must_change_password: false }
-      const dataB = { ...authData(), token: validToken(), refresh_token: 'refresh-2', user: userB }
       mockPost.mockReset()
-      mockPost.mockResolvedValue(dataB)
+      mockPost.mockResolvedValue({ ...authData(), user: userB })
       await auth.login({ username: 'b-operator', password: 'x' })
       resolveRefresh(new Response('{}', { status: 401 }))
       await expect(p).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
-      expect(auth.token).toBe(dataB.token)
+      expect(auth.isAuthenticated).toBe(true)
       expect(auth.user.username).toBe('b-operator')
     } finally {
       globalThis.fetch = realFetch
@@ -250,7 +262,7 @@ describe('auth store', () => {
     expect(auth.permissionGrants).toEqual({ read: ['*'], create: [], update: [], delete: ['b'] })
   })
 
-  it('setAuth persists token/user/csrf and authenticates', () => {
+  it('setAuth persists csrf/user (never tokens) and authenticates', () => {
     const auth = useAuthStore()
     auth.setAuth(authData())
 
@@ -258,27 +270,90 @@ describe('auth store', () => {
     expect(auth.isAdmin).toBe(true)
     expect(auth.csrfToken).toBe('csrf-123')
     expect(JSON.parse(localStorage.getItem('user')).username).toBe('admin')
-    expect(localStorage.getItem('auth_token')).toBe(auth.token)
+    // compat-keep fields จาก backend ต้องไม่ลง storage และ store ไม่ expose
+    expect(localStorage.getItem('auth_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect('token' in auth).toBe(false)
+    expect('refreshToken' in auth).toBe(false)
   })
 
-  it('rejects expired tokens', () => {
-    const auth = useAuthStore()
-    auth.setAuth({ ...authData(), token: expiredToken() })
-    expect(auth.isAuthenticated).toBe(false)
+  it('removes legacy token keys from both storages on load (one-time migration)', () => {
+    localStorage.setItem('auth_token', 'old-jwt')
+    localStorage.setItem('refresh_token', 'old-refresh')
+    localStorage.setItem('authToken', 'old-jwt')
+    sessionStorage.setItem('auth_token', 'old-jwt')
+    sessionStorage.setItem('refreshToken', 'old-refresh')
+    setActivePinia(createPinia())
+
+    useAuthStore()
+
+    for (const key of ['auth_token', 'refresh_token', 'authToken', 'refreshToken']) {
+      expect(localStorage.getItem(key)).toBeNull()
+      expect(sessionStorage.getItem(key)).toBeNull()
+    }
   })
 
-  it('rejects malformed tokens without throwing', () => {
-    const auth = useAuthStore()
-    auth.setAuth({ ...authData(), token: 'not-a-jwt' })
-    expect(auth.isAuthenticated).toBe(false)
+  it('checkSession authenticates from a valid server session', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mockFetchJson(meResponse())
+      const auth = useAuthStore()
+      expect(auth.isAuthenticated).toBe(false)
+
+      await expect(auth.checkSession()).resolves.toBe(true)
+
+      expect(auth.isAuthenticated).toBe(true)
+      expect(auth.user.username).toBe('admin')
+      expect(auth.isAdmin).toBe(true)
+      const [url, options] = globalThis.fetch.mock.calls[0]
+      expect(String(url)).toContain('/auth/me')
+      expect(options.credentials).toBe('include')
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 
-  it('decodes Thai (non-ASCII) payload segment without throwing', () => {
-    const bytes = new TextEncoder().encode(JSON.stringify({ sub: 1, name: 'สมชาย ใจดี', exp: 9999999999 }))
-    let binary = ''
-    bytes.forEach((b) => { binary += String.fromCharCode(b) })
-    const segment = btoa(binary).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
-    expect(decodeJwtPayload(segment)).toEqual({ sub: 1, name: 'สมชาย ใจดี', exp: 9999999999 })
+  it('checkSession stays logged out on 401 without throwing', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mockFetchJson({ error: 'Unauthorized' }, 401)
+      const auth = useAuthStore()
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.user).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('checkSession stays logged out on network failure', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('offline'))
+      const auth = useAuthStore()
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('checkSession stays logged out on malformed body', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mockFetchJson({ success: true })
+      const auth = useAuthStore()
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 
   it('login posts credentials and stores the session', async () => {
@@ -316,27 +391,30 @@ describe('auth store', () => {
   })
 
   it('logout clears every persisted key', () => {
+    localStorage.setItem('auth_token', 'old-jwt')
     const auth = useAuthStore()
-    auth.setAuth({ ...authData(), refreshToken: 'refresh-1' })
+    auth.setAuth(authData())
     auth.logout()
 
     expect(auth.isAuthenticated).toBe(false)
     expect(auth.user).toBeNull()
     for (const key of ['auth_token', 'authToken', 'refresh_token', 'refreshToken', 'csrf_token', 'user']) {
       expect(localStorage.getItem(key)).toBeNull()
+      expect(sessionStorage.getItem(key)).toBeNull()
     }
   })
 
   it('treats corrupted storage values as empty', () => {
     localStorage.setItem('user', '{not json')
-    localStorage.setItem('auth_token', 'undefined')
+    localStorage.setItem('csrf_token', 'undefined')
     setActivePinia(createPinia())
     const auth = useAuthStore()
 
     expect(auth.user).toBeNull()
+    expect(auth.csrfToken).toBe('')
     expect(auth.isAuthenticated).toBe(false)
     expect(localStorage.getItem('user')).toBeNull()
-    expect(localStorage.getItem('auth_token')).toBeNull()
+    expect(localStorage.getItem('csrf_token')).toBeNull()
   })
 
   it('treats superadmin as admin for menu gating', () => {
@@ -349,102 +427,147 @@ describe('auth store', () => {
     expect(auth.isSuperAdmin).toBe(true)
   })
 
-  // ===== base64url payload (F35) =====
+  // ===== cookie transport (D3) =====
 
-  function toBase64UrlSegment(b64) {
-    return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
-  }
+  it('refresh uses cookie transport (credentials, no token body)', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mockFetchJson(authData())
+      const auth = useAuthStore()
+      auth.setAuth(authData())
 
-  it('decodeJwtPayload normalizes - and _ and restores missing padding', () => {
-    // '>>>' UTF-8 bytes ทำให้ base64 มี '+' แน่นอน → segment มี '-'
-    const plusPayload = { u: '>>>' }
-    const plusBytes = new TextEncoder().encode(JSON.stringify(plusPayload))
-    let plusBinary = ''
-    plusBytes.forEach((b) => { plusBinary += String.fromCharCode(b) })
-    const plusSegment = toBase64UrlSegment(btoa(plusBinary))
-    expect(plusSegment).toContain('-')
-    expect(decodeJwtPayload(plusSegment)).toEqual(plusPayload)
+      await auth.refresh()
 
-    // '???' ทำให้ base64 มี '/' แน่นอน → segment มี '_'
-    const slashPayload = { q: '???' }
-    const slashSegment = toBase64UrlSegment(btoa(JSON.stringify(slashPayload)))
-    expect(slashSegment).toContain('_')
-    expect(decodeJwtPayload(slashSegment)).toEqual(slashPayload)
+      const [url, options] = globalThis.fetch.mock.calls[0]
+      expect(String(url)).toContain('/auth/refresh')
+      expect(options.method).toBe('POST')
+      expect(options.credentials).toBe('include')
+      expect(options.body).toBeUndefined()
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 
-  it('keeps tokens with base64url payload characters valid (no false logout)', () => {
-    const payload = { sub: 1, exp: Math.floor(Date.now() / 1000) + 3600, name: '???' }
-    const segment = toBase64UrlSegment(btoa(JSON.stringify(payload)))
-    expect(segment).toContain('_')
-
+  it('refresh fails fast without an active session', async () => {
     const auth = useAuthStore()
-    auth.setAuth({ ...authData(), token: `hdr.${segment}.sig` })
-    expect(auth.isAuthenticated).toBe(true)
+    await expect(auth.refresh()).rejects.toThrow('No active session')
   })
 
-  // ===== remember-me (F36) =====
+  it('refresh updates csrf/user from the rotated session', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mockFetchJson({
+        ...authData(),
+        csrf_token: 'csrf-9',
+        user: { ...authData().user, name: 'Renamed' },
+      })
+      const auth = useAuthStore()
+      auth.setAuth(authData())
 
-  it('setAuth with remember=false persists all auth keys to sessionStorage only', () => {
+      await auth.refresh()
+
+      expect(auth.isAuthenticated).toBe(true)
+      expect(auth.csrfToken).toBe('csrf-9')
+      expect(auth.user.name).toBe('Renamed')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('logout notifies the server over cookies then clears state', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response('{"success":true}', { status: 200 }))
+      const auth = useAuthStore()
+      auth.setAuth(authData())
+      auth.logout()
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      const [url, options] = globalThis.fetch.mock.calls[0]
+      expect(String(url)).toContain('/auth/logout')
+      expect(options.credentials).toBe('include')
+      expect(options.body).toBeUndefined()
+      expect(auth.isAuthenticated).toBe(false)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('logout skips the server call when already logged out', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response('{"success":true}', { status: 200 }))
+      const auth = useAuthStore()
+      auth.logout()
+
+      expect(globalThis.fetch).not.toHaveBeenCalled()
+      expect(auth.isAuthenticated).toBe(false)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  // ===== remember-me (F36, D3: csrf/user split) =====
+
+  it('setAuth with remember=false persists csrf/user to sessionStorage only', () => {
     const auth = useAuthStore()
-    auth.setAuth({ ...authData(), refresh_token: 'refresh-1' }, { remember: false })
+    auth.setAuth(authData(), { remember: false })
 
-    expect(sessionStorage.getItem('auth_token')).toBe(auth.token)
-    expect(sessionStorage.getItem('refresh_token')).toBe('refresh-1')
     expect(sessionStorage.getItem('csrf_token')).toBe('csrf-123')
     expect(JSON.parse(sessionStorage.getItem('user')).username).toBe('admin')
-    for (const key of ['auth_token', 'refresh_token', 'csrf_token', 'user']) {
+    expect(sessionStorage.getItem('auth_token')).toBeNull()
+    for (const key of ['csrf_token', 'user']) {
       expect(localStorage.getItem(key)).toBeNull()
     }
   })
 
-  it('hydrates a remember=false session from sessionStorage', () => {
-    sessionStorage.setItem('auth_token', validToken())
+  it('hydrates user/csrf from sessionStorage without authenticating', () => {
+    sessionStorage.setItem('csrf_token', 'csrf-9')
     sessionStorage.setItem('user', JSON.stringify({ user_id: 1, username: 'admin', role: 'admin' }))
     setActivePinia(createPinia())
 
     const auth = useAuthStore()
-    expect(auth.isAuthenticated).toBe(true)
-    expect(auth.isAdmin).toBe(true)
+    expect(auth.user.username).toBe('admin')
+    expect(auth.csrfToken).toBe('csrf-9')
+    // D3: storage อย่างเดียวไม่พอ — ต้องผ่าน checkSession (server-checked) ก่อน
+    expect(auth.isAuthenticated).toBe(false)
   })
 
-  it('login forwards remember so the session lands in sessionStorage', async () => {
+  it('login forwards remember so csrf/user land in sessionStorage', async () => {
     mockPost.mockResolvedValue(authData())
     const auth = useAuthStore()
 
     await auth.login({ username: 'admin', password: 'x' }, { remember: false })
 
     expect(mockPost).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'x' })
-    expect(sessionStorage.getItem('auth_token')).toBe(auth.token)
-    expect(localStorage.getItem('auth_token')).toBeNull()
+    expect(sessionStorage.getItem('csrf_token')).toBe('csrf-123')
+    expect(localStorage.getItem('csrf_token')).toBeNull()
   })
 
   it('refresh keeps a remember=false session in sessionStorage', async () => {
-    const auth = useAuthStore()
-    auth.setAuth({ ...authData(), refresh_token: 'refresh-1' }, { remember: false })
+    const realFetch = globalThis.fetch
+    try {
+      const auth = useAuthStore()
+      auth.setAuth(authData(), { remember: false })
 
-    const newToken = validToken()
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      token: newToken,
-      csrf_token: 'csrf-9',
-      refresh_token: 'refresh-2',
-      user: authData().user,
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      globalThis.fetch = mockFetchJson({ ...authData(), csrf_token: 'csrf-9' })
+      await auth.refresh()
 
-    await auth.refresh()
-
-    expect(auth.token).toBe(newToken)
-    expect(sessionStorage.getItem('auth_token')).toBe(newToken)
-    expect(sessionStorage.getItem('refresh_token')).toBe('refresh-2')
-    expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(auth.csrfToken).toBe('csrf-9')
+      expect(sessionStorage.getItem('csrf_token')).toBe('csrf-9')
+      expect(localStorage.getItem('csrf_token')).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
   })
 
   it('logout clears session-stored remember=false keys too', () => {
     const auth = useAuthStore()
-    auth.setAuth({ ...authData(), refresh_token: 'refresh-1' }, { remember: false })
+    auth.setAuth(authData(), { remember: false })
     auth.logout()
 
     expect(auth.isAuthenticated).toBe(false)
-    for (const key of ['auth_token', 'refresh_token', 'csrf_token', 'user']) {
+    for (const key of ['csrf_token', 'user']) {
       expect(sessionStorage.getItem(key)).toBeNull()
       expect(localStorage.getItem(key)).toBeNull()
     }

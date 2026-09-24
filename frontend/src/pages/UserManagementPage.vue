@@ -3,12 +3,16 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">จัดการผู้ใช้</h1>
-        <p class="text-sm text-gray-500 mt-1">เพิ่ม แก้ไข และจัดการบัญชีผู้ใช้งานระบบ (เฉพาะผู้ดูแลระบบ)</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          จัดการผู้ใช้
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          เพิ่ม แก้ไข และจัดการบัญชีผู้ใช้งานระบบ (เฉพาะผู้ดูแลระบบ)
+        </p>
       </div>
       <button
-        @click="openCreate"
         class="btn-primary flex items-center gap-2 px-4 py-2"
+        @click="openCreate"
       >
         <Plus class="w-4 h-4" />
         เพิ่มผู้ใช้
@@ -29,11 +33,24 @@
 
     <!-- Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div v-if="loading" class="py-12 text-center text-sm text-gray-500">กำลังโหลดข้อมูล...</div>
+      <div
+        v-if="loading"
+        class="py-12 text-center text-sm text-gray-500"
+      >
+        กำลังโหลดข้อมูล...
+      </div>
 
-      <div v-else-if="error" class="py-12 text-center">
-        <p class="text-sm text-red-600 mb-3">{{ error }}</p>
-        <button @click="fetchData" class="btn-primary px-4 py-2">
+      <div
+        v-else-if="error"
+        class="py-12 text-center"
+      >
+        <p class="text-sm text-red-600 mb-3">
+          {{ error }}
+        </p>
+        <button
+          class="btn-primary px-4 py-2"
+          @click="fetchData"
+        >
           ลองใหม่
         </button>
       </div>
@@ -47,30 +64,60 @@
         @action="openCreate"
       />
 
-      <div v-else class="overflow-x-auto">
+      <div
+        v-else
+        class="overflow-x-auto"
+      >
         <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อผู้ใช้</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อีเมล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สิทธิ์</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">เข้าใช้ล่าสุด</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อผู้ใช้
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อ-สกุล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                อีเมล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สิทธิ์
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สถานะ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                เข้าใช้ล่าสุด
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
-            <tr v-for="row in rows" :key="row.userId" class="hover:bg-gray-50 transition-colors">
+            <tr
+              v-for="row in rows"
+              :key="row.userId"
+              class="hover:bg-gray-50 transition-colors"
+            >
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ row.username }}</div>
-                <div v-if="row.mustChangePassword" class="flex items-center gap-1 text-xs text-amber-600 mt-0.5">
+                <div class="text-sm font-medium text-gray-900">
+                  {{ row.username }}
+                </div>
+                <div
+                  v-if="row.mustChangePassword"
+                  class="flex items-center gap-1 text-xs text-amber-600 mt-0.5"
+                >
                   <KeyRound class="w-3 h-3" />
                   ยังไม่เปลี่ยนรหัสผ่าน
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ row.fullName }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ row.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                {{ row.fullName }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ row.email || '-' }}
+              </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span
                   class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full"
@@ -92,7 +139,9 @@
                   {{ row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน' }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDateTime(row.lastLoginAt) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ formatDateTime(row.lastLoginAt) }}
+              </td>
               <td class="px-6 py-4 whitespace-nowrap text-right">
                 <TableRowActions :actions="rowActions(row)" />
               </td>
@@ -101,7 +150,10 @@
         </table>
       </div>
 
-      <div v-if="!loading && !error && pagination.total > 0" class="px-6 pb-4">
+      <div
+        v-if="!loading && !error && pagination.total > 0"
+        class="px-6 pb-4"
+      >
         <PaginationBar
           :total="pagination.total"
           :limit="pagination.limit"
@@ -112,15 +164,32 @@
     </div>
 
     <!-- Create / Edit Modal -->
-    <div v-if="showFormModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="closeFormModal"></div>
+    <div
+      v-if="showFormModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/40"
+        @click="closeFormModal"
+      />
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-        <h2 class="text-lg font-semibold text-gray-900">{{ editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้ใหม่' }}</h2>
+        <h2 class="text-lg font-semibold text-gray-900">
+          {{ editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้ใหม่' }}
+        </h2>
 
         <!-- N47: ครอบ <form> — native email validation + Enter submit ทำงาน -->
-        <form class="space-y-3" @submit.prevent="submitForm">
+        <form
+          class="space-y-3"
+          @submit.prevent="submitForm"
+        >
           <div>
-            <label for="user-username" class="label">ชื่อผู้ใช้ <span v-if="!editingUser" class="text-red-500">*</span></label>
+            <label
+              for="user-username"
+              class="label"
+            >ชื่อผู้ใช้ <span
+              v-if="!editingUser"
+              class="text-red-500"
+            >*</span></label>
             <input
               id="user-username"
               v-model="formData.username"
@@ -128,13 +197,21 @@
               :disabled="!!editingUser"
               class="input disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="เช่น somchai.j"
-            />
-            <p v-if="editingUser" class="text-xs text-gray-400 mt-1">ชื่อผู้ใช้แก้ไขไม่ได้</p>
+            >
+            <p
+              v-if="editingUser"
+              class="text-xs text-gray-400 mt-1"
+            >
+              ชื่อผู้ใช้แก้ไขไม่ได้
+            </p>
           </div>
 
           <template v-if="!editingUser">
             <div>
-              <label for="user-password" class="label">รหัสผ่าน <span class="text-red-500">*</span></label>
+              <label
+                for="user-password"
+                class="label"
+              >รหัสผ่าน <span class="text-red-500">*</span></label>
               <input
                 id="user-password"
                 v-model="formData.password"
@@ -142,60 +219,92 @@
                 autocomplete="new-password"
                 class="input"
                 placeholder="อย่างน้อย 8 ตัวอักษร"
-              />
+              >
             </div>
             <div>
-              <label for="user-password-confirm" class="label">ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
+              <label
+                for="user-password-confirm"
+                class="label"
+              >ยืนยันรหัสผ่าน <span class="text-red-500">*</span></label>
               <input
                 id="user-password-confirm"
                 v-model="formData.passwordConfirm"
                 type="password"
                 autocomplete="new-password"
                 class="input"
-              />
+              >
             </div>
           </template>
 
           <div>
-            <label for="user-full-name" class="label">ชื่อ-สกุล <span class="text-red-500">*</span></label>
+            <label
+              for="user-full-name"
+              class="label"
+            >ชื่อ-สกุล <span class="text-red-500">*</span></label>
             <input
               id="user-full-name"
               v-model="formData.fullName"
               type="text"
               class="input"
               placeholder="เช่น สมชาย ใจดี"
-            />
+            >
           </div>
 
           <div>
-            <label for="user-email" class="label">อีเมล</label>
+            <label
+              for="user-email"
+              class="label"
+            >อีเมล</label>
             <input
               id="user-email"
               v-model="formData.email"
               type="email"
               class="input"
               placeholder="(ไม่บังคับ)"
-            />
+            >
           </div>
 
           <div>
-            <label for="user-role" class="label">สิทธิ์ <span class="text-red-500">*</span></label>
+            <label
+              for="user-role"
+              class="label"
+            >สิทธิ์ <span class="text-red-500">*</span></label>
             <select
               id="user-role"
               v-model="formData.role"
               :disabled="isSelfEditing"
               class="input disabled:bg-gray-100 disabled:text-gray-500"
             >
-              <option value="viewer">Viewer — อ่านอย่างเดียว</option>
-              <option value="operator">Operator — บันทึกข้อมูล</option>
-              <option value="admin">Admin — อนุมัติ + จัดการผู้ใช้</option>
-              <option v-if="auth.isSuperAdmin" value="superadmin">Superadmin — ตั้งค่าระบบ</option>
+              <option value="viewer">
+                Viewer — อ่านอย่างเดียว
+              </option>
+              <option value="operator">
+                Operator — บันทึกข้อมูล
+              </option>
+              <option value="admin">
+                Admin — อนุมัติ + จัดการผู้ใช้
+              </option>
+              <option
+                v-if="auth.isSuperAdmin"
+                value="superadmin"
+              >
+                Superadmin — ตั้งค่าระบบ
+              </option>
             </select>
-            <p v-if="isSelfEditing" class="text-xs text-gray-400 mt-1">ไม่สามารถแก้ไขสิทธิ์ของตนเองได้</p>
+            <p
+              v-if="isSelfEditing"
+              class="text-xs text-gray-400 mt-1"
+            >
+              ไม่สามารถแก้ไขสิทธิ์ของตนเองได้
+            </p>
           </div>
 
           <div class="flex justify-end gap-2 pt-2">
-            <button type="button" @click="closeFormModal" class="btn-secondary px-4 py-2">
+            <button
+              type="button"
+              class="btn-secondary px-4 py-2"
+              @click="closeFormModal"
+            >
               ยกเลิก
             </button>
             <button
@@ -211,10 +320,18 @@
     </div>
 
     <!-- Reset Password Modal -->
-    <div v-if="showResetModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="closeResetModal"></div>
+    <div
+      v-if="showResetModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/40"
+        @click="closeResetModal"
+      />
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-        <h2 class="text-lg font-semibold text-gray-900">รีเซ็ตรหัสผ่าน</h2>
+        <h2 class="text-lg font-semibold text-gray-900">
+          รีเซ็ตรหัสผ่าน
+        </h2>
         <p class="text-sm text-gray-600">
           กำหนดรหัสผ่านใหม่ให้ <span class="font-medium text-gray-900">{{ resettingUser?.username }}</span>
           — ผู้ใช้จะต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป
@@ -222,7 +339,10 @@
 
         <div class="space-y-3">
           <div>
-            <label for="user-reset-password" class="label">รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label
+              for="user-reset-password"
+              class="label"
+            >รหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
               id="user-reset-password"
               v-model="resetForm.password"
@@ -230,28 +350,34 @@
               autocomplete="new-password"
               class="input"
               placeholder="อย่างน้อย 8 ตัวอักษร"
-            />
+            >
           </div>
           <div>
-            <label for="user-reset-password-confirm" class="label">ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
+            <label
+              for="user-reset-password-confirm"
+              class="label"
+            >ยืนยันรหัสผ่านใหม่ <span class="text-red-500">*</span></label>
             <input
               id="user-reset-password-confirm"
               v-model="resetForm.passwordConfirm"
               type="password"
               autocomplete="new-password"
               class="input"
-            />
+            >
           </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="closeResetModal" class="btn-secondary px-4 py-2">
+          <button
+            class="btn-secondary px-4 py-2"
+            @click="closeResetModal"
+          >
             ยกเลิก
           </button>
           <button
-            @click="submitResetPassword"
             :disabled="saving"
             class="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors cursor-pointer"
+            @click="submitResetPassword"
           >
             {{ saving ? 'กำลังดำเนินการ...' : 'รีเซ็ตรหัสผ่าน' }}
           </button>
@@ -260,8 +386,14 @@
     </div>
 
     <!-- Toggle Active Confirm Modal -->
-    <div v-if="showToggleConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="showToggleConfirm = false"></div>
+    <div
+      v-if="showToggleConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/40"
+        @click="showToggleConfirm = false"
+      />
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
         <h2 class="text-lg font-semibold text-gray-900">
           {{ togglingUser?.isActive ? 'ยืนยันการปิดบัญชี' : 'ยืนยันการเปิดใช้งานบัญชี' }}
@@ -269,17 +401,22 @@
         <p class="text-sm text-gray-600">
           คุณต้องการ{{ togglingUser?.isActive ? 'ปิด' : 'เปิดใช้งาน' }}บัญชี
           <span class="font-medium text-gray-900">{{ togglingUser?.username }}</span> หรือไม่?
-          <template v-if="togglingUser?.isActive">ผู้ใช้นี้จะไม่สามารถเข้าสู่ระบบได้จนกว่าจะเปิดใช้งานอีกครั้ง</template>
+          <template v-if="togglingUser?.isActive">
+            ผู้ใช้นี้จะไม่สามารถเข้าสู่ระบบได้จนกว่าจะเปิดใช้งานอีกครั้ง
+          </template>
         </p>
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="showToggleConfirm = false" class="btn-secondary px-4 py-2">
+          <button
+            class="btn-secondary px-4 py-2"
+            @click="showToggleConfirm = false"
+          >
             ยกเลิก
           </button>
           <button
-            @click="submitToggleActive"
             :disabled="saving"
             class="px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
             :class="togglingUser?.isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
+            @click="submitToggleActive"
           >
             {{ saving ? 'กำลังดำเนินการ...' : (togglingUser?.isActive ? 'ปิดบัญชี' : 'เปิดใช้งาน') }}
           </button>

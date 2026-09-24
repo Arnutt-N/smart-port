@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * CLI runner for legacy HR → Smart Port sync transform (ADR-0001).
  *
@@ -155,7 +156,7 @@ try {
                 fwrite(STDERR, "    ERROR: {$err}\n");
             }
             if ($errCount > 5) {
-                fwrite(STDERR, "    ... and " . ($errCount - 5) . " more errors\n");
+                fwrite(STDERR, '    ... and ' . ($errCount - 5) . " more errors\n");
             }
         }
 

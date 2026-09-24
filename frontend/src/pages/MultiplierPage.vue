@@ -2,8 +2,12 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">การนับทวีคูณ</h1>
-        <p class="text-sm text-gray-500 mt-1">บันทึกช่วงเวลาปฏิบัติงานในพื้นที่พิเศษและคำนวณวันทวีคูณ</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          การนับทวีคูณ
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          บันทึกช่วงเวลาปฏิบัติงานในพื้นที่พิเศษและคำนวณวันทวีคูณ
+        </p>
       </div>
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div class="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -20,8 +24,14 @@
       </div>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0 && areas.length === 0" type="stat-cards" />
-    <div v-else class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <SkeletonLoader
+      v-if="loading && rows.length === 0 && areas.length === 0"
+      type="stat-cards"
+    />
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-4 gap-4"
+    >
       <StatCard
         label="รายการทวีคูณ"
         :value="recordSummary.total"
@@ -58,13 +68,13 @@
           <Search class="w-4 h-4 text-gray-400" />
         </div>
         <input
+          id="multiplier-area-search"
           v-model="areaSearchQuery"
           type="text"
-          id="multiplier-area-search"
           aria-label="ค้นหาพื้นที่พิเศษ จังหวัด อำเภอ หรือฐานประกาศ"
           placeholder="ค้นหา master data จากจังหวัด อำเภอ หรือฐานประกาศ..."
           class="input pl-10"
-        />
+        >
       </div>
       <button
         class="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
@@ -75,7 +85,11 @@
       </button>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0 && areas.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0 && areas.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -94,21 +108,41 @@
     <template v-else>
       <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-4">
-          <h2 class="text-base font-semibold text-gray-900">รายการบันทึกทวีคูณ</h2>
+          <h2 class="text-base font-semibold text-gray-900">
+            รายการบันทึกทวีคูณ
+          </h2>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงปฏิบัติงาน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงที่นับได้</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันจริง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันทวีคูณ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สุทธิ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ลำดับ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ชื่อ-สกุล
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  พื้นที่
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ช่วงปฏิบัติงาน
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ช่วงที่นับได้
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันจริง
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันทวีคูณ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  สุทธิ
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  จัดการ
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -117,13 +151,27 @@
                 :key="row.multiplierId"
                 class="border-b border-gray-100 hover:bg-gray-50"
               >
-                <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-                <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.fullName || '-' }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ row.areaLabel }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ row.startDateThai }} - {{ row.endDateThai }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ row.eligibleStartDateThai }} - {{ row.eligibleEndDateThai }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ row.eligibleDays }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ formatNumber(row.bonusDays) }}</td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ pagination.offset + index + 1 }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                  {{ row.fullName || '-' }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ row.areaLabel }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ row.startDateThai }} - {{ row.endDateThai }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ row.eligibleStartDateThai }} - {{ row.eligibleEndDateThai }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ row.eligibleDays }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ formatNumber(row.bonusDays) }}
+                </td>
                 <td class="px-6 py-3 text-sm text-gray-700">
                   {{ row.netYears }} ปี {{ row.netMonths }} เดือน {{ row.netDayRemainder }} วัน
                 </td>
@@ -161,7 +209,9 @@
 
       <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <h2 class="text-base font-semibold text-gray-900">Master data พื้นที่พิเศษ</h2>
+          <h2 class="text-base font-semibold text-gray-900">
+            Master data พื้นที่พิเศษ
+          </h2>
           <RouterLink
             v-if="isAdmin"
             to="/settings/special-areas"
@@ -174,12 +224,24 @@
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ฐานประกาศ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตรา</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเริ่ม</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันสิ้นสุด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อ้างอิง</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  พื้นที่
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ฐานประกาศ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  อัตรา
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันเริ่ม
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันสิ้นสุด
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  อ้างอิง
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -188,11 +250,21 @@
                 :key="area.areaMultiplierId"
                 class="border-b border-gray-100 hover:bg-gray-50"
               >
-                <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ area.areaLabel }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ basisTypeLabel(area.basisType) }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ area.multiplierRatio }}%</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ area.effectiveStartDateThai }}</td>
-                <td class="px-6 py-3 text-sm text-gray-700">{{ area.effectiveEndDateThai || 'ยังไม่มีวันสิ้นสุด' }}</td>
+                <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                  {{ area.areaLabel }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ basisTypeLabel(area.basisType) }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ area.multiplierRatio }}%
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ area.effectiveStartDateThai }}
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-700">
+                  {{ area.effectiveEndDateThai || 'ยังไม่มีวันสิ้นสุด' }}
+                </td>
                 <td class="px-6 py-3 text-sm">
                   <span
                     class="inline-flex items-center rounded px-2 py-1 text-xs font-medium"
@@ -223,38 +295,64 @@
       aria-modal="true"
       aria-labelledby="multiplier-modal-title"
     >
-      <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeModal"></div>
+      <div
+        class="fixed inset-0 bg-black bg-opacity-50"
+        @click="closeModal"
+      />
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h3 id="multiplier-modal-title" class="text-lg font-semibold text-gray-900">
+          <h3
+            id="multiplier-modal-title"
+            class="text-lg font-semibold text-gray-900"
+          >
             {{ isEditMode ? 'แก้ไขรายการทวีคูณ' : 'เพิ่มรายการทวีคูณ' }}
           </h3>
-          <button class="text-gray-400 hover:text-gray-600" @click="closeModal" aria-label="ปิด">
+          <button
+            class="text-gray-400 hover:text-gray-600"
+            aria-label="ปิด"
+            @click="closeModal"
+          >
             <X class="w-5 h-5" />
           </button>
         </div>
 
-        <form class="p-6 space-y-4" @submit.prevent="handleSubmit">
+        <form
+          class="p-6 space-y-4"
+          @submit.prevent="handleSubmit"
+        >
           <div>
-            <label for="multiplier-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <label
+              for="multiplier-personnel-search"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >บุคลากร <span class="text-red-500">*</span></label>
             <PersonnelTypeahead
               v-model="formData.personnel_id"
               :display-name="prefillName"
               input-id="multiplier-personnel-search"
               placeholder="พิมพ์ชื่อเพื่อค้นหา..."
             />
-            <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">กรุณาเลือกบุคลากร</p>
+            <p
+              v-if="formErrors.personnel_id"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาเลือกบุคลากร
+            </p>
           </div>
 
           <div>
-            <label for="multiplier-area-select" class="block text-sm font-medium text-gray-700 mb-1">พื้นที่พิเศษ <span class="text-red-500">*</span></label>
+            <label
+              for="multiplier-area-select"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >พื้นที่พิเศษ <span class="text-red-500">*</span></label>
             <select
               id="multiplier-area-select"
               v-model="formData.area_multiplier_id"
               class="input"
               :class="formErrors.area_multiplier_id ? 'border-red-500' : 'border-gray-300'"
             >
-              <option value="">เลือกพื้นที่</option>
+              <option value="">
+                เลือกพื้นที่
+              </option>
               <option
                 v-for="area in areas"
                 :key="area.areaMultiplierId"
@@ -263,42 +361,72 @@
                 {{ area.areaLabel }} · {{ basisTypeLabel(area.basisType) }} · {{ area.multiplierRatio }}%
               </option>
             </select>
-            <p v-if="formErrors.area_multiplier_id" class="text-xs text-red-500 mt-1">กรุณาเลือกพื้นที่พิเศษ</p>
+            <p
+              v-if="formErrors.area_multiplier_id"
+              class="text-xs text-red-500 mt-1"
+            >
+              กรุณาเลือกพื้นที่พิเศษ
+            </p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label for="multiplier-form-start" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มปฏิบัติงาน <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="formData.start_date" id="multiplier-form-start" label="วันเริ่มปฏิบัติงาน" :error="formErrors.start_date ? 'กรุณาระบุวันเริ่ม' : ''" />
+              <label
+                for="multiplier-form-start"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >วันเริ่มปฏิบัติงาน <span class="text-red-500">*</span></label>
+              <ThaiDatePicker
+                id="multiplier-form-start"
+                v-model="formData.start_date"
+                label="วันเริ่มปฏิบัติงาน"
+                :error="formErrors.start_date ? 'กรุณาระบุวันเริ่ม' : ''"
+              />
             </div>
             <div>
-              <label for="multiplier-form-end" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุดปฏิบัติงาน <span class="text-red-500">*</span></label>
-              <ThaiDatePicker v-model="formData.end_date" id="multiplier-form-end" label="วันสิ้นสุดปฏิบัติงาน" :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''" />
+              <label
+                for="multiplier-form-end"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >วันสิ้นสุดปฏิบัติงาน <span class="text-red-500">*</span></label>
+              <ThaiDatePicker
+                id="multiplier-form-end"
+                v-model="formData.end_date"
+                label="วันสิ้นสุดปฏิบัติงาน"
+                :error="formErrors.end_date ? 'กรุณาระบุวันสิ้นสุด' : ''"
+              />
             </div>
           </div>
 
           <div>
-            <label for="multiplier-proof-reference" class="block text-sm font-medium text-gray-700 mb-1">เอกสารอ้างอิง</label>
+            <label
+              for="multiplier-proof-reference"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >เอกสารอ้างอิง</label>
             <input
               id="multiplier-proof-reference"
               v-model="formData.proof_reference"
               type="text"
               class="input"
               placeholder="เลขคำสั่ง หนังสือรับรอง หรือหลักฐานประกอบ"
-            />
+            >
           </div>
 
           <div>
-            <label for="multiplier-description" class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+            <label
+              for="multiplier-description"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >หมายเหตุ</label>
             <textarea
               id="multiplier-description"
               v-model="formData.description"
               rows="3"
               class="input"
-            ></textarea>
+            />
           </div>
 
-          <div v-if="submitError" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div
+            v-if="submitError"
+            class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
             {{ submitError }}
           </div>
 

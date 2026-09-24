@@ -75,4 +75,38 @@ describe('ToastContainer', () => {
     expect(wrapper.html()).not.toContain('bg-yellow-500')
     expect(wrapper.html()).not.toContain('bg-blue-600')
   })
+
+  it('announces error toasts assertively and others politely', () => {
+    const ui = useUiStore()
+    ui.showToast('พัง', 'error')
+    ui.showToast('โอเค', 'success')
+
+    const wrapper = mount(ToastContainer)
+    const alerts = wrapper.findAll('[role="alert"]')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0].text()).toContain('พัง')
+    const statuses = wrapper.findAll('[role="status"]')
+    expect(statuses).toHaveLength(1)
+    expect(statuses[0].text()).toContain('โอเค')
+  })
+
+  it('hides decorative icons from assistive tech', () => {
+    const ui = useUiStore()
+    ui.showToast('info', 'info')
+
+    const wrapper = mount(ToastContainer)
+    const svgs = wrapper.findAll('svg')
+    expect(svgs.length).toBeGreaterThan(0)
+    svgs.forEach((svg) => expect(svg.attributes('aria-hidden')).toBe('true'))
+  })
+
+  it('gives the dismiss button a 24px+ target and visible focus', () => {
+    const ui = useUiStore()
+    ui.showToast('ปิดได้', 'info')
+
+    const wrapper = mount(ToastContainer)
+    const btn = wrapper.get('[aria-label="ปิดการแจ้งเตือน"]')
+    expect(btn.classes()).toContain('p-1.5')
+    expect(btn.classes()).toContain('focus-visible:ring-2')
+  })
 })

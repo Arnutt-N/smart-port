@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/auth.php
 // Authentication Route Handler — เข้าสู่ระบบจากตาราง users จริง
@@ -16,11 +17,17 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
+require_once __DIR__ . '/../auth.php';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
 const LOCKOUT_WINDOW_MINUTES = 15;
-const AUTH_PASSWORD_MIN_LENGTH = 8;
+// AUTH_PASSWORD_MIN_LENGTH ถูกรวมเข้ากับ validatePasswordPolicy() แล้ว (D2)
+// ขนาดคอลัมน์จริง (database/09-auth-users.sql) — validate ก่อนแตะ DB กัน 1406 กลายเป็น 500
+const AUTH_FULL_NAME_MAX_LENGTH = 200;   // users.full_name VARCHAR(200)
+const AUTH_EMAIL_MAX_LENGTH = 200;       // users.email VARCHAR(200)
+const LOGIN_USERNAME_MAX_LENGTH = 200;   // login_attempts.username VARCHAR(200)
+// AUTH_PASSWORD_MAX_BYTES ถูกรวมเข้ากับ validatePasswordPolicy() แล้ว (D2)
 
 /**
  * จัดการ request สำหรับ auth endpoints
@@ -176,12 +183,27 @@ function updateAuthMe(PDO $pdo, array $user, ?array $input = null): void
             echo json_encode(['error' => 'ชื่อ-นามสกุลต้องไม่ว่าง']);
             return;
         }
+        if (mb_strlen($fullName) > AUTH_FULL_NAME_MAX_LENGTH) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ชื่อ-นามสกุลต้องมีความยาวไม่เกิน ' . AUTH_FULL_NAME_MAX_LENGTH . ' ตัวอักษร']);
+            return;
+        }
         $sets[] = 'full_name = ?';
         $params[] = $fullName;
     }
 
     if (array_key_exists('email', $data)) {
         $email = trim((string) $data['email']);
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'รูปแบบอีเมลไม่ถูกต้อง']);
+            return;
+        }
+        if (mb_strlen($email) > AUTH_EMAIL_MAX_LENGTH) {
+            http_response_code(400);
+            echo json_encode(['error' => 'อีเมลต้องมีความยาวไม่เกิน ' . AUTH_EMAIL_MAX_LENGTH . ' ตัวอักษร']);
+            return;
+        }
         $sets[] = 'email = ?';
         $params[] = $email === '' ? null : $email;
     }
@@ -268,9 +290,16 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
         echo json_encode(['error' => 'กรุณาระบุรหัสผ่านเดิมและรหัสผ่านใหม่']);
         return;
     }
-    if (strlen($newPassword) < AUTH_PASSWORD_MIN_LENGTH) {
+    // D2: นโยบายเข้ม (history 5 รุ่นของเจ้าของบัญชี)
+    $historyStmt = $pdo->prepare(
+        'SELECT password_hash FROM password_history
+         WHERE user_id = ? ORDER BY history_id DESC LIMIT ' . PASSWORD_POLICY_HISTORY_KEEP
+    );
+    $historyStmt->execute([(int) $user['user_id']]);
+    $policyError = validatePasswordPolicy($newPassword, $historyStmt->fetchAll(PDO::FETCH_COLUMN));
+    if ($policyError !== null) {
         http_response_code(400);
-        echo json_encode(['error' => 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย ' . AUTH_PASSWORD_MIN_LENGTH . ' ตัวอักษร']);
+        echo json_encode(['error' => $policyError]);
         return;
     }
 
@@ -297,12 +326,13 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
     // revoke ล้ม (แยก statement) = รหัสใหม่ใช้ได้แต่ session เก่ายัง refresh ได้
     try {
         $pdo->beginTransaction();
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
         $pdo->prepare(
             'UPDATE users
              SET password_hash = ?, must_change_password = 0
              WHERE user_id = ?'
         )->execute([
-            password_hash($newPassword, PASSWORD_DEFAULT),
+            $newHash,
             (int) $user['user_id'],
         ]);
 
@@ -314,6 +344,12 @@ function changePassword(PDO $pdo, array $user, ?array $input = null): void
              SET revoked_at = ?
              WHERE user_id = ? AND revoked_at IS NULL'
         )->execute([date('Y-m-d H:i:s'), (int) $user['user_id']]);
+
+        // D2: บันทึกประวัติรหัสผ่าน + ตัดรุ่นเกิน 5 ใน txn เดียวกัน
+        $pdo->prepare(
+            'INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)'
+        )->execute([(int) $user['user_id'], $newHash]);
+        prunePasswordHistory($pdo, (int) $user['user_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -357,8 +393,17 @@ function loginUser(PDO $pdo, ?array $input = null): void
         return;
     }
 
+    // login_attempts.username เป็น VARCHAR(200) — ชื่อที่ยาวกว่านั้นไม่มีทาง valid
+    // (username จริงยาวสุด 64 ตาม USERNAME_PATTERN) ปฏิเสธแบบ generic ก่อนแตะ SQL
+    // กัน INSERT ระเบิด 1406 กลายเป็น 500 (และไม่นับ lockout — ไม่มีเหยื่อให้ล็อก)
+    if (mb_strlen($username) > LOGIN_USERNAME_MAX_LENGTH) {
+        http_response_code(401);
+        echo json_encode(['error' => 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง']);
+        return;
+    }
+
     // ลบ log เก่าเกิน 1 วัน — กันตาราง login_attempts โตไม่จำกัด
-    $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY");
+    $pdo->exec('DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY');
 
     // IP ของ client จริง (last hop ของ XFF — หลัง Render proxy REMOTE_ADDR เดี่ยว ๆ
     // คือ IP ของ proxy ทั้งหมด ถ้าใช้บันทึก counter จะรวมทุก client เป็น IP เดียว)
@@ -366,9 +411,9 @@ function loginUser(PDO $pdo, ?array $input = null): void
 
     // Rate limit: นับครั้งที่ผิดใน 15 นาทีล่าสุดของ username นี้
     $stmt = $pdo->prepare(
-        "SELECT COUNT(*) AS fails FROM login_attempts
+        'SELECT COUNT(*) AS fails FROM login_attempts
          WHERE username = ? AND is_success = 0
-           AND attempted_at > NOW() - INTERVAL " . LOCKOUT_WINDOW_MINUTES . " MINUTE"
+           AND attempted_at > NOW() - INTERVAL ' . LOCKOUT_WINDOW_MINUTES . ' MINUTE'
     );
     $stmt->execute([$username]);
     $fails = (int) $stmt->fetch(PDO::FETCH_ASSOC)['fails'];
@@ -386,9 +431,9 @@ function loginUser(PDO $pdo, ?array $input = null): void
     // รวมทุก client เป็นหนึ่งเดียว (ยังบันทึก IP ลง log ตามจริงเพื่อ audit)
     if ($ip !== 'unknown' && $ip !== '') {
         $stmt = $pdo->prepare(
-            "SELECT COUNT(*) AS fails FROM login_attempts
+            'SELECT COUNT(*) AS fails FROM login_attempts
              WHERE ip_address = ? AND is_success = 0
-               AND attempted_at > NOW() - INTERVAL " . LOCKOUT_WINDOW_MINUTES . " MINUTE"
+               AND attempted_at > NOW() - INTERVAL ' . LOCKOUT_WINDOW_MINUTES . ' MINUTE'
         );
         $stmt->execute([$ip]);
         $ipFails = (int) $stmt->fetch(PDO::FETCH_ASSOC)['fails'];
@@ -401,8 +446,8 @@ function loginUser(PDO $pdo, ?array $input = null): void
     }
 
     $stmt = $pdo->prepare(
-        "SELECT user_id, username, password_hash, full_name, role, is_active, must_change_password
-         FROM users WHERE username = ?"
+        'SELECT user_id, username, password_hash, full_name, role, is_active, must_change_password
+         FROM users WHERE username = ?'
     );
     $stmt->execute([$username]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -416,7 +461,7 @@ function loginUser(PDO $pdo, ?array $input = null): void
         && (int) $user['is_active'] === 1;
 
     $logStmt = $pdo->prepare(
-        "INSERT INTO login_attempts (username, ip_address, is_success) VALUES (?, ?, ?)"
+        'INSERT INTO login_attempts (username, ip_address, is_success) VALUES (?, ?, ?)'
     );
 
     if (!$isValid) {
@@ -427,19 +472,22 @@ function loginUser(PDO $pdo, ?array $input = null): void
     }
 
     $logStmt->execute([$username, $ip, 1]);
-    $pdo->prepare("UPDATE users SET last_login_at = NOW() WHERE user_id = ?")
+    $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE user_id = ?')
         ->execute([$user['user_id']]);
 
     // Prune refresh token ที่หมดอายุ หรือถูกเพิกถอนมานานเกิน 30 วัน —
     // กันตาราง refresh_tokens โตไม่จำกัด (ทำหลัง login สำเร็จเท่านั้น ไม่เพิ่มภาระ path อื่น)
     $pdo->exec(
-        "DELETE FROM refresh_tokens
+        'DELETE FROM refresh_tokens
          WHERE expires_at < NOW()
-            OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL 30 DAY)"
+            OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL 30 DAY)'
     );
 
     $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
     $refreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
+
+    // D3: ออก session ลง httpOnly cookies ด้วย — body คงเดิมทุก field (compat-keep)
+    setAuthCookies($jwtResult['token'], $refreshToken);
 
     echo json_encode(buildAuthResponse($jwtResult, $refreshToken, $user));
 }
@@ -495,8 +543,11 @@ function issueRefreshToken(PDO $pdo, int $userId): string
  */
 function refreshSession(PDO $pdo, ?array $input = null): void
 {
-    $data = $input ?? json_decode(file_get_contents('php://input'), true);
-    $rawToken = is_array($data) ? (string) ($data['refresh_token'] ?? '') : '';
+    // D3: production อ่าน refresh จาก httpOnly cookie เท่านั้น ($input คือ test seam —
+    // เรียก production ด้วย $input = null เสมอ, body refresh_token ของ client ถูกละเลย)
+    $rawToken = $input !== null
+        ? (string) ($input['refresh_token'] ?? '')
+        : (string) ($_COOKIE[AUTH_REFRESH_COOKIE] ?? '');
 
     if ($rawToken === '') {
         http_response_code(400);
@@ -571,6 +622,9 @@ function refreshSession(PDO $pdo, ?array $input = null): void
     $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
     $newRefreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
 
+    // D3: rotation ต้องออก cookies ชุดใหม่ด้วย (body คงเดิม — compat-keep)
+    setAuthCookies($jwtResult['token'], $newRefreshToken);
+
     echo json_encode(buildAuthResponse($jwtResult, $newRefreshToken, $user));
 }
 
@@ -584,8 +638,13 @@ function refreshSession(PDO $pdo, ?array $input = null): void
  */
 function logoutSession(PDO $pdo, ?array $input = null): void
 {
-    $data = $input ?? json_decode(file_get_contents('php://input'), true);
-    $rawToken = is_array($data) ? (string) ($data['refresh_token'] ?? '') : '';
+    // D3: อ่าน refresh จาก cookie ใน production ($input คือ test seam — ดู refreshSession)
+    $rawToken = $input !== null
+        ? (string) ($input['refresh_token'] ?? '')
+        : (string) ($_COOKIE[AUTH_REFRESH_COOKIE] ?? '');
+
+    // D3: ล้าง cookies คู่เสมอ (best-effort เหมือน revoke)
+    clearAuthCookies();
 
     if ($rawToken !== '') {
         // เขียน revoked_at ด้วย PHP clock — นาฬิกาเดียวกับ grace ฝั่ง refresh (F16)

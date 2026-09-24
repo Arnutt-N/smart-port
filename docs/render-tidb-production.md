@@ -18,9 +18,9 @@ The source of truth for new deployments is [render.yaml](../render.yaml).
 - `smartport-backend`
   - Type: Web Service
   - Runtime: Docker
-  - Root Directory: `backend`
-  - Dockerfile Path: `./backend/Dockerfile` (relative to **repository root**, not Root Directory)
-  - Docker Context: `.` (meaning the `backend/` folder — **never** `..`)
+  - Root Directory: (ว่าง — build จาก repo root ตาม blueprint)
+  - Dockerfile Path: `./Dockerfile` (relative to repository root)
+  - Docker Context: `.` (meaning the repository root — **never** `..`)
   - Health Check Path: `/`
 
   **Root Directory must be empty (2026-07-27).** The blueprint now builds the backend from the repo root
@@ -135,9 +135,9 @@ If you are updating the existing services instead of recreating them from the Bl
 
 1. Open Render Dashboard.
 2. Edit `smartport-backend` **Build & Deploy** settings:
-   - Root Directory: `backend`
-   - Dockerfile Path: `./backend/Dockerfile`
-   - Docker Context: `.` (**must not** be `..`)
+   - Root Directory: (ว่าง — clear ค่า override เดิม)
+   - Dockerfile Path: `./Dockerfile`
+   - Docker Context: `.` (repo root, **must not** be `..`)
    - If the log shows `transferring context: 2B` or `"/backend/composer.json": not found`, Docker Context is wrong.
 3. Edit `smartport-backend` environment variables.
 4. Add or correct all TiDB values listed above.

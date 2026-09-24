@@ -1,4 +1,5 @@
 <?php
+
 /**
  * CSRF Protection Middleware
  * Double-submit pattern with JWT-embedded token
@@ -33,6 +34,24 @@ function validateCSRFToken(string $token, string $expectedToken): bool
 }
 
 /**
+ * D3: pure core ของ requireCSRFToken — ตัดสินใจล้วน ไม่แตะ superglobal/exit
+ *
+ * @param array{csrf_token?:string}|null $user ผู้ใช้ที่ resolve แล้ว (null = ยังไม่ auth)
+ * @return array{code:int,error:string}|null null = ผ่าน, array = ปฏิเสธพร้อมรหัส/ข้อความ
+ */
+function csrfCheckResult(?array $user, string $headerToken): ?array
+{
+    if ($user === null) {
+        return ['code' => 401, 'error' => 'Unauthorized'];
+    }
+    if (!validateCSRFToken($headerToken, (string) ($user['csrf_token'] ?? ''))) {
+        return ['code' => 403, 'error' => 'CSRF token validation failed'];
+    }
+
+    return null;
+}
+
+/**
  * Middleware: Require valid CSRF token for state-changing requests
  *
  * Validates X-CSRF-Token header against token embedded in JWT payload.
@@ -42,19 +61,10 @@ function validateCSRFToken(string $token, string $expectedToken): bool
  */
 function requireCSRFToken(): void
 {
-    $user = getAuthenticatedUser();
-    if (!$user) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Unauthorized']);
-        exit;
-    }
-
-    $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    $expectedToken = $user['csrf_token'] ?? '';
-
-    if (!validateCSRFToken($csrfToken, $expectedToken)) {
-        http_response_code(403);
-        echo json_encode(['error' => 'CSRF token validation failed']);
+    $rejection = csrfCheckResult(getAuthenticatedUser(), (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($rejection !== null) {
+        http_response_code($rejection['code']);
+        echo json_encode(['error' => $rejection['error']]);
         exit;
     }
 }

@@ -131,6 +131,71 @@ final class AuthMeUsernameTest extends TestCase
         self::assertSame('alice_ops', $after['username'] ?? null);
     }
 
+    #[Test]
+    public function invalid_email_format_is_rejected(): void
+    {
+        $pdo = $this->sqliteUsers();
+        if ($pdo === null) {
+            self::markTestSkipped('pdo_sqlite not available');
+        }
+
+        http_response_code(200);
+        ob_start();
+        updateAuthMe($pdo, ['user_id' => 1], ['email' => 'not-an-email']);
+        $body = json_decode((string) ob_get_clean(), true);
+
+        self::assertSame(400, http_response_code());
+        self::assertStringContainsString('อีเมล', (string) ($body['error'] ?? ''));
+    }
+
+    #[Test]
+    public function overlong_email_and_full_name_are_rejected(): void
+    {
+        $pdo = $this->sqliteUsers();
+        if ($pdo === null) {
+            self::markTestSkipped('pdo_sqlite not available');
+        }
+
+        // 203 ตัวอักษรแต่ format ถูกต้อง (local ≤64, label ≤63) — ต้องตกที่เช็คความยาวโดยเฉพาะ
+        $longEmail = str_repeat('a', 64) . '@' . str_repeat('b', 63) . '.' . str_repeat('c', 63) . '.' . str_repeat('d', 10);
+        http_response_code(200);
+        ob_start();
+        updateAuthMe($pdo, ['user_id' => 1], ['email' => $longEmail]);
+        $body = json_decode((string) ob_get_clean(), true);
+        self::assertSame(400, http_response_code());
+        self::assertStringContainsString('ไม่เกิน', (string) ($body['error'] ?? ''));
+
+        http_response_code(200);
+        ob_start();
+        updateAuthMe($pdo, ['user_id' => 1], ['full_name' => str_repeat('ก', 201)]);
+        $body = json_decode((string) ob_get_clean(), true);
+        self::assertSame(400, http_response_code());
+        self::assertStringContainsString('ไม่เกิน', (string) ($body['error'] ?? ''));
+    }
+
+    #[Test]
+    public function empty_email_clears_to_null_and_valid_email_persists(): void
+    {
+        $pdo = $this->sqliteUsers();
+        if ($pdo === null) {
+            self::markTestSkipped('pdo_sqlite not available');
+        }
+
+        http_response_code(200);
+        ob_start();
+        updateAuthMe($pdo, ['user_id' => 1], ['email' => 'alice@example.com']);
+        $body = json_decode((string) ob_get_clean(), true);
+        self::assertTrue($body['success'] ?? false, json_encode($body));
+        self::assertSame('alice@example.com', $pdo->query('SELECT email FROM users WHERE user_id = 1')->fetchColumn());
+
+        http_response_code(200);
+        ob_start();
+        updateAuthMe($pdo, ['user_id' => 1], ['email' => '']);
+        $body = json_decode((string) ob_get_clean(), true);
+        self::assertTrue($body['success'] ?? false, json_encode($body));
+        self::assertNull($pdo->query('SELECT email FROM users WHERE user_id = 1')->fetchColumn());
+    }
+
     private function sqliteUsers(): ?PDO
     {
         if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {

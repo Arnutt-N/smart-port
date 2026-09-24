@@ -2,13 +2,17 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between mb-2">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">ผลงานและข้อเสนอ</h1>
-        <p class="text-sm text-gray-500 mt-1">ติดตามผลงานและข้อเสนอการปฏิบัติงานของข้าราชการ</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          ผลงานและข้อเสนอ
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          ติดตามผลงานและข้อเสนอการปฏิบัติงานของข้าราชการ
+        </p>
       </div>
       <button
         v-if="isAdmin"
-        @click="openCreate"
         class="btn-primary flex items-center gap-2 px-4 py-2"
+        @click="openCreate"
       >
         <Plus class="w-4 h-4" />
         เพิ่มผลงาน
@@ -27,19 +31,35 @@
         id="work-results-status-filter"
         v-model="statusFilter"
         aria-label="กรองผลงานตามสถานะ"
-        @change="onFilterChange"
         class="input"
+        @change="onFilterChange"
       >
-        <option value="">ทุกสถานะ</option>
-        <option value="draft">ร่าง</option>
-        <option value="submitted">ส่งแล้ว</option>
-        <option value="under_review">กำลังพิจารณา</option>
-        <option value="approved">อนุมัติ</option>
-        <option value="rejected">ไม่อนุมัติ</option>
+        <option value="">
+          ทุกสถานะ
+        </option>
+        <option value="draft">
+          ร่าง
+        </option>
+        <option value="submitted">
+          ส่งแล้ว
+        </option>
+        <option value="under_review">
+          กำลังพิจารณา
+        </option>
+        <option value="approved">
+          อนุมัติ
+        </option>
+        <option value="rejected">
+          ไม่อนุมัติ
+        </option>
       </select>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -55,18 +75,35 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อผลงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ข้าราชการ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ประเภท</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ส่ง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ลำดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อผลงาน
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ข้าราชการ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ประเภท
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันที่ส่ง
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สถานะ
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -75,11 +112,21 @@
               :key="row.proposalId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.title }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.personnelName || '-' }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.proposalType || '-' }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.submissionDate || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ pagination.offset + index + 1 }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ row.title }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.personnelName || '-' }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.proposalType || '-' }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.submissionDate || '-' }}
+              </td>
               <td class="px-6 py-3 text-sm">
                 <StatusBadge :status="row.status || 'draft'" />
               </td>
@@ -112,60 +159,109 @@
 
     <!-- View Modal -->
     <Teleport to="body">
-      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
+      <div
+        v-if="showViewModal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="showViewModal = false"
+        />
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">รายละเอียดผลงาน</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              รายละเอียดผลงาน
+            </h2>
           </div>
           <div class="px-6 py-4 space-y-3">
             <div>
-              <p class="text-xs text-gray-500">ชื่อผลงาน</p>
-              <p class="text-sm font-medium text-gray-900">{{ viewingRow?.title }}</p>
+              <p class="text-xs text-gray-500">
+                ชื่อผลงาน
+              </p>
+              <p class="text-sm font-medium text-gray-900">
+                {{ viewingRow?.title }}
+              </p>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <p class="text-xs text-gray-500">ข้าราชการ</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.personnelName || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ข้าราชการ
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.personnelName || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">สถานะ</p>
-                <StatusBadge v-if="viewingRow" :status="viewingRow.status || 'draft'" />
+                <p class="text-xs text-gray-500">
+                  สถานะ
+                </p>
+                <StatusBadge
+                  v-if="viewingRow"
+                  :status="viewingRow.status || 'draft'"
+                />
               </div>
               <div>
-                <p class="text-xs text-gray-500">ประเภท</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.proposalType || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ประเภท
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.proposalType || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันที่ส่ง</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.submissionDate || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันที่ส่ง
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.submissionDate || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">คะแนนประเมิน</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.evaluationScore ?? '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  คะแนนประเมิน
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.evaluationScore ?? '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">ระดับการอนุมัติ</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.approvalLevel || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ระดับการอนุมัติ
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.approvalLevel || '-' }}
+                </p>
               </div>
             </div>
             <div>
-              <p class="text-xs text-gray-500">รายละเอียด</p>
-              <p class="text-sm text-gray-900 whitespace-pre-line">{{ viewingRow?.description || '-' }}</p>
+              <p class="text-xs text-gray-500">
+                รายละเอียด
+              </p>
+              <p class="text-sm text-gray-900 whitespace-pre-line">
+                {{ viewingRow?.description || '-' }}
+              </p>
             </div>
             <div v-if="viewingRow?.impactDescription">
-              <p class="text-xs text-gray-500">ผลกระทบ</p>
-              <p class="text-sm text-gray-900 whitespace-pre-line">{{ viewingRow.impactDescription }}</p>
+              <p class="text-xs text-gray-500">
+                ผลกระทบ
+              </p>
+              <p class="text-sm text-gray-900 whitespace-pre-line">
+                {{ viewingRow.impactDescription }}
+              </p>
             </div>
             <div v-if="viewingRow?.quantitativeResult">
-              <p class="text-xs text-gray-500">ผลเชิงปริมาณ</p>
-              <p class="text-sm text-gray-900">{{ viewingRow.quantitativeResult }} {{ viewingRow.resultUnit || '' }}</p>
+              <p class="text-xs text-gray-500">
+                ผลเชิงปริมาณ
+              </p>
+              <p class="text-sm text-gray-900">
+                {{ viewingRow.quantitativeResult }} {{ viewingRow.resultUnit || '' }}
+              </p>
             </div>
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
             <button
-              @click="showViewModal = false"
               class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              @click="showViewModal = false"
             >
               ปิด
             </button>
@@ -174,56 +270,135 @@
       </div>
     </Teleport>
 
-    <div v-if="showFormModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" @click="closeFormModal"></div>
+    <div
+      v-if="showFormModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <div
+        class="absolute inset-0 bg-black/40"
+        @click="closeFormModal"
+      />
       <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <h2 class="text-lg font-semibold text-gray-900">{{ editing ? 'แก้ไขผลงาน' : 'เพิ่มผลงานใหม่' }}</h2>
+        <h2 class="text-lg font-semibold text-gray-900">
+          {{ editing ? 'แก้ไขผลงาน' : 'เพิ่มผลงานใหม่' }}
+        </h2>
 
         <div class="space-y-3">
           <div>
-            <label for="work-results-personnel-id" class="label">รหัสข้าราชการ (personnel_id) <span class="text-red-500">*</span></label>
-            <input id="work-results-personnel-id" v-model.number="form.personnelId" type="number" min="1" class="input" />
+            <label
+              for="work-results-personnel-id"
+              class="label"
+            >รหัสข้าราชการ (personnel_id) <span class="text-red-500">*</span></label>
+            <input
+              id="work-results-personnel-id"
+              v-model.number="form.personnelId"
+              type="number"
+              min="1"
+              class="input"
+            >
           </div>
           <div>
-            <label for="work-results-title" class="label">ชื่อผลงาน <span class="text-red-500">*</span></label>
-            <input id="work-results-title" v-model="form.title" type="text" class="input" />
+            <label
+              for="work-results-title"
+              class="label"
+            >ชื่อผลงาน <span class="text-red-500">*</span></label>
+            <input
+              id="work-results-title"
+              v-model="form.title"
+              type="text"
+              class="input"
+            >
           </div>
           <div>
-            <label for="work-results-type" class="label">ประเภท</label>
-            <select id="work-results-type" v-model="form.proposalType" class="input">
-              <option value="improvement">การปรับปรุง</option>
-              <option value="innovation">นวัตกรรม</option>
-              <option value="research">งานวิจัย</option>
-              <option value="service">การบริการ</option>
-              <option value="other">อื่น ๆ</option>
+            <label
+              for="work-results-type"
+              class="label"
+            >ประเภท</label>
+            <select
+              id="work-results-type"
+              v-model="form.proposalType"
+              class="input"
+            >
+              <option value="improvement">
+                การปรับปรุง
+              </option>
+              <option value="innovation">
+                นวัตกรรม
+              </option>
+              <option value="research">
+                งานวิจัย
+              </option>
+              <option value="service">
+                การบริการ
+              </option>
+              <option value="other">
+                อื่น ๆ
+              </option>
             </select>
           </div>
           <div>
-            <label for="work-results-submission-date" class="label">วันที่ส่ง <span class="text-red-500">*</span></label>
-            <ThaiDatePicker v-model="form.submissionDate" id="work-results-submission-date" label="วันที่ส่งผลงาน" />
+            <label
+              for="work-results-submission-date"
+              class="label"
+            >วันที่ส่ง <span class="text-red-500">*</span></label>
+            <ThaiDatePicker
+              id="work-results-submission-date"
+              v-model="form.submissionDate"
+              label="วันที่ส่งผลงาน"
+            />
           </div>
           <div>
-            <label for="work-results-status" class="label">สถานะ</label>
-            <select id="work-results-status" v-model="form.status" class="input">
-              <option value="draft">ร่าง</option>
-              <option value="submitted">ส่งแล้ว</option>
-              <option value="under_review">กำลังพิจารณา</option>
-              <option value="approved">อนุมัติ</option>
-              <option value="rejected">ไม่อนุมัติ</option>
+            <label
+              for="work-results-status"
+              class="label"
+            >สถานะ</label>
+            <select
+              id="work-results-status"
+              v-model="form.status"
+              class="input"
+            >
+              <option value="draft">
+                ร่าง
+              </option>
+              <option value="submitted">
+                ส่งแล้ว
+              </option>
+              <option value="under_review">
+                กำลังพิจารณา
+              </option>
+              <option value="approved">
+                อนุมัติ
+              </option>
+              <option value="rejected">
+                ไม่อนุมัติ
+              </option>
             </select>
           </div>
           <div>
-            <label for="work-results-description" class="label">รายละเอียด</label>
-            <textarea id="work-results-description" v-model="form.description" rows="3" class="input"></textarea>
+            <label
+              for="work-results-description"
+              class="label"
+            >รายละเอียด</label>
+            <textarea
+              id="work-results-description"
+              v-model="form.description"
+              rows="3"
+              class="input"
+            />
           </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="closeFormModal" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">ยกเลิก</button>
           <button
-            @click="submitForm"
+            class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            @click="closeFormModal"
+          >
+            ยกเลิก
+          </button>
+          <button
             :disabled="saving"
             class="btn-primary px-4 py-2"
+            @click="submitForm"
           >
             {{ saving ? 'กำลังบันทึก...' : (editing ? 'บันทึก' : 'สร้าง') }}
           </button>

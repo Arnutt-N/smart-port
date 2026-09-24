@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // TimeEntryCrud.php
 // Shared CRUD core for time-entry routes (supportive/diverse/multiplier/equivalence).

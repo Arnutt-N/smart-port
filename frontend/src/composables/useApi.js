@@ -13,9 +13,7 @@ async function authenticatedFetch(url, options = {}, retried = false) {
     ...options.headers,
   }
 
-  if (auth.token) {
-    headers.Authorization = `Bearer ${auth.token}`
-  }
+  // D3: session อยู่ใน httpOnly cookies — ไม่แนบ Authorization header อีก
 
   // Add CSRF token for state-changing requests
   const method = options.method || 'GET'
@@ -27,8 +25,10 @@ async function authenticatedFetch(url, options = {}, retried = false) {
     delete headers['Content-Type']
   }
 
+  // D3: cookie session — ทุกคำขอแนบ cookies (same-origin ผ่าน /api proxy)
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
+    credentials: 'include',
     headers,
   })
 
@@ -47,13 +47,13 @@ async function authenticatedFetch(url, options = {}, retried = false) {
       throw new Error(body?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
     }
 
-    // Access token หมดอายุ — ลองต่ออายุด้วย refresh token 1 ครั้ง แล้วยิงซ้ำ
-    if (!retried && auth.refreshToken) {
+    // Access cookie หมดอายุ — ลองต่ออายุด้วย refresh cookie 1 ครั้ง แล้วยิงซ้ำ
+    if (!retried && auth.isAuthenticated) {
       try {
         await auth.refresh()
         return authenticatedFetch(url, options, true)
       } catch (e) {
-        if (e?.code === 'SESSION_CHANGED' && (auth.isAuthenticated || auth.refreshToken)) throw e
+        if (e?.code === 'SESSION_CHANGED' && auth.isAuthenticated) throw e
         // refresh ล้มเหลว — ตกไป logout ด้านล่าง
       }
     }
@@ -110,6 +110,11 @@ async function request(url, options = {}) {
     throw new Error(response.statusText || 'เชื่อมต่อไม่ได้ กรุณาลองใหม่')
   }
 
+  // 204/205 ไม่มี body ตาม spec — คืน null แทนการโยนว่ารูปแบบผิด (กัน success กลายเป็น error)
+  if (response.status === 204 || response.status === 205) {
+    return null
+  }
+
   // Response is OK (2xx) but might still be HTML if PHP errored after headers sent
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/json')) {
@@ -124,17 +129,25 @@ async function request(url, options = {}) {
 }
 
 /**
- * ประกอบ URL ของไฟล์ static ที่ backend เสิร์ฟ (เช่น รูปใน uploads/)
- * ผ่าน API base เดียวกับ endpoint อื่น — dev proxy, nginx และ Render rewrite
- * ตัด prefix /api ออกให้เหมือนกันหมด จึงชี้ไป document root ของ backend ได้ถูก
+ * D1: ขอ signed URL รูปผ่าน useApi (GET /photos/sign) + cache ใน memory จนใกล้หมด TTL
+ * ผ่าน request() เสมอ (ได้ session/cookie ฟรีตอน D3 มา) — ห้ามยิง fetch ตรง
  *
- * @param {string|null|undefined} relativePath path สัมพัทธ์จาก API เช่น "uploads/photo_abc.jpg"
- * @returns {string|null} URL ที่ใช้กับ <img src> ได้ หรือ null ถ้าไม่มีไฟล์
+ * @param {string|null|undefined} fileName ชื่อไฟล์รูป เช่น "photo_abc.jpg"
+ * @returns {Promise<string|null>} URL ที่ใช้กับ <img src> ได้ หรือ null
  */
-export function apiAssetUrl(relativePath) {
-  if (!relativePath) return null
-  if (/^https?:\/\//i.test(relativePath)) return relativePath
-  return `${API_BASE}/${String(relativePath).replace(/^\/+/, '')}`
+const photoUrlCache = new Map()
+export async function getSignedPhotoUrl(fileName) {
+  if (!fileName) return null
+  const cached = photoUrlCache.get(fileName)
+  if (cached && cached.until > Date.now()) return cached.url
+  const data = await request(`/photos/sign?file=${encodeURIComponent(fileName)}`)
+  const signedPath = data?.url
+  if (!signedPath) return null
+  // ประกอบ API base เหมือน endpoint อื่น (dev proxy/nginx ตัด /api ให้เหมือนเดิม)
+  const url = `${API_BASE}${signedPath}`
+  // cache จนเหลืออายุ 60 วิ (TTL ฝั่ง backend 900 วิ — เผื่อเวลาโหลดรูป)
+  photoUrlCache.set(fileName, { url, until: Date.now() + 840000 })
+  return url
 }
 
 export function useApi() {

@@ -141,7 +141,7 @@ describe('PersonnelPage', () => {
 
   it('prefills search from ?search= query and consumes it', async () => {
     routeQuery.value = { search: 'สมชาย' }
-    const wrapper = await mountPage('admin')
+    await mountPage('admin')
     expect(mockFetchList).toHaveBeenCalledWith(
       expect.objectContaining({ search: 'สมชาย', offset: 0 }),
     )
@@ -152,5 +152,109 @@ describe('PersonnelPage', () => {
     resolvedData([])
     const wrapper = await mountPage()
     await vi.waitFor(() => expect(wrapper.text()).toContain('ไม่พบบุคลากร'))
+  })
+
+  it('form modal exposes dialog semantics with labelledby title', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.openCreate()
+    await wrapper.vm.$nextTick()
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    const labelledBy = dialog.attributes('aria-labelledby')
+    const title = wrapper.find(`#${labelledBy}`)
+    expect(title.exists()).toBe(true)
+    expect(title.text()).toContain('เพิ่มบุคลากรใหม่')
+  })
+
+  it('Escape closes form modal and resets edit state', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.openEdit(sampleRow)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.showFormModal).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.showFormModal).toBe(false)
+    expect(wrapper.vm.editingRow).toBeNull()
+    await vi.waitFor(() => expect(wrapper.find('[role="dialog"]').exists()).toBe(false))
+  })
+
+  it('toggle confirm exposes dialog semantics', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.openToggleActive(sampleRow)
+    await wrapper.vm.$nextTick()
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    const title = wrapper.find(`#${dialog.attributes('aria-labelledby')}`)
+    expect(title.text()).toContain('ยืนยันการปิดใช้งาน')
+  })
+
+  it('Escape closes toggle confirm', async () => {
+    const wrapper = await mountPage('admin')
+    wrapper.vm.openToggleActive(sampleRow)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.showToggleConfirm).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.showToggleConfirm).toBe(false)
+  })
+
+  it('traps Tab inside the form modal and wraps around', async () => {
+    const wrapper = await mountPage('admin')
+    document.body.appendChild(wrapper.element)
+    try {
+      wrapper.vm.openCreate()
+      await wrapper.vm.$nextTick()
+      const dialog = document.querySelector('[role="dialog"]')
+      expect(dialog).not.toBeNull()
+      const items = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, textarea')]
+      expect(items.length).toBeGreaterThan(1)
+      const first = items[0]
+      const last = items[items.length - 1]
+      last.focus()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+      expect(document.activeElement).toBe(first)
+      first.focus()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+      expect(document.activeElement).toBe(last)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('traps Tab inside the toggle confirm too', async () => {
+    const wrapper = await mountPage('admin')
+    document.body.appendChild(wrapper.element)
+    try {
+      wrapper.vm.openToggleActive(sampleRow)
+      await wrapper.vm.$nextTick()
+      const dialog = document.querySelector('[role="dialog"]')
+      const items = [...dialog.querySelectorAll('button:not([disabled])')]
+      expect(items.length).toBeGreaterThan(1)
+      items[items.length - 1].focus()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+      expect(document.activeElement).toBe(items[0])
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('returns focus to the opener when the modal closes', async () => {
+    const wrapper = await mountPage('admin')
+    document.body.appendChild(wrapper.element)
+    try {
+      const opener = wrapper.find('button').element
+      opener.focus()
+      wrapper.vm.openCreate()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.showFormModal).toBe(true)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.showFormModal).toBe(false)
+      expect(document.activeElement).toBe(opener)
+    } finally {
+      wrapper.unmount()
+    }
   })
 })

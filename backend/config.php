@@ -1,16 +1,19 @@
 <?php
+
 // ============================================================================
 // Database Configuration
 // รองรับทั้ง Docker local (MySQL) และ Production (TiDB Cloud Serverless)
 // ============================================================================
 
 // อ่าน env var — ลอง getenv ก่อน ถ้าไม่ได้ลอง $_ENV (Apache อาจ clear getenv)
-function env($key, $default = '') {
+function env($key, $default = '')
+{
     return getenv($key) ?: ($_ENV[$key] ?? ($_SERVER[$key] ?? $default));
 }
 
 // สร้าง PDO SSL options — fail-closed: เปิด SSL แต่ไม่มี CA = error ไม่ใช่ต่อแบบ insecure เงียบๆ
-function buildSslOptions(string $useSSL, string $caPath): array {
+function buildSslOptions(string $useSSL, string $caPath): array
+{
     if ($useSSL !== 'true' && $useSSL !== '1') {
         return [];
     }
@@ -57,7 +60,8 @@ define('JWT_SECRET', $jwtSecret);
 // ============================================================================
 $pdo = null;
 
-function attemptDbConnection(): ?PDO {
+function attemptDbConnection(): ?PDO
+{
     $host     = env('MYSQL_HOST', 'db');
     $port     = env('MYSQL_PORT', '3306');
     $dbname   = env('MYSQL_DATABASE', 'civil_service_mgmt');
@@ -117,7 +121,8 @@ function attemptDbConnection(): ?PDO {
 
 // Issue #124: probe แบบไม่ exit — readyz ใช้เพื่อคืน documented not_ready shape
 // เองเมื่อ DB ต่อไม่ได้ (getDB() จะ exit ก่อนถึง handler เสมอ)
-function tryGetDB(): ?PDO {
+function tryGetDB(): ?PDO
+{
     global $pdo;
     if ($pdo !== null) {
         return $pdo;
@@ -135,7 +140,8 @@ function tryGetDB(): ?PDO {
     return $pdo;
 }
 
-function getDB(): PDO {
+function getDB(): PDO
+{
     $db = tryGetDB();
     if ($db !== null) {
         return $db;

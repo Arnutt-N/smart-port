@@ -1,5 +1,8 @@
 <template>
-  <nav aria-label="เปลี่ยนหน้า" class="flex items-center justify-between flex-wrap gap-2 mt-4 text-sm text-gray-600">
+  <nav
+    aria-label="เปลี่ยนหน้า"
+    class="flex items-center justify-between flex-wrap gap-2 mt-4 text-sm text-gray-600"
+  >
     <span>แสดง {{ from }} ถึง {{ to }} จาก {{ total }} รายการ</span>
     <div class="flex items-center gap-1">
       <button
@@ -10,8 +13,14 @@
         ก่อนหน้า
       </button>
 
-      <template v-for="page in visiblePages" :key="page">
-        <span v-if="page === '...'" class="px-2 py-1 text-gray-400">...</span>
+      <template
+        v-for="page in visiblePages"
+        :key="page"
+      >
+        <span
+          v-if="page === '...'"
+          class="px-2 py-1 text-gray-400"
+        >...</span>
         <button
           v-else
           class="px-3 py-1 text-sm rounded-md min-w-11 min-h-11 inline-flex items-center justify-center cursor-pointer"

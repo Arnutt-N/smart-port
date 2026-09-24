@@ -234,42 +234,88 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="relative w-full">
+  <div
+    ref="rootRef"
+    class="relative w-full"
+  >
     <div
       class="flex items-center gap-1 w-full px-2 py-2 text-sm bg-white transition-colors input focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-primary-500"
       :class="displayError ? 'border-red-300' : 'border-gray-300'"
     >
       <input
-        :id="`${baseId}-day`" ref="dayRef" :value="day" type="text" inputmode="numeric" maxlength="2"
-        placeholder="วว" :aria-label="dayAriaLabel" :disabled="disabled"
+        :id="`${baseId}-day`"
+        ref="dayRef"
+        :value="day"
+        type="text"
+        inputmode="numeric"
+        maxlength="2"
+        placeholder="วว"
+        :aria-label="dayAriaLabel"
+        :disabled="disabled"
         class="w-9 text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
-        @input="onInput('day', $event)" @blur="onBlur" @focus="isEditing = true"
-      />
-      <span class="text-gray-300 select-none" aria-hidden="true">/</span>
+        @input="onInput('day', $event)"
+        @blur="onBlur"
+        @focus="isEditing = true"
+      >
+      <span
+        class="text-gray-300 select-none"
+        aria-hidden="true"
+      >/</span>
       <input
-        :id="`${baseId}-month`" ref="monthRef" :value="month" type="text" inputmode="numeric" maxlength="2"
-        placeholder="ดด" :aria-label="monthAriaLabel" :disabled="disabled"
+        :id="`${baseId}-month`"
+        ref="monthRef"
+        :value="month"
+        type="text"
+        inputmode="numeric"
+        maxlength="2"
+        placeholder="ดด"
+        :aria-label="monthAriaLabel"
+        :disabled="disabled"
         class="w-9 text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
-        @input="onInput('month', $event)" @blur="onBlur" @focus="isEditing = true"
-      />
-      <span class="text-gray-300 select-none" aria-hidden="true">/</span>
+        @input="onInput('month', $event)"
+        @blur="onBlur"
+        @focus="isEditing = true"
+      >
+      <span
+        class="text-gray-300 select-none"
+        aria-hidden="true"
+      >/</span>
       <input
-        :id="`${baseId}-year`" ref="yearRef" :value="year" type="text" inputmode="numeric" maxlength="4"
-        placeholder="ปปปป" :aria-label="yearAriaLabel" :disabled="disabled"
+        :id="`${baseId}-year`"
+        ref="yearRef"
+        :value="year"
+        type="text"
+        inputmode="numeric"
+        maxlength="4"
+        placeholder="ปปปป"
+        :aria-label="yearAriaLabel"
+        :disabled="disabled"
         class="flex-1 min-w-[3rem] text-center bg-transparent outline-none placeholder:text-gray-300 disabled:opacity-50"
-        @input="onInput('year', $event)" @blur="onBlur" @focus="isEditing = true"
-      />
+        @input="onInput('year', $event)"
+        @blur="onBlur"
+        @focus="isEditing = true"
+      >
       <div class="flex items-center shrink-0">
-        <Check v-if="hasValue && !isEditing && !localError" class="w-4 h-4 text-emerald-500" aria-hidden="true" />
+        <Check
+          v-if="hasValue && !isEditing && !localError"
+          class="w-4 h-4 text-emerald-500"
+          aria-hidden="true"
+        />
         <button
-          v-if="hasValue" type="button" :disabled="disabled" aria-label="ล้างวันที่"
+          v-if="hasValue"
+          type="button"
+          :disabled="disabled"
+          aria-label="ล้างวันที่"
           class="dropdown-trigger"
           @click="clearValue"
         >
           <X class="w-4 h-4" />
         </button>
         <button
-          type="button" :disabled="disabled" aria-haspopup="dialog" :aria-expanded="isOpen"
+          type="button"
+          :disabled="disabled"
+          aria-haspopup="dialog"
+          :aria-expanded="isOpen"
           aria-label="เปิดปฏิทินเลือกวันที่"
           class="dropdown-trigger"
           :class="isOpen ? 'bg-primary-500 text-white' : ''"
@@ -280,38 +326,57 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <p v-if="localWarning && !displayError" class="text-xs text-amber-600 mt-1">{{ localWarning }}</p>
-    <p v-if="displayError" class="text-xs text-red-500 mt-1">{{ displayError }}</p>
+    <p
+      v-if="localWarning && !displayError"
+      class="text-xs text-amber-600 mt-1"
+    >
+      {{ localWarning }}
+    </p>
+    <p
+      v-if="displayError"
+      class="text-xs text-red-500 mt-1"
+    >
+      {{ displayError }}
+    </p>
 
     <Transition name="tdp-pop">
       <div
-        v-if="isOpen" role="dialog" aria-modal="true" aria-label="ปฏิทิน พ.ศ."
+        v-if="isOpen"
+        role="dialog"
+        aria-modal="true"
+        aria-label="ปฏิทิน พ.ศ."
         class="absolute z-50 mt-2 right-0 w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg p-3"
       >
         <div class="flex items-center justify-between mb-3">
           <button
-            type="button" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            type="button"
+            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
             :aria-label="calendarView === 'date' ? 'เดือนก่อนหน้า' : 'ช่วงปีก่อนหน้า'"
             @click="calendarView === 'date' ? shiftMonth(-1) : shiftDecade(-12)"
           >
             <ChevronLeft class="w-[18px] h-[18px] text-gray-600" />
           </button>
           <button
-            v-if="calendarView === 'date'" type="button" aria-label="เลือกปี"
+            v-if="calendarView === 'date'"
+            type="button"
+            aria-label="เลือกปี"
             class="flex-1 mx-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors font-semibold text-gray-900"
             @click="openYearView"
           >
             {{ viewMonthLabel }} <span class="text-primary-600">{{ viewYearBE }}</span>
           </button>
           <button
-            v-else type="button" aria-label="กลับมุมมองวัน"
+            v-else
+            type="button"
+            aria-label="กลับมุมมองวัน"
             class="flex-1 mx-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors font-semibold text-gray-900"
             @click="calendarView = 'date'"
           >
             {{ yearGridStart }} – {{ yearGridStart + 11 }}
           </button>
           <button
-            type="button" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            type="button"
+            class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
             :aria-label="calendarView === 'date' ? 'เดือนถัดไป' : 'ช่วงปีถัดไป'"
             @click="calendarView === 'date' ? shiftMonth(1) : shiftDecade(12)"
           >
@@ -322,16 +387,23 @@ onBeforeUnmount(() => {
         <template v-if="calendarView === 'date'">
           <div class="grid grid-cols-7 gap-1 mb-1">
             <div
-              v-for="(w, i) in THAI_WEEKDAYS_SHORT" :key="w"
+              v-for="(w, i) in THAI_WEEKDAYS_SHORT"
+              :key="w"
               class="text-center text-xs font-medium py-1"
               :class="i >= 5 ? 'text-red-400' : 'text-gray-400'"
-            >{{ w }}</div>
+            >
+              {{ w }}
+            </div>
           </div>
           <div class="grid grid-cols-7 gap-1">
-            <template v-for="cell in dayCells" :key="cell.key">
+            <template
+              v-for="cell in dayCells"
+              :key="cell.key"
+            >
               <div v-if="cell.pad" />
               <button
-                v-else type="button"
+                v-else
+                type="button"
                 class="h-9 w-9 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 :class="cell.isSel
                   ? 'bg-primary-600 text-white'
@@ -341,13 +413,20 @@ onBeforeUnmount(() => {
                 :aria-label="`${cell.day} ${viewMonthLabel} ${viewYearBE}`"
                 :aria-current="cell.isToday ? 'date' : undefined"
                 @click="pickDay(cell.day)"
-              >{{ cell.day }}</button>
+              >
+                {{ cell.day }}
+              </button>
             </template>
           </div>
         </template>
-        <div v-else class="grid grid-cols-4 gap-2 py-1">
+        <div
+          v-else
+          class="grid grid-cols-4 gap-2 py-1"
+        >
           <button
-            v-for="yc in yearCells" :key="yc.be" type="button"
+            v-for="yc in yearCells"
+            :key="yc.be"
+            type="button"
             class="h-11 rounded-lg text-sm font-medium transition-colors cursor-pointer"
             :class="yc.isSel
               ? 'bg-primary-600 text-white'
@@ -356,7 +435,9 @@ onBeforeUnmount(() => {
                 : 'text-gray-700 hover:bg-gray-100'"
             :aria-label="`พ.ศ. ${yc.be}`"
             @click="pickYear(yc.be)"
-          >{{ yc.be }}</button>
+          >
+            {{ yc.be }}
+          </button>
         </div>
 
         <div class="mt-3 pt-2 border-t border-gray-100 flex justify-center">
@@ -364,7 +445,9 @@ onBeforeUnmount(() => {
             type="button"
             class="px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
             @click="pickToday"
-          >วันนี้ ({{ todayLabel }})</button>
+          >
+            วันนี้ ({{ todayLabel }})
+          </button>
         </div>
       </div>
     </Transition>

@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // audit.php
 // Audit Log Helper Functions
@@ -39,11 +40,11 @@ function logAudit(
             $afterValue = sanitizeAuditData($afterValue);
         }
 
-        $stmt = $pdo->prepare("
+        $stmt = $pdo->prepare('
             INSERT INTO audit_log
             (user_id, action, table_name, record_id, before_value, after_value, ip_address, user_agent)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
+        ');
 
         return $stmt->execute([
             $userId,
@@ -57,18 +58,22 @@ function logAudit(
             $userAgent,
         ]);
     } catch (PDOException | JsonException $e) {
-        error_log("[Audit] Failed to log: " . $e->getMessage());
+        error_log('[Audit] Failed to log: ' . $e->getMessage());
         return false;
     }
 }
+
+// กัน recursion ลึกไม่จบกับข้อมูล hostile — ใต้จุดตัดถูก redact ทั้งก้อน (fail-closed)
+const AUDIT_SANITIZE_MAX_DEPTH = 10;
 
 /**
  * กรองข้อมูล sensitive ออกจาก audit data
  *
  * @param array $data
+ * @param int $depth ระดับความลึกปัจจุบัน (ตัดที่ AUDIT_SANITIZE_MAX_DEPTH)
  * @return array
  */
-function sanitizeAuditData(array $data): array
+function sanitizeAuditData(array $data, int $depth = 0): array
 {
     $sensitiveKeys = [
         'password',
@@ -80,9 +85,13 @@ function sanitizeAuditData(array $data): array
         'api_key',
     ];
 
-    foreach ($sensitiveKeys as $key) {
-        if (isset($data[$key])) {
+    foreach ($data as $key => $value) {
+        if (in_array($key, $sensitiveKeys, true)) {
             $data[$key] = '[REDACTED]';
+        } elseif (is_array($value)) {
+            $data[$key] = $depth >= AUDIT_SANITIZE_MAX_DEPTH
+                ? '[TRUNCATED]'
+                : sanitizeAuditData($value, $depth + 1);
         }
     }
 

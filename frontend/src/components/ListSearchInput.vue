@@ -4,7 +4,10 @@
       v-if="showIcon"
       class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
     >
-      <Search class="w-4 h-4 text-gray-400" aria-hidden="true" />
+      <Search
+        class="w-4 h-4 text-gray-400"
+        aria-hidden="true"
+      />
     </div>
     <input
       :id="inputId"
@@ -17,7 +20,7 @@
       @input="onInput"
       @compositionstart="onCompositionStart"
       @compositionend="onCompositionEnd"
-    />
+    >
   </div>
 </template>
 

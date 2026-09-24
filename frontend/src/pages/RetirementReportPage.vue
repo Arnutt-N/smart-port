@@ -1,8 +1,12 @@
 <template>
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="mb-2">
-      <h1 class="text-2xl font-bold text-gray-900">รายงานผู้เกษียณ</h1>
-      <p class="text-sm text-gray-500 mt-1">ติดตามข้าราชการที่ใกล้ครบกำหนดเกษียณอายุราชการ</p>
+      <h1 class="text-2xl font-bold text-gray-900">
+        รายงานผู้เกษียณ
+      </h1>
+      <p class="text-sm text-gray-500 mt-1">
+        ติดตามข้าราชการที่ใกล้ครบกำหนดเกษียณอายุราชการ
+      </p>
     </div>
 
     <!-- Stat Cards -->
@@ -42,17 +46,29 @@
         id="retirement-report-within-filter"
         v-model="within"
         aria-label="กรองข้าราชการตามช่วงเวลาก่อนเกษียณ"
-        @change="onFilterChange"
         class="input"
+        @change="onFilterChange"
       >
-        <option value="">ทั้งหมด</option>
-        <option value="6">ภายใน 6 เดือน</option>
-        <option value="12">ภายใน 12 เดือน</option>
-        <option value="24">ภายใน 24 เดือน</option>
+        <option value="">
+          ทั้งหมด
+        </option>
+        <option value="6">
+          ภายใน 6 เดือน
+        </option>
+        <option value="12">
+          ภายใน 12 เดือน
+        </option>
+        <option value="24">
+          ภายใน 24 เดือน
+        </option>
       </select>
     </div>
 
-    <SkeletonLoader v-if="loading && rows.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && rows.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -68,17 +84,32 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รหัสพนักงาน</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเกษียณ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">คงเหลือ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ลำดับ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                รหัสพนักงาน
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ชื่อ-สกุล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                วันเกษียณ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                คงเหลือ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สถานะ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -87,10 +118,18 @@
               :key="row.personnelId"
               class="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td class="px-6 py-3 text-sm text-gray-700">{{ pagination.offset + index + 1 }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.employeeId }}</td>
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ row.fullName }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ row.retirementDate || '-' }}</td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ pagination.offset + index + 1 }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.employeeId }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ row.fullName }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ row.retirementDate || '-' }}
+              </td>
               <td class="px-6 py-3 text-sm">
                 <span :class="getRemainingDaysClass(row.remainingDays)">
                   {{ formatRemainingDays(row.remainingDays) }}

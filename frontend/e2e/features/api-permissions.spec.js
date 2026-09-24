@@ -27,7 +27,6 @@ test.describe('api permission matrix', () => {
     for (const userId of createdUserIds) {
       await request.put(`${apiBase()}/users/${userId}`, {
         headers: {
-          Authorization: `Bearer ${admin.token}`,
           'X-CSRF-Token': admin.csrf_token,
         },
         data: { is_active: 0 },
@@ -38,7 +37,7 @@ test.describe('api permission matrix', () => {
   test('viewer can read allowed resources but is denied write and restricted read', async ({ request }) => {
     const creds = await createUserViaApi(request, {
       username: `e2e_api_viewer_${stamp}`,
-      password: 'ApiViewer1!',
+      password: 'ApiViewer-11!',
       role: 'viewer',
       fullName: 'E2E Api Viewer',
     })
@@ -46,7 +45,6 @@ test.describe('api permission matrix', () => {
     const viewer = await apiLogin(request, creds.username, creds.password)
 
     const authHeaders = {
-      Authorization: `Bearer ${viewer.token}`,
     }
 
     // matrix: viewer read = multiplier, personnel, candidates, probation, dashboard, profile
@@ -85,7 +83,7 @@ test.describe('api permission matrix', () => {
   test('operator can read everywhere but cannot write personnel, delete, or import', async ({ request }) => {
     const creds = await createUserViaApi(request, {
       username: `e2e_api_op_${stamp}`,
-      password: 'ApiOp12!',
+      password: 'ApiOp-11-Pass!',
       role: 'operator',
       fullName: 'E2E Api Operator',
     })
@@ -93,7 +91,6 @@ test.describe('api permission matrix', () => {
     const op = await apiLogin(request, creds.username, creds.password)
 
     const authHeaders = {
-      Authorization: `Bearer ${op.token}`,
     }
 
     const dashboard = await request.get(`${apiBase()}/dashboard`, { headers: authHeaders })
@@ -131,14 +128,13 @@ test.describe('api permission matrix', () => {
   test('admin passes permission gates and hits validation instead — personnel create lifecycle', async ({ request }) => {
     const creds = await createUserViaApi(request, {
       username: `e2e_api_adm_${stamp}`,
-      password: 'ApiAdm1!',
+      password: 'ApiAdm-11-Pass!',
       role: 'admin',
       fullName: 'E2E Api Admin',
     })
     createdUserIds.push(creds.userId)
     const admin = await apiLogin(request, creds.username, creds.password)
     const authHeaders = {
-      Authorization: `Bearer ${admin.token}`,
       'X-CSRF-Token': admin.csrf_token,
     }
 

@@ -152,6 +152,11 @@ describe('router auth guards', () => {
     await router.push('/login')
     expect(router.currentRoute.value.path).toBe('/dashboard')
   })
+
+  it('redirects unauthenticated users away from unknown paths', async () => {
+    await router.push('/this-path-does-not-exist')
+    expect(router.currentRoute.value.path).toBe('/login')
+  })
 })
 
 describe('router candidate paths', () => {
@@ -184,7 +189,7 @@ describe('router candidate paths', () => {
 
   it('does not expose legacy /supportive quick-action path', async () => {
     await router.push('/supportive')
-    expect(router.currentRoute.value.path).toBe('/dashboard')
+    expect(router.currentRoute.value.name).toBe('not-found')
   })
 
   it('redirects legacy time-multiplier/areas to settings for admin', async () => {
@@ -193,8 +198,9 @@ describe('router candidate paths', () => {
     expect(router.currentRoute.value.path).toBe('/settings/special-areas')
   })
 
-  it('catch-all unknown paths redirect to dashboard', async () => {
+  it('catch-all unknown paths show the not-found page', async () => {
     await router.push('/this-path-does-not-exist')
-    expect(router.currentRoute.value.path).toBe('/dashboard')
+    expect(router.currentRoute.value.name).toBe('not-found')
+    expect(router.currentRoute.value.path).toBe('/this-path-does-not-exist')
   })
 })

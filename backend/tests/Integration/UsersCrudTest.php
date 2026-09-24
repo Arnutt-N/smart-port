@@ -68,11 +68,14 @@ final class UsersCrudTest extends TestCase
                     $placeholders = implode(',', array_fill(0, count($this->userIds), '?'));
                     self::$pdo->prepare("DELETE FROM refresh_tokens WHERE user_id IN ({$placeholders})")
                         ->execute($this->userIds);
+                    self::$pdo->prepare("DELETE FROM password_history WHERE user_id IN ({$placeholders})")
+                        ->execute($this->userIds);
                     self::$pdo->prepare("DELETE FROM users WHERE user_id IN ({$placeholders})")
                         ->execute($this->userIds);
                 }
                 if ($this->actorId > 0) {
                     self::$pdo->prepare('DELETE FROM refresh_tokens WHERE user_id = ?')->execute([$this->actorId]);
+                    self::$pdo->prepare('DELETE FROM password_history WHERE user_id = ?')->execute([$this->actorId]);
                     self::$pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$this->actorId]);
                 }
             } catch (Throwable $e) {
@@ -93,7 +96,7 @@ final class UsersCrudTest extends TestCase
         ob_start();
         createUser(self::$pdo, $this->actor, [
             'username' => $username,
-            'password' => 'TestPass123',
+            'password' => 'TestPass123!',
             'full_name' => 'ทดสอบ ครัด',
             'role' => 'viewer',
         ]);
@@ -147,7 +150,7 @@ final class UsersCrudTest extends TestCase
         ob_start();
         createUser(self::$pdo, $this->actor, [
             'username' => $username,
-            'password' => 'TestPass123',
+            'password' => 'TestPass123!',
             'full_name' => 'ซ้ำ',
             'role' => 'viewer',
         ]);
@@ -203,7 +206,7 @@ final class UsersCrudTest extends TestCase
 
         http_response_code(200);
         ob_start();
-        updateUser(self::$pdo, $id, $this->actor, ['password' => 'NewPass456']);
+        updateUser(self::$pdo, $id, $this->actor, ['password' => 'Reset-Pass-11']);
         $raw = (string) ob_get_clean();
 
         self::assertSame(200, http_response_code(), $raw);
@@ -261,7 +264,7 @@ final class UsersCrudTest extends TestCase
 
         // POST ด้วย viewer (ไม่มี create:users) → 403
         $GLOBALS['__auth_user'] = ['user_id' => $this->actorId, 'role' => 'viewer'];
-        $out = $this->callHandle('POST', ['users'], ['username' => 'x', 'password' => 'TestPass123', 'full_name' => 'x', 'role' => 'viewer']);
+        $out = $this->callHandle('POST', ['users'], ['username' => 'x', 'password' => 'TestPass123!', 'full_name' => 'x', 'role' => 'viewer']);
         self::assertSame(403, $out['code']);
 
         // PUT ไม่ระบุ id → 400
@@ -275,12 +278,96 @@ final class UsersCrudTest extends TestCase
         self::assertSame(401, $out['code']);
     }
 
+    #[Test]
+    public function create_commits_user_and_audit_together(): void
+    {
+        if (!self::$pdo->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn()) {
+            self::markTestSkipped('ไม่พบตาราง audit_log');
+        }
+        $out = $this->tryCreate([]);
+        self::assertSame(201, $out['code']);
+        $id = (int) $out['body']['user_id'];
+
+        // อ่านผ่าน connection ใหม่ — เห็นเฉพาะข้อมูลที่ commit แล้วจริง
+        $fresh = testPdo();
+        self::assertNotNull($fresh);
+        $username = $fresh->query("SELECT username FROM users WHERE user_id = {$id}")->fetchColumn();
+        self::assertNotFalse($username);
+        $audit = $fresh->query(
+            "SELECT action FROM audit_log WHERE table_name = 'users' AND record_id = {$id} ORDER BY audit_id DESC LIMIT 1"
+        )->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('CREATE', $audit['action'] ?? null);
+    }
+
+    #[Test]
+    public function update_commits_user_and_revocation_together(): void
+    {
+        if (!self::$pdo->query("SHOW TABLES LIKE 'refresh_tokens'")->fetchColumn()) {
+            self::markTestSkipped('ไม่พบตาราง refresh_tokens');
+        }
+        $id = $this->createDirect($this->uniqueUsername());
+        self::$pdo->prepare(
+            'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 DAY))'
+        )->execute([$id, hash('sha256', 'txn-refresh-' . $id)]);
+
+        http_response_code(200);
+        ob_start();
+        updateUser(self::$pdo, $id, $this->actor, ['full_name' => 'ทดสอบ txn', 'password' => 'Reset-Pass-22']);
+        $raw = (string) ob_get_clean();
+        self::assertSame(200, http_response_code(), $raw);
+
+        $fresh = testPdo();
+        self::assertNotNull($fresh);
+        $name = $fresh->query("SELECT full_name FROM users WHERE user_id = {$id}")->fetchColumn();
+        self::assertSame('ทดสอบ txn', $name);
+        $active = (int) $fresh->query(
+            "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = {$id} AND revoked_at IS NULL"
+        )->fetchColumn();
+        self::assertSame(0, $active);
+    }
+
+    #[Test]
+    public function create_rejects_weak_but_long_password(): void
+    {
+        // 16 ตัวอักษรแต่พิมพ์เล็กล้วน — ผ่านกฎเก่า (>= 8) แต่ต้องตกกฎเข้ม
+        $out = $this->tryCreate(['password' => 'passwordpassword']);
+        self::assertSame(400, $out['code']);
+        self::assertStringContainsString('รหัสผ่าน', (string) ($out['body']['error'] ?? ''));
+    }
+
+    #[Test]
+    public function reset_rejects_weak_but_long_password(): void
+    {
+        $id = $this->createDirect($this->uniqueUsername());
+
+        http_response_code(200);
+        ob_start();
+        updateUser(self::$pdo, $id, $this->actor, ['password' => 'passwordpassword']);
+        $raw = (string) ob_get_clean();
+        $body = json_decode($raw, true) ?? [];
+
+        self::assertSame(400, http_response_code(), $raw);
+        self::assertStringContainsString('รหัสผ่าน', (string) ($body['error'] ?? ''));
+    }
+
+    #[Test]
+    public function create_writes_first_history_row(): void
+    {
+        $out = $this->tryCreate([]);
+        self::assertSame(201, $out['code']);
+        $id = (int) $out['body']['user_id'];
+
+        $count = self::$pdo->prepare('SELECT COUNT(*) FROM password_history WHERE user_id = ?');
+        $count->execute([$id]);
+        self::assertSame(1, (int) $count->fetchColumn());
+    }
+
     /** @return array{code:int, body:array<string,mixed>} */
     private function tryCreate(array $overrides): array
     {
         $input = array_merge([
             'username' => $this->uniqueUsername(),
-            'password' => 'TestPass123',
+            'password' => 'TestPass123!',
             'full_name' => 'ทดสอบ',
             'role' => 'viewer',
         ], $overrides);
@@ -301,7 +388,7 @@ final class UsersCrudTest extends TestCase
         ob_start();
         createUser(self::$pdo, $this->actor, [
             'username' => $username,
-            'password' => 'TestPass123',
+            'password' => 'TestPass123!',
             'full_name' => 'ทดสอบ ตรง',
             'role' => 'viewer',
         ]);

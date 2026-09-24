@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/equivalence.php
 // Position Equivalence Route Handler — การเทียบตำแหน่ง
@@ -293,7 +294,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // ดึงข้อมูลปัจจุบัน
-    $stmt = $pdo->prepare("SELECT * FROM position_equivalence WHERE equivalence_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $stmt->execute([$id]);
     $current = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -449,7 +450,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             return;
         }
         $requestTotalDays = $end->diff($start)->days + 1;
-        $sets[] = "request_total_days = ?";
+        $sets[] = 'request_total_days = ?';
         $params[] = $requestTotalDays;
     }
 
@@ -460,7 +461,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     }
 
     $params[] = $id;
-    $sql = "UPDATE position_equivalence SET " . implode(', ', $sets) . " WHERE equivalence_id = ?";
+    $sql = 'UPDATE position_equivalence SET ' . implode(', ', $sets) . ' WHERE equivalence_id = ?';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 

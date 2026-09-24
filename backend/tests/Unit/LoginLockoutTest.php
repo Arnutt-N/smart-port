@@ -87,7 +87,7 @@ final class LoginLockoutTest extends TestCase
         // เกณฑ์เดิมต่อ username (5 ครั้ง) — ครั้งที่ 6 ต้อง 429
         for ($i = 0; $i < 5; $i++) {
             $this->login('lockout-user');
-            self::assertSame(401, http_response_code(), "ครั้งที่ " . ($i + 1) . " ยังต้องตอบ 401 ปกติ");
+            self::assertSame(401, http_response_code(), 'ครั้งที่ ' . ($i + 1) . ' ยังต้องตอบ 401 ปกติ');
             http_response_code(200);
         }
 
@@ -102,7 +102,7 @@ final class LoginLockoutTest extends TestCase
         // 20 ครั้งแรกคนละ username (ไม่โดนเกณฑ์ต่อ username) ต้องยังตอบ 401 ปกติ
         for ($i = 0; $i < 20; $i++) {
             $this->login('spread-user-' . $i);
-            self::assertSame(401, http_response_code(), "ครั้งที่ " . ($i + 1) . " ยังต้องตอบ 401 ปกติ");
+            self::assertSame(401, http_response_code(), 'ครั้งที่ ' . ($i + 1) . ' ยังต้องตอบ 401 ปกติ');
             http_response_code(200);
         }
 
@@ -175,5 +175,20 @@ final class LoginLockoutTest extends TestCase
             $remaining,
             'token ที่ยังใช้ได้ต้องรอดจาก prune'
         );
+    }
+
+    #[Test]
+    public function max_length_username_still_goes_through_normal_flow(): void
+    {
+        // 200 ตัวอักษร = พอดีคอลัมน์ login_attempts.username — ต้องไม่โดน guard ตัด
+        $username = str_repeat('u', 200);
+        http_response_code(200);
+        $response = $this->login($username);
+        self::assertSame(401, http_response_code());
+        self::assertSame('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', $response['error'] ?? null);
+
+        $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM login_attempts WHERE username = ?');
+        $stmt->execute([$username]);
+        self::assertSame(1, (int) $stmt->fetchColumn());
     }
 }

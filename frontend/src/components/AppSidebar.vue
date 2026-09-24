@@ -7,18 +7,34 @@
     <div class="relative flex items-center h-16 min-h-16 border-b border-white/5">
       <div class="absolute left-4">
         <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
-          <BookOpen class="w-4 h-4 text-white" />
+          <BookOpen
+            class="w-4 h-4 text-white"
+            aria-hidden="true"
+          />
         </div>
       </div>
       <span class="text-lg font-bold text-white tracking-tight w-full text-center">ระบบสมุดพก</span>
-      <button @click="$emit('close')" class="lg:hidden absolute right-3 text-gray-400 hover:text-white transition-colors cursor-pointer" aria-label="ปิดเมนู">
-        <X class="w-5 h-5" />
+      <button
+        class="lg:hidden absolute right-3 p-1 rounded-md text-gray-400 hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        aria-label="ปิดเมนู"
+        @click="$emit('close')"
+      >
+        <X
+          class="w-5 h-5"
+          aria-hidden="true"
+        />
       </button>
     </div>
 
     <!-- Navigation -->
-    <nav class="px-4 flex-1">
-      <template v-for="(section, sIdx) in menuSections" :key="section.id">
+    <nav
+      class="px-4 flex-1"
+      aria-label="เมนูหลัก"
+    >
+      <template
+        v-for="(section, sIdx) in menuSections"
+        :key="section.id"
+      >
         <div
           class="text-[11px] font-semibold uppercase text-gray-500 mb-2"
           :class="sIdx === 0 ? 'mt-2' : 'mt-6'"
@@ -27,34 +43,49 @@
         </div>
 
         <div class="space-y-1 mb-2">
-          <template v-for="item in section.items" :key="item.id">
+          <template
+            v-for="item in section.items"
+            :key="item.id"
+          >
             <!-- Item with submenu -->
             <div v-if="item.children">
-                <button
-                @click="toggleSubmenu(item.id)"
+              <button
                 class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                :aria-expanded="openSubmenus.has(item.id)"
+                :aria-controls="'sidebar-submenu-' + item.id"
                 :class="isParentActive(item)
                   ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
                   : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
+                @click="toggleSubmenu(item.id)"
               >
-                <component :is="item.icon" class="w-5 h-5 mr-3" />
+                <component
+                  :is="item.icon"
+                  class="w-5 h-5 mr-3"
+                  aria-hidden="true"
+                />
                 <span class="text-sm font-medium flex-1">{{ item.label }}</span>
                 <ChevronRight
+                  aria-hidden="true"
                   class="w-4 h-4 transition-transform duration-200"
                   :class="{ 'rotate-90': openSubmenus.has(item.id) }"
                 />
               </button>
-              <div v-show="openSubmenus.has(item.id)" class="ml-8 mt-2 space-y-1">
+              <div
+                v-show="openSubmenus.has(item.id)"
+                :id="'sidebar-submenu-' + item.id"
+                class="ml-8 mt-2 space-y-1"
+              >
                 <RouterLink
                   v-for="child in item.children"
                   :key="child.id"
                   :to="child.to"
+                  :aria-current="route.path === child.to ? 'page' : undefined"
                   class="w-full flex items-center px-3 py-2 min-h-11 text-left rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   :class="route.path === child.to
                     ? 'bg-primary-500/10 text-primary-400 font-medium'
                     : 'text-gray-400 hover:bg-white/5 hover:text-white'"
                 >
-                  <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60"></span>
+                  <span class="w-2 h-2 bg-current rounded-full mr-3 opacity-60" />
                   <span class="text-xs font-medium">{{ child.label }}</span>
                 </RouterLink>
               </div>
@@ -64,12 +95,17 @@
             <RouterLink
               v-else
               :to="item.to"
+              :aria-current="route.path === item.to ? 'page' : undefined"
               class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
                 ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
                 : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
             >
-              <component :is="item.icon" class="w-5 h-5 mr-3" />
+              <component
+                :is="item.icon"
+                class="w-5 h-5 mr-3"
+                aria-hidden="true"
+              />
               <span class="text-sm font-medium">{{ item.label }}</span>
             </RouterLink>
           </template>
@@ -85,16 +121,23 @@
             <div class="w-10 h-10 bg-primary-700 rounded-full flex items-center justify-center">
               <span class="text-white font-medium">{{ auth.user?.name?.charAt(0) || 'A' }}</span>
             </div>
-            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900"></div>
+            <div
+              class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900"
+              aria-hidden="true"
+            />
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <p class="text-white text-sm font-medium truncate">{{ auth.user?.name || 'ผู้ใช้' }}</p>
+              <p class="text-white text-sm font-medium truncate">
+                {{ auth.user?.name || 'ผู้ใช้' }}
+              </p>
               <span class="text-[10px] px-1.5 py-0.5 bg-primary-500/20 text-primary-300 rounded font-medium shrink-0">
                 {{ roleLabel(auth.user?.role) }}
               </span>
             </div>
-            <p class="text-gray-400 text-xs truncate mt-0.5">{{ auth.user?.email || auth.user?.username || '' }}</p>
+            <p class="text-gray-400 text-xs truncate mt-0.5">
+              {{ auth.user?.email || auth.user?.username || '' }}
+            </p>
           </div>
         </div>
       </div>
@@ -171,16 +214,16 @@ const menuSections = computed(() => [
   },
   ...(auth.isAdmin
     ? [{
-        id: 'admin',
-        label: 'ADMIN',
-        items: [
-          { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
-          { id: 'ocr', label: 'แปลงเอกสาร PDF', icon: ScanText, to: '/ocr' },
-          { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
-          { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
-          { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', icon: Shield, to: '/settings/special-areas' },
-        ],
-      }]
+      id: 'admin',
+      label: 'ADMIN',
+      items: [
+        { id: 'data-import', label: 'นำเข้าข้อมูล', icon: FileUp, to: '/import' },
+        { id: 'ocr', label: 'แปลงเอกสาร PDF', icon: ScanText, to: '/ocr' },
+        { id: 'user-management', label: 'จัดการผู้ใช้', icon: UserCog, to: '/users' },
+        { id: 'audit-log', label: 'ประวัติการเปลี่ยนแปลง', icon: FileSearch, to: '/audit' },
+        { id: 'special-areas', label: 'จัดการพื้นที่พิเศษ', icon: Shield, to: '/settings/special-areas' },
+      ],
+    }]
     : []),
 ])
 

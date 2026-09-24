@@ -1,11 +1,12 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Apply ordered SQL migrations from database/ and record them in schema_migrations.
  *
  * Safety for existing TiDB/prod / fresh docker-compose volumes:
  * - If schema_migrations is empty but core tables already exist, seed a baseline
- *   for migrations through 32-* (already applied via init mounts / tidb-init;
+ *   for migrations through 33-* (already applied via init mounts / tidb-init;
  *   cut-off constant lives in migration-lib.php), and only execute newer files.
  *   test-seed files are never baselined.
  * - DDL is not wrapped in a multi-statement transaction (TiDB/MySQL auto-commit DDL).

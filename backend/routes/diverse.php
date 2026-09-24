@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/diverse.php
 // Diverse Experience Route Handler
@@ -128,11 +129,11 @@ function diverseTimeEntryCfg(): array
             'de.to_division LIKE ?',
         ],
         'orderBy' => 'de.created_at DESC',
-        'summarySql' => "
+        'summarySql' => '
             SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
                    SUM(CASE WHEN diff_count >= 3 THEN 1 ELSE 0 END) AS qualified_count
             FROM diverse_experience
-        ",
+        ',
         'summaryMap' => function (array $summaryRow, int $total): array {
             return [
                 'total' => $total,
@@ -256,14 +257,14 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         : null;
 
     // INSERT — ไม่รวม diff_count (GENERATED ALWAYS AS ... STORED)
-    $sql = "INSERT INTO diverse_experience (
+    $sql = 'INSERT INTO diverse_experience (
                 personnel_id, from_job_series, from_work_group, from_division,
                 from_org_id, from_province, from_start_date, from_end_date, from_total_days,
                 to_job_series, to_work_group, to_division,
                 to_org_id, to_province, to_start_date, to_end_date, to_total_days,
                 is_diff_job_series, is_diff_org, is_diff_location, is_diff_work_nature,
                 qualified_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
@@ -317,7 +318,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     // ตรวจสอบว่า record มีอยู่จริง
-    $checkStmt = $pdo->prepare("SELECT * FROM diverse_experience WHERE experience_id = ?");
+    $checkStmt = $pdo->prepare('SELECT * FROM diverse_experience WHERE experience_id = ?');
     $checkStmt->execute([$id]);
     $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -390,7 +391,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     } else {
         $fromTotalDays = null;
     }
-    $sets[] = "from_total_days = ?";
+    $sets[] = 'from_total_days = ?';
     $params[] = $fromTotalDays;
 
     // Recompute to_total_days
@@ -413,7 +414,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     } else {
         $toTotalDays = null;
     }
-    $sets[] = "to_total_days = ?";
+    $sets[] = 'to_total_days = ?';
     $params[] = $toTotalDays;
 
     // Recompute qualified_date จาก 4 boolean flags
@@ -427,11 +428,11 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $qualifiedDate = ($diffCount >= 3 && !empty($effectiveToStartDate))
         ? $effectiveToStartDate
         : null;
-    $sets[] = "qualified_date = ?";
+    $sets[] = 'qualified_date = ?';
     $params[] = $qualifiedDate;
 
     $params[] = $id;
-    $sql = "UPDATE diverse_experience SET " . implode(', ', $sets) . " WHERE experience_id = ?";
+    $sql = 'UPDATE diverse_experience SET ' . implode(', ', $sets) . ' WHERE experience_id = ?';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -466,7 +467,7 @@ function deleteDiverse(PDO $pdo, int $id, array $user): void
         return;
     }
 
-    $stmt = $pdo->prepare("DELETE FROM diverse_experience WHERE experience_id = ?");
+    $stmt = $pdo->prepare('DELETE FROM diverse_experience WHERE experience_id = ?');
     $stmt->execute([$id]);
 
     timeEntryWriteAudit(

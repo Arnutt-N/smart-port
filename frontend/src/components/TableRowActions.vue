@@ -1,5 +1,9 @@
 <template>
-  <div ref="rootEl" class="relative inline-flex items-center justify-end gap-0.5" data-table-row-actions>
+  <div
+    ref="rootEl"
+    class="relative inline-flex items-center justify-end gap-0.5"
+    data-table-row-actions
+  >
     <template v-if="useMenu">
       <button
         type="button"
@@ -10,14 +14,20 @@
         :aria-expanded="menuOpen"
         @click.stop="toggleMenu"
       >
-        <MoreVertical class="w-4 h-4" aria-hidden="true" />
+        <MoreVertical
+          class="w-4 h-4"
+          aria-hidden="true"
+        />
       </button>
       <div
         v-if="menuOpen"
         role="menu"
         class="absolute right-0 top-full z-20 mt-1 min-w-40 rounded-md border border-government-200 bg-white py-1 elevation-2"
       >
-        <template v-for="(action, index) in visibleActions" :key="action.key">
+        <template
+          v-for="(action, index) in visibleActions"
+          :key="action.key"
+        >
           <div
             v-if="showSeparatorBefore(action, index)"
             class="my-1 border-t border-government-100"
@@ -32,7 +42,10 @@
             :disabled="action.disabled"
             @click.stop="runAction(action)"
           >
-            <component :is="resolveIcon(action)" class="w-4 h-4 shrink-0" />
+            <component
+              :is="resolveIcon(action)"
+              class="w-4 h-4 shrink-0"
+            />
             <span>{{ action.label }}</span>
           </button>
         </template>
@@ -50,7 +63,11 @@
         :disabled="action.disabled"
         @click.stop="runAction(action)"
       >
-        <component :is="resolveIcon(action)" class="w-4 h-4" aria-hidden="true" />
+        <component
+          :is="resolveIcon(action)"
+          class="w-4 h-4"
+          aria-hidden="true"
+        />
       </button>
     </template>
   </div>

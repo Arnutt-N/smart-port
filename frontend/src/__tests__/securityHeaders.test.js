@@ -71,7 +71,7 @@ describe('nginx security-headers snippet (docker path, Issue #126)', () => {
     for (const directive of CSP_CORE) {
       expect(nginxHeadersSnippet).toContain(directive)
     }
-    expect(nginxHeadersSnippet).not.toContain("http: https: data: blob:")
+    expect(nginxHeadersSnippet).not.toContain('http: https: data: blob:')
   })
 
   it('uses DENY framing, strict referrer, permissions policy, and nosniff', () => {
@@ -140,6 +140,6 @@ describe('nginx.conf wiring (docker path)', () => {
   it('does not reintroduce duplicated literal header blocks or the old broad CSP', () => {
     expect(nginxConf).not.toContain('add_header Content-Security-Policy ')
     expect(nginxConf).not.toContain('add_header X-Frame-Options')
-    expect(nginxConf).not.toContain("http: https: data: blob:")
+    expect(nginxConf).not.toContain('http: https: data: blob:')
   })
 })

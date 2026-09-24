@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/retirement.php
 // Retirement Report Route Handler — รายงานเกษียณ (read-only)
@@ -34,7 +35,7 @@ function getRetirementList(PDO $pdo): void
     $conditions = ['p.is_active = 1', 'p.retirement_date IS NOT NULL'];
     $params = [];
     if ($search !== '') {
-        $conditions[] = "(p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ?)";
+        $conditions[] = '(p.first_name LIKE ? OR p.last_name LIKE ? OR p.employee_id LIKE ?)';
         $term = "%{$search}%";
         array_push($params, $term, $term, $term);
     }
@@ -44,10 +45,10 @@ function getRetirementList(PDO $pdo): void
     }
     $where = ' WHERE ' . implode(' AND ', $conditions);
 
-    $select = "p.personnel_id, p.employee_id, p.retirement_date, p.servant_status,
+    $select = 'p.personnel_id, p.employee_id, p.retirement_date, p.servant_status,
                DATEDIFF(p.retirement_date, CURDATE()) AS remaining_days,
-               " . sqlPersonnelFullName() . " AS full_name";
-    $base = "FROM personnel p LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+               ' . sqlPersonnelFullName() . ' AS full_name';
+    $base = 'FROM personnel p LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 
     $sql = "SELECT {$select} {$base}{$where}
             ORDER BY p.retirement_date ASC LIMIT {$limit} OFFSET {$offset}";

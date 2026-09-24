@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/awards.php
 // Awards Route Handler — รางวัล/ความดีความชอบ (ตาราง awards)
@@ -65,16 +66,16 @@ function handleAwards(PDO $pdo, string $method, array $path): void
 
 function awardSelectSql(): string
 {
-    return "a.award_id, a.personnel_id, a.award_name, a.award_type,
-            a.award_level, a.awarded_date, a.description, a.created_at, "
-            . sqlPersonnelFullName() . " AS personnel_name";
+    return 'a.award_id, a.personnel_id, a.award_name, a.award_type,
+            a.award_level, a.awarded_date, a.description, a.created_at, '
+            . sqlPersonnelFullName() . ' AS personnel_name';
 }
 
 function awardBaseQuery(): string
 {
-    return "FROM awards a
+    return 'FROM awards a
             LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 }
 
 function getAwardList(PDO $pdo): void
@@ -86,18 +87,18 @@ function getAwardList(PDO $pdo): void
     $where = '';
     $params = [];
     if ($search !== '') {
-        $where = " WHERE (a.award_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)";
+        $where = ' WHERE (a.award_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)';
         $term = "%{$search}%";
         $params = [$term, $term, $term];
     }
 
-    $sql = "SELECT " . awardSelectSql() . ' ' . awardBaseQuery() . $where
+    $sql = 'SELECT ' . awardSelectSql() . ' ' . awardBaseQuery() . $where
         . " ORDER BY a.awarded_date DESC, a.award_id DESC LIMIT {$limit} OFFSET {$offset}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) AS total " . awardBaseQuery() . $where);
+    $countStmt = $pdo->prepare('SELECT COUNT(*) AS total ' . awardBaseQuery() . $where);
     $countStmt->execute($params);
     $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
 
@@ -115,7 +116,7 @@ function getAwardList(PDO $pdo): void
 
 function getAwardDetail(PDO $pdo, int $id): void
 {
-    $sql = "SELECT " . awardSelectSql() . ' ' . awardBaseQuery() . " WHERE a.award_id = ?";
+    $sql = 'SELECT ' . awardSelectSql() . ' ' . awardBaseQuery() . ' WHERE a.award_id = ?';
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -193,8 +194,8 @@ function createAward(PDO $pdo, ?array $auth): void
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO awards (personnel_id, award_name, award_type, award_level, awarded_date, description)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        'INSERT INTO awards (personnel_id, award_name, award_type, award_level, awarded_date, description)
+         VALUES (?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $personnelId,
@@ -220,7 +221,7 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
 {
     $data = json_decode(file_get_contents('php://input'), true) ?: [];
 
-    $stmt = $pdo->prepare("SELECT * FROM awards WHERE award_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM awards WHERE award_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -264,7 +265,7 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
     }
 
     $params[] = $id;
-    $pdo->prepare("UPDATE awards SET " . implode(', ', $fields) . " WHERE award_id = ?")->execute($params);
+    $pdo->prepare('UPDATE awards SET ' . implode(', ', $fields) . ' WHERE award_id = ?')->execute($params);
 
     logAudit($pdo, intval($auth['user_id']), 'UPDATE', 'awards', $id, $before, $valid);
     echo json_encode(['success' => true, 'award_id' => $id]);
@@ -272,7 +273,7 @@ function updateAward(PDO $pdo, int $id, ?array $auth): void
 
 function deleteAward(PDO $pdo, int $id, ?array $auth): void
 {
-    $stmt = $pdo->prepare("SELECT * FROM awards WHERE award_id = ?");
+    $stmt = $pdo->prepare('SELECT * FROM awards WHERE award_id = ?');
     $stmt->execute([$id]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$before) {
@@ -281,7 +282,7 @@ function deleteAward(PDO $pdo, int $id, ?array $auth): void
         return;
     }
 
-    $pdo->prepare("DELETE FROM awards WHERE award_id = ?")->execute([$id]);
+    $pdo->prepare('DELETE FROM awards WHERE award_id = ?')->execute([$id]);
     logAudit($pdo, intval($auth['user_id']), 'DELETE', 'awards', $id, $before, null);
     echo json_encode(['success' => true, 'award_id' => $id]);
 }

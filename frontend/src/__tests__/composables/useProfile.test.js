@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGet = vi.fn()
+const mockSign = vi.fn()
 vi.mock('@/composables/useApi.js', () => ({
   useApi: () => ({ get: mockGet }),
-  // จำลองพฤติกรรมจริง: ประกอบ path สัมพัทธ์เข้ากับ API base
-  apiAssetUrl: (p) => (p ? `/api/${String(p).replace(/^\/+/, '')}` : null),
+  getSignedPhotoUrl: (...args) => mockSign(...args),
 }))
 
 const { useProfile } = await import('@/composables/useProfile.js')
@@ -12,6 +12,8 @@ const { useProfile } = await import('@/composables/useProfile.js')
 describe('useProfile', () => {
   beforeEach(() => {
     mockGet.mockReset()
+    mockSign.mockReset()
+    mockSign.mockImplementation(async (f) => `/api/uploads/${f}?exp=999&sig=test`)
   })
 
   it('exposes fetchMe and fetchById', () => {
@@ -54,8 +56,9 @@ describe('useProfile', () => {
     expect(mockGet).toHaveBeenCalledWith('/profile/5')
     expect(result.data.personnelId).toBe(5)
     expect(result.data.fullName).toBe('นายสมชาย')
-    // ต้องเป็น URL ที่ยิงผ่าน API base ไม่ใช่ path ดิบจาก DB
-    expect(result.data.photoPath).toBe('/api/uploads/photo_abc.jpg')
+    // ต้องขอ signed URL ด้วยชื่อไฟล์ (ไม่ใช่ path ดิบ) แล้วได้ URL เต็มกลับมา
+    expect(mockSign).toHaveBeenCalledWith('photo_abc.jpg')
+    expect(result.data.photoPath).toBe('/api/uploads/photo_abc.jpg?exp=999&sig=test')
   })
 
   it('maps a missing photo to null instead of a broken image URL', async () => {
@@ -65,6 +68,18 @@ describe('useProfile', () => {
     })
     const { fetchById } = useProfile()
     const result = await fetchById(6)
+    expect(result.data.photoPath).toBeNull()
+    expect(mockSign).not.toHaveBeenCalled()
+  })
+
+  it('falls back to null when signing fails so the placeholder shows', async () => {
+    mockGet.mockResolvedValue({
+      success: true,
+      data: { personnel_id: 7, full_name: 'นายล้มเหลว', photo_path: 'uploads/broken.jpg' },
+    })
+    mockSign.mockRejectedValueOnce(new Error('403'))
+    const { fetchById } = useProfile()
+    const result = await fetchById(7)
     expect(result.data.photoPath).toBeNull()
   })
 

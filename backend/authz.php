@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // authz.php
 // Authorization seam — permission matrix + DB overrides + requirePermission
@@ -47,7 +48,14 @@ function defaultPermissionMatrix(): array
             'delete' => ['*'],
         ],
         'operator' => [
-            'read' => ['*'],
+            // ห้าม '*' — resource ใหม่ต้องมาเพิ่มที่นี่หรือ $OPERATOR_EXCLUDED ในเทส (fail-closed)
+            'read' => [
+                'multiplier', 'personnel', 'candidates', 'probation',
+                'equivalence', 'equivalence_approval', 'supportive', 'diverse',
+                'photos', 'ocr', 'awards', 'royal_decorations', 'import',
+                'retirement', 'analytics', 'work_results', 'dashboard', 'sync',
+                'audit', 'users', 'profile', 'system_permissions',
+            ],
             // personnel master write = admin/superadmin เท่านั้น (ADR-0004)
             'create' => [
                 'multiplier', 'candidates', 'probation',
@@ -284,9 +292,9 @@ function getAuthenticatedUser(): ?array
     try {
         $pdo = getDB();
         $stmt = $pdo->prepare(
-            "SELECT user_id, role, must_change_password
+            'SELECT user_id, role, must_change_password
              FROM users
-             WHERE user_id = ? AND is_active = 1"
+             WHERE user_id = ? AND is_active = 1'
         );
         $stmt->execute([$payload['user_id'] ?? 0]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);

@@ -3,8 +3,12 @@
     <!-- Page Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">{{ currentConfig.title }}</h1>
-        <p class="text-sm text-gray-500 mt-1">{{ currentConfig.subtitle }}</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          {{ currentConfig.title }}
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          {{ currentConfig.subtitle }}
+        </p>
       </div>
     </div>
 
@@ -14,23 +18,31 @@
       <template v-if="overviewLoading">
         <div class="animate-pulse space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div v-for="i in 4" :key="'sk2-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div
+              v-for="i in 4"
+              :key="'sk2-'+i"
+              class="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+            >
               <div class="flex items-center">
-                <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                <div class="w-12 h-12 bg-gray-200 rounded-lg" />
                 <div class="ml-4 flex-1 space-y-2">
-                  <div class="h-3 bg-gray-200 rounded w-24"></div>
-                  <div class="h-6 bg-gray-200 rounded w-16"></div>
+                  <div class="h-3 bg-gray-200 rounded w-24" />
+                  <div class="h-6 bg-gray-200 rounded w-16" />
                 </div>
               </div>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div v-for="i in 4" :key="'sk4-'+i" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div
+              v-for="i in 4"
+              :key="'sk4-'+i"
+              class="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+            >
               <div class="flex items-center">
-                <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                <div class="w-12 h-12 bg-gray-200 rounded-lg" />
                 <div class="ml-4 flex-1 space-y-2">
-                  <div class="h-3 bg-gray-200 rounded w-24"></div>
-                  <div class="h-6 bg-gray-200 rounded w-16"></div>
+                  <div class="h-3 bg-gray-200 rounded w-24" />
+                  <div class="h-6 bg-gray-200 rounded w-16" />
                 </div>
               </div>
             </div>
@@ -46,8 +58,8 @@
           :description="overviewError"
         >
           <button
-            @click="fetchOverviewData"
             class="btn-primary mt-4"
+            @click="fetchOverviewData"
           >
             ลองใหม่
           </button>
@@ -123,19 +135,37 @@
         <!-- Top 5 nearest deadline table -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">ใกล้ครบกำหนดที่สุด (5 อันดับแรก)</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              ใกล้ครบกำหนดที่สุด (5 อันดับแรก)
+            </h2>
           </div>
           <table class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-สกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่งปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ระดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันครบกำหนด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันคงเหลือ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ลำดับ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ชื่อ-สกุล
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ตำแหน่งปัจจุบัน
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ระดับ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันครบกำหนด
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันคงเหลือ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  สถานะ
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  จัดการ
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -144,12 +174,25 @@
                 :key="row.personnelId || idx"
                 class="hover:bg-blue-50/50 transition-all duration-150"
               >
-                <td class="px-6 py-3 text-gray-500">{{ idx + 1 }}</td>
-                <td class="px-6 py-3 text-gray-900 font-medium">{{ row.name }}</td>
-                <td class="px-6 py-3 text-gray-600">{{ row.currentPosition }}</td>
-                <td class="px-6 py-3 text-gray-600">{{ row.currentLevelName }}</td>
-                <td class="px-6 py-3 text-gray-500">{{ row.qualificationDate }}</td>
-                <td class="px-6 py-3" :class="getCandidateRemainingDaysClass(row.remainingDays)">
+                <td class="px-6 py-3 text-gray-500">
+                  {{ idx + 1 }}
+                </td>
+                <td class="px-6 py-3 text-gray-900 font-medium">
+                  {{ row.name }}
+                </td>
+                <td class="px-6 py-3 text-gray-600">
+                  {{ row.currentPosition }}
+                </td>
+                <td class="px-6 py-3 text-gray-600">
+                  {{ row.currentLevelName }}
+                </td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ row.qualificationDate }}
+                </td>
+                <td
+                  class="px-6 py-3"
+                  :class="getCandidateRemainingDaysClass(row.remainingDays)"
+                >
                   {{ formatRemainingDays(row.remainingDays) }}
                 </td>
                 <td class="px-6 py-3">
@@ -160,7 +203,12 @@
                 </td>
               </tr>
               <tr v-if="overviewData.top5.length === 0">
-                <td colspan="8" class="px-6 py-8 text-center text-gray-400">ไม่พบข้อมูล</td>
+                <td
+                  colspan="8"
+                  class="px-6 py-8 text-center text-gray-400"
+                >
+                  ไม่พบข้อมูล
+                </td>
               </tr>
             </tbody>
           </table>
@@ -196,7 +244,11 @@
       </div>
 
       <!-- Loading state -->
-      <SkeletonLoader v-if="loading" type="table" :rows="5" />
+      <SkeletonLoader
+        v-if="loading"
+        type="table"
+        :rows="5"
+      />
 
       <!-- Error state -->
       <EmptyState
@@ -206,8 +258,8 @@
         :description="error"
       >
         <button
-          @click="fetchData"
           class="btn-primary mt-4"
+          @click="fetchData"
         >
           ลองใหม่
         </button>
@@ -219,18 +271,42 @@
           <table class="w-full text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลำดับ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชื่อ-นามสกุล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่งปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ระดับตำแหน่ง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเข้าสู่ระดับปัจจุบัน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่ครบกำหนด</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเกื้อกูล</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ 3 ต่าง</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันเทียบ ตน.</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนวันที่เหลือ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ลำดับ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ชื่อ-นามสกุล
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ตำแหน่งปัจจุบัน
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ระดับตำแหน่ง
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันเข้าสู่ระดับปัจจุบัน
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันที่ครบกำหนด
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันเกื้อกูล
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  สถานะ 3 ต่าง
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  วันเทียบ ตน.
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  จำนวนวันที่เหลือ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  สถานะ
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  จัดการ
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -239,23 +315,44 @@
                 :key="row.personnelId || idx"
                 class="hover:bg-blue-50/50 transition-all duration-150"
               >
-                <td class="px-6 py-3 text-gray-500">{{ pagination.offset + idx + 1 }}</td>
-                <td class="px-6 py-3 text-gray-900 font-medium">{{ row.name }}</td>
-                <td class="px-6 py-3 text-gray-600">{{ row.currentPosition }}</td>
-                <td class="px-6 py-3 text-gray-600">{{ row.currentLevelName }}</td>
-                <td class="px-6 py-3 text-gray-500">{{ row.levelStartDate }}</td>
-                <td class="px-6 py-3 text-gray-500">{{ row.qualificationDate }}</td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ pagination.offset + idx + 1 }}
+                </td>
+                <td class="px-6 py-3 text-gray-900 font-medium">
+                  {{ row.name }}
+                </td>
+                <td class="px-6 py-3 text-gray-600">
+                  {{ row.currentPosition }}
+                </td>
+                <td class="px-6 py-3 text-gray-600">
+                  {{ row.currentLevelName }}
+                </td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ row.levelStartDate }}
+                </td>
+                <td class="px-6 py-3 text-gray-500">
+                  {{ row.qualificationDate }}
+                </td>
                 <td class="px-6 py-3 text-gray-500">
                   {{ row.supportiveDays > 0 ? `${row.supportiveDays} วัน` : '-' }}
                 </td>
                 <td class="px-6 py-3">
-                  <StatusBadge v-if="row.diverseStatus" :status="row.diverseStatus" />
-                  <span v-else class="text-gray-400">-</span>
+                  <StatusBadge
+                    v-if="row.diverseStatus"
+                    :status="row.diverseStatus"
+                  />
+                  <span
+                    v-else
+                    class="text-gray-400"
+                  >-</span>
                 </td>
                 <td class="px-6 py-3 text-gray-500">
                   {{ row.equivalenceDays > 0 ? `${row.equivalenceDays} วัน` : '-' }}
                 </td>
-                <td class="px-6 py-3" :class="getCandidateRemainingDaysClass(row.remainingDays)">
+                <td
+                  class="px-6 py-3"
+                  :class="getCandidateRemainingDaysClass(row.remainingDays)"
+                >
                   {{ formatRemainingDays(row.remainingDays) }}
                 </td>
                 <td class="px-6 py-3">
@@ -289,74 +386,134 @@
 
     <!-- ==================== View Modal ==================== -->
     <Teleport to="body">
-      <div v-if="showViewModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" @click="showViewModal = false"></div>
+      <div
+        v-if="showViewModal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
+        <div
+          class="absolute inset-0 bg-black/50"
+          @click="showViewModal = false"
+        />
         <div class="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">รายละเอียดผู้มีคุณสมบัติ</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              รายละเอียดผู้มีคุณสมบัติ
+            </h2>
           </div>
           <div class="px-6 py-4 space-y-3">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <p class="text-xs text-gray-500">ชื่อ-สกุล</p>
-                <p class="text-sm font-medium text-gray-900">{{ viewingRow?.name }}</p>
+                <p class="text-xs text-gray-500">
+                  ชื่อ-สกุล
+                </p>
+                <p class="text-sm font-medium text-gray-900">
+                  {{ viewingRow?.name }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">สถานะ</p>
-                <StatusBadge v-if="viewingRow" :status="viewingRow.status" />
+                <p class="text-xs text-gray-500">
+                  สถานะ
+                </p>
+                <StatusBadge
+                  v-if="viewingRow"
+                  :status="viewingRow.status"
+                />
               </div>
               <div>
-                <p class="text-xs text-gray-500">ตำแหน่งปัจจุบัน</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.currentPosition || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ตำแหน่งปัจจุบัน
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.currentPosition || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">ระดับตำแหน่ง</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.currentLevelName || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  ระดับตำแหน่ง
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.currentLevelName || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">สังกัด</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.department || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  สังกัด
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.department || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันเข้าสู่ระดับปัจจุบัน</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.levelStartDate || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันเข้าสู่ระดับปัจจุบัน
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.levelStartDate || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันที่ครบกำหนด</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.qualificationDate || '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันที่ครบกำหนด
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.qualificationDate || '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันคงเหลือ</p>
-                <p class="text-sm" :class="getCandidateRemainingDaysClass(viewingRow?.remainingDays)">
+                <p class="text-xs text-gray-500">
+                  วันคงเหลือ
+                </p>
+                <p
+                  class="text-sm"
+                  :class="getCandidateRemainingDaysClass(viewingRow?.remainingDays)"
+                >
                   {{ formatRemainingDays(viewingRow?.remainingDays) }}
                 </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันเกื้อกูล</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.supportiveDays > 0 ? `${viewingRow.supportiveDays} วัน` : '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันเกื้อกูล
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.supportiveDays > 0 ? `${viewingRow.supportiveDays} วัน` : '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">วันเทียบ ตน.</p>
-                <p class="text-sm text-gray-900">{{ viewingRow?.equivalenceDays > 0 ? `${viewingRow.equivalenceDays} วัน` : '-' }}</p>
+                <p class="text-xs text-gray-500">
+                  วันเทียบ ตน.
+                </p>
+                <p class="text-sm text-gray-900">
+                  {{ viewingRow?.equivalenceDays > 0 ? `${viewingRow.equivalenceDays} วัน` : '-' }}
+                </p>
               </div>
               <div>
-                <p class="text-xs text-gray-500">สถานะ 3 ต่าง</p>
-                <StatusBadge v-if="viewingRow?.diverseStatus" :status="viewingRow.diverseStatus" />
-                <p v-else class="text-sm text-gray-400">-</p>
+                <p class="text-xs text-gray-500">
+                  สถานะ 3 ต่าง
+                </p>
+                <StatusBadge
+                  v-if="viewingRow?.diverseStatus"
+                  :status="viewingRow.diverseStatus"
+                />
+                <p
+                  v-else
+                  class="text-sm text-gray-400"
+                >
+                  -
+                </p>
               </div>
             </div>
           </div>
           <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
             <button
               v-if="isAdmin && viewingRow?.name"
-              @click="goToPersonnelMaster"
               class="btn-secondary px-4 py-2 cursor-pointer"
+              @click="goToPersonnelMaster"
             >
               จัดการที่ข้อมูลบุคลากร
             </button>
             <button
-              @click="showViewModal = false"
               class="btn-secondary px-4 py-2 cursor-pointer"
+              @click="showViewModal = false"
             >
               ปิด
             </button>

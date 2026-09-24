@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/sync.php
 // Sync Transform Layer — legacy HR → Smart Port (ADR-0001)
@@ -93,10 +94,19 @@ function handleSync(PDO $pdo, string $method, array $path): void
 
 function handleSyncStatus(PDO $pdo): void
 {
-    $dummySource = new class implements SourceAdapterInterface {
-        public function fetchRows(string $table, array $columns = [], ?string $sinceColumn = null, ?string $sinceValue = null): iterable { return []; }
-        public function fetchLookup(string $table, string $keyColumn, string $valueColumn): array { return []; }
-        public function hasTable(string $table): bool { return false; }
+    $dummySource = new class () implements SourceAdapterInterface {
+        public function fetchRows(string $table, array $columns = [], ?string $sinceColumn = null, ?string $sinceValue = null): iterable
+        {
+            return [];
+        }
+        public function fetchLookup(string $table, string $keyColumn, string $valueColumn): array
+        {
+            return [];
+        }
+        public function hasTable(string $table): bool
+        {
+            return false;
+        }
     };
 
     $service = new SyncTransformService($pdo, $dummySource);
@@ -181,7 +191,7 @@ function handleSyncTrigger(PDO $pdo, string $domain, ?array $input = null, ?arra
         $validDomains = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'];
         if (!in_array($domain, $validDomains, true)) {
             http_response_code(400);
-            echo json_encode(['error' => "domain ไม่ถูกต้อง — ใช้ได้: " . implode(', ', $validDomains) . ', all'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['error' => 'domain ไม่ถูกต้อง — ใช้ได้: ' . implode(', ', $validDomains) . ', all'], JSON_UNESCAPED_UNICODE);
             return;
         }
 

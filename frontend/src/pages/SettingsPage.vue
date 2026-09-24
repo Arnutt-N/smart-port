@@ -1,8 +1,12 @@
 <template>
   <div class="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">ตั้งค่า</h1>
-      <p class="text-sm text-gray-500 mt-1">จัดการบัญชีผู้ใช้และการตั้งค่าระบบ</p>
+      <h1 class="text-2xl font-bold text-gray-900">
+        ตั้งค่า
+      </h1>
+      <p class="text-sm text-gray-500 mt-1">
+        จัดการบัญชีผู้ใช้และการตั้งค่าระบบ
+      </p>
     </div>
 
     <div class="flex gap-2 border-b border-gray-200">
@@ -26,42 +30,64 @@
     </div>
 
     <!-- Account tab -->
-    <section v-if="tab === 'account'" class="space-y-8">
-      <form class="rounded-xl border border-gray-200 bg-white p-6 space-y-4" @submit.prevent="saveProfile">
-        <h2 class="text-lg font-semibold text-gray-900">ข้อมูลบัญชี</h2>
-        <p class="text-sm text-gray-500">เปลี่ยนชื่อผู้ใช้ต้องยืนยันรหัสผ่านปัจจุบัน</p>
+    <section
+      v-if="tab === 'account'"
+      class="space-y-8"
+    >
+      <form
+        class="rounded-xl border border-gray-200 bg-white p-6 space-y-4"
+        @submit.prevent="saveProfile"
+      >
+        <h2 class="text-lg font-semibold text-gray-900">
+          ข้อมูลบัญชี
+        </h2>
+        <p class="text-sm text-gray-500">
+          เปลี่ยนชื่อผู้ใช้ต้องยืนยันรหัสผ่านปัจจุบัน
+        </p>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-username">ชื่อผู้ใช้</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-username"
+          >ชื่อผู้ใช้</label>
           <input
             id="settings-username"
             v-model="profileForm.username"
             type="text"
             required
             class="input"
-          />
+          >
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-fullname">ชื่อ-นามสกุล</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-fullname"
+          >ชื่อ-นามสกุล</label>
           <input
             id="settings-fullname"
             v-model="profileForm.full_name"
             type="text"
             required
             class="input"
-          />
+          >
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-email">อีเมล</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-email"
+          >อีเมล</label>
           <input
             id="settings-email"
             v-model="profileForm.email"
             type="email"
             class="input"
-          />
+          >
         </div>
         <div v-if="usernameChanged">
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-current-for-username">รหัสผ่านปัจจุบัน (ยืนยันเปลี่ยนชื่อผู้ใช้)</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-current-for-username"
+          >รหัสผ่านปัจจุบัน (ยืนยันเปลี่ยนชื่อผู้ใช้)</label>
           <input
             id="settings-current-for-username"
             v-model="profileForm.current_password"
@@ -69,10 +95,16 @@
             autocomplete="current-password"
             required
             class="input"
-          />
+          >
         </div>
 
-        <p v-if="profileError" role="alert" class="text-sm text-red-600">{{ profileError }}</p>
+        <p
+          v-if="profileError"
+          role="alert"
+          class="text-sm text-red-600"
+        >
+          {{ profileError }}
+        </p>
 
         <button
           type="submit"
@@ -83,10 +115,18 @@
         </button>
       </form>
 
-      <form class="rounded-xl border border-gray-200 bg-white p-6 space-y-4" @submit.prevent="savePassword">
-        <h2 class="text-lg font-semibold text-gray-900">เปลี่ยนรหัสผ่าน</h2>
+      <form
+        class="rounded-xl border border-gray-200 bg-white p-6 space-y-4"
+        @submit.prevent="savePassword"
+      >
+        <h2 class="text-lg font-semibold text-gray-900">
+          เปลี่ยนรหัสผ่าน
+        </h2>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-current-password">รหัสผ่านปัจจุบัน</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-current-password"
+          >รหัสผ่านปัจจุบัน</label>
           <input
             id="settings-current-password"
             v-model="passwordForm.current"
@@ -94,10 +134,13 @@
             autocomplete="current-password"
             required
             class="input"
-          />
+          >
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-new-password">รหัสผ่านใหม่</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-new-password"
+          >รหัสผ่านใหม่</label>
           <input
             id="settings-new-password"
             v-model="passwordForm.next"
@@ -106,10 +149,13 @@
             minlength="8"
             required
             class="input"
-          />
+          >
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="settings-confirm-password">ยืนยันรหัสผ่านใหม่</label>
+          <label
+            class="block text-sm font-medium text-gray-700 mb-1"
+            for="settings-confirm-password"
+          >ยืนยันรหัสผ่านใหม่</label>
           <input
             id="settings-confirm-password"
             v-model="passwordForm.confirm"
@@ -118,9 +164,15 @@
             minlength="8"
             required
             class="input"
-          />
+          >
         </div>
-        <p v-if="passwordError" role="alert" class="text-sm text-red-600">{{ passwordError }}</p>
+        <p
+          v-if="passwordError"
+          role="alert"
+          class="text-sm text-red-600"
+        >
+          {{ passwordError }}
+        </p>
         <button
           type="submit"
           :disabled="savingPassword"
@@ -132,11 +184,16 @@
     </section>
 
     <!-- Permissions tab -->
-    <section v-else-if="tab === 'permissions' && auth.isSuperAdmin" class="space-y-4">
+    <section
+      v-else-if="tab === 'permissions' && auth.isSuperAdmin"
+      class="space-y-4"
+    >
       <div class="rounded-xl border border-gray-200 bg-white p-6 space-y-4">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 class="text-lg font-semibold text-gray-900">เมทริกซ์สิทธิ์ตามบทบาท</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              เมทริกซ์สิทธิ์ตามบทบาท
+            </h2>
             <p class="text-sm text-gray-500 mt-1">
               ค่าเริ่มต้นจากโค้ด — เปลี่ยนค่าจะบันทึก override (* = มี override) · คืนค่าเริ่มต้นเมื่อติ๊กกลับให้ตรง default
             </p>
@@ -148,7 +205,13 @@
               aria-label="เลือกบทบาทเพื่อดูเมทริกซ์สิทธิ์"
               class="rounded-lg border border-gray-300 px-3 py-2 text-sm"
             >
-              <option v-for="role in matrixRoles" :key="role" :value="role">{{ role }}</option>
+              <option
+                v-for="role in matrixRoles"
+                :key="role"
+                :value="role"
+              >
+                {{ role }}
+              </option>
             </select>
             <button
               type="button"
@@ -161,15 +224,35 @@
           </div>
         </div>
 
-        <p v-if="matrixError" role="alert" class="text-sm text-red-600">{{ matrixError }}</p>
-        <p v-if="matrixLoading" class="text-sm text-gray-500">กำลังโหลด…</p>
+        <p
+          v-if="matrixError"
+          role="alert"
+          class="text-sm text-red-600"
+        >
+          {{ matrixError }}
+        </p>
+        <p
+          v-if="matrixLoading"
+          class="text-sm text-gray-500"
+        >
+          กำลังโหลด…
+        </p>
 
-        <div v-else class="overflow-x-auto">
+        <div
+          v-else
+          class="overflow-x-auto"
+        >
           <table class="min-w-full text-sm">
             <thead>
               <tr class="border-b border-gray-200 text-left text-gray-500">
-                <th class="py-2 pr-4 font-medium">Resource</th>
-                <th v-for="action in matrixActions" :key="action" class="py-2 px-2 font-medium text-center capitalize">
+                <th class="py-2 pr-4 font-medium">
+                  Resource
+                </th>
+                <th
+                  v-for="action in matrixActions"
+                  :key="action"
+                  class="py-2 px-2 font-medium text-center capitalize"
+                >
                   {{ action }}
                 </th>
               </tr>
@@ -180,7 +263,9 @@
                 :key="resource"
                 class="border-b border-gray-100"
               >
-                <td class="py-2 pr-4 font-medium text-gray-800">{{ resource }}</td>
+                <td class="py-2 pr-4 font-medium text-gray-800">
+                  {{ resource }}
+                </td>
                 <td
                   v-for="(action, actionIdx) in matrixActions"
                   :key="`${resource}-${action}`"
@@ -193,7 +278,7 @@
                     :aria-label="`สิทธิ์ ${action} ของบทบาท ${selectedRole} ในส่วน ${resource}`"
                     :checked="cellAllowed(selectedRole, action, resource)"
                     @change="toggleCell(selectedRole, action, resource, $event.target.checked)"
-                  />
+                  >
                   <span
                     v-if="cellHasOverride(selectedRole, action, resource)"
                     class="ml-1 text-[10px] text-amber-600"

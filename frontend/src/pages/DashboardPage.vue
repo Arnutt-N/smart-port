@@ -3,28 +3,72 @@
     <!-- Page Header -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">ภาพรวมระบบสมุดพก</h1>
-        <p class="text-gray-600 mt-1">สรุปข้อมูลสำคัญและกิจกรรมล่าสุดของระบบการจัดการข้าราชการ</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          ภาพรวมระบบสมุดพก
+        </h1>
+        <p class="text-gray-600 mt-1">
+          สรุปข้อมูลสำคัญและกิจกรรมล่าสุดของระบบการจัดการข้าราชการ
+        </p>
       </div>
       <div class="flex items-center space-x-3">
-        <button @click="fetchDashboard" class="btn-primary flex items-center space-x-2 px-4 py-2">
-          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+        <button
+          class="btn-primary flex items-center space-x-2 px-4 py-2"
+          @click="fetchDashboard"
+        >
+          <RefreshCw
+            class="w-4 h-4"
+            :class="{ 'animate-spin': loading }"
+          />
           <span>รีเฟรช</span>
         </button>
       </div>
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading && !stats.totalPersonnel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <SkeletonLoader v-for="i in 4" :key="i" height="h-28" />
+    <div
+      v-if="loading && !stats.totalPersonnel"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+    >
+      <SkeletonLoader
+        v-for="i in 4"
+        :key="i"
+        height="h-28"
+      />
     </div>
 
     <!-- Statistics Cards -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <StatCard label="จำนวนข้าราชการทั้งหมด" :value="stats.totalPersonnel.toLocaleString()" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" />
-      <StatCard label="ติดตามพ้นทดลอง" :value="stats.probationTotal.toLocaleString()" :icon="UserCheck" icon-bg-class="bg-green-50" icon-class="text-green-600" />
-      <StatCard label="ผู้มีคุณสมบัติเลื่อนระดับ" :value="stats.candidateTotal.toLocaleString()" :icon="TrendingUp" icon-bg-class="bg-orange-50" icon-class="text-orange-600" />
-      <StatCard label="การนับเวลาเพิ่มเติม" :value="stats.timeCountTotal.toLocaleString()" :icon="Clock" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+    >
+      <StatCard
+        label="จำนวนข้าราชการทั้งหมด"
+        :value="stats.totalPersonnel.toLocaleString()"
+        :icon="Users"
+        icon-bg-class="bg-blue-50"
+        icon-class="text-blue-600"
+      />
+      <StatCard
+        label="ติดตามพ้นทดลอง"
+        :value="stats.probationTotal.toLocaleString()"
+        :icon="UserCheck"
+        icon-bg-class="bg-green-50"
+        icon-class="text-green-600"
+      />
+      <StatCard
+        label="ผู้มีคุณสมบัติเลื่อนระดับ"
+        :value="stats.candidateTotal.toLocaleString()"
+        :icon="TrendingUp"
+        icon-bg-class="bg-orange-50"
+        icon-class="text-orange-600"
+      />
+      <StatCard
+        label="การนับเวลาเพิ่มเติม"
+        :value="stats.timeCountTotal.toLocaleString()"
+        :icon="Clock"
+        icon-bg-class="bg-purple-50"
+        icon-class="text-purple-600"
+      />
     </div>
 
     <!-- Multiplier Summary Section -->
@@ -35,8 +79,12 @@
             <Clock class="w-6 h-6 text-primary-600" />
           </div>
           <div>
-            <h3 class="text-lg font-semibold text-gray-900">สรุปการนับทวีคูณ</h3>
-            <p class="text-sm text-gray-600">การนับเวลาราชการในพื้นที่พิเศษเป็นทวีคูณ</p>
+            <h3 class="text-lg font-semibold text-gray-900">
+              สรุปการนับทวีคูณ
+            </h3>
+            <p class="text-sm text-gray-600">
+              การนับเวลาราชการในพื้นที่พิเศษเป็นทวีคูณ
+            </p>
           </div>
         </div>
         <RouterLink
@@ -48,24 +96,48 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="bg-white rounded-lg p-4 shadow-sm">
-          <div class="text-sm text-gray-600 mb-1">รายการทั้งหมด</div>
-          <div class="text-2xl font-bold text-gray-900">{{ multiplierSummary.totalRecords.toLocaleString() }}</div>
-          <div class="text-xs text-gray-500 mt-1">รายการ</div>
+          <div class="text-sm text-gray-600 mb-1">
+            รายการทั้งหมด
+          </div>
+          <div class="text-2xl font-bold text-gray-900">
+            {{ multiplierSummary.totalRecords.toLocaleString() }}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            รายการ
+          </div>
         </div>
         <div class="bg-white rounded-lg p-4 shadow-sm">
-          <div class="text-sm text-gray-600 mb-1">จำนวนบุคลากร</div>
-          <div class="text-2xl font-bold text-primary-600">{{ multiplierSummary.distinctPersonnel.toLocaleString() }}</div>
-          <div class="text-xs text-gray-500 mt-1">คน</div>
+          <div class="text-sm text-gray-600 mb-1">
+            จำนวนบุคลากร
+          </div>
+          <div class="text-2xl font-bold text-primary-600">
+            {{ multiplierSummary.distinctPersonnel.toLocaleString() }}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            คน
+          </div>
         </div>
         <div class="bg-white rounded-lg p-4 shadow-sm">
-          <div class="text-sm text-gray-600 mb-1">วันทวีคูณรวม</div>
-          <div class="text-2xl font-bold text-purple-600">{{ formatNumber(multiplierSummary.totalBonusDays) }}</div>
-          <div class="text-xs text-gray-500 mt-1">วัน</div>
+          <div class="text-sm text-gray-600 mb-1">
+            วันทวีคูณรวม
+          </div>
+          <div class="text-2xl font-bold text-purple-600">
+            {{ formatNumber(multiplierSummary.totalBonusDays) }}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            วัน
+          </div>
         </div>
         <div class="bg-white rounded-lg p-4 shadow-sm">
-          <div class="text-sm text-gray-600 mb-1">ประมาณการ</div>
-          <div class="text-2xl font-bold text-green-600">{{ multiplierSummary.totalBonusYears.toLocaleString() }}</div>
-          <div class="text-xs text-gray-500 mt-1">ปี</div>
+          <div class="text-sm text-gray-600 mb-1">
+            ประมาณการ
+          </div>
+          <div class="text-2xl font-bold text-green-600">
+            {{ multiplierSummary.totalBonusYears.toLocaleString() }}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            ปี
+          </div>
         </div>
       </div>
     </div>
@@ -76,7 +148,9 @@
       <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="p-6 border-b border-gray-200">
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900">งานสำคัญที่ต้องติดตาม</h2>
+            <h2 class="text-lg font-semibold text-gray-900">
+              งานสำคัญที่ต้องติดตาม
+            </h2>
             <AlertCircle class="w-5 h-5 text-orange-500" />
           </div>
         </div>
@@ -84,23 +158,44 @@
           <table class="w-full">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รายการ</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวน</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ความสำคัญ</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  รายการ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  จำนวน
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  ความสำคัญ
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  จัดการ
+                </th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="task in priorityTasks" :key="task.title" class="hover:bg-blue-50/50 transition-all duration-150 cursor-default">
+              <tr
+                v-for="task in priorityTasks"
+                :key="task.title"
+                class="hover:bg-blue-50/50 transition-all duration-150 cursor-default"
+              >
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center space-x-3">
-                    <component :is="task.icon" class="w-5 h-5" :class="task.iconColor" />
+                    <component
+                      :is="task.icon"
+                      class="w-5 h-5"
+                      :class="task.iconColor"
+                    />
                     <span class="text-sm font-medium text-gray-900">{{ task.title }}</span>
                   </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ task.count }} คน</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ task.count }} คน
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full" :class="task.priorityColor">
+                  <span
+                    class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                    :class="task.priorityColor"
+                  >
                     {{ task.priority }}
                   </span>
                 </td>
@@ -109,7 +204,12 @@
                 </td>
               </tr>
               <tr v-if="priorityTasks.length === 0">
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400">ไม่มีงานที่ต้องดำเนินการ</td>
+                <td
+                  colspan="4"
+                  class="px-6 py-8 text-center text-gray-400"
+                >
+                  ไม่มีงานที่ต้องดำเนินการ
+                </td>
               </tr>
             </tbody>
           </table>
@@ -121,7 +221,9 @@
         <!-- Quick Actions -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">การดำเนินการด่วน</h3>
+            <h3 class="text-lg font-semibold text-gray-900">
+              การดำเนินการด่วน
+            </h3>
             <Zap class="w-5 h-5 text-yellow-500" />
           </div>
           <div class="space-y-3">
@@ -131,8 +233,14 @@
               :to="action.route"
               class="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all duration-200"
             >
-              <div class="text-white p-2 rounded-lg" :class="action.color">
-                <component :is="action.icon" class="w-4 h-4" />
+              <div
+                class="text-white p-2 rounded-lg"
+                :class="action.color"
+              >
+                <component
+                  :is="action.icon"
+                  class="w-4 h-4"
+                />
               </div>
               <span class="text-sm font-medium text-gray-700">{{ action.title }}</span>
             </RouterLink>
@@ -142,7 +250,9 @@
         <!-- Probation Summary -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">สรุปพ้นทดลอง</h3>
+            <h3 class="text-lg font-semibold text-gray-900">
+              สรุปพ้นทดลอง
+            </h3>
             <UserCheck class="w-5 h-5 text-primary-500" />
           </div>
           <div class="space-y-3">
@@ -164,8 +274,13 @@
     </div>
 
     <!-- Error Message -->
-    <div v-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4">
-      <p class="text-red-700 text-sm">{{ error }}</p>
+    <div
+      v-if="error"
+      class="bg-red-50 border border-red-200 rounded-lg p-4"
+    >
+      <p class="text-red-700 text-sm">
+        {{ error }}
+      </p>
     </div>
   </div>
 </template>
@@ -282,7 +397,7 @@ async function fetchDashboard() {
     }
     priorityTasks.value = tasks
 
-  } catch (err) {
+  } catch {
     if (!req.isCurrent()) return
     error.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {

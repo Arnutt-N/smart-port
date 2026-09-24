@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/multiplier.php
 // การนับเวลาราชการเป็นทวีคูณ
@@ -57,6 +58,31 @@ function denyMultiplierAreaWrite(): void
         'message' => 'คุณไม่มีสิทธิ์ในการดำเนินการนี้',
         'required_permission' => 'delete:multiplier',
     ]);
+}
+
+// ขนาดคอลัมน์จริง (database/13-multiplier-time-counting.sql)
+const MULTIPLIER_PROOF_REFERENCE_MAX_LENGTH = 500; // proof_reference VARCHAR(500)
+
+/**
+ * Guard ฟิลด์ข้อความอิสระของ multiplier record (ใช้ร่วมกันทั้ง create/update)
+ * - ต้องเป็น string/null (array/object จาก JSON ทำ PDO ระเบิด 500)
+ * - proof_reference ยาวไม่เกินคอลัมน์ VARCHAR(500) (description เป็น TEXT ไม่ต้อง cap)
+ *
+ * @return string|null ข้อความ error หรือ null ถ้าผ่าน
+ */
+function validateMultiplierTextFields(array $data): ?string
+{
+    foreach (['proof_reference', 'description'] as $field) {
+        $value = $data[$field] ?? null;
+        if ($value !== null && !is_string($value)) {
+            return "ฟิลด์ {$field} ต้องเป็นข้อความ";
+        }
+    }
+    $proof = $data['proof_reference'] ?? null;
+    if (is_string($proof) && mb_strlen($proof) > MULTIPLIER_PROOF_REFERENCE_MAX_LENGTH) {
+        return 'proof_reference ต้องมีความยาวไม่เกิน ' . MULTIPLIER_PROOF_REFERENCE_MAX_LENGTH . ' ตัวอักษร';
+    }
+    return null;
 }
 
 function handleMultiplier(PDO $pdo, string $method, array $path): void
@@ -187,13 +213,13 @@ function multiplierTimeEntryCfg(): array
         'searchSql' => [],
         'orderBy' => 'me.start_date DESC, me.multiplier_id DESC',
         'maxLimit' => 100,
-        'summarySql' => "
+        'summarySql' => '
             SELECT
                 COUNT(DISTINCT personnel_id) AS distinct_personnel,
                 COALESCE(SUM(effective_days), 0) AS total_effective_days,
                 COALESCE(SUM(bonus_days), 0) AS total_bonus_days
             FROM multiplier_experience
-        ",
+        ',
         'summaryMap' => function (array $summaryRow, int $total): array {
             return [
                 'total' => $total,
@@ -303,6 +329,12 @@ function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
         }
     }
 
+    $textError = validateMultiplierTextFields($data);
+    if ($textError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $textError]);
+        return;
+    }
     // ตรวจว่า personnel_id มีอยู่จริงก่อน เพื่อคืน 404 ที่อ่านง่าย แทนที่จะปล่อยให้ FK ระเบิดเป็น 500
     // U5: personnel_id ต้องเป็น int-like ก่อน (กัน array/bool ถูก intval กลบเงียบ)
     $personnelId = strictPersonnelId($data['personnel_id']);
@@ -372,57 +404,57 @@ function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
             return;
         }
 
-    $sql = "INSERT INTO multiplier_experience
+        $sql = 'INSERT INTO multiplier_experience
             (personnel_id, area_multiplier_id, province, district, basis_type,
              start_date, end_date, eligible_start_date, eligible_end_date,
              service_days, eligible_days, multiplier_ratio, effective_days,
              bonus_days, net_end_date, net_years, net_months, net_day_remainder,
              proof_reference, description, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        $personnelId,
-        $computed['area_multiplier_id'],
-        $computed['province'],
-        $computed['district'],
-        $computed['basis_type'],
-        $data['start_date'],
-        $data['end_date'],
-        $computed['eligible_start_date'],
-        $computed['eligible_end_date'],
-        $computed['service_days'],
-        $computed['eligible_days'],
-        $computed['multiplier_ratio'],
-        $computed['effective_days'],
-        $computed['bonus_days'],
-        $computed['net_end_date'],
-        $computed['net_years'],
-        $computed['net_months'],
-        $computed['net_day_remainder'],
-        $data['proof_reference'] ?? null,
-        $data['description'] ?? null,
-        $user['user_id'] ?? null,
-    ]);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $personnelId,
+            $computed['area_multiplier_id'],
+            $computed['province'],
+            $computed['district'],
+            $computed['basis_type'],
+            $data['start_date'],
+            $data['end_date'],
+            $computed['eligible_start_date'],
+            $computed['eligible_end_date'],
+            $computed['service_days'],
+            $computed['eligible_days'],
+            $computed['multiplier_ratio'],
+            $computed['effective_days'],
+            $computed['bonus_days'],
+            $computed['net_end_date'],
+            $computed['net_years'],
+            $computed['net_months'],
+            $computed['net_day_remainder'],
+            $data['proof_reference'] ?? null,
+            $data['description'] ?? null,
+            $user['user_id'] ?? null,
+        ]);
 
-    $multiplierId = intval($pdo->lastInsertId());
+        $multiplierId = intval($pdo->lastInsertId());
 
-    // Audit log: บันทึกการสร้างรายการทวีคูณ
-    timeEntryWriteAudit(
-        $pdo,
-        $user['user_id'],
-        'CREATE',
-        'multiplier_experience',
-        $multiplierId,
-        null,
-        [
-            'personnel_id' => $personnelId,
-            'area_multiplier_id' => $computed['area_multiplier_id'],
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
-            'bonus_days' => $computed['bonus_days'],
-        ]
-    );
+        // Audit log: บันทึกการสร้างรายการทวีคูณ
+        timeEntryWriteAudit(
+            $pdo,
+            $user['user_id'],
+            'CREATE',
+            'multiplier_experience',
+            $multiplierId,
+            null,
+            [
+                'personnel_id' => $personnelId,
+                'area_multiplier_id' => $computed['area_multiplier_id'],
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'bonus_days' => $computed['bonus_days'],
+            ]
+        );
 
         $pdo->commit();
     } catch (Throwable $e) {
@@ -573,6 +605,12 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         return;
     }
 
+    $textError = validateMultiplierTextFields($data);
+    if ($textError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $textError]);
+        return;
+    }
     // ตรวจว่า record มีอยู่จริง
     $existingStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
     $existingStmt->execute([$multiplierId]);
@@ -654,8 +692,8 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
             return;
         }
 
-    // Update
-    $sql = "UPDATE multiplier_experience SET
+        // Update
+        $sql = 'UPDATE multiplier_experience SET
                 personnel_id = ?,
                 area_multiplier_id = ?,
                 province = ?,
@@ -677,45 +715,45 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
                 proof_reference = ?,
                 description = ?,
                 updated_at = NOW()
-            WHERE multiplier_id = ?";
+            WHERE multiplier_id = ?';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        $personnelId,
-        $computed['area_multiplier_id'],
-        $computed['province'],
-        $computed['district'],
-        $computed['basis_type'],
-        $startDate,
-        $endDate,
-        $computed['eligible_start_date'],
-        $computed['eligible_end_date'],
-        $computed['service_days'],
-        $computed['eligible_days'],
-        $computed['multiplier_ratio'],
-        $computed['effective_days'],
-        $computed['bonus_days'],
-        $computed['net_end_date'],
-        $computed['net_years'],
-        $computed['net_months'],
-        $computed['net_day_remainder'],
-        $data['proof_reference'] ?? $existing['proof_reference'],
-        $data['description'] ?? $existing['description'],
-        $multiplierId,
-    ]);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $personnelId,
+            $computed['area_multiplier_id'],
+            $computed['province'],
+            $computed['district'],
+            $computed['basis_type'],
+            $startDate,
+            $endDate,
+            $computed['eligible_start_date'],
+            $computed['eligible_end_date'],
+            $computed['service_days'],
+            $computed['eligible_days'],
+            $computed['multiplier_ratio'],
+            $computed['effective_days'],
+            $computed['bonus_days'],
+            $computed['net_end_date'],
+            $computed['net_years'],
+            $computed['net_months'],
+            $computed['net_day_remainder'],
+            $data['proof_reference'] ?? $existing['proof_reference'],
+            $data['description'] ?? $existing['description'],
+            $multiplierId,
+        ]);
 
-    $afterStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
-    $afterStmt->execute([$multiplierId]);
-    $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    timeEntryWriteAudit(
-        $pdo,
-        (int) $user['user_id'],
-        'UPDATE',
-        'multiplier_experience',
-        $multiplierId,
-        $existing,
-        $after ?: null
-    );
+        $afterStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
+        $afterStmt->execute([$multiplierId]);
+        $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
+        timeEntryWriteAudit(
+            $pdo,
+            (int) $user['user_id'],
+            'UPDATE',
+            'multiplier_experience',
+            $multiplierId,
+            $existing,
+            $after ?: null
+        );
 
         $pdo->commit();
     } catch (Throwable $e) {
@@ -726,10 +764,10 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
     }
 
     // ดึงข้อมูลที่อัปเดตแล้วพร้อม decoration
-    $updatedStmt = $pdo->prepare("
+    $updatedStmt = $pdo->prepare('
         SELECT
             me.*,
-            " . sqlPersonnelFullName() . " AS full_name,
+            ' . sqlPersonnelFullName() . ' AS full_name,
             sam.legal_reference,
             sam.source_reference
         FROM multiplier_experience me
@@ -737,7 +775,7 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
         LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
         WHERE me.multiplier_id = ?
-    ");
+    ');
     $updatedStmt->execute([$multiplierId]);
     $updated = $updatedStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -753,37 +791,58 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
 
 function deleteMultiplier(PDO $pdo, int $multiplierId, array $user): void
 {
-    // ดึงค่าก่อนลบเพื่อ audit log (snapshot ชุดเดียวกับที่ create เก็บเป็น after_value)
-    $existingStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
-    $existingStmt->execute([$multiplierId]);
-    $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+    // F2: SELECT FOR UPDATE → DELETE → audit ใน transaction เดียว (pattern N13)
+    // — ของเดิม SELECT/DELETE แยก + audit เสมอ ทำ race ได้ audit DELETE คู่/ปลอม
+    try {
+        $pdo->beginTransaction();
+        // ดึงค่าก่อนลบเพื่อ audit log (snapshot ชุดเดียวกับที่ create เก็บเป็น after_value)
+        $existingStmt = $pdo->prepare(
+            'SELECT * FROM multiplier_experience WHERE multiplier_id = ?' .
+            ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '')
+        );
+        $existingStmt->execute([$multiplierId]);
+        $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$existing) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการที่ระบุ']);
-        return;
+        if (!$existing) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'ไม่พบรายการที่ระบุ']);
+            return;
+        }
+
+        // ลบ record
+        $stmt = $pdo->prepare('DELETE FROM multiplier_experience WHERE multiplier_id = ?');
+        $stmt->execute([$multiplierId]);
+        if ($stmt->rowCount() === 0) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'ไม่พบรายการที่ระบุ']);
+            return;
+        }
+
+        // Audit log: บันทึกการลบรายการทวีคูณ
+        logAudit(
+            $pdo,
+            $user['user_id'],
+            'DELETE',
+            'multiplier_experience',
+            $multiplierId,
+            [
+                'personnel_id' => (int) $existing['personnel_id'],
+                'area_multiplier_id' => (int) $existing['area_multiplier_id'],
+                'start_date' => $existing['start_date'],
+                'end_date' => $existing['end_date'],
+                'bonus_days' => (float) $existing['bonus_days'],
+            ],
+            null
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
-
-    // ลบ record
-    $stmt = $pdo->prepare('DELETE FROM multiplier_experience WHERE multiplier_id = ?');
-    $stmt->execute([$multiplierId]);
-
-    // Audit log: บันทึกการลบรายการทวีคูณ
-    timeEntryWriteAudit(
-        $pdo,
-        $user['user_id'],
-        'DELETE',
-        'multiplier_experience',
-        $multiplierId,
-        [
-            'personnel_id' => (int) $existing['personnel_id'],
-            'area_multiplier_id' => (int) $existing['area_multiplier_id'],
-            'start_date' => $existing['start_date'],
-            'end_date' => $existing['end_date'],
-            'bonus_days' => (float) $existing['bonus_days'],
-        ],
-        null
-    );
 
     timeEntryEmit(['http' => 200, 'body' => [
         'success' => true,

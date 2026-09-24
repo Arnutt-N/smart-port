@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/personnel.php
 // Personnel typeahead + master CRUD (ข้อมูลบุคลากร)
@@ -239,12 +240,12 @@ function legacyCivilServantsList(PDO $pdo, string $role, string $search, int $li
         $searchQuery = ' WHERE 1=1';
     }
 
-    $sql = "
+    $sql = '
         SELECT
             p.personnel_id,
             p.employee_id,
             p.citizen_id,
-            " . sqlPersonnelFullName() . " as full_name,
+            ' . sqlPersonnelFullName() . " as full_name,
             p.first_name,
             p.last_name,
             p.birth_date,

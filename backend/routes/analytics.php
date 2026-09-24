@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/analytics.php
 // Analytics Route Handler — สรุปข้อมูลเชิงวิเคราะห์ (read-only)
@@ -57,31 +58,31 @@ function getAnalyticsSummary(PDO $pdo): void
         // บนตารางเดียว predicate คนละแบบแต่ค่าเกือบเท่ากันเสมอ (servant_status
         // ตั้ง default 'active') — ให้ key civil_servants เป็น alias ของ personnel
         // กัน FE เก่าล้ม (หน้า Analytics ตัดการ์ดซ้ำออกแล้ว)
-        'personnel' => analyticsScalar($pdo, "SELECT COUNT(*) FROM personnel WHERE is_active = 1"),
+        'personnel' => analyticsScalar($pdo, 'SELECT COUNT(*) FROM personnel WHERE is_active = 1'),
         'civil_servants' => null,
-        'awards' => analyticsScalar($pdo, "SELECT COUNT(*) FROM awards"),
-        'decorations' => analyticsScalar($pdo, "SELECT COUNT(*) FROM royal_decorations"),
-        'work_results' => analyticsScalar($pdo, "SELECT COUNT(*) FROM performance_proposals WHERE is_active = 1"),
+        'awards' => analyticsScalar($pdo, 'SELECT COUNT(*) FROM awards'),
+        'decorations' => analyticsScalar($pdo, 'SELECT COUNT(*) FROM royal_decorations'),
+        'work_results' => analyticsScalar($pdo, 'SELECT COUNT(*) FROM performance_proposals WHERE is_active = 1'),
         'retirement_upcoming' => analyticsScalar(
             $pdo,
-            "SELECT COUNT(*) FROM personnel
+            'SELECT COUNT(*) FROM personnel
              WHERE is_active = 1 AND retirement_date IS NOT NULL
                AND retirement_date >= CURDATE()
-               AND retirement_date <= DATE_ADD(CURDATE(), INTERVAL 12 MONTH)"
+               AND retirement_date <= DATE_ADD(CURDATE(), INTERVAL 12 MONTH)'
         ),
     ];
 
     $proposalsByStatus = analyticsGroup(
         $pdo,
-        "SELECT status AS label, COUNT(*) AS count
+        'SELECT status AS label, COUNT(*) AS count
          FROM performance_proposals WHERE is_active = 1
-         GROUP BY status ORDER BY count DESC"
+         GROUP BY status ORDER BY count DESC'
     );
 
     $awardsByType = analyticsGroup(
         $pdo,
-        "SELECT award_type AS label, COUNT(*) AS count
-         FROM awards GROUP BY award_type ORDER BY count DESC"
+        'SELECT award_type AS label, COUNT(*) AS count
+         FROM awards GROUP BY award_type ORDER BY count DESC'
     );
 
     // N9: civil_servants เป็น alias ของ personnel — FE เก่าที่ยังอ่าน key นี้ไม่ล้ม

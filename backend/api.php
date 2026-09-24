@@ -1,4 +1,5 @@
 <?php
+
 // Smart Port Management System - Enhanced API Gateway
 // Production-safe error handling: prevent PHP warnings/notices from leaking
 // as HTML into JSON responses (the "Unexpected token '<'" bug)
@@ -65,6 +66,9 @@ $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 header('Vary: Origin');
 if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: $origin");
+    // D3: cookie session ข้าม origin (dev: 5174 -> 8000) ต้องมี credentials;
+    // ACAO ระบุ origin ตรง (ไม่ใช่ *) จึงใช้คู่กันได้อย่างปลอดภัย
+    header('Access-Control-Allow-Credentials: true');
 }
 
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -102,8 +106,8 @@ $isPasswordChange = $path[0] === 'auth' && ($path[1] ?? '') === 'change-password
 // (access JWT อาจหมดอายุแล้ว จึงบังคับ JWT/CSRF ไม่ได้)
 $isPublicAuth = $isPublicLogin || $isPublicRefresh || $isPublicLogout;
 
-// Issue #112: asset รูป (GET /uploads/{file}) เป็น public เหมือนตอน Apache เสิร์ฟ static
-// (<img> ไม่ส่ง Authorization header) — ชื่อไฟล์ CSPRNG เดาไม่ได้ทำหน้าที่เป็น capability URL
+// Issue #112 + D1: asset รูป (GET /uploads/{file}) เป็น public เหมือนตอน Apache เสิร์ฟ static
+// (<img> ไม่ส่ง Authorization header) — แต่ต้องมี ?exp=&sig= จาก /photos/sign (cut over แล้ว)
 $isPublicPhotoAsset = $path[0] === 'uploads' && $method === 'GET';
 
 // Issue #114: readiness endpoint เปิด public สำหรับ monitoring — คืนเฉพาะตัวเลข/สถานะ
@@ -187,55 +191,9 @@ switch ($path[0]) {
         break;
 
     case 'profile':
-        $id = $path[1] ?? null;
-        if ($method !== 'GET') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            break;
-        }
-        requirePermission('read', 'profile');
         $pdo = getDB();
-        if ($id) {
-            // GET /profile/{id} — ข้อมูลข้าราชการรายบุคคล
-            $stmt = $pdo->prepare(
-                "SELECT p.personnel_id, p.employee_id, p.first_name, p.last_name,
-                        p.birth_date, p.appointment_date, p.retirement_date,
-                        p.servant_status, p.is_active,
-                        " . sqlPersonnelFullName() . " AS full_name,
-                        csp.file_path AS photo_path
-                 FROM personnel p
-                 LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-                 LEFT JOIN civil_servant_photos csp
-                     ON p.personnel_id = csp.personnel_id AND csp.is_primary = 1
-                 WHERE p.personnel_id = ?"
-            );
-            $stmt->execute([$id]);
-            $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$profile) {
-                http_response_code(404);
-                echo json_encode(['error' => 'Not found']);
-                break;
-            }
-            // normalize เผื่อแถวรุ่นเก่าที่เก็บ path ของ filesystem ไว้
-            $profile['photo_path'] = photoWebPath($profile['photo_path'] ?? null);
-            echo json_encode(['success' => true, 'data' => $profile]);
-        } else {
-            // GET /profile — บัญชีผู้ใช้ของตัวเอง (ไม่มี user↔civil_servant link จึงคืนข้อมูล account)
-            $authUser = getAuthenticatedUser();
-            $stmt = $pdo->prepare(
-                "SELECT user_id, username, full_name, email, role, is_active,
-                        must_change_password, last_login_at, created_at
-                 FROM users WHERE user_id = ?"
-            );
-            $stmt->execute([(int) ($authUser['user_id'] ?? 0)]);
-            $account = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$account) {
-                http_response_code(404);
-                echo json_encode(['error' => 'Not found']);
-                break;
-            }
-            echo json_encode(['success' => true, 'data' => $account]);
-        }
+        include __DIR__ . '/routes/profile.php';
+        handleProfile($pdo, $method, $path);
         break;
 
     case 'csp-report':
@@ -305,6 +263,13 @@ switch ($path[0]) {
         break;
 
     case 'photos':
+        // D1: ออก signed URL (JWT อย่างเดียว — ไม่เช็ก permission เพิ่ม:
+        // รูปไม่มี access-control ระดับบุคคลอยู่แล้ว การบังคับ auth + TTL คือสโคปของ D1)
+        if ($method === 'GET' && ($path[1] ?? '') === 'sign') {
+            include_once __DIR__ . '/routes/photos.php';
+            handlePhotoSign($_GET);
+            break;
+        }
         if ($method == 'POST') {
             requirePermission('create', 'photos');
             $personnelId = strictPersonnelId($_POST['personnel_id'] ?? null);
@@ -505,10 +470,10 @@ switch ($path[0]) {
             include_once __DIR__ . '/routes/analytics.php';
 
             // จำนวนบุคลากรทั้งหมด (จาก personnel table)
-            $totalPersonnel = analyticsScalar($pdo, "SELECT COUNT(*) FROM personnel WHERE is_active = 1");
+            $totalPersonnel = analyticsScalar($pdo, 'SELECT COUNT(*) FROM personnel WHERE is_active = 1');
 
             // สรุปพ้นทดลอง
-            $probationTotal = analyticsScalar($pdo, "SELECT COUNT(*) FROM probation_enrollment");
+            $probationTotal = analyticsScalar($pdo, 'SELECT COUNT(*) FROM probation_enrollment');
 
             // vw_probation_dashboard อาจพังบน TiDB (definer issue) — ใช้ try-catch
             $probationInProgress = 0;
@@ -518,13 +483,13 @@ switch ($path[0]) {
                 // in_progress ใช้ predicate เดียวกับ summary ของ probation route
                 // (routes/probation.php getProbationList: IN_PROGRESS + DATEDIFF > 0;
                 // view กรอง IN_PROGRESS ไว้แล้ว จึงเหลือกรอง remaining_days > 0)
-                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days > 0");
+                $stmt = $pdo->query('SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days > 0');
                 $probationInProgress = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS);
+                $stmt = $pdo->query('SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days BETWEEN 0 AND ' . PROBATION_NEAR_THRESHOLD_DAYS);
                 $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
-                $stmt = $pdo->query("SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0");
+                $stmt = $pdo->query('SELECT COUNT(*) as c FROM vw_probation_dashboard WHERE remaining_days < 0');
                 $probationOverdue = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
             } catch (PDOException $e) {
                 // View ไม่สามารถใช้งานได้ — fallback คำนวณจาก base tables
@@ -539,8 +504,8 @@ switch ($path[0]) {
                     $stmt = $pdo->query("
                         SELECT COUNT(*) as c FROM probation_enrollment
                         WHERE overall_status = 'IN_PROGRESS'
-                        AND DATEDIFF(end_date, CURDATE()) BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS . "
-                    ");
+                        AND DATEDIFF(end_date, CURDATE()) BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS . '
+                    ');
                     $probationNear = (int) $stmt->fetch(PDO::FETCH_ASSOC)['c'];
 
                     $stmt = $pdo->query("
@@ -555,11 +520,11 @@ switch ($path[0]) {
             }
 
             // จำนวนการนับเวลาเพิ่มเติม
-            $supportiveCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM supportive_experience");
+            $supportiveCount = analyticsScalar($pdo, 'SELECT COUNT(*) FROM supportive_experience');
 
-            $diverseCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM diverse_experience");
+            $diverseCount = analyticsScalar($pdo, 'SELECT COUNT(*) FROM diverse_experience');
 
-            $equivalenceCount = analyticsScalar($pdo, "SELECT COUNT(*) FROM position_equivalence");
+            $equivalenceCount = analyticsScalar($pdo, 'SELECT COUNT(*) FROM position_equivalence');
 
             // Candidate totals จาก QualificationEngine overview (seam เดียวกับ /candidates/overview)
             $candidateTotals = [];
@@ -584,13 +549,13 @@ switch ($path[0]) {
                 'total_bonus_years' => 0,
             ];
             try {
-                $stmt = $pdo->query("
+                $stmt = $pdo->query('
                     SELECT
                         COUNT(*) AS total_records,
                         COUNT(DISTINCT personnel_id) AS distinct_personnel,
                         COALESCE(SUM(bonus_days), 0) AS total_bonus_days
                     FROM multiplier_experience
-                ");
+                ');
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($row) {
                     $multiplierStats['total_records'] = (int) $row['total_records'];

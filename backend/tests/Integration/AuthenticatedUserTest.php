@@ -34,7 +34,7 @@ final class AuthenticatedUserTest extends TestCase
 
         try {
             $jwt = generateJWT($userId, 'admin');
-            $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $jwt['token'];
+            $_COOKIE[AUTH_ACCESS_COOKIE] = $jwt['token'];
 
             $user = getAuthenticatedUser();
 
@@ -42,7 +42,7 @@ final class AuthenticatedUserTest extends TestCase
             self::assertSame($userId, (int) $user['user_id']);
             self::assertSame('admin', $user['role']);
         } finally {
-            unset($_SERVER['HTTP_AUTHORIZATION']);
+            unset($_COOKIE[AUTH_ACCESS_COOKIE]);
             $pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$userId]);
         }
     }

@@ -2,7 +2,9 @@
   <div class="p-6 space-y-6">
     <!-- Header -->
     <header class="flex flex-col gap-1">
-      <h1 class="text-2xl font-bold text-gray-800">นำเข้าข้อมูลบุคลากร</h1>
+      <h1 class="text-2xl font-bold text-gray-800">
+        นำเข้าข้อมูลบุคลากร
+      </h1>
       <p class="text-sm text-gray-500">
         อัปโหลดไฟล์ Excel (.xlsx) เพื่อนำเข้าข้อมูลข้าราชการระดับบริหาร/อำนวยการ —
         กรอกตามเทมเพลตเพื่อความถูกต้อง
@@ -13,7 +15,9 @@
     <section class="bg-white rounded-xl border border-gray-200 p-5">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 class="text-sm font-semibold text-gray-700">1. ดาวน์โหลดเทมเพลต</h2>
+          <h2 class="text-sm font-semibold text-gray-700">
+            1. ดาวน์โหลดเทมเพลต
+          </h2>
           <p class="text-xs text-gray-500 mt-1">
             กรอกข้อมูลในไฟล์เทมเพลต (ชีต Personnel / Diverse / Equivalence / History) แล้วบันทึกเป็น .xlsx
           </p>
@@ -31,7 +35,9 @@
 
     <!-- Step 2: อัปโหลด -->
     <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-gray-700">2. อัปโหลดไฟล์</h2>
+      <h2 class="text-sm font-semibold text-gray-700">
+        2. อัปโหลดไฟล์
+      </h2>
 
       <!-- Dropzone -->
       <div
@@ -59,13 +65,23 @@
           class="hidden"
           aria-label="เลือกไฟล์ Excel (.xlsx) สำหรับนำเข้าข้อมูลบุคลากร"
           @change="onPick"
-        />
+        >
         <FileSpreadsheet class="w-10 h-10 mx-auto text-gray-400" />
-        <p v-if="file" class="mt-3 text-sm font-medium text-gray-700">{{ file.name }}</p>
-        <p v-else class="mt-3 text-sm text-gray-600">
+        <p
+          v-if="file"
+          class="mt-3 text-sm font-medium text-gray-700"
+        >
+          {{ file.name }}
+        </p>
+        <p
+          v-else
+          class="mt-3 text-sm text-gray-600"
+        >
           ลากไฟล์มาวาง หรือ <span class="text-primary-600 font-medium">คลิกเพื่อเลือก</span>
         </p>
-        <p class="mt-1 text-xs text-gray-400">รองรับ .xlsx ขนาดไม่เกิน 5MB</p>
+        <p class="mt-1 text-xs text-gray-400">
+          รองรับ .xlsx ขนาดไม่เกิน 5MB
+        </p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -74,8 +90,14 @@
           class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-not-allowed"
           @click="submit"
         >
-          <Loader2 v-if="busy" class="w-4 h-4 animate-spin" />
-          <Upload v-else class="w-4 h-4" />
+          <Loader2
+            v-if="busy"
+            class="w-4 h-4 animate-spin"
+          />
+          <Upload
+            v-else
+            class="w-4 h-4"
+          />
           {{ busy ? 'กำลังนำเข้า…' : 'นำเข้าข้อมูล' }}
         </button>
         <button
@@ -89,7 +111,12 @@
     </section>
 
     <!-- Step 3: ผลลัพธ์ (aria-live เพื่อ screen reader) -->
-    <section ref="resultEl" aria-live="polite" tabindex="-1" class="outline-none">
+    <section
+      ref="resultEl"
+      aria-live="polite"
+      tabindex="-1"
+      class="outline-none"
+    >
       <!-- สำเร็จ -->
       <div
         v-if="status === 'success' && summary"
@@ -97,12 +124,22 @@
       >
         <div class="flex items-center gap-2 text-green-700">
           <CheckCircle2 class="w-5 h-5" />
-          <h2 class="text-sm font-semibold">นำเข้าสำเร็จ</h2>
+          <h2 class="text-sm font-semibold">
+            นำเข้าสำเร็จ
+          </h2>
         </div>
         <dl class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <div v-for="s in summaryItems" :key="s.key" class="bg-gray-50 rounded-lg p-3 text-center">
-            <dt class="text-xs text-gray-500">{{ s.label }}</dt>
-            <dd class="text-xl font-bold text-gray-800">{{ s.value }}</dd>
+          <div
+            v-for="s in summaryItems"
+            :key="s.key"
+            class="bg-gray-50 rounded-lg p-3 text-center"
+          >
+            <dt class="text-xs text-gray-500">
+              {{ s.label }}
+            </dt>
+            <dd class="text-xl font-bold text-gray-800">
+              {{ s.value }}
+            </dd>
           </div>
         </dl>
         <div class="flex items-center gap-3 mt-5">
@@ -113,7 +150,10 @@
             ดูบัญชีรายชื่อ
             <ArrowRight class="w-4 h-4" />
           </RouterLink>
-          <button class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" @click="reset">
+          <button
+            class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+            @click="reset"
+          >
             นำเข้าไฟล์ใหม่
           </button>
         </div>
@@ -126,7 +166,9 @@
       >
         <div class="flex items-center gap-2 text-red-700">
           <AlertCircle class="w-5 h-5" />
-          <h2 class="text-sm font-semibold">นำเข้าไม่สำเร็จ ({{ errors.length }} รายการ)</h2>
+          <h2 class="text-sm font-semibold">
+            นำเข้าไม่สำเร็จ ({{ errors.length }} รายการ)
+          </h2>
         </div>
         <ul class="mt-3 space-y-1.5 max-h-72 overflow-y-auto">
           <li
@@ -137,7 +179,10 @@
             {{ err }}
           </li>
         </ul>
-        <button class="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700" @click="reset">
+        <button
+          class="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+          @click="reset"
+        >
           ลองใหม่
         </button>
       </div>

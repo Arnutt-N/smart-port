@@ -6,7 +6,9 @@ require_once __DIR__ . '/SourceAdapterInterface.php';
 
 class CsvFileAdapter implements SourceAdapterInterface
 {
-    public function __construct(private string $csvDir) {}
+    public function __construct(private string $csvDir)
+    {
+    }
 
     public function fetchRows(string $table, array $columns = [], ?string $sinceColumn = null, ?string $sinceValue = null): iterable
     {

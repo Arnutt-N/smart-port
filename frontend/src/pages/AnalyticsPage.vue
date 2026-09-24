@@ -2,16 +2,29 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">การวิเคราะห์ข้อมูล</h1>
-        <p class="text-sm text-gray-500 mt-1">ภาพรวมเชิงสถิติของข้อมูลบุคลากรและผลงาน</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+          การวิเคราะห์ข้อมูล
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+          ภาพรวมเชิงสถิติของข้อมูลบุคลากรและผลงาน
+        </p>
       </div>
-      <button @click="fetchData" class="btn-primary flex items-center space-x-2 px-4 py-2">
-        <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+      <button
+        class="btn-primary flex items-center space-x-2 px-4 py-2"
+        @click="fetchData"
+      >
+        <RefreshCw
+          class="w-4 h-4"
+          :class="{ 'animate-spin': loading }"
+        />
         <span>รีเฟรช</span>
       </button>
     </div>
 
-    <SkeletonLoader v-if="loading && !loaded" type="stat-cards" />
+    <SkeletonLoader
+      v-if="loading && !loaded"
+      type="stat-cards"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -30,16 +43,54 @@
     <template v-else>
       <!-- N9: ลบการ์ด «ข้าราชการ» — เกือบซ้ำกับ «บุคลากรทั้งหมด» (niche บนตารางเดียว) -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard label="บุคลากรทั้งหมด" :value="totals.personnel.toLocaleString()" :icon="Users" icon-bg-class="bg-blue-50" icon-class="text-blue-600" />
-        <StatCard label="รางวัล" :value="totals.awards.toLocaleString()" :icon="Award" icon-bg-class="bg-yellow-50" icon-class="text-yellow-600" />
-        <StatCard label="เครื่องราชอิสริยาภรณ์" :value="totals.decorations.toLocaleString()" :icon="Medal" icon-bg-class="bg-purple-50" icon-class="text-purple-600" />
-        <StatCard label="ผลงานและข้อเสนอ" :value="totals.workResults.toLocaleString()" :icon="FileText" icon-bg-class="bg-indigo-50" icon-class="text-indigo-600" />
-        <StatCard label="เกษียณภายใน 12 เดือน" :value="totals.retirementUpcoming.toLocaleString()" :icon="CalendarClock" icon-bg-class="bg-orange-50" icon-class="text-orange-600" />
+        <StatCard
+          label="บุคลากรทั้งหมด"
+          :value="totals.personnel.toLocaleString()"
+          :icon="Users"
+          icon-bg-class="bg-blue-50"
+          icon-class="text-blue-600"
+        />
+        <StatCard
+          label="รางวัล"
+          :value="totals.awards.toLocaleString()"
+          :icon="Award"
+          icon-bg-class="bg-yellow-50"
+          icon-class="text-yellow-600"
+        />
+        <StatCard
+          label="เครื่องราชอิสริยาภรณ์"
+          :value="totals.decorations.toLocaleString()"
+          :icon="Medal"
+          icon-bg-class="bg-purple-50"
+          icon-class="text-purple-600"
+        />
+        <StatCard
+          label="ผลงานและข้อเสนอ"
+          :value="totals.workResults.toLocaleString()"
+          :icon="FileText"
+          icon-bg-class="bg-indigo-50"
+          icon-class="text-indigo-600"
+        />
+        <StatCard
+          label="เกษียณภายใน 12 เดือน"
+          :value="totals.retirementUpcoming.toLocaleString()"
+          :icon="CalendarClock"
+          icon-bg-class="bg-orange-50"
+          icon-class="text-orange-600"
+        />
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DistributionCard title="ผลงานตามสถานะ" :items="proposalsByStatus" bar-class="bg-indigo-500" />
-        <DistributionCard title="รางวัลตามประเภท" :items="awardsByType" bar-class="bg-yellow-500" />
+        <DistributionCard
+          title="ผลงานตามสถานะ"
+          :items="proposalsByStatus"
+          bar-class="bg-indigo-500"
+        />
+        <DistributionCard
+          title="รางวัลตามประเภท"
+          :items="awardsByType"
+          bar-class="bg-yellow-500"
+        />
       </div>
     </template>
   </div>
@@ -64,19 +115,19 @@ const DistributionCard = {
       props.items.length === 0
         ? h('p', { class: 'text-sm text-gray-400 py-4 text-center' }, 'ไม่มีข้อมูล')
         : h('div', { class: 'space-y-3' }, props.items.map(item =>
-            h('div', { key: item.label }, [
-              h('div', { class: 'flex justify-between text-sm mb-1' }, [
-                h('span', { class: 'text-gray-700' }, item.label),
-                h('span', { class: 'font-medium text-gray-900 tabular-nums' }, item.count.toLocaleString()),
-              ]),
-              h('div', { class: 'h-2 bg-gray-100 rounded-full overflow-hidden' }, [
-                h('div', {
-                  class: `h-full rounded-full ${props.barClass}`,
-                  style: { width: `${Math.round((item.count / max.value) * 100)}%` },
-                }),
-              ]),
+          h('div', { key: item.label }, [
+            h('div', { class: 'flex justify-between text-sm mb-1' }, [
+              h('span', { class: 'text-gray-700' }, item.label),
+              h('span', { class: 'font-medium text-gray-900 tabular-nums' }, item.count.toLocaleString()),
             ]),
-          )),
+            h('div', { class: 'h-2 bg-gray-100 rounded-full overflow-hidden' }, [
+              h('div', {
+                class: `h-full rounded-full ${props.barClass}`,
+                style: { width: `${Math.round((item.count / max.value) * 100)}%` },
+              }),
+            ]),
+          ]),
+        )),
     ])
   },
 }

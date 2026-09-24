@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/probation.php
 // Probation Tracking Route Handler
@@ -232,10 +233,10 @@ function getProbationList(PDO $pdo): void
                       JOIN personnel p ON v.personnel_id = p.personnel_id
                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
                       JOIN probation_enrollment pe ON v.enrollment_id = pe.enrollment_id";
-        $countQuery = "SELECT COUNT(*) AS total
+        $countQuery = 'SELECT COUNT(*) AS total
                        FROM vw_probation_dashboard v
                        JOIN personnel p ON v.personnel_id = p.personnel_id
-                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id";
+                       LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
 
         if (!empty($search)) {
             $where = " WHERE ({$fullNameExpr} LIKE ? OR v.position_name LIKE ? OR v.department LIKE ?)";
@@ -300,10 +301,10 @@ function getProbationList(PDO $pdo): void
     $nearDeadline = 0;
     $overdue = 0;
     try {
-        $summaryStmt = $pdo->query("
+        $summaryStmt = $pdo->query('
             SELECT
                 SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) > 0 THEN 1 ELSE 0 END) AS in_progress,
-                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) BETWEEN 0 AND " . PROBATION_NEAR_THRESHOLD_DAYS . " THEN 1 ELSE 0 END) AS near_deadline,
+                SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) BETWEEN 0 AND ' . PROBATION_NEAR_THRESHOLD_DAYS . " THEN 1 ELSE 0 END) AS near_deadline,
                 SUM(CASE WHEN DATEDIFF(end_date, CURDATE()) < 0 THEN 1 ELSE 0 END) AS overdue
             FROM probation_enrollment
             WHERE overall_status = 'IN_PROGRESS'
@@ -316,9 +317,15 @@ function getProbationList(PDO $pdo): void
         // fallback: นับจาก current page rows
         foreach ($rows as $r) {
             $rem = intval($r['remaining_days'] ?? 0);
-            if ($rem > 0) $inProgress++;
-            if ($rem >= 0 && $rem <= PROBATION_NEAR_THRESHOLD_DAYS) $nearDeadline++;
-            if ($rem < 0) $overdue++;
+            if ($rem > 0) {
+                $inProgress++;
+            }
+            if ($rem >= 0 && $rem <= PROBATION_NEAR_THRESHOLD_DAYS) {
+                $nearDeadline++;
+            }
+            if ($rem < 0) {
+                $overdue++;
+            }
         }
     }
 
@@ -531,7 +538,7 @@ function updateProbationEnrollment(PDO $pdo, int $enrollmentId): void
     }
 
     $params[] = $enrollmentId;
-    $sql = "UPDATE probation_enrollment SET " . implode(', ', $sets) . " WHERE enrollment_id = ?";
+    $sql = 'UPDATE probation_enrollment SET ' . implode(', ', $sets) . ' WHERE enrollment_id = ?';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

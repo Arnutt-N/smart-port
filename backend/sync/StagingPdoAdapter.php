@@ -6,7 +6,9 @@ require_once __DIR__ . '/SourceAdapterInterface.php';
 
 class StagingPdoAdapter implements SourceAdapterInterface
 {
-    public function __construct(private PDO $pdo) {}
+    public function __construct(private PDO $pdo)
+    {
+    }
 
     public function fetchRows(string $table, array $columns = [], ?string $sinceColumn = null, ?string $sinceValue = null): iterable
     {

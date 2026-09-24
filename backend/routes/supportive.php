@@ -1,4 +1,5 @@
 <?php
+
 // ============================================================================
 // routes/supportive.php
 // Supportive Experience Route Handler
@@ -144,13 +145,13 @@ function supportiveTimeEntryCfg(): array
             'se.job_series_name LIKE ?',
         ],
         'orderBy' => 'se.start_date DESC',
-        'summarySql' => "
+        'summarySql' => '
             SELECT
                 COUNT(*) AS distinct_personnel,
                 COALESCE(SUM(effective_days), 0) AS total_effective_days,
                 SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS recent_count
             FROM supportive_experience
-        ",
+        ',
         'summaryMap' => function (array $summaryRow, int $total): array {
             return [
                 'total' => $total,
@@ -213,9 +214,9 @@ function computeSupportiveFields(PDO $pdo, string $startDateStr, string $endDate
     $ratioPercent = 100; // default if no match (D-04)
 
     if ($primarySeriesName !== null && $primarySeriesName !== '') {
-        $ratioSql = "SELECT ratio_percent FROM supportive_job_series
+        $ratioSql = 'SELECT ratio_percent FROM supportive_job_series
                      WHERE primary_series_name = ? AND supportive_series_name = ? AND is_active = 1
-                     LIMIT 1";
+                     LIMIT 1';
         $ratioStmt = $pdo->prepare($ratioSql);
         $ratioStmt->execute([$primarySeriesName, $jobSeriesName]);
         $ratioRow = $ratioStmt->fetch(PDO::FETCH_ASSOC);
@@ -303,11 +304,11 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
         return;
     }
 
-    $sql = "INSERT INTO supportive_experience
+    $sql = 'INSERT INTO supportive_experience
             (personnel_id, job_series_name, start_date, end_date,
              total_days, ratio_percent, effective_days,
              net_end_date, net_years, net_months, net_day_remainder, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
@@ -350,7 +351,7 @@ function createSupportive(PDO $pdo, array $user, ?array $input = null): void
 function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null): void
 {
     // ตรวจสอบว่ารายการมีอยู่จริง
-    $checkStmt = $pdo->prepare("SELECT * FROM supportive_experience WHERE supportive_id = ?");
+    $checkStmt = $pdo->prepare('SELECT * FROM supportive_experience WHERE supportive_id = ?');
     $checkStmt->execute([$id]);
     $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -430,19 +431,19 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
             return;
         }
 
-        $sets[] = "total_days = ?";
+        $sets[] = 'total_days = ?';
         $params[] = $computed['total_days'];
-        $sets[] = "ratio_percent = ?";
+        $sets[] = 'ratio_percent = ?';
         $params[] = $computed['ratio_percent'];
-        $sets[] = "effective_days = ?";
+        $sets[] = 'effective_days = ?';
         $params[] = $computed['effective_days'];
-        $sets[] = "net_end_date = ?";
+        $sets[] = 'net_end_date = ?';
         $params[] = $computed['net_end_date'];
-        $sets[] = "net_years = ?";
+        $sets[] = 'net_years = ?';
         $params[] = $computed['net_years'];
-        $sets[] = "net_months = ?";
+        $sets[] = 'net_months = ?';
         $params[] = $computed['net_months'];
-        $sets[] = "net_day_remainder = ?";
+        $sets[] = 'net_day_remainder = ?';
         $params[] = $computed['net_day_remainder'];
     }
 
@@ -453,7 +454,7 @@ function updateSupportive(PDO $pdo, int $id, array $user, ?array $input = null):
     }
 
     $params[] = $id;
-    $sql = "UPDATE supportive_experience SET " . implode(', ', $sets) . " WHERE supportive_id = ?";
+    $sql = 'UPDATE supportive_experience SET ' . implode(', ', $sets) . ' WHERE supportive_id = ?';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -488,7 +489,7 @@ function deleteSupportive(PDO $pdo, int $id, array $user): void
         return;
     }
 
-    $stmt = $pdo->prepare("DELETE FROM supportive_experience WHERE supportive_id = ?");
+    $stmt = $pdo->prepare('DELETE FROM supportive_experience WHERE supportive_id = ?');
     $stmt->execute([$id]);
 
     timeEntryWriteAudit(

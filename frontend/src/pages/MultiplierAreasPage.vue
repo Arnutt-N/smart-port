@@ -2,7 +2,9 @@
   <div class="p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">จัดการพื้นที่พิเศษ (ทวีคูณ)</h1>
+        <h1 class="text-2xl font-bold text-gray-900">
+          จัดการพื้นที่พิเศษ (ทวีคูณ)
+        </h1>
         <p class="text-sm text-gray-500 mt-1">
           เพิ่มพื้นที่และกำหนดอัตราทวีคูณ — ข้อมูลเดิมแก้ไขไม่ได้ หากผิดให้ปิดใช้งานแล้วเพิ่มรายการใหม่แทน
         </p>
@@ -16,8 +18,14 @@
       </button>
     </div>
 
-    <SkeletonLoader v-if="loading && areas.length === 0" type="stat-cards" />
-    <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <SkeletonLoader
+      v-if="loading && areas.length === 0"
+      type="stat-cards"
+    />
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-3 gap-4"
+    >
       <StatCard
         label="พื้นที่ทั้งหมด"
         :value="areas.length"
@@ -46,12 +54,20 @@
       class="flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
     >
       <span>{{ actionError }}</span>
-      <button class="text-red-500 hover:text-red-700" aria-label="ปิดข้อความ" @click="actionError = ''">
+      <button
+        class="text-red-500 hover:text-red-700"
+        aria-label="ปิดข้อความ"
+        @click="actionError = ''"
+      >
         <X class="w-4 h-4" />
       </button>
     </div>
 
-    <SkeletonLoader v-if="loading && areas.length === 0" type="table" :rows="5" />
+    <SkeletonLoader
+      v-if="loading && areas.length === 0"
+      type="table"
+      :rows="5"
+    />
 
     <EmptyState
       v-else-if="error"
@@ -67,21 +83,40 @@
       </button>
     </EmptyState>
 
-    <div v-else class="bg-white rounded-lg shadow overflow-hidden">
+    <div
+      v-else
+      class="bg-white rounded-lg shadow overflow-hidden"
+    >
       <div class="border-b border-gray-100 px-6 py-4">
-        <h2 class="text-base font-semibold text-gray-900">พื้นที่พิเศษทั้งหมด (รวมที่ปิดใช้งาน)</h2>
+        <h2 class="text-base font-semibold text-gray-900">
+          พื้นที่พิเศษทั้งหมด (รวมที่ปิดใช้งาน)
+        </h2>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พื้นที่</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ฐานประกาศ</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อัตรา</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ช่วงมีผล</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">อ้างอิง</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                พื้นที่
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ฐานประกาศ
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                อัตรา
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                ช่วงมีผล
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                อ้างอิง
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                สถานะ
+              </th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -91,9 +126,15 @@
               class="border-b border-gray-100 hover:bg-gray-50"
               :class="{ 'opacity-60': !area.isActive }"
             >
-              <td class="px-6 py-3 text-sm text-gray-900 font-medium">{{ area.areaLabel }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ basisTypeLabel(area.basisType) }}</td>
-              <td class="px-6 py-3 text-sm text-gray-700">{{ area.multiplierRatio }}%</td>
+              <td class="px-6 py-3 text-sm text-gray-900 font-medium">
+                {{ area.areaLabel }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ basisTypeLabel(area.basisType) }}
+              </td>
+              <td class="px-6 py-3 text-sm text-gray-700">
+                {{ area.multiplierRatio }}%
+              </td>
               <td class="px-6 py-3 text-sm text-gray-700">
                 {{ area.effectiveStartDateThai }} - {{ area.effectiveEndDateThai || 'ไม่กำหนด' }}
               </td>
@@ -148,43 +189,72 @@
       aria-modal="true"
       aria-labelledby="area-modal-title"
     >
-      <div class="fixed inset-0 bg-black bg-opacity-50" @click="closeModal"></div>
+      <div
+        class="fixed inset-0 bg-black bg-opacity-50"
+        @click="closeModal"
+      />
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h3 id="area-modal-title" class="text-lg font-semibold text-gray-900">เพิ่มพื้นที่พิเศษ</h3>
-          <button class="text-gray-400 hover:text-gray-600" aria-label="ปิด" @click="closeModal">
+          <h3
+            id="area-modal-title"
+            class="text-lg font-semibold text-gray-900"
+          >
+            เพิ่มพื้นที่พิเศษ
+          </h3>
+          <button
+            class="text-gray-400 hover:text-gray-600"
+            aria-label="ปิด"
+            @click="closeModal"
+          >
             <X class="w-5 h-5" />
           </button>
         </div>
 
-        <form class="p-6 space-y-4" @submit.prevent="handleSubmit">
+        <form
+          class="p-6 space-y-4"
+          @submit.prevent="handleSubmit"
+        >
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label for="multiplier-areas-province" class="block text-sm font-medium text-gray-700 mb-1">จังหวัด <span class="text-red-500">*</span></label>
+              <label
+                for="multiplier-areas-province"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >จังหวัด <span class="text-red-500">*</span></label>
               <input
                 id="multiplier-areas-province"
                 v-model="formData.province"
                 type="text"
                 class="input"
                 :class="formErrors.province ? 'border-red-500' : 'border-gray-300'"
-              />
-              <p v-if="formErrors.province" class="text-xs text-red-500 mt-1">กรุณาระบุจังหวัด</p>
+              >
+              <p
+                v-if="formErrors.province"
+                class="text-xs text-red-500 mt-1"
+              >
+                กรุณาระบุจังหวัด
+              </p>
             </div>
             <div>
-              <label for="multiplier-areas-district" class="block text-sm font-medium text-gray-700 mb-1">อำเภอ</label>
+              <label
+                for="multiplier-areas-district"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >อำเภอ</label>
               <input
                 id="multiplier-areas-district"
                 v-model="formData.district"
                 type="text"
                 class="input"
                 placeholder="เว้นว่าง = ทั้งจังหวัด"
-              />
+              >
             </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label for="multiplier-areas-basis-type" class="block text-sm font-medium text-gray-700 mb-1">ฐานประกาศ <span class="text-red-500">*</span></label>
+              <label
+                for="multiplier-areas-basis-type"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >ฐานประกาศ <span class="text-red-500">*</span></label>
               <input
                 id="multiplier-areas-basis-type"
                 v-model="formData.basis_type"
@@ -193,14 +263,26 @@
                 class="input"
                 :class="formErrors.basis_type ? 'border-red-500' : 'border-gray-300'"
                 placeholder="เช่น MARTIAL_LAW"
-              />
+              >
               <datalist id="basis-type-options">
-                <option v-for="basis in basisOptions" :key="basis" :value="basis" />
+                <option
+                  v-for="basis in basisOptions"
+                  :key="basis"
+                  :value="basis"
+                />
               </datalist>
-              <p v-if="formErrors.basis_type" class="text-xs text-red-500 mt-1">กรุณาระบุฐานประกาศ</p>
+              <p
+                v-if="formErrors.basis_type"
+                class="text-xs text-red-500 mt-1"
+              >
+                กรุณาระบุฐานประกาศ
+              </p>
             </div>
             <div>
-              <label for="multiplier-areas-ratio" class="block text-sm font-medium text-gray-700 mb-1">อัตราทวีคูณ (%) <span class="text-red-500">*</span></label>
+              <label
+                for="multiplier-areas-ratio"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >อัตราทวีคูณ (%) <span class="text-red-500">*</span></label>
               <input
                 id="multiplier-areas-ratio"
                 v-model="formData.multiplier_ratio"
@@ -210,7 +292,7 @@
                 step="0.01"
                 class="input"
                 :class="formErrors.multiplier_ratio ? 'border-red-500' : 'border-gray-300'"
-              />
+              >
               <div class="flex gap-2 mt-2">
                 <button
                   v-for="preset in RATIO_PRESETS"
@@ -225,33 +307,47 @@
                   {{ preset }}%
                 </button>
               </div>
-              <p v-if="formErrors.multiplier_ratio" class="text-xs text-red-500 mt-1">อัตราต้องอยู่ระหว่าง 100 ถึง 999.99</p>
+              <p
+                v-if="formErrors.multiplier_ratio"
+                class="text-xs text-red-500 mt-1"
+              >
+                อัตราต้องอยู่ระหว่าง 100 ถึง 999.99
+              </p>
             </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label for="multiplier-areas-start" class="block text-sm font-medium text-gray-700 mb-1">วันเริ่มมีผล <span class="text-red-500">*</span></label>
+              <label
+                for="multiplier-areas-start"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >วันเริ่มมีผล <span class="text-red-500">*</span></label>
               <ThaiDatePicker
                 id="multiplier-areas-start"
-                label="วันเริ่มมีผล"
                 v-model="formData.effective_start_date"
+                label="วันเริ่มมีผล"
                 :error="formErrors.effective_start_date ? 'กรุณาระบุวันเริ่มมีผล' : ''"
               />
             </div>
             <div>
-              <label for="multiplier-areas-end" class="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด (เว้นว่าง = ไม่กำหนด)</label>
+              <label
+                for="multiplier-areas-end"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >วันสิ้นสุด (เว้นว่าง = ไม่กำหนด)</label>
               <ThaiDatePicker
                 id="multiplier-areas-end"
-                label="วันสิ้นสุด"
                 v-model="formData.effective_end_date"
+                label="วันสิ้นสุด"
                 :error="formErrors.effective_end_date ? 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่ม' : ''"
               />
             </div>
           </div>
 
           <div>
-            <label for="multiplier-areas-legal-reference" class="block text-sm font-medium text-gray-700 mb-1">อ้างอิงกฎหมาย</label>
+            <label
+              for="multiplier-areas-legal-reference"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >อ้างอิงกฎหมาย</label>
             <input
               id="multiplier-areas-legal-reference"
               v-model="formData.legal_reference"
@@ -259,11 +355,14 @@
               maxlength="300"
               class="input"
               placeholder="ประกาศ/คำสั่งที่รองรับอัตรานี้ — เว้นว่างจะติดสถานะรอเอกสาร"
-            />
+            >
           </div>
 
           <div>
-            <label for="multiplier-areas-source-reference" class="block text-sm font-medium text-gray-700 mb-1">แหล่งที่มา</label>
+            <label
+              for="multiplier-areas-source-reference"
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >แหล่งที่มา</label>
             <input
               id="multiplier-areas-source-reference"
               v-model="formData.source_reference"
@@ -271,10 +370,13 @@
               maxlength="500"
               class="input"
               placeholder="เอกสาร/หนังสือเวียน/ลิงก์อ้างอิง"
-            />
+            >
           </div>
 
-          <div v-if="submitError" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div
+            v-if="submitError"
+            class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
             {{ submitError }}
           </div>
 

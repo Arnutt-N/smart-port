@@ -54,7 +54,7 @@ async function mountPage({ role = 'admin' } = {}) {
   setActivePinia(createPinia())
   const auth = useAuthStore()
   auth.user = { id: 1, role, username: 'tester' }
-  auth.token = 'test-token'
+  auth.isAuthenticated = true
 
   const wrapper = mount(ProbationEndPage)
   await vi.waitFor(() => {

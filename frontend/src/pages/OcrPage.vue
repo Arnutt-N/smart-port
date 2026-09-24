@@ -1,11 +1,19 @@
 <template>
   <div class="p-6 space-y-6">
     <header class="flex flex-col gap-1">
-      <h1 class="text-2xl font-bold text-gray-800">แปลงเอกสาร PDF</h1>
+      <h1 class="text-2xl font-bold text-gray-800">
+        แปลงเอกสาร PDF
+      </h1>
       <p class="text-sm text-gray-500">
-        <template v-if="availability === 'ready'">อัปโหลดไฟล์ PDF เพื่อแปลงเป็น Markdown — รองรับเอกสารภาษาไทย</template>
-        <template v-else-if="availability === 'unavailable'">บริการแปลงเอกสารยังไม่ได้ติดตั้ง</template>
-        <template v-else>กำลังตรวจสอบบริการแปลงเอกสาร…</template>
+        <template v-if="availability === 'ready'">
+          อัปโหลดไฟล์ PDF เพื่อแปลงเป็น Markdown — รองรับเอกสารภาษาไทย
+        </template>
+        <template v-else-if="availability === 'unavailable'">
+          บริการแปลงเอกสารยังไม่ได้ติดตั้ง
+        </template>
+        <template v-else>
+          กำลังตรวจสอบบริการแปลงเอกสาร…
+        </template>
       </p>
     </header>
 
@@ -15,19 +23,36 @@
       :class="availability === 'unavailable' ? 'border-amber-200' : 'border-gray-200'"
       aria-live="polite"
     >
-      <p v-if="availability === 'checking'" class="text-sm text-gray-500">กำลังตรวจสอบบริการแปลงเอกสาร…</p>
-      <div v-else class="flex items-start gap-2 text-amber-800">
+      <p
+        v-if="availability === 'checking'"
+        class="text-sm text-gray-500"
+      >
+        กำลังตรวจสอบบริการแปลงเอกสาร…
+      </p>
+      <div
+        v-else
+        class="flex items-start gap-2 text-amber-800"
+      >
         <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
         <div>
-          <h2 class="text-sm font-semibold">ฟีเจอร์นี้ยังไม่พร้อมใช้งาน</h2>
-          <p class="mt-1 text-sm">{{ unavailableMsg }}</p>
-          <p class="mt-2 text-xs text-amber-700">กรุณาติดต่อผู้ดูแลระบบ</p>
+          <h2 class="text-sm font-semibold">
+            ฟีเจอร์นี้ยังไม่พร้อมใช้งาน
+          </h2>
+          <p class="mt-1 text-sm">
+            {{ unavailableMsg }}
+          </p>
+          <p class="mt-2 text-xs text-amber-700">
+            กรุณาติดต่อผู้ดูแลระบบ
+          </p>
         </div>
       </div>
     </section>
 
     <!-- Upload -->
-    <section v-if="availability === 'ready'" class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <section
+      v-if="availability === 'ready'"
+      class="bg-white rounded-xl border border-gray-200 p-5 space-y-4"
+    >
       <div
         role="button"
         tabindex="0"
@@ -53,13 +78,23 @@
           class="hidden"
           aria-label="เลือกไฟล์ PDF สำหรับแปลงเป็น Markdown"
           @change="onPick"
-        />
+        >
         <FileText class="w-10 h-10 mx-auto text-gray-400" />
-        <p v-if="file" class="mt-3 text-sm font-medium text-gray-700">{{ file.name }}</p>
-        <p v-else class="mt-3 text-sm text-gray-600">
+        <p
+          v-if="file"
+          class="mt-3 text-sm font-medium text-gray-700"
+        >
+          {{ file.name }}
+        </p>
+        <p
+          v-else
+          class="mt-3 text-sm text-gray-600"
+        >
           ลากไฟล์มาวาง หรือ <span class="text-primary-600 font-medium">คลิกเพื่อเลือก</span>
         </p>
-        <p class="mt-1 text-xs text-gray-400">รองรับ .pdf ขนาดไม่เกิน 50MB</p>
+        <p class="mt-1 text-xs text-gray-400">
+          รองรับ .pdf ขนาดไม่เกิน 50MB
+        </p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -68,8 +103,14 @@
           class="btn-primary inline-flex items-center gap-2 px-5 py-2.5 disabled:cursor-not-allowed"
           @click="submit"
         >
-          <Loader2 v-if="busy" class="w-4 h-4 animate-spin" />
-          <Upload v-else class="w-4 h-4" />
+          <Loader2
+            v-if="busy"
+            class="w-4 h-4 animate-spin"
+          />
+          <Upload
+            v-else
+            class="w-4 h-4"
+          />
           {{ busy ? 'กำลังแปลง…' : 'แปลงเอกสาร' }}
         </button>
         <button
@@ -83,7 +124,12 @@
     </section>
 
     <!-- Result -->
-    <section ref="resultEl" aria-live="polite" tabindex="-1" class="outline-none">
+    <section
+      ref="resultEl"
+      aria-live="polite"
+      tabindex="-1"
+      class="outline-none"
+    >
       <div
         v-if="status === 'success' && result"
         class="bg-white rounded-xl border border-green-200 p-5 space-y-4"
@@ -91,7 +137,9 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-green-700">
             <CheckCircle2 class="w-5 h-5" />
-            <h2 class="text-sm font-semibold">แปลงสำเร็จ</h2>
+            <h2 class="text-sm font-semibold">
+              แปลงสำเร็จ
+            </h2>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs text-gray-400">
@@ -149,10 +197,17 @@
       >
         <div class="flex items-center gap-2 text-red-700">
           <AlertCircle class="w-5 h-5" />
-          <h2 class="text-sm font-semibold">แปลงไม่สำเร็จ</h2>
+          <h2 class="text-sm font-semibold">
+            แปลงไม่สำเร็จ
+          </h2>
         </div>
-        <p class="mt-3 text-sm text-red-600 bg-red-50 rounded px-3 py-2">{{ errorMsg }}</p>
-        <button class="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700" @click="retry">
+        <p class="mt-3 text-sm text-red-600 bg-red-50 rounded px-3 py-2">
+          {{ errorMsg }}
+        </p>
+        <button
+          class="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+          @click="retry"
+        >
           ลองใหม่
         </button>
       </div>

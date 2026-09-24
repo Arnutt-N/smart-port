@@ -18,7 +18,7 @@ require_once __DIR__ . '/../../scripts/migration-lib.php';
  */
 final class MigrationBaselineTest extends TestCase
 {
-    private const BASELINE_THROUGH = '32-rename-servant-id.sql';
+    private const BASELINE_THROUGH = '35-fk-retrofit.sql';
 
     #[Test]
     public function baseline_cut_off_matches_runner_constant(): void
@@ -31,7 +31,7 @@ final class MigrationBaselineTest extends TestCase
     {
         self::assertGreaterThan(
             0,
-            strnatcasecmp('33-placeholder-next.sql', self::BASELINE_THROUGH)
+            strnatcasecmp('36-placeholder-next.sql', self::BASELINE_THROUGH)
         );
     }
 
@@ -49,6 +49,9 @@ final class MigrationBaselineTest extends TestCase
             '30-photo-blob-storage.sql',
             '31-csp-violation-daily.sql',
             '32-rename-servant-id.sql',
+            '33-drop-photo-versions-and-dead-views.sql',
+            '34-password-history.sql',
+            '35-fk-retrofit.sql',
         ];
 
         foreach ($historical as $name) {
