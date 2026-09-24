@@ -174,7 +174,7 @@
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <h3 class="text-lg font-semibold text-gray-900">
-            {{ editingRow ? 'แก้ไขรายการแตกต่าง' : 'เพิ่มรายการแตกต่าง' }}
+            {{ editingRecord ? 'แก้ไขรายการแตกต่าง' : 'เพิ่มรายการแตกต่าง' }}
           </h3>
           <button
             class="text-gray-400 hover:text-gray-600"
@@ -190,67 +190,15 @@
         >
           <!-- Personnel Autocomplete -->
           <div>
-            <label
-              for="diverse-personnel-search"
-              class="block text-sm font-medium text-gray-700 mb-1"
-            >บุคลากร <span class="text-red-500">*</span></label>
-            <div class="relative">
-              <input
-                id="diverse-personnel-search"
-                v-model="personnelSearch"
-                type="text"
-                placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                class="input"
-                :class="{ 'border-red-500': validationErrors.personnel_id }"
-                @input="onPersonnelSearch"
-                @compositionstart="isComposingPersonnel = true"
-                @compositionend="onPersonnelCompositionEnd"
-              >
-              <!-- Autocomplete dropdown -->
-              <div
-                v-if="personnelResults.length > 0 && showPersonnelDropdown"
-                class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-              >
-                <button
-                  v-for="person in personnelResults"
-                  :key="person.personnel_id"
-                  type="button"
-                  class="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
-                  @click="selectPersonnel(person)"
-                >
-                  <span class="font-medium">{{ person.full_name }}</span>
-                  <span class="text-gray-400 text-xs">{{ person.current_position || '' }}</span>
-                </button>
-              </div>
-              <div
-                v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
-                class="text-xs mt-1"
-                :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
-              >
-                <p>
-                  {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-                </p>
-                <RouterLink
-                  v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
-                  :to="PERSONNEL_MASTER_CREATE_TO"
-                  class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
-                >
-                  {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
-                </RouterLink>
-              </div>
-            </div>
-            <p
-              v-if="validationErrors.personnel_id"
-              class="text-red-500 text-xs mt-1"
-            >
-              {{ validationErrors.personnel_id }}
-            </p>
-            <p
-              v-if="formData.personnel_id && selectedPersonnelName"
-              class="text-green-600 text-xs mt-1"
-            >
-              เลือกแล้ว: {{ selectedPersonnelName }}
-            </p>
+            <label for="diverse-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+            <PersonnelTypeahead
+              v-model="formData.personnel_id"
+              :display-name="prefillName"
+              input-id="diverse-personnel-search"
+              placeholder="พิมพ์ชื่อเพื่อค้นหา..."
+            />
+            <p v-if="validationErrors.personnel_id" class="text-red-500 text-xs mt-1">{{ validationErrors.personnel_id }}</p>
+            <p v-if="formData.personnel_id && selectedPersonnelName" class="text-green-600 text-xs mt-1">เลือกแล้ว: {{ selectedPersonnelName }}</p>
           </div>
 
           <!-- Two-column From/To layout -->
@@ -481,7 +429,7 @@
               :disabled="submitting"
               class="btn-primary px-4 py-2"
             >
-              {{ submitting ? 'กำลังบันทึก...' : (editingRow ? 'บันทึกการแก้ไข' : 'บันทึก') }}
+              {{ submitting ? 'กำลังบันทึก...' : (editingRecord ? 'บันทึกการแก้ไข' : 'บันทึก') }}
             </button>
           </div>
         </form>
@@ -492,23 +440,18 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { useDiverse } from '@/composables/useDiverse.js'
+import { useRoute, useRouter } from 'vue-router'
+import { useDiverse } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
-import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useApi } from '@/composables/useApi.js'
-import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmDelete as confirmDeleteAction, confirmSave } from '@/composables/useConfirm.js'
 import { buildStandardRowActions } from '@/utils/tableRowActions.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import {
-  PERSONNEL_MASTER_CREATE_LINK_LABEL,
-  PERSONNEL_MASTER_CREATE_TO,
-  personnelCreateLinkVisible,
-} from '@/utils/personnelTypeaheadEmpty.js'
+import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
@@ -517,20 +460,33 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
+import PersonnelTypeahead from '@/components/PersonnelTypeahead.vue'
 import {
   Plus, FileText, CheckCircle, AlertTriangle,
   AlertCircle, X
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, remove } = useDiverse()
+const {
+  loading,
+  error,
+  rows,
+  summary,
+  pagination,
+  searchQuery,
+  showModal,
+  editingRecord,
+  fetchData,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal: shellCloseModal,
+  removeAndRefetch,
+} = useListPage({ fetcher: { fetchList, remove } })
 const api = useApi()
-const { searchPersonnel } = usePersonnelSearch()
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
 const router = useRouter()
-const { next: nextRequest } = useRequestSeq()
-const { next: nextPersonnelRequest } = useRequestSeq()
 
 // operator สร้าง/แก้ไขได้ แต่ลบไม่ได้ — ซ่อนปุ่มลบไม่ให้กดแล้วเจอ 403
 const isAdmin = computed(() => auth.isAdmin)
@@ -544,11 +500,6 @@ function rowActions(row) {
 }
 
 // List state
-const loading = ref(false)
-const error = ref(null)
-const rows = ref([])
-const summary = ref(null)
-const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
 // Stat counts — ใช้ summary จาก backend (full dataset) ถ้ามี
 const passCount = computed(() => {
@@ -560,7 +511,6 @@ const notYetCount = computed(() => {
   return rows.value.filter(r => r.diffCount < 3).length
 })
 
-const searchQuery = ref('')
 const { run: scheduleSearch } = useDebouncedCallback(() => {
   pagination.value.offset = 0
   fetchData()
@@ -570,9 +520,6 @@ function onSearchInput() {
   scheduleSearch()
 }
 
-// Modal state
-const showModal = ref(false)
-const editingRow = ref(null)
 const submitting = ref(false)
 const validationErrors = ref({})
 
@@ -595,101 +542,21 @@ const diffCountPreview = computed(() => {
        + (formData.value.is_diff_work_nature ? 1 : 0)
 })
 
-// Personnel autocomplete
-const personnelSearch = ref('')
-const personnelResults = ref([])
-const showPersonnelDropdown = ref(false)
-const personnelSearchFailed = ref(false)
-const selectedPersonnelName = ref('')
-const isComposingPersonnel = ref(false)
-const { run: schedulePersonnelSearch } = useDebouncedCallback(async () => {
-  const req = nextPersonnelRequest()
-  const query = personnelSearch.value.trim()
-  if (query.length < 2) {
-    if (!req.isCurrent()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  try {
-    const rowsFound = await searchPersonnel(query, { limit: 10 })
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = rowsFound
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = false
-  } catch {
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = true
-  }
-}, 300)
+// Prefill display name for PersonnelTypeahead (edit modal + ?create=1 flow; narrowed in T1.3)
+const prefillName = ref('')
+const selectedPersonnelName = ref('') // feeds the kept "เลือกแล้ว" line (M2)
 
-function onPersonnelSearch() {
-  if (isComposingPersonnel.value) return
-  const query = personnelSearch.value.trim()
-  if (query.length < 2) {
-    nextPersonnelRequest() // invalidate in-flight autocomplete
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-  }
-  schedulePersonnelSearch()
-}
-
-function onPersonnelCompositionEnd() {
-  isComposingPersonnel.value = false
-  onPersonnelSearch()
-}
-
-function selectPersonnel(person) {
-  formData.value.personnel_id = person.personnel_id
-  selectedPersonnelName.value = person.full_name
-  personnelSearch.value = person.full_name
-  personnelResults.value = []
-  showPersonnelDropdown.value = false
-  personnelSearchFailed.value = false
-  validationErrors.value.personnel_id = ''
-}
-
-// Fetch data
-async function fetchData() {
-  const req = nextRequest()
-  loading.value = true
-  error.value = null
-  try {
-    const result = await fetchList({
-      search: searchQuery.value,
-      limit: pagination.value.limit,
-      offset: pagination.value.offset,
-    })
-    if (!req.isCurrent()) return
-    rows.value = result.data
-    summary.value = result.summary || null
-    pagination.value = result.pagination
-  } catch (err) {
-    if (!req.isCurrent()) return
-    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-  } finally {
-    if (req.isCurrent()) loading.value = false
-  }
-}
 
 // Modal actions
 function openCreateModal() {
-  editingRow.value = null
   formData.value = defaultFormData()
-  personnelSearch.value = ''
+  prefillName.value = ''
   selectedPersonnelName.value = ''
   validationErrors.value = {}
-  showModal.value = true
+  shellOpenCreate()
 }
 
 function openEditModal(row) {
-  editingRow.value = row
   formData.value = {
     personnel_id: row.personnelId,
     from_job_series: row.fromJobSeries || '',
@@ -709,16 +576,15 @@ function openEditModal(row) {
     is_diff_location: !!row.isDiffLocation,
     is_diff_work_nature: !!row.isDiffWorkNature,
   }
-  personnelSearch.value = row.fullName || ''
+  prefillName.value = row.fullName || ''
   selectedPersonnelName.value = row.fullName || ''
   validationErrors.value = {}
-  showModal.value = true
+  shellOpenEdit(row)
 }
 
 function closeModal() {
-  showModal.value = false
-  editingRow.value = null
   validationErrors.value = {}
+  shellCloseModal()
 }
 
 function validateForm() {
@@ -737,7 +603,7 @@ function validateForm() {
 async function handleSubmit() {
   if (!validateForm()) return
 
-  if (editingRow.value) {
+  if (editingRecord.value) {
     const ok = await confirmSave({
       message: 'คุณต้องการบันทึกการแก้ไขรายการแตกต่างนี้หรือไม่?',
     })
@@ -754,8 +620,8 @@ async function handleSubmit() {
     payload.is_diff_work_nature = payload.is_diff_work_nature ? 1 : 0
     // CRITICAL: Never send diff_count -- it's a GENERATED column
 
-    if (editingRow.value) {
-      await update(editingRow.value.experienceId, payload)
+    if (editingRecord.value) {
+      await update(editingRecord.value.experienceId, payload)
       ui.showToast('แก้ไขรายการแล้ว', 'success')
     } else {
       await create(payload)
@@ -780,9 +646,8 @@ async function confirmDelete(row) {
   if (!ok) return
   submitting.value = true
   try {
-    await remove(row.experienceId)
+    await removeAndRefetch(row.experienceId)
     ui.showToast('ลบรายการแล้ว', 'success')
-    await fetchData()
   } catch (err) {
     ui.showToast(err.message || 'ไม่สามารถลบรายการได้', 'error')
   } finally {
@@ -796,11 +661,13 @@ onMounted(() => {
     route,
     router,
     openCreate: openCreateModal,
-    formData,
-    personnelSearch,
-    selectedPersonnelName,
     get: (url) => api.get(url),
     onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
+  }).then((person) => {
+    if (!person) return
+    formData.value.personnel_id = person.personnel_id
+    prefillName.value = person.full_name ?? ''
+    selectedPersonnelName.value = person.full_name ?? ''
   })
 })
 </script>

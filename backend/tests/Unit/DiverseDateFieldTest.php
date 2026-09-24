@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../../routes/diverse.php';
 
 /**
- * U1 — diverseDateFieldError: ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
+ * U1 — dateFieldError: ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
  * (ปิดช่อง single-sided ที่ข้ามบล็อกคู่แล้ว bind ดิบ)
  */
 final class DiverseDateFieldTest extends TestCase
@@ -18,8 +18,8 @@ final class DiverseDateFieldTest extends TestCase
     #[Test]
     public function missing_or_empty_fields_are_allowed(): void
     {
-        self::assertNull(diverseDateFieldError([], DIVERSE_DATE_FIELDS));
-        self::assertNull(diverseDateFieldError([
+        self::assertNull(dateFieldError([], DIVERSE_DATE_FIELDS));
+        self::assertNull(dateFieldError([
             'from_start_date' => '',
             'to_end_date' => null,
         ], DIVERSE_DATE_FIELDS));
@@ -28,7 +28,7 @@ final class DiverseDateFieldTest extends TestCase
     #[Test]
     public function valid_dates_are_allowed(): void
     {
-        self::assertNull(diverseDateFieldError([
+        self::assertNull(dateFieldError([
             'from_start_date' => '2020-01-01',
             'from_end_date' => '2020-12-31',
             'to_start_date' => '2021-01-01',
@@ -42,15 +42,15 @@ final class DiverseDateFieldTest extends TestCase
         // ช่องโหว่เดิม: ส่งข้างเดียว อีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบ
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            diverseDateFieldError(['from_start_date' => 'not-a-date'], DIVERSE_DATE_FIELDS)
+            dateFieldError(['from_start_date' => 'not-a-date'], DIVERSE_DATE_FIELDS)
         );
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            diverseDateFieldError(['to_end_date' => '2026-02-30'], DIVERSE_DATE_FIELDS)
+            dateFieldError(['to_end_date' => '2026-02-30'], DIVERSE_DATE_FIELDS)
         );
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            diverseDateFieldError(['from_start_date' => '2026-1-15'], DIVERSE_DATE_FIELDS)
+            dateFieldError(['from_start_date' => '2026-1-15'], DIVERSE_DATE_FIELDS)
         );
     }
 
@@ -59,15 +59,15 @@ final class DiverseDateFieldTest extends TestCase
     {
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            diverseDateFieldError(['from_start_date' => ['x']], DIVERSE_DATE_FIELDS)
+            dateFieldError(['from_start_date' => ['x']], DIVERSE_DATE_FIELDS)
         );
     }
 
     #[Test]
     public function non_array_body_is_rejected(): void
     {
-        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', diverseDateFieldError(null, DIVERSE_DATE_FIELDS));
-        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', diverseDateFieldError('x', DIVERSE_DATE_FIELDS));
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', dateFieldError(null, DIVERSE_DATE_FIELDS));
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', dateFieldError('x', DIVERSE_DATE_FIELDS));
     }
 
     #[Test]
@@ -79,7 +79,7 @@ final class DiverseDateFieldTest extends TestCase
         self::assertNotFalse($start);
         $end = strpos($src, 'function updateDiverse', $start);
         $fn = substr($src, $start, $end - $start);
-        self::assertStringContainsString('diverseDateFieldError($data, DIVERSE_DATE_FIELDS)', $fn);
+        self::assertStringContainsString('dateFieldError($data, DIVERSE_DATE_FIELDS)', $fn);
     }
 
     #[Test]
@@ -91,7 +91,7 @@ final class DiverseDateFieldTest extends TestCase
         self::assertNotFalse($start);
         $end = strpos($src, 'function deleteDiverse', $start);
         $fn = substr($src, $start, $end - $start);
-        self::assertStringContainsString('diverseDateFieldError($data, DIVERSE_DATE_FIELDS)', $fn);
+        self::assertStringContainsString('dateFieldError($data, DIVERSE_DATE_FIELDS)', $fn);
     }
 
     #[Test]

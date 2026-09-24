@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../../routes/equivalence.php';
 
 /**
- * U6 — equivalenceDateFieldError: ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
+ * U6 — dateFieldError: ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
  * (ปิดช่อง single-sided แบบเดียวกับ U1 ของ diverse)
  */
 final class EquivalenceDateFieldTest extends TestCase
@@ -18,8 +18,8 @@ final class EquivalenceDateFieldTest extends TestCase
     #[Test]
     public function missing_or_empty_fields_are_allowed(): void
     {
-        self::assertNull(equivalenceDateFieldError([], EQUIVALENCE_DATE_FIELDS));
-        self::assertNull(equivalenceDateFieldError([
+        self::assertNull(dateFieldError([], EQUIVALENCE_DATE_FIELDS));
+        self::assertNull(dateFieldError([
             'request_start_date' => '',
             'request_end_date' => null,
         ], EQUIVALENCE_DATE_FIELDS));
@@ -28,7 +28,7 @@ final class EquivalenceDateFieldTest extends TestCase
     #[Test]
     public function valid_dates_are_allowed(): void
     {
-        self::assertNull(equivalenceDateFieldError([
+        self::assertNull(dateFieldError([
             'request_start_date' => '2020-01-01',
             'request_end_date' => '2020-12-31',
         ], EQUIVALENCE_DATE_FIELDS));
@@ -39,19 +39,19 @@ final class EquivalenceDateFieldTest extends TestCase
     {
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            equivalenceDateFieldError(['request_start_date' => 'not-a-date'], EQUIVALENCE_DATE_FIELDS)
+            dateFieldError(['request_start_date' => 'not-a-date'], EQUIVALENCE_DATE_FIELDS)
         );
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            equivalenceDateFieldError(['request_end_date' => '2026-13-99'], EQUIVALENCE_DATE_FIELDS)
+            dateFieldError(['request_end_date' => '2026-13-99'], EQUIVALENCE_DATE_FIELDS)
         );
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            equivalenceDateFieldError(['request_start_date' => '2026-02-30'], EQUIVALENCE_DATE_FIELDS)
+            dateFieldError(['request_start_date' => '2026-02-30'], EQUIVALENCE_DATE_FIELDS)
         );
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            equivalenceDateFieldError(['request_start_date' => '2026-1-15'], EQUIVALENCE_DATE_FIELDS)
+            dateFieldError(['request_start_date' => '2026-1-15'], EQUIVALENCE_DATE_FIELDS)
         );
     }
 
@@ -60,15 +60,15 @@ final class EquivalenceDateFieldTest extends TestCase
     {
         self::assertSame(
             'รูปแบบวันที่ไม่ถูกต้อง',
-            equivalenceDateFieldError(['request_end_date' => ['x']], EQUIVALENCE_DATE_FIELDS)
+            dateFieldError(['request_end_date' => ['x']], EQUIVALENCE_DATE_FIELDS)
         );
     }
 
     #[Test]
     public function non_array_body_is_rejected(): void
     {
-        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', equivalenceDateFieldError(null, EQUIVALENCE_DATE_FIELDS));
-        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', equivalenceDateFieldError('x', EQUIVALENCE_DATE_FIELDS));
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', dateFieldError(null, EQUIVALENCE_DATE_FIELDS));
+        self::assertSame('รูปแบบข้อมูลไม่ถูกต้อง', dateFieldError('x', EQUIVALENCE_DATE_FIELDS));
     }
 
     #[Test]
@@ -79,7 +79,7 @@ final class EquivalenceDateFieldTest extends TestCase
             'function createEquivalence',
             'function updateEquivalence'
         );
-        self::assertStringContainsString('equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS)', $fn);
+        self::assertStringContainsString('dateFieldError($data, EQUIVALENCE_DATE_FIELDS)', $fn);
     }
 
     #[Test]
@@ -90,7 +90,7 @@ final class EquivalenceDateFieldTest extends TestCase
         $start = strpos($src, 'function updateEquivalence');
         self::assertNotFalse($start);
         $fn = substr($src, $start);
-        self::assertStringContainsString('equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS)', $fn);
+        self::assertStringContainsString('dateFieldError($data, EQUIVALENCE_DATE_FIELDS)', $fn);
     }
 
     #[Test]

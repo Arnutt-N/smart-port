@@ -13,6 +13,7 @@
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
 include_once __DIR__ . '/../MultiplierEngine.php';
+include_once __DIR__ . '/../TimeEntryCrud.php';
 
 /** N13 — ล็อกแถวบุคคลก่อนเช็ค overlap เพื่อกัน concurrent INSERT นับโบนัสซ้ำ */
 const MULTIPLIER_PERSONNEL_LOCK_SQL = 'SELECT personnel_id FROM personnel WHERE personnel_id = ? FOR UPDATE';
@@ -25,6 +26,9 @@ const MULTIPLIER_OVERLAP_EXCLUDE_SQL = 'SELECT COUNT(*) FROM multiplier_experien
           AND multiplier_id != ?
           AND eligible_start_date <= ?
           AND eligible_end_date >= ?';
+
+/** @var list<string> ฟิลด์วันที่ของ multiplier ที่ต้องผ่าน strict parse เมื่อส่งมา */
+const MULTIPLIER_DATE_FIELDS = ['start_date', 'end_date'];
 
 /**
  * N10 — เขียน master พื้นที่พิเศษ = admin/superadmin (UI requiresAdmin)
@@ -83,13 +87,22 @@ function validateMultiplierTextFields(array $data): ?string
 
 function handleMultiplier(PDO $pdo, string $method, array $path): void
 {
-    // GET = read, POST = create, PUT = update, DELETE = delete
-    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
-    $action = $actionMap[$method] ?? 'read';
-    requirePermission($action, 'multiplier');
+    // multiplier ตรวจสิทธิ์ก่อน 405 (unknown method ตกไปเช็ค read) — คงพฤติกรรมเดิม
+    // (ต่างจาก supportive/diverse ที่ 405 มาก่อน — คงตาม source ราย route)
+    $action = timeEntryAction($method) ?? 'read';
 
-    // ดึง user จาก JWT (สำหรับ audit log)
-    $user = getAuthenticatedUser();
+    $user = resolveMultiplierUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+
+    $denied = timeEntryDenied($action, 'multiplier', $user, $pdo);
+    if ($denied !== null) {
+        timeEntryEmit(['http' => $denied['status'], 'body' => $denied['body']]);
+        return;
+    }
 
     try {
         switch ($method) {
@@ -170,6 +183,56 @@ function handleMultiplier(PDO $pdo, string $method, array $path): void
     }
 }
 
+/**
+ * N23/N56: test hook — pattern เดียวกับ resolveImportUser (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveMultiplierUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * Route cfg สำหรับ TimeEntryCrud cores (เฉพาะ multiplier_experience;
+ * areas sub-resource คง handlers เดิม)
+ */
+function multiplierTimeEntryCfg(): array
+{
+    return [
+        'table' => 'multiplier_experience',
+        'alias' => 'me',
+        'idCol' => 'me.multiplier_id',
+        'joins' => ' LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+                  LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id',
+        'selectExtra' => sqlPersonnelFullName() . " AS full_name,\n            sam.legal_reference,\n            sam.source_reference",
+        'searchSql' => [],
+        'orderBy' => 'me.start_date DESC, me.multiplier_id DESC',
+        'maxLimit' => 100,
+        'summarySql' => '
+            SELECT
+                COUNT(DISTINCT personnel_id) AS distinct_personnel,
+                COALESCE(SUM(effective_days), 0) AS total_effective_days,
+                COALESCE(SUM(bonus_days), 0) AS total_bonus_days
+            FROM multiplier_experience
+        ',
+        'summaryMap' => function (array $summaryRow, int $total): array {
+            return [
+                'total' => $total,
+                'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+                'total_effective_days' => (float) ($summaryRow['total_effective_days'] ?? 0),
+                'total_bonus_days' => (float) ($summaryRow['total_bonus_days'] ?? 0),
+            ];
+        },
+        'dateFields' => [],
+        'decorate' => 'decorateMultiplierRow',
+    ];
+}
+
 function getMultiplierAreas(PDO $pdo): void
 {
     $province = trim($_GET['province'] ?? '');
@@ -240,109 +303,12 @@ function getMultiplierAreas(PDO $pdo): void
 
 function getMultiplierById(PDO $pdo, int $multiplierId): void
 {
-    $stmt = $pdo->prepare('
-        SELECT
-            me.*,
-            ' . sqlPersonnelFullName() . ' AS full_name,
-            sam.legal_reference,
-            sam.source_reference
-        FROM multiplier_experience me
-        LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
-        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-        LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
-        WHERE me.multiplier_id = ?
-    ');
-    $stmt->execute([$multiplierId]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$row) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการที่ระบุ']);
-        return;
-    }
-
-    decorateMultiplierRow($row);
-
-    echo json_encode([
-        'success' => true,
-        'data' => $row,
-    ]);
+    timeEntryEmit(timeEntryDetail($pdo, multiplierTimeEntryCfg(), $multiplierId, 'ไม่พบรายการที่ระบุ'));
 }
 
 function getMultiplierList(PDO $pdo): void
 {
-    $personnelId = $_GET['personnel_id'] ?? null;
-    // clamp กัน limit=-1 (SQL error) และ limit ใหญ่เกิน (resource exhaustion)
-    $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
-
-    $where = [];
-    $params = [];
-
-    if ($personnelId !== null && $personnelId !== '') {
-        $where[] = 'me.personnel_id = ?';
-        $params[] = intval($personnelId);
-    }
-
-    $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
-
-    $baseQuery = "
-        FROM multiplier_experience me
-        LEFT JOIN personnel p ON me.personnel_id = p.personnel_id
-        LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-        LEFT JOIN special_area_multiplier sam ON me.area_multiplier_id = sam.area_multiplier_id
-        {$whereSql}
-    ";
-
-    $sql = '
-        SELECT
-            me.*,
-            ' . sqlPersonnelFullName() . " AS full_name,
-            sam.legal_reference,
-            sam.source_reference
-        {$baseQuery}
-        ORDER BY me.start_date DESC, me.multiplier_id DESC
-        LIMIT {$limit} OFFSET {$offset}
-    ";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $countStmt = $pdo->prepare("SELECT COUNT(*) AS total {$baseQuery}");
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
-
-    foreach ($rows as &$row) {
-        decorateMultiplierRow($row);
-    }
-    unset($row);
-
-    $summaryStmt = $pdo->query('
-        SELECT
-            COUNT(DISTINCT personnel_id) AS distinct_personnel,
-            COALESCE(SUM(effective_days), 0) AS total_effective_days,
-            COALESCE(SUM(bonus_days), 0) AS total_bonus_days
-        FROM multiplier_experience
-    ');
-    $summary = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-
-    echo json_encode([
-        'success' => true,
-        'data' => $rows,
-        'summary' => [
-            'total' => $total,
-            'distinct_personnel' => (int) ($summary['distinct_personnel'] ?? 0),
-            'total_effective_days' => (float) ($summary['total_effective_days'] ?? 0),
-            'total_bonus_days' => (float) ($summary['total_bonus_days'] ?? 0),
-        ],
-        'pagination' => [
-            'total' => $total,
-            'limit' => $limit,
-            'offset' => $offset,
-            'has_more' => ($offset + $limit) < $total,
-        ],
-    ]);
+    timeEntryEmit(timeEntryList($pdo, multiplierTimeEntryCfg()));
 }
 
 function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
@@ -392,6 +358,15 @@ function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
         echo json_encode(['error' => 'รูปแบบข้อมูลไม่ถูกต้อง']);
         return;
     }
+
+    // T3.4: ตรวจวันรายฟิลด์ก่อน compute (placement เดียวกับ diverse guard)
+    $dateError = dateFieldError($data, MULTIPLIER_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
+
     try {
         $computed = computeMultiplierFields(
             $pdo,
@@ -465,7 +440,7 @@ function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
         $multiplierId = intval($pdo->lastInsertId());
 
         // Audit log: บันทึกการสร้างรายการทวีคูณ
-        logAudit(
+        timeEntryWriteAudit(
             $pdo,
             $user['user_id'],
             'CREATE',
@@ -489,12 +464,11 @@ function createMultiplier(PDO $pdo, array $user, ?array $input = null): void
         throw $e;
     }
 
-    http_response_code(201);
-    echo json_encode([
+    timeEntryEmit(['http' => 201, 'body' => [
         'success' => true,
         'multiplier_id' => $multiplierId,
         'computed' => $computed,
-    ]);
+    ]]);
 }
 
 function fetchAreaRow(PDO $pdo, int $areaId): ?array
@@ -677,6 +651,14 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         }
     }
 
+    // T3.4: ตรวจวันรายฟิลด์ที่ส่งมาก่อน compute (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
+    $dateError = dateFieldError($data, MULTIPLIER_DATE_FIELDS);
+    if ($dateError !== null) {
+        http_response_code(400);
+        echo json_encode(['error' => $dateError]);
+        return;
+    }
+
     // คำนวณ fields ใหม่
     try {
         $computed = computeMultiplierFields($pdo, $areaMultiplierId, $startDate, $endDate);
@@ -763,7 +745,7 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
         $afterStmt = $pdo->prepare('SELECT * FROM multiplier_experience WHERE multiplier_id = ?');
         $afterStmt->execute([$multiplierId]);
         $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-        logAudit(
+        timeEntryWriteAudit(
             $pdo,
             (int) $user['user_id'],
             'UPDATE',
@@ -799,12 +781,12 @@ function updateMultiplier(PDO $pdo, int $multiplierId, array $user, ?array $inpu
 
     decorateMultiplierRow($updated);
 
-    echo json_encode([
+    timeEntryEmit(['http' => 200, 'body' => [
         'success' => true,
         'multiplier_id' => $multiplierId,
         'data' => $updated,
         'computed' => $computed,
-    ]);
+    ]]);
 }
 
 function deleteMultiplier(PDO $pdo, int $multiplierId, array $user): void
@@ -862,9 +844,8 @@ function deleteMultiplier(PDO $pdo, int $multiplierId, array $user): void
         throw $e;
     }
 
-    http_response_code(200);
-    echo json_encode([
+    timeEntryEmit(['http' => 200, 'body' => [
         'success' => true,
         'message' => 'ลบรายการเรียบร้อยแล้ว',
-    ]);
+    ]]);
 }

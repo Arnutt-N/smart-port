@@ -10,7 +10,7 @@ const mockRemove = vi.fn()
 const mockReplace = vi.fn()
 const routeQuery = { value: {} }
 
-vi.mock('@/composables/useDiverse.js', () => ({
+vi.mock('@/composables/timeEntryCrud.js', () => ({
   useDiverse: () => ({
     fetchList: mockFetchList,
     create: mockCreate,
@@ -112,7 +112,7 @@ describe('DiversePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
-    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, is_active: 1 } })
+    mockApiGet.mockResolvedValue({ success: true, data: { personnel_id: 12, full_name: 'นายสมชาย ไทยแท้', is_active: 1 } })
     mockFetchList.mockResolvedValue({
       success: true,
       data: [sampleRow],
@@ -243,7 +243,7 @@ describe('DiversePage', () => {
     wrapper.vm.openEditModal(sampleRow)
     wrapper.vm.closeModal()
     expect(wrapper.vm.showModal).toBe(false)
-    expect(wrapper.vm.editingRow).toBeNull()
+    expect(wrapper.vm.editingRecord).toBeNull()
   })
 
   it('debounces search and refetches after 300ms', async () => {
@@ -277,82 +277,6 @@ describe('DiversePage', () => {
     vi.useRealTimers()
   })
 
-  it('selectPersonnel fills form and clears dropdown', async () => {
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.selectPersonnel({ personnel_id: 9, full_name: 'สมหญิง รักงาน' })
-
-    expect(wrapper.vm.formData.personnel_id).toBe(9)
-    expect(wrapper.vm.selectedPersonnelName).toBe('สมหญิง รักงาน')
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-  })
-
-  it('personnel search fetches results after debounce when query length >= 2', async () => {
-    vi.useFakeTimers()
-    mockSearchPersonnel.mockResolvedValue([{ personnel_id: 1, full_name: 'A' }])
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.personnelSearch = 'สมช'
-    wrapper.vm.onPersonnelSearch()
-
-    await vi.advanceTimersByTimeAsync(300)
-    expect(mockSearchPersonnel).toHaveBeenCalled()
-    expect(wrapper.vm.personnelResults).toHaveLength(1)
-    expect(wrapper.vm.showPersonnelDropdown).toBe(true)
-    vi.useRealTimers()
-  })
-
-  it('personnel search clears results when query is too short', async () => {
-    vi.useFakeTimers()
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.personnelResults = [{ personnel_id: 1 }]
-    wrapper.vm.showPersonnelDropdown = true
-    wrapper.vm.personnelSearch = 'ส'
-    wrapper.vm.onPersonnelSearch()
-
-    expect(wrapper.vm.personnelResults).toEqual([])
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-    await vi.advanceTimersByTimeAsync(300)
-    expect(wrapper.vm.personnelResults).toEqual([])
-    vi.useRealTimers()
-  })
-
-  it('ignores in-flight personnel results after query is cleared', async () => {
-    vi.useFakeTimers()
-    let resolveSearch
-    mockSearchPersonnel.mockImplementation(
-      () => new Promise((resolve) => { resolveSearch = resolve }),
-    )
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.personnelSearch = 'สมชาย'
-    wrapper.vm.onPersonnelSearch()
-    await vi.advanceTimersByTimeAsync(300)
-
-    wrapper.vm.personnelSearch = ''
-    wrapper.vm.onPersonnelSearch()
-    resolveSearch([{ personnel_id: 1, full_name: 'A' }])
-    await flushPromises()
-
-    expect(wrapper.vm.personnelResults).toEqual([])
-    expect(wrapper.vm.showPersonnelDropdown).toBe(false)
-    vi.useRealTimers()
-  })
-
-  it('personnel search swallows API errors', async () => {
-    vi.useFakeTimers()
-    mockSearchPersonnel.mockRejectedValue(new Error('down'))
-    const wrapper = await mountPage()
-    wrapper.vm.openCreateModal()
-    wrapper.vm.personnelSearch = 'สมชาย'
-    wrapper.vm.onPersonnelSearch()
-
-    await vi.advanceTimersByTimeAsync(300)
-    expect(wrapper.vm.personnelResults).toEqual([])
-    vi.useRealTimers()
-  })
-
   // backend ปฏิเสธ DELETE ของ operator ด้วย 403 (audit.php: checkPermission delete => [])
   it('hides the delete button for operator but keeps edit available', async () => {
     const wrapper = await mountPage('operator')
@@ -377,8 +301,7 @@ describe('DiversePage', () => {
     await flushPromises()
     expect(wrapper.vm.showModal).toBe(true)
     expect(wrapper.vm.formData.personnel_id).toBe(12)
-    expect(wrapper.vm.personnelSearch).toBe('นายสมชาย ไทยแท้')
-    expect(wrapper.vm.selectedPersonnelName).toBe('นายสมชาย ไทยแท้')
+    expect(wrapper.get('#diverse-personnel-search').element.value).toBe('นายสมชาย ไทยแท้')
     expect(mockReplace).toHaveBeenCalledWith({ query: {} })
     expect(mockApiGet).toHaveBeenCalledWith('/personnel/12')
   })

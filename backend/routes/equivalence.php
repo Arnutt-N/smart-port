@@ -18,30 +18,7 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
-
-/**
- * U6 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
- * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
- * mirror `diverseDateFieldError` (diverse.php) ต่างแค่ชื่อ/const
- *
- * @param array<string,mixed> $data
- * @param list<string> $fields
- */
-function equivalenceDateFieldError(mixed $data, array $fields): ?string
-{
-    if (!is_array($data)) {
-        return 'รูปแบบข้อมูลไม่ถูกต้อง';
-    }
-    foreach ($fields as $field) {
-        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
-            continue;
-        }
-        if (!is_string($data[$field]) || equivalenceStrictDate($data[$field]) === null) {
-            return 'รูปแบบวันที่ไม่ถูกต้อง';
-        }
-    }
-    return null;
-}
+include_once __DIR__ . '/../TimeEntryCrud.php';
 
 /** @var list<string> ฟิลด์วันที่ของ equivalence ที่ต้องผ่าน strict parse เมื่อส่งมา */
 const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
@@ -55,11 +32,26 @@ const EQUIVALENCE_DATE_FIELDS = ['request_start_date', 'request_end_date'];
  */
 function handleEquivalence(PDO $pdo, string $method, array $path): void
 {
-    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update'];
-    if (isset($actionMap[$method])) {
-        requirePermission($actionMap[$method], 'equivalence');
+    // equivalence ไม่มี DELETE (actionMap เดิมมีแค่ GET/POST/PUT) — DELETE ตก 405 แบบเดิม
+    $action = ($method === 'DELETE') ? null : timeEntryAction($method);
+    if ($action === null) {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
     }
-    $user = getAuthenticatedUser();
+
+    $user = resolveEquivalenceUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+
+    $denied = timeEntryDenied($action, 'equivalence', $user, $pdo);
+    if ($denied !== null) {
+        timeEntryEmit(['http' => $denied['status'], 'body' => $denied['body']]);
+        return;
+    }
 
     switch ($method) {
         case 'GET':
@@ -96,100 +88,71 @@ function handleEquivalence(PDO $pdo, string $method, array $path): void
 }
 
 /**
+ * N23/N56: test hook — pattern เดียวกับ resolveImportUser (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveEquivalenceUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * Route cfg สำหรับ TimeEntryCrud cores (list/detail ใช้ชุดเดียวกัน)
+ * หมายเหตุ: count query ต้นฉบับไม่ join users (แต่ LEFT JOIN ไม่เปลี่ยนจำนวนแถว
+ * เพราะ user_id เป็น PK — ผลลัพธ์เท่ากันทุกประการ)
+ */
+function equivalenceTimeEntryCfg(): array
+{
+    return [
+        'table' => 'position_equivalence',
+        'alias' => 'pe',
+        'idCol' => 'pe.equivalence_id',
+        'joins' => ' LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
+                  LEFT JOIN users u ON pe.approved_by = u.user_id',
+        'selectExtra' => sqlPersonnelFullName() . " AS full_name,\n                         u.username AS approved_by_name",
+        'searchSql' => [
+            'p.first_name LIKE ?',
+            'p.last_name LIKE ?',
+            '(' . sqlPersonnelFullName() . ') LIKE ?',
+            'pe.actual_position LIKE ?',
+            'pe.equivalent_type LIKE ?',
+            'pe.approval_order_ref LIKE ?',
+        ],
+        'orderBy' => 'pe.created_at DESC',
+        'summarySql' => "
+            SELECT COUNT(DISTINCT CASE WHEN approval_status = 'APPROVED' THEN personnel_id END) AS distinct_personnel,
+                   SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days,
+                   SUM(CASE WHEN approval_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
+                   SUM(CASE WHEN approval_status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count,
+                   SUM(CASE WHEN approval_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_count
+            FROM position_equivalence
+        ",
+        'summaryMap' => function (array $summaryRow, int $total): array {
+            return [
+                'total' => $total,
+                'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+                'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
+                'pending_count' => (int) ($summaryRow['pending_count'] ?? 0),
+                'approved_count' => (int) ($summaryRow['approved_count'] ?? 0),
+                'rejected_count' => (int) ($summaryRow['rejected_count'] ?? 0),
+            ];
+        },
+        'dateFields' => ['request_start_date', 'request_end_date', 'approved_start_date', 'approved_end_date'],
+    ];
+}
+
+/**
  * GET /equivalence — รายการเทียบตำแหน่ง พร้อม pagination
  * filter ตาม personnel_id และค้นหาด้วย search (ชื่อ-สกุล, ตำแหน่งจริง, ประเภทที่เทียบ, เลขที่คำสั่ง)
  */
 function getEquivalenceList(PDO $pdo): void
 {
-    $personnelId = $_GET['personnel_id'] ?? null;
-    $search = trim($_GET['search'] ?? '');
-    // clamp กัน limit มหาศาล / offset ติดลบ
-    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
-
-    $baseQuery = 'SELECT pe.*,
-                         ' . sqlPersonnelFullName() . ' AS full_name,
-                         u.username AS approved_by_name
-                  FROM position_equivalence pe
-                  LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-                  LEFT JOIN users u ON pe.approved_by = u.user_id';
-
-    // count ต้อง join personnel + prefixes ด้วย เพราะเงื่อนไข search อ้างคอลัมน์ฝั่งชื่อเต็ม
-    $countQuery = 'SELECT COUNT(*) AS total
-                   FROM position_equivalence pe
-                   LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
-
-    $conditions = [];
-    $params = [];
-
-    if ($personnelId !== null && $personnelId !== '') {
-        $conditions[] = 'pe.personnel_id = ?';
-        $params[] = intval($personnelId);
-    }
-
-    if ($search !== '') {
-        $conditions[] = '(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR ' . sqlPersonnelFullName() . ' LIKE ?
-                          OR pe.actual_position LIKE ? OR pe.equivalent_type LIKE ?
-                          OR pe.approval_order_ref LIKE ?)';
-        $term = "%{$search}%";
-        array_push($params, $term, $term, $term, $term, $term, $term);
-    }
-
-    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-
-    // Data query with ordering and pagination
-    $sql = $baseQuery . $where . " ORDER BY pe.created_at DESC LIMIT {$limit} OFFSET {$offset}";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Count query for pagination
-    $countStmt = $pdo->prepare($countQuery . $where);
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
-
-    // เพิ่มวันที่ภาษาไทย
-    foreach ($rows as &$row) {
-        $row['request_start_date_thai'] = formatThaiDate($row['request_start_date']);
-        $row['request_end_date_thai'] = formatThaiDate($row['request_end_date']);
-        $row['approved_start_date_thai'] = formatThaiDate($row['approved_start_date']);
-        $row['approved_end_date_thai'] = formatThaiDate($row['approved_end_date']);
-    }
-    unset($row);
-
-    // Summary จาก full dataset — แยกนับตามสถานะอนุมัติ
-    // distinct_personnel นับเฉพาะคนที่มีรายการ APPROVED จริง (ไม่นับ PENDING/REJECTED)
-    $summaryStmt = $pdo->query("
-        SELECT COUNT(DISTINCT CASE WHEN approval_status = 'APPROVED' THEN personnel_id END) AS distinct_personnel,
-               SUM(CASE WHEN approval_status = 'APPROVED' THEN approved_total_days ELSE 0 END) AS total_approved_days,
-               SUM(CASE WHEN approval_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
-               SUM(CASE WHEN approval_status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count,
-               SUM(CASE WHEN approval_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_count
-        FROM position_equivalence
-    ");
-    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        'success' => true,
-        'data' => $rows,
-        'summary' => [
-            'total' => $total,
-            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
-            'total_approved_days' => (float) ($summaryRow['total_approved_days'] ?? 0),
-            'pending_count' => (int) ($summaryRow['pending_count'] ?? 0),
-            'approved_count' => (int) ($summaryRow['approved_count'] ?? 0),
-            'rejected_count' => (int) ($summaryRow['rejected_count'] ?? 0),
-        ],
-        'pagination' => [
-            'total' => $total,
-            'limit' => $limit,
-            'offset' => $offset,
-            'has_more' => ($offset + $limit) < $total
-        ]
-    ]);
+    timeEntryEmit(timeEntryList($pdo, equivalenceTimeEntryCfg()));
 }
 
 /**
@@ -197,32 +160,7 @@ function getEquivalenceList(PDO $pdo): void
  */
 function getEquivalenceDetail(PDO $pdo, int $id): void
 {
-    $sql = 'SELECT pe.*,
-                   ' . sqlPersonnelFullName() . ' AS full_name,
-                   u.username AS approved_by_name
-            FROM position_equivalence pe
-            LEFT JOIN personnel p ON pe.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-            LEFT JOIN users u ON pe.approved_by = u.user_id
-            WHERE pe.equivalence_id = ?';
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id]);
-    $record = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$record) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการเทียบตำแหน่ง']);
-        return;
-    }
-
-    // เพิ่มวันที่ภาษาไทย
-    $record['request_start_date_thai'] = formatThaiDate($record['request_start_date']);
-    $record['request_end_date_thai'] = formatThaiDate($record['request_end_date']);
-    $record['approved_start_date_thai'] = formatThaiDate($record['approved_start_date']);
-    $record['approved_end_date_thai'] = formatThaiDate($record['approved_end_date']);
-
-    echo json_encode(['success' => true, 'data' => $record]);
+    timeEntryEmit(timeEntryDetail($pdo, equivalenceTimeEntryCfg(), $id, 'ไม่พบรายการเทียบตำแหน่ง'));
 }
 
 /**
@@ -259,7 +197,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // U6: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
-    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    $dateError = dateFieldError($data, EQUIVALENCE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -278,9 +216,9 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     $requestTotalDays = null;
     if (!empty($data['request_start_date']) && !empty($data['request_end_date'])) {
         $startDate = is_string($data['request_start_date'])
-            ? equivalenceStrictDate($data['request_start_date']) : null;
+            ? strictDate($data['request_start_date']) : null;
         $endDate = is_string($data['request_end_date'])
-            ? equivalenceStrictDate($data['request_end_date']) : null;
+            ? strictDate($data['request_end_date']) : null;
         if ($startDate === null || $endDate === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -308,7 +246,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
     $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $afterStmt->execute([$equivalenceId]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'CREATE',
@@ -318,28 +256,7 @@ function createEquivalence(PDO $pdo, array $user, ?array $input = null): void
         $after ?: null
     );
 
-    http_response_code(201);
-    echo json_encode(['success' => true, 'equivalence_id' => $equivalenceId]);
-}
-
-/**
- * U3 — parse Y-m-d แบบเข้ม (mirror probationStrictDate) — คืน null ถ้า format ผิดหรือ overflow
- * (กัน '2026-1-15'/datetime suffix หลุดผ่าน new DateTime ตรง ๆ)
- */
-function equivalenceStrictDate(string $value): ?DateTime
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
+    timeEntryEmit(['http' => 201, 'body' => ['success' => true, 'equivalence_id' => $equivalenceId]]);
 }
 
 /**
@@ -348,8 +265,8 @@ function equivalenceStrictDate(string $value): ?DateTime
  */
 function approvedRangeTotalDays(string $start, string $end): int
 {
-    $approvedStart = equivalenceStrictDate($start);
-    $approvedEnd = equivalenceStrictDate($end);
+    $approvedStart = strictDate($start);
+    $approvedEnd = strictDate($end);
     if ($approvedStart === null || $approvedEnd === null) {
         throw new InvalidArgumentException('รูปแบบวันที่ไม่ถูกต้อง');
     }
@@ -392,8 +309,14 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
 
     if ($newStatus !== null) {
         // อนุมัติ/ปฏิเสธ — สงวนสิทธิ์ admin เท่านั้น (resource แยกจาก 'equivalence' ปกติที่ operator แก้ field ได้)
-        requirePermission('update', 'equivalence_approval');
-        $approver = getAuthenticatedUser();
+        $approvalDenied = timeEntryDenied('update', 'equivalence_approval', $user, $pdo);
+        if ($approvalDenied !== null) {
+            timeEntryEmit(['http' => $approvalDenied['status'], 'body' => $approvalDenied['body']]);
+            return;
+        }
+        // ใช้ $user ที่ dispatcher ส่งมา (prod = ค่าเดียวกับ getAuthenticatedUser;
+        // direct-call test ฉีด user ได้โดยไม่พึ่ง JWT/exit)
+        $approver = $user;
 
         // ตรวจสอบ transition ที่อนุญาต
         $validTransitions = ['PENDING' => ['APPROVED', 'REJECTED']];
@@ -445,7 +368,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
                 $id
             ]);
 
-            logAudit(
+            timeEntryWriteAudit(
                 $pdo,
                 $userId,
                 'UPDATE',
@@ -473,7 +396,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id]);
 
-            logAudit(
+            timeEntryWriteAudit(
                 $pdo,
                 $userId,
                 'UPDATE',
@@ -484,13 +407,13 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
             );
         }
 
-        echo json_encode(['success' => true]);
+        timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
         return;
     }
 
     // Regular field update (ไม่มีการเปลี่ยนสถานะ)
     // U6: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
-    $dateError = equivalenceDateFieldError($data, EQUIVALENCE_DATE_FIELDS);
+    $dateError = dateFieldError($data, EQUIVALENCE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -519,8 +442,8 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $endDate = $data['request_end_date'] ?? $current['request_end_date'];
     if ((isset($data['request_start_date']) || isset($data['request_end_date'])) && !empty($startDate) && !empty($endDate)) {
         // U3: parse เข้ม (กัน format หลวม + non-string ที่เคยทำ TypeError 500)
-        $start = is_string($startDate) ? equivalenceStrictDate($startDate) : null;
-        $end = is_string($endDate) ? equivalenceStrictDate($endDate) : null;
+        $start = is_string($startDate) ? strictDate($startDate) : null;
+        $end = is_string($endDate) ? strictDate($endDate) : null;
         if ($start === null || $end === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -545,7 +468,7 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
     $afterStmt = $pdo->prepare('SELECT * FROM position_equivalence WHERE equivalence_id = ?');
     $afterStmt->execute([$id]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'UPDATE',
@@ -555,5 +478,5 @@ function updateEquivalence(PDO $pdo, int $id, array $user, ?array $input = null)
         $after ?: null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }

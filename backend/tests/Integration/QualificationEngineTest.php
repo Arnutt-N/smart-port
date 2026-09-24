@@ -314,4 +314,27 @@ final class QualificationEngineTest extends TestCase
             $prev = $row;
         }
     }
+
+    /**
+     * T5.4 — pin Gregorian leap behavior ของ engine: personnel ที่เริ่ม O1 วันที่
+     * 2020-02-29 + min_years 5 (O2) → MySQL DATE_ADD clamp Feb 29 ไป Feb 28 =
+     * 2025-02-28 (verify ตรงกับ SELECT บน MySQL 8.0 แล้ว — ไม่เดา)
+     */
+    #[Test]
+    public function it_clamps_feb29_plus_five_years_to_feb28(): void
+    {
+        self::$pdo->prepare(
+            'INSERT INTO personnel
+                (personnel_id, citizen_id, first_name, last_name, hire_date,
+                 current_position_id, current_org_id, current_level_start_date, current_level_code, education_level, is_active)
+             VALUES (900, ?, ?, ?, ?, 1, 1, ?, ?, ?, 1)'
+        )->execute(['1100199990900', 'ทดสอบ', 'Leap', '2019-01-01', '2020-02-29', 'O1', 'HIGH_VOCATIONAL']);
+        try {
+            $result = $this->engine->computeDetail('O2', 900);
+            self::assertNotNull($result, 'computeDetail(O2, 900) คืน null — ตรวจ seed positions/orgs/position_classes');
+            self::assertSame('2025-02-28', $result['data']['qualification_date']);
+        } finally {
+            self::$pdo->prepare('DELETE FROM personnel WHERE personnel_id = ?')->execute([900]);
+        }
+    }
 }

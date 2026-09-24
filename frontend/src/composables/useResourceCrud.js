@@ -6,10 +6,10 @@ import { useApi } from '@/composables/useApi.js'
  * @param {{
  *   path: string,
  *   mapRow: (row: object) => object,
- *   toPayload: (data: object) => object,
+ *   [toPayload]: (data: object) => object, // optional, default identity
  * }} config
  */
-export function useResourceCrud({ path, mapRow, toPayload }) {
+export function useResourceCrud({ path, mapRow, toPayload = (d) => d }) {
   const api = useApi()
   const base = path.replace(/^\//, '').replace(/\/$/, '')
 
@@ -23,6 +23,7 @@ export function useResourceCrud({ path, mapRow, toPayload }) {
     return {
       success: result.success,
       data: (result.data || []).map(mapRow),
+      summary: result.summary,
       pagination: result.pagination,
     }
   }

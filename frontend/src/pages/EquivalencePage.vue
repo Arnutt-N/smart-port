@@ -208,60 +208,15 @@
           <div class="px-6 py-4 space-y-4">
             <!-- Personnel autocomplete -->
             <div>
-              <label
-                for="equivalence-personnel-search"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >บุคลากร <span class="text-red-500">*</span></label>
-              <div class="relative">
-                <input
-                  id="equivalence-personnel-search"
-                  v-model="personnelSearch"
-                  :disabled="!!editingRecord"
-                  type="text"
-                  placeholder="พิมพ์ชื่อเพื่อค้นหา..."
-                  class="input"
-                  :class="[
-                    formErrors.personnel_id ? 'border-red-300' : 'border-gray-300',
-                    editingRecord ? 'bg-gray-100 cursor-not-allowed' : ''
-                  ]"
-                  @input="onPersonnelSearch"
-                >
-                <div
-                  v-if="showPersonnelDropdown && personnelResults.length > 0"
-                  class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                >
-                  <button
-                    v-for="person in personnelResults"
-                    :key="person.personnel_id"
-                    class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors"
-                    @click="selectPersonnel(person)"
-                  >
-                    {{ person.full_name }}
-                  </button>
-                </div>
-                <div
-                  v-else-if="showPersonnelDropdown && personnelSearch.trim().length >= 2"
-                  class="text-xs mt-1"
-                  :class="personnelSearchFailed ? 'text-red-500' : 'text-gray-500'"
-                >
-                  <p>
-                    {{ personnelSearchFailed ? 'ค้นหาไม่สำเร็จ กรุณาลองใหม่' : 'ไม่พบบุคลากรที่ตรงกับคำค้น' }}
-                  </p>
-                  <RouterLink
-                    v-if="personnelCreateLinkVisible({ isAdmin, searchFailed: personnelSearchFailed })"
-                    :to="PERSONNEL_MASTER_CREATE_TO"
-                    class="inline-block mt-1 text-primary-600 hover:text-primary-700 underline"
-                  >
-                    {{ PERSONNEL_MASTER_CREATE_LINK_LABEL }}
-                  </RouterLink>
-                </div>
-              </div>
-              <p
-                v-if="formErrors.personnel_id"
-                class="text-xs text-red-500 mt-1"
-              >
-                {{ formErrors.personnel_id }}
-              </p>
+              <label for="equivalence-personnel-search" class="block text-sm font-medium text-gray-700 mb-1">บุคลากร <span class="text-red-500">*</span></label>
+              <PersonnelTypeahead
+                v-model="formData.personnel_id"
+                :display-name="prefillName"
+                :disabled="!!editingRecord"
+                input-id="equivalence-personnel-search"
+                placeholder="พิมพ์ชื่อเพื่อค้นหา..."
+              />
+              <p v-if="formErrors.personnel_id" class="text-xs text-red-500 mt-1">{{ formErrors.personnel_id }}</p>
             </div>
 
             <!-- actual_position -->
@@ -574,22 +529,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { useEquivalence } from '@/composables/useEquivalence.js'
+import { useRoute, useRouter } from 'vue-router'
+import { useEquivalence } from '@/composables/timeEntryCrud.js'
 import { useDebouncedCallback } from '@/composables/useDebouncedCallback.js'
-import { useRequestSeq } from '@/composables/useRequestSeq.js'
+import { useListPage } from '@/composables/useListPage.js'
 import { useApi } from '@/composables/useApi.js'
-import { usePersonnelSearch } from '@/composables/usePersonnelSearch.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { confirmAction, confirmSave } from '@/composables/useConfirm.js'
 import { applyPersonnelCreateQuery } from '@/utils/applyPersonnelCreateQuery.js'
 import { PERSONNEL_CREATE_QUERY_UNAVAILABLE } from '@/utils/personnelCreateQuery.js'
-import {
-  PERSONNEL_MASTER_CREATE_LINK_LABEL,
-  PERSONNEL_MASTER_CREATE_TO,
-  personnelCreateLinkVisible,
-} from '@/utils/personnelTypeaheadEmpty.js'
+import PageBreadcrumb from '@/components/PageBreadcrumb.vue'
 import ListSearchInput from '@/components/ListSearchInput.vue'
 import StatCard from '@/components/StatCard.vue'
 import ThaiDatePicker from '@/components/ThaiDatePicker.vue'
@@ -598,21 +548,32 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
+import PersonnelTypeahead from '@/components/PersonnelTypeahead.vue'
 import {
   Plus, FileText, Clock, CheckCircle, XCircle,
   AlertCircle, Check, X
 } from 'lucide-vue-next'
 
 const { fetchList, create, update, approve, reject } = useEquivalence()
+const {
+  loading,
+  error,
+  rows,
+  summary,
+  pagination,
+  searchQuery,
+  showModal,
+  editingRecord,
+  fetchData,
+  openCreate: shellOpenCreate,
+  openEdit: shellOpenEdit,
+  closeModal,
+} = useListPage({ fetcher: { fetchList } })
 const api = useApi()
-const { searchPersonnel } = usePersonnelSearch()
 const ui = useUiStore()
 const auth = useAuthStore()
-const isAdmin = computed(() => auth.isAdmin)
 const route = useRoute()
 const router = useRouter()
-const { next: nextRequest } = useRequestSeq()
-const { next: nextPersonnelRequest } = useRequestSeq()
 
 function rowActions(row) {
   if (row.approvalStatus === 'PENDING') {
@@ -632,21 +593,13 @@ function rowActions(row) {
 }
 
 // Data state
-const loading = ref(false)
-const error = ref(null)
-const rows = ref([])
-const summary = ref(null)
-const pagination = ref({ total: 0, limit: 20, offset: 0, has_more: false })
 
-const searchQuery = ref('')
 const { run: scheduleSearch } = useDebouncedCallback(() => {
   pagination.value.offset = 0
   fetchData()
 }, 300)
 
 // Create/Edit modal state
-const showModal = ref(false)
-const editingRecord = ref(null)
 const saving = ref(false)
 const formErrors = ref({})
 
@@ -660,36 +613,8 @@ const defaultFormData = () => ({
 })
 const formData = ref(defaultFormData())
 
-// Personnel autocomplete
-const personnelSearch = ref('')
-const personnelResults = ref([])
-const showPersonnelDropdown = ref(false)
-const personnelSearchFailed = ref(false)
-const { run: schedulePersonnelSearch, cancel: cancelPersonnelSearch } = useDebouncedCallback(async () => {
-  const req = nextPersonnelRequest()
-  const query = personnelSearch.value.trim()
-  if (query.length < 2) {
-    if (!req.isCurrent()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  try {
-    const rowsFound = await searchPersonnel(query, { limit: 10 })
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = rowsFound
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = false
-  } catch {
-    if (!req.isCurrent()) return
-    if (query !== personnelSearch.value.trim()) return
-    personnelResults.value = []
-    showPersonnelDropdown.value = true
-    personnelSearchFailed.value = true
-  }
-}, 300)
+// Prefill display name for PersonnelTypeahead (edit modal + ?create=1 flow; narrowed in T1.3)
+const prefillName = ref('')
 
 // Approve modal state
 const showApproveModal = ref(false)
@@ -720,29 +645,6 @@ const statusCounts = computed(() => {
 // คำขอทั้งหมด — full dataset จาก summary เพื่อให้สอดคล้องกับ 3 cards ข้างบนเมื่อมี search
 const totalCount = computed(() => summary.value?.total ?? pagination.value.total)
 
-// ==================== Data fetching ====================
-
-async function fetchData() {
-  const req = nextRequest()
-  loading.value = true
-  error.value = null
-  try {
-    const result = await fetchList({
-      search: searchQuery.value,
-      limit: pagination.value.limit,
-      offset: pagination.value.offset,
-    })
-    if (!req.isCurrent()) return
-    rows.value = result.data
-    summary.value = result.summary || null
-    pagination.value = result.pagination
-  } catch (err) {
-    if (!req.isCurrent()) return
-    error.value = err.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
-  } finally {
-    if (req.isCurrent()) loading.value = false
-  }
-}
 
 // ==================== Search ====================
 
@@ -750,42 +652,16 @@ function onSearchInput() {
   scheduleSearch()
 }
 
-// ==================== Personnel autocomplete ====================
-
-function onPersonnelSearch() {
-  if (!personnelSearch.value || personnelSearch.value.trim().length < 2) {
-    nextPersonnelRequest() // invalidate in-flight autocomplete
-    cancelPersonnelSearch()
-    personnelResults.value = []
-    showPersonnelDropdown.value = false
-    personnelSearchFailed.value = false
-    return
-  }
-  schedulePersonnelSearch()
-}
-
-function selectPersonnel(person) {
-  formData.value.personnel_id = person.personnel_id
-  personnelSearch.value = person.full_name
-  showPersonnelDropdown.value = false
-  personnelSearchFailed.value = false
-  formErrors.value.personnel_id = ''
-}
-
 // ==================== Create/Edit modal ====================
 
 function openCreate() {
-  editingRecord.value = null
   formData.value = defaultFormData()
   formErrors.value = {}
-  personnelSearch.value = ''
-  personnelResults.value = []
-  showPersonnelDropdown.value = false
-  showModal.value = true
+  prefillName.value = ''
+  shellOpenCreate()
 }
 
 function openEdit(record) {
-  editingRecord.value = record
   formData.value = {
     personnel_id: record.personnelId,
     actual_position: record.actualPosition,
@@ -795,15 +671,10 @@ function openEdit(record) {
     approval_order_ref: record.approvalOrderRef || '',
   }
   formErrors.value = {}
-  personnelSearch.value = record.fullName
-  showPersonnelDropdown.value = false
-  showModal.value = true
+  prefillName.value = record.fullName
+  shellOpenEdit(record)
 }
 
-function closeModal() {
-  showModal.value = false
-  editingRecord.value = null
-}
 
 function validateForm() {
   const errors = {}
@@ -919,10 +790,12 @@ onMounted(() => {
     route,
     router,
     openCreate,
-    formData,
-    personnelSearch,
     get: (url) => api.get(url),
     onUnavailable: (reason) => ui.showToast(PERSONNEL_CREATE_QUERY_UNAVAILABLE[reason], 'error'),
+  }).then((person) => {
+    if (!person) return
+    formData.value.personnel_id = person.personnel_id
+    prefillName.value = person.full_name ?? ''
   })
 })
 </script>

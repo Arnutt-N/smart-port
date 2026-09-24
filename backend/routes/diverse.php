@@ -16,50 +16,7 @@
 
 include_once __DIR__ . '/../helpers.php';
 include_once __DIR__ . '/../audit.php';
-
-/**
- * parse Y-m-d แบบเข้มงวด (ลอก pattern จาก MultiplierEngine.php:224 / supportiveStrictDate)
- * เพื่อไม่ต้อง include engine ทั้งไฟล์ — คืน null ถ้า format ผิดหรือมี overflow
- * F1: preg guard ให้ตรง probationStrictDate/supportiveStrictDate (กัน '2026-1-15' หลุด)
- */
-function diverseStrictDate(string $value): ?DateTime
-{
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        return null;
-    }
-    $date = DateTime::createFromFormat('Y-m-d|', $value);
-    $errors = DateTime::getLastErrors();
-    if (
-        $date === false
-        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
-    ) {
-        return null;
-    }
-    return $date;
-}
-
-/**
- * U1 — ตรวจวันรายฟิลด์ (create/update): ฟิลด์วันที่ที่ส่งมาและไม่ว่างต้อง parse เข้มผ่าน
- * ปิดช่อง single-sided (ส่งข้างเดียวผิด format แล้วอีกข้างว่าง = ข้ามบล็อกคู่แล้ว bind ดิบลง DB)
- *
- * @param array<string,mixed> $data
- * @param list<string> $fields
- */
-function diverseDateFieldError(mixed $data, array $fields): ?string
-{
-    if (!is_array($data)) {
-        return 'รูปแบบข้อมูลไม่ถูกต้อง';
-    }
-    foreach ($fields as $field) {
-        if (!array_key_exists($field, $data) || $data[$field] === '' || $data[$field] === null) {
-            continue;
-        }
-        if (!is_string($data[$field]) || diverseStrictDate($data[$field]) === null) {
-            return 'รูปแบบวันที่ไม่ถูกต้อง';
-        }
-    }
-    return null;
-}
+include_once __DIR__ . '/../TimeEntryCrud.php';
 
 /** @var list<string> ฟิลด์วันที่ของ diverse ที่ต้องผ่าน strict parse เมื่อส่งมา */
 const DIVERSE_DATE_FIELDS = ['from_start_date', 'from_end_date', 'to_start_date', 'to_end_date'];
@@ -73,12 +30,25 @@ const DIVERSE_DATE_FIELDS = ['from_start_date', 'from_end_date', 'to_start_date'
  */
 function handleDiverse(PDO $pdo, string $method, array $path): void
 {
-    $actionMap = ['GET' => 'read', 'POST' => 'create', 'PUT' => 'update', 'DELETE' => 'delete'];
-    if (isset($actionMap[$method])) {
-        requirePermission($actionMap[$method], 'diverse');
+    $action = timeEntryAction($method);
+    if ($action === null) {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed']);
+        return;
     }
-    $user = getAuthenticatedUser();
 
+    $user = resolveDiverseUser();
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        return;
+    }
+
+    $denied = timeEntryDenied($action, 'diverse', $user, $pdo);
+    if ($denied !== null) {
+        timeEntryEmit(['http' => $denied['status'], 'body' => $denied['body']]);
+        return;
+    }
     switch ($method) {
         case 'GET':
             $id = $path[1] ?? null;
@@ -125,89 +95,63 @@ function handleDiverse(PDO $pdo, string $method, array $path): void
 }
 
 /**
+ * N23/N56: test hook — pattern เดียวกับ resolveImportUser (array_key_exists
+ * เพื่อให้ฉีด null = unauthenticated ได้)
+ */
+function resolveDiverseUser(): ?array
+{
+    if (array_key_exists('__auth_user', $GLOBALS)) {
+        $u = $GLOBALS['__auth_user'];
+        return is_array($u) ? $u : null;
+    }
+    return getAuthenticatedUser();
+}
+
+/**
+ * Route cfg สำหรับ TimeEntryCrud cores (list/detail ใช้ชุดเดียวกัน)
+ */
+function diverseTimeEntryCfg(): array
+{
+    return [
+        'table' => 'diverse_experience',
+        'alias' => 'de',
+        'idCol' => 'de.experience_id',
+        'joins' => ' LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
+                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id',
+        'selectExtra' => sqlPersonnelFullName() . ' AS full_name',
+        'searchSql' => [
+            'p.first_name LIKE ?',
+            'p.last_name LIKE ?',
+            '(' . sqlPersonnelFullName() . ') LIKE ?',
+            'de.from_job_series LIKE ?',
+            'de.to_job_series LIKE ?',
+            'de.from_division LIKE ?',
+            'de.to_division LIKE ?',
+        ],
+        'orderBy' => 'de.created_at DESC',
+        'summarySql' => '
+            SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
+                   SUM(CASE WHEN diff_count >= 3 THEN 1 ELSE 0 END) AS qualified_count
+            FROM diverse_experience
+        ',
+        'summaryMap' => function (array $summaryRow, int $total): array {
+            return [
+                'total' => $total,
+                'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
+                'qualified_count' => (int) ($summaryRow['qualified_count'] ?? 0),
+            ];
+        },
+        'dateFields' => ['from_start_date', 'from_end_date', 'to_start_date', 'to_end_date', 'qualified_date'],
+    ];
+}
+
+/**
  * GET /diverse — รายการนับแตกต่างทั้งหมด พร้อม pagination
  * สามารถกรองตาม personnel_id และค้นหาด้วย search (ชื่อ-สกุล หรือ สายงาน/กอง ต้นทาง-ปลายทาง)
  */
 function getDiverseList(PDO $pdo): void
 {
-    $personnelId = $_GET['personnel_id'] ?? null;
-    $search = trim($_GET['search'] ?? '');
-    $limit = max(1, min(intval($_GET['limit'] ?? 20), 200));
-    $offset = max(0, intval($_GET['offset'] ?? 0));
-
-    $baseQuery = 'SELECT de.*, ' . sqlPersonnelFullName() . ' AS full_name
-                  FROM diverse_experience de
-                  LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
-                  LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
-
-    $countQuery = 'SELECT COUNT(*) AS total
-                   FROM diverse_experience de
-                   LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
-                   LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id';
-
-    $conditions = [];
-    $params = [];
-
-    if ($personnelId !== null && $personnelId !== '') {
-        $conditions[] = 'de.personnel_id = ?';
-        $params[] = intval($personnelId);
-    }
-
-    if ($search !== '') {
-        $conditions[] = '(p.first_name LIKE ? OR p.last_name LIKE ?
-                          OR ' . sqlPersonnelFullName() . ' LIKE ?
-                          OR de.from_job_series LIKE ? OR de.to_job_series LIKE ?
-                          OR de.from_division LIKE ? OR de.to_division LIKE ?)';
-        $term = "%{$search}%";
-        array_push($params, $term, $term, $term, $term, $term, $term, $term);
-    }
-
-    $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
-
-    // Data query with ordering and pagination
-    $sql = $baseQuery . $where . " ORDER BY de.created_at DESC LIMIT {$limit} OFFSET {$offset}";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Count query for pagination
-    $countStmt = $pdo->prepare($countQuery . $where);
-    $countStmt->execute($params);
-    $total = intval($countStmt->fetch(PDO::FETCH_ASSOC)['total']);
-
-    // เพิ่มวันที่ภาษาไทย
-    foreach ($rows as &$row) {
-        $row['from_start_date_thai'] = formatThaiDate($row['from_start_date']);
-        $row['from_end_date_thai'] = formatThaiDate($row['from_end_date']);
-        $row['to_start_date_thai'] = formatThaiDate($row['to_start_date']);
-        $row['to_end_date_thai'] = formatThaiDate($row['to_end_date']);
-        $row['qualified_date_thai'] = formatThaiDate($row['qualified_date']);
-    }
-    unset($row);
-
-    // Summary จาก full dataset
-    $summaryStmt = $pdo->query('
-        SELECT COUNT(DISTINCT personnel_id) AS distinct_personnel,
-               SUM(CASE WHEN diff_count >= 3 THEN 1 ELSE 0 END) AS qualified_count
-        FROM diverse_experience
-    ');
-    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        'success' => true,
-        'data' => $rows,
-        'summary' => [
-            'total' => $total,
-            'distinct_personnel' => (int) ($summaryRow['distinct_personnel'] ?? 0),
-            'qualified_count' => (int) ($summaryRow['qualified_count'] ?? 0),
-        ],
-        'pagination' => [
-            'total' => $total,
-            'limit' => $limit,
-            'offset' => $offset,
-            'has_more' => ($offset + $limit) < $total
-        ]
-    ]);
+    timeEntryEmit(timeEntryList($pdo, diverseTimeEntryCfg()));
 }
 
 /**
@@ -215,30 +159,7 @@ function getDiverseList(PDO $pdo): void
  */
 function getDiverseDetail(PDO $pdo, int $id): void
 {
-    $sql = 'SELECT de.*, ' . sqlPersonnelFullName() . ' AS full_name
-            FROM diverse_experience de
-            LEFT JOIN personnel p ON de.personnel_id = p.personnel_id
-            LEFT JOIN prefixes px ON p.prefix_id = px.prefix_id
-            WHERE de.experience_id = ?';
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id]);
-    $record = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$record) {
-        http_response_code(404);
-        echo json_encode(['error' => 'ไม่พบรายการนับแตกต่าง']);
-        return;
-    }
-
-    // เพิ่มวันที่ภาษาไทย
-    $record['from_start_date_thai'] = formatThaiDate($record['from_start_date']);
-    $record['from_end_date_thai'] = formatThaiDate($record['from_end_date']);
-    $record['to_start_date_thai'] = formatThaiDate($record['to_start_date']);
-    $record['to_end_date_thai'] = formatThaiDate($record['to_end_date']);
-    $record['qualified_date_thai'] = formatThaiDate($record['qualified_date']);
-
-    echo json_encode(['success' => true, 'data' => $record]);
+    timeEntryEmit(timeEntryDetail($pdo, diverseTimeEntryCfg(), $id, 'ไม่พบรายการนับแตกต่าง'));
 }
 
 /**
@@ -275,7 +196,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
     }
 
     // U1: ตรวจวันรายฟิลด์ก่อน (กัน single-sided ผิด format หลุดไป bind ดิบ)
-    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    $dateError = dateFieldError($data, DIVERSE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -291,8 +212,8 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 
     $fromTotalDays = null;
     if (!empty($data['from_start_date']) && !empty($data['from_end_date'])) {
-        $fromStart = diverseStrictDate((string) $data['from_start_date']);
-        $fromEnd = diverseStrictDate((string) $data['from_end_date']);
+        $fromStart = strictDate((string) $data['from_start_date']);
+        $fromEnd = strictDate((string) $data['from_end_date']);
         if ($fromStart === null || $fromEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -308,8 +229,8 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
 
     $toTotalDays = null;
     if (!empty($data['to_start_date']) && !empty($data['to_end_date'])) {
-        $toStart = diverseStrictDate((string) $data['to_start_date']);
-        $toEnd = diverseStrictDate((string) $data['to_end_date']);
+        $toStart = strictDate((string) $data['to_start_date']);
+        $toEnd = strictDate((string) $data['to_end_date']);
         if ($toStart === null || $toEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -376,7 +297,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
     $afterStmt->execute([$experienceId]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
 
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'CREATE',
@@ -386,8 +307,7 @@ function createDiverse(PDO $pdo, array $user, ?array $input = null): void
         $after ?: null
     );
 
-    http_response_code(201);
-    echo json_encode(['success' => true, 'experience_id' => $experienceId]);
+    timeEntryEmit(['http' => 201, 'body' => ['success' => true, 'experience_id' => $experienceId]]);
 }
 
 /**
@@ -411,7 +331,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $data = $input ?? json_decode(file_get_contents('php://input'), true);
 
     // U1: ตรวจวันรายฟิลด์ที่ส่งมาก่อน (เฉพาะค่าที่ส่งมา ไม่แตะค่าจาก DB)
-    $dateError = diverseDateFieldError($data, DIVERSE_DATE_FIELDS);
+    $dateError = dateFieldError($data, DIVERSE_DATE_FIELDS);
     if ($dateError !== null) {
         http_response_code(400);
         echo json_encode(['error' => $dateError]);
@@ -455,8 +375,8 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $fromStartDate = $data['from_start_date'] ?? $existing['from_start_date'];
     $fromEndDate = $data['from_end_date'] ?? $existing['from_end_date'];
     if (!empty($fromStartDate) && !empty($fromEndDate)) {
-        $fromStart = diverseStrictDate((string) $fromStartDate);
-        $fromEnd = diverseStrictDate((string) $fromEndDate);
+        $fromStart = strictDate((string) $fromStartDate);
+        $fromEnd = strictDate((string) $fromEndDate);
         if ($fromStart === null || $fromEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -478,8 +398,8 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $toStartDate = $data['to_start_date'] ?? $existing['to_start_date'];
     $toEndDate = $data['to_end_date'] ?? $existing['to_end_date'];
     if (!empty($toStartDate) && !empty($toEndDate)) {
-        $toStart = diverseStrictDate((string) $toStartDate);
-        $toEnd = diverseStrictDate((string) $toEndDate);
+        $toStart = strictDate((string) $toStartDate);
+        $toEnd = strictDate((string) $toEndDate);
         if ($toStart === null || $toEnd === null) {
             http_response_code(400);
             echo json_encode(['error' => 'รูปแบบวันที่ไม่ถูกต้อง']);
@@ -520,7 +440,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
     $afterStmt = $pdo->prepare('SELECT * FROM diverse_experience WHERE experience_id = ?');
     $afterStmt->execute([$id]);
     $after = $afterStmt->fetch(PDO::FETCH_ASSOC);
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'UPDATE',
@@ -530,7 +450,7 @@ function updateDiverse(PDO $pdo, int $id, array $user, ?array $input = null): vo
         $after ?: null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }
 
 /**
@@ -550,7 +470,7 @@ function deleteDiverse(PDO $pdo, int $id, array $user): void
     $stmt = $pdo->prepare('DELETE FROM diverse_experience WHERE experience_id = ?');
     $stmt->execute([$id]);
 
-    logAudit(
+    timeEntryWriteAudit(
         $pdo,
         (int) $user['user_id'],
         'DELETE',
@@ -560,5 +480,5 @@ function deleteDiverse(PDO $pdo, int $id, array $user): void
         null
     );
 
-    echo json_encode(['success' => true]);
+    timeEntryEmit(['http' => 200, 'body' => ['success' => true]]);
 }
