@@ -135,7 +135,7 @@ Pure PHP REST API with no framework.
 
 - **Single entry point**: `api.php` is the API gateway — all requests route through it via `.htaccess` rewrite rules
 - **Routing**: `switch` statement on URL path segments in `api.php`, delegating to feature handlers in `backend/routes/` (e.g. `routes/import.php`, `routes/probation.php`)
-- **Auth**: JWT (HMAC-SHA256) — custom HS256 implementation (`auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library. Token expiry: 1 hour. Login endpoints (`/auth/login` and `/login`) are unauthenticated; all other routes require a valid JWT in the `Authorization` header
+- **Auth**: JWT (HMAC-SHA256) — custom HS256 implementation (`auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library. Access token expiry: 1 hour. Session lives in httpOnly cookies `sp_access` / `sp_refresh` (cut over 2026-09-23). Login endpoints (`/auth/login` and `/login`) are unauthenticated; all other routes require the access cookie. Do not read or attach `Authorization` for the session.
 - **Database**: PDO with prepared statements. Connection setup in `config.php`
 - **Dependencies**: Managed via Composer (`composer.json`), only runtime dependency is `phpoffice/phpspreadsheet` — JWT เป็น custom HS256 implementation (`auth.php`) — ตัดสินใจแล้ว ไม่ใช้ library (ไม่มี `firebase/php-jwt` ใน require block)
 
@@ -152,7 +152,7 @@ Pure PHP REST API with no framework.
 - **Language**: UI text, code comments, and database content are in Thai. Maintain Thai language when modifying user-facing strings
 - **Tailwind theme**: Tailwind 4 uses CSS-first config — the palette lives in the `@theme` block of `frontend/src/style.css` (no `tailwind.config.js`); primary colors use sky-blue, with government-slate secondary tones
 - **Font**: Noto Sans Thai is the primary typeface
-- **Auth flow**: JWT stored in `localStorage` under keys `authToken` / `auth_token`. The `useApi()` composable auto-attaches the token via request interceptor
+- **Auth flow**: httpOnly cookies `sp_access` / `sp_refresh`. `useApi()` sends `credentials: 'include'` and does not attach an `Authorization` header. `localStorage` may hold `csrf_token` and non-token user data only — never the JWT. Stale `authToken` / `auth_token` keys are deleted on load, not migrated.
 - **CORS**: Currently hardcoded to `https://smart-port.onrender.com` in `backend/api.php`
 - **Deployment**: Production runs on Render (`smart-port.onrender.com`)
 
