@@ -201,7 +201,7 @@ router.beforeEach(async (to) => {
   const { useAuthStore } = await import('@/stores/auth.js')
   const auth = useAuthStore()
 
-  if (to.meta.requiresAuth !== false && !auth.isAuthenticated) {
+  if (to.meta.requiresAuth !== false && !auth.isAuthenticated && !auth.sessionCheckPending) {
     return '/login'
   }
 

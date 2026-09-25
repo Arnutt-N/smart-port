@@ -63,6 +63,9 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(readStoredJson('user'))
   // D3: server-checked — true หลัง login/checkSession สำเร็จเท่านั้น (ไม่ decode JWT อีก)
   const isAuthenticated = ref(false)
+  // sessionCheckPending: true ระหว่าง checkSession ครั้งแรก (main.js mount ทันทีไม่ block)
+  // — ป้องกัน router guard redirect ไป /login ก่อน session ตอบ
+  const sessionCheckPending = ref(true)
 
   // N4: effective permission grants ของ role ตัวเอง (จาก GET /settings/permissions/self)
   // — FE คำนวณปุ่มจาก matrix จริงรวม role_permission_overrides แทน hardcode role เทียบ
@@ -229,6 +232,7 @@ export const useAuthStore = defineStore('auth', () => {
         isAuthenticated.value = false
         return false
       } finally {
+        sessionCheckPending.value = false
         sessionCheckPromise = null
       }
     })()
@@ -374,6 +378,7 @@ export const useAuthStore = defineStore('auth', () => {
     setMustChangePassword,
     login,
     checkSession,
+    sessionCheckPending,
     refresh,
     changePassword,
     fetchMe,
