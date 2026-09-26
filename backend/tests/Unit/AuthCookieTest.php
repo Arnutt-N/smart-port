@@ -76,15 +76,44 @@ final class AuthCookieTest extends TestCase
     public function cookie_params_carry_security_flags(): void
     {
         unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
-        $before = time();
-        $params = authCookieParams('/api/auth', 900);
+        $expires = time() + 900;
+        $params = authCookieParams('/api/auth', $expires);
 
         self::assertSame('/api/auth', $params['path']);
         self::assertTrue($params['httponly']);
         self::assertSame('Lax', $params['samesite']);
         self::assertFalse($params['secure'], 'http ตรงต้องไม่มี Secure (ไม่งั้น dev ส่ง cookie ไม่ได้)');
-        self::assertGreaterThanOrEqual($before + 900, $params['expires']);
-        self::assertLessThanOrEqual(time() + 900, $params['expires']);
+        self::assertSame($expires, $params['expires'], 'persistent cookie ต้องใช้ timestamp ที่ส่งเข้ามาตรง ๆ');
+    }
+
+    #[Test]
+    public function session_cookie_omits_expires_key(): void
+    {
+        // remember=off → null = session cookie (ไม่มี key expires เลย)
+        $params = authCookieParams('/');
+
+        self::assertArrayNotHasKey('expires', $params);
+        self::assertSame('/', $params['path']);
+        self::assertTrue($params['httponly']);
+        self::assertSame('Lax', $params['samesite']);
+    }
+
+    #[Test]
+    public function clear_auth_cookies_emits_past_expiry_on_original_paths(): void
+    {
+        $GLOBALS['__capture_cookies'] = [];
+        $before = time() - 3600;
+        clearAuthCookies();
+        $captured = $GLOBALS['__capture_cookies'];
+        unset($GLOBALS['__capture_cookies']);
+
+        self::assertCount(2, $captured);
+        self::assertSame(AUTH_ACCESS_COOKIE, $captured[0]['name']);
+        self::assertSame('/', $captured[0]['params']['path']);
+        self::assertLessThanOrEqual($before, $captured[0]['params']['expires']);
+        self::assertSame(AUTH_REFRESH_COOKIE, $captured[1]['name']);
+        self::assertSame(AUTH_REFRESH_COOKIE_PATH, $captured[1]['params']['path']);
+        self::assertLessThanOrEqual($before, $captured[1]['params']['expires']);
     }
 
     #[Test]
@@ -92,6 +121,7 @@ final class AuthCookieTest extends TestCase
     {
         $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
 
-        self::assertTrue(authCookieParams('/', 3600)['secure']);
+        self::assertTrue(authCookieParams('/', time() + 3600)['secure']);
+        self::assertTrue(authCookieParams('/', null)['secure']);
     }
 }

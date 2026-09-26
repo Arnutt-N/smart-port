@@ -57,6 +57,7 @@ final class RefreshTokenTest extends TestCase
 
     protected function tearDown(): void
     {
+        unset($GLOBALS['__capture_cookies']);
         if (self::$pdo === null || $this->userId === 0) {
             return;
         }
@@ -74,10 +75,23 @@ final class RefreshTokenTest extends TestCase
         return json_decode((string) ob_get_clean(), true) ?? [];
     }
 
+    /**
+     * สร้างแถว refresh fixture — remember/expiry กำหนดเอง (ค่า default = session mode 12 ชม.)
+     */
+    private function issueFixture(int $userId, bool $remember = false, ?string $expiresAt = null): string
+    {
+        return issueRefreshToken(
+            self::$pdo,
+            $userId,
+            $remember,
+            $expiresAt ?? date('Y-m-d H:i:s', time() + ($remember ? REFRESH_TOKEN_TTL_SECONDS : SESSION_ABS_TTL_SECONDS))
+        );
+    }
+
     #[Test]
     public function valid_token_is_rotated_and_returns_new_tokens(): void
     {
-        $raw = issueRefreshToken(self::$pdo, $this->userId);
+        $raw = $this->issueFixture($this->userId);
         $response = $this->callRefresh($raw);
 
         self::assertSame(200, http_response_code());
@@ -144,7 +158,7 @@ final class RefreshTokenTest extends TestCase
     {
         // ภายใน grace window (10 วิ) ถือว่าเป็น race ระหว่าง browser tab ไม่ใช่การขโมย
         // จึงตอบ 401 ใบนั้นเฉย ๆ แต่ต้องไม่เตะผู้ใช้ออกจากระบบ (routes/auth.php)
-        $raw = issueRefreshToken(self::$pdo, $this->userId);
+        $raw = $this->issueFixture($this->userId);
 
         $this->callRefresh($raw);
         self::assertSame(200, http_response_code());
@@ -160,7 +174,7 @@ final class RefreshTokenTest extends TestCase
     #[Test]
     public function reusing_a_long_revoked_token_revokes_all_user_tokens(): void
     {
-        $raw = issueRefreshToken(self::$pdo, $this->userId);
+        $raw = $this->issueFixture($this->userId);
 
         // ครั้งแรก: rotation สำเร็จ -> raw ถูก revoke, มี token ใหม่ที่ active
         $this->callRefresh($raw);
@@ -195,7 +209,7 @@ final class RefreshTokenTest extends TestCase
     #[Test]
     public function logout_revokes_the_refresh_token(): void
     {
-        $raw = issueRefreshToken(self::$pdo, $this->userId);
+        $raw = $this->issueFixture($this->userId);
 
         ob_start();
         logoutSession(self::$pdo, ['refresh_token' => $raw]);
@@ -206,5 +220,126 @@ final class RefreshTokenTest extends TestCase
         $stmt = self::$pdo->prepare('SELECT revoked_at FROM refresh_tokens WHERE token_hash = ?');
         $stmt->execute([hashRefreshToken($raw)]);
         self::assertNotNull($stmt->fetchColumn());
+    }
+
+    #[Test]
+    public function rotation_preserves_original_expires_at_and_remember_me(): void
+    {
+        // D6: deadline ตอน login เป็น cap — rotation ต้องคง expires_at/remember_me เดิมเป๊ะ
+        $originalExpires = date('Y-m-d H:i:s', time() + 5000);
+        $raw = $this->issueFixture($this->userId, true, $originalExpires);
+
+        $response = $this->callRefresh($raw);
+        self::assertSame(200, http_response_code());
+
+        $stmt = self::$pdo->prepare(
+            'SELECT token_hash, expires_at, remember_me FROM refresh_tokens
+              WHERE user_id = ? AND revoked_at IS NULL'
+        );
+        $stmt->execute([$this->userId]);
+        $newRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        self::assertNotFalse($newRow, 'ต้องมีแถว active ใหม่หลัง rotation');
+        self::assertSame($originalExpires, (string) $newRow['expires_at'], 'rotation ห้ามขยาย/ขยับ deadline');
+        self::assertSame(1, (int) $newRow['remember_me'], 'remember mode ต้องส่งต่อ');
+
+        // JWT ใหม่ผูก session deadline เดิม และ exp ไม่เกิน deadline
+        $payload = json_decode(
+            base64url_decode(explode('.', $response['token'] ?? '')[1] ?? ''),
+            true
+        );
+        self::assertSame(strtotime($originalExpires), $payload['session_exp'] ?? null);
+        self::assertLessThanOrEqual(strtotime($originalExpires), $payload['exp'] ?? null);
+
+        // rotation ปกติไม่เขียน revocation_reason (คง NULL — ไม่ใช่ legacy_cutover)
+        $oldStmt = self::$pdo->prepare('SELECT revocation_reason FROM refresh_tokens WHERE token_hash = ?');
+        $oldStmt->execute([hashRefreshToken($raw)]);
+        self::assertNull($oldStmt->fetchColumn(), 'rotation ห้ามแตะ revocation_reason');
+    }
+
+    #[Test]
+    public function legacy_cutover_cookie_is_rejected_without_killing_newer_sessions(): void
+    {
+        // D6: แถวที่ migration 36 revoke (legacy_cutover) ถูกใช้ซ้ำหลังผู้ใช้ login ใหม่แล้ว
+        // → 401 + clear เฉพาะใบนี้ ห้าม revoke session ใหม่ (kill-all)
+        $raw = $this->issueFixture($this->userId, false, date('Y-m-d H:i:s', time() + 900));
+        // ปลอมสถานะเหมือน migration: revoke ไปแล้ว 60 วินาที (เกิน grace) + เหตุผล cutover
+        self::$pdo->prepare(
+            "UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 60 SECOND),
+                    revocation_reason = 'legacy_cutover'
+             WHERE token_hash = ?"
+        )->execute([hashRefreshToken($raw)]);
+
+        // session ใหม่ของผู้ใช้คนเดียวกัน (login หลัง cutover)
+        $freshRaw = $this->issueFixture($this->userId, true, date('Y-m-d H:i:s', time() + REFRESH_TOKEN_TTL_SECONDS));
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $response = $this->callRefresh($raw);
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $response);
+        // terminal legacy_cutover ต้อง clear คู่ cookies
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'legacy_cutover ต้อง emit clearing cookies ทั้งคู่');
+        // session ใหม่ต้องยัง active — ไม่มี account-wide revocation
+        self::assertSame(1, $this->countActiveTokens(), 'cookie เก่าห้าม kill session ใหม่');
+        $freshStmt = self::$pdo->prepare('SELECT revoked_at FROM refresh_tokens WHERE token_hash = ?');
+        $freshStmt->execute([hashRefreshToken($freshRaw)]);
+        self::assertNull($freshStmt->fetchColumn(), 'แถว session ใหม่ต้องยังไม่ถูก revoke');
+    }
+
+    #[Test]
+    public function legacy_cutover_cookie_is_rejected_even_within_grace_window(): void
+    {
+        // legacy_cutover ไม่ใช่ race ระหว่าง tab — age เท่าไหร่ก็ clear + ไม่ kill-all
+        $raw = $this->issueFixture($this->userId);
+        self::$pdo->prepare(
+            "UPDATE refresh_tokens SET revoked_at = NOW(), revocation_reason = 'legacy_cutover'
+             WHERE token_hash = ?"
+        )->execute([hashRefreshToken($raw)]);
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $response = $this->callRefresh($raw);
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $response);
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'legacy_cutover ใน grace ก็ต้อง clear');
+        self::assertSame(0, $this->countActiveTokens(), 'แถวนี้เองถูก revoke อยู่แล้ว ไม่มีใบ active อื่น');
+    }
+
+    #[Test]
+    public function within_grace_loser_emits_no_set_cookie_and_winner_cookies_still_work(): void
+    {
+        // D6: ผู้แพ้ใน grace ห้ามมี Set-Cookie (ไม่งั้นลบ cookie ที่ winner เพิ่งออก)
+        $raw = $this->issueFixture($this->userId);
+
+        // winner: rotation สำเร็จ + ออก cookies ชุดใหม่
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $winner = $this->callRefresh($raw);
+        self::assertSame(200, http_response_code());
+        $winnerCookies = $GLOBALS['__capture_cookies'];
+        self::assertCount(2, $winnerCookies, 'winner ต้องออก cookie ทั้งคู่');
+
+        // loser: ใช้ raw เดิมใน grace — ต้อง 401 และห้ามมี Set-Cookie
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $loser = $this->callRefresh($raw);
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $loser);
+        self::assertCount(0, $GLOBALS['__capture_cookies'], 'loser ห้าม emit Set-Cookie');
+
+        // jar ยัง hold ชุดของ winner — access ยัง validate ได้ และ refresh ยังใช้ต่อได้
+        $winnerAccess = '';
+        foreach ($winnerCookies as $cookie) {
+            if ($cookie['name'] === AUTH_ACCESS_COOKIE) {
+                $winnerAccess = $cookie['value'];
+            }
+        }
+        self::assertNotFalse(validateJWT($winnerAccess), 'access ของ winner ต้องยังผ่าน validate');
+        http_response_code(200);
+        $again = $this->callRefresh((string) $winner['refresh_token']);
+        self::assertSame(200, http_response_code(), 'refresh ของ winner ต้องยัง rotate ต่อได้');
+        self::assertArrayHasKey('token', $again);
     }
 }

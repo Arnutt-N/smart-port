@@ -281,9 +281,10 @@ jobs:
             -v "$PWD/database/30-photo-blob-storage.sql:/docker-entrypoint-initdb.d/30-photo-blob-storage.sql" \
             -v "$PWD/database/31-csp-violation-daily.sql:/docker-entrypoint-initdb.d/31-csp-violation-daily.sql" \
             -v "$PWD/database/32-rename-servant-id.sql:/docker-entrypoint-initdb.d/32-rename-servant-id.sql" \
-            -v "$PWD/database/33-drop-photo-versions-and-dead-views.sql:/docker-entrypoint-initdb.d/33-drop-photo-versions-and-dead-views.sql"
+            -v "$PWD/database/33-drop-photo-versions-and-dead-views.sql:/docker-entrypoint-initdb.d/33-drop-photo-versions-and-dead-views.sql" \
             -v "$PWD/database/34-password-history.sql:/docker-entrypoint-initdb.d/34-password-history.sql" \
             -v "$PWD/database/35-fk-retrofit.sql:/docker-entrypoint-initdb.d/35-fk-retrofit.sql" \
+            -v "$PWD/database/36-remember-me-session-ttl.sql:/docker-entrypoint-initdb.d/36-remember-me-session-ttl.sql" \
             mysql:8.0
 
       - name: Wait for schema init to finish

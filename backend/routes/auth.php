@@ -393,6 +393,18 @@ function loginUser(PDO $pdo, ?array $input = null): void
         return;
     }
 
+    // D6: remember — ไม่ส่ง = false; ส่งมาต้องเป็น JSON boolean เท่านั้น
+    // (string "true"/number 1/null = ขัด contract — 400 ก่อนออก token/cookie)
+    $remember = false;
+    if (is_array($data) && array_key_exists('remember', $data)) {
+        if (!is_bool($data['remember'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'remember ต้องเป็น boolean']);
+            return;
+        }
+        $remember = $data['remember'];
+    }
+
     // login_attempts.username เป็น VARCHAR(200) — ชื่อที่ยาวกว่านั้นไม่มีทาง valid
     // (username จริงยาวสุด 64 ตาม USERNAME_PATTERN) ปฏิเสธแบบ generic ก่อนแตะ SQL
     // กัน INSERT ระเบิด 1406 กลายเป็น 500 (และไม่นับ lockout — ไม่มีเหยื่อให้ล็อก)
@@ -483,11 +495,22 @@ function loginUser(PDO $pdo, ?array $input = null): void
             OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL 30 DAY)'
     );
 
-    $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
-    $refreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
+    // D6: session absolute deadline คำนวณครั้งเดียวตอน login — rotation ใช้ค่านี้ซ้ำ
+    $sessionExp = time() + ($remember ? REFRESH_TOKEN_TTL_SECONDS : SESSION_ABS_TTL_SECONDS);
+    $sessionExpiresAt = date('Y-m-d H:i:s', $sessionExp);
 
-    // D3: ออก session ลง httpOnly cookies ด้วย — body คงเดิมทุก field (compat-keep)
-    setAuthCookies($jwtResult['token'], $refreshToken);
+    $jwtResult = generateJWT((int) $user['user_id'], $user['role'], $sessionExp);
+    $refreshToken = issueRefreshToken($pdo, (int) $user['user_id'], $remember, $sessionExpiresAt);
+
+    // D3/D6: ออก session ลง httpOnly cookies — remember คู่กับ persistent expiry,
+    // session mode ทั้งคู่เป็น session cookie (null = ไม่มี Expires)
+    $accessExpiresAt = $remember ? min(time() + AUTH_ACCESS_COOKIE_TTL_SECONDS, $sessionExp) : null;
+    setAuthCookies(
+        $jwtResult['token'],
+        $refreshToken,
+        $accessExpiresAt,
+        $remember ? $sessionExp : null
+    );
 
     echo json_encode(buildAuthResponse($jwtResult, $refreshToken, $user));
 }
@@ -516,15 +539,20 @@ function buildAuthResponse(array $jwtResult, string $refreshToken, array $user):
 
 /**
  * ออก refresh token ใหม่ 1 ใบ เก็บเฉพาะ hash ลง DB แล้วคืน plaintext ให้ client
+ *
+ * D6: remember mode + session absolute expiry ถูกบันทึกตอน login — rotation
+ * ต้องส่งต่อค่าเดิม (expiresAt ของ session ต้นฉบับ) เข้ามา ห้ามคำนวณใหม่
+ *
+ * @param bool $rememberMe ค่าตอน login (บันทึกเป็น remember_me)
+ * @param string $expiresAt session absolute expiry 'Y-m-d H:i:s' ของ session ต้นฉบับ
  */
-function issueRefreshToken(PDO $pdo, int $userId): string
+function issueRefreshToken(PDO $pdo, int $userId, bool $rememberMe, string $expiresAt): string
 {
     $rawToken = generateRefreshToken();
-    $expiresAt = date('Y-m-d H:i:s', time() + REFRESH_TOKEN_TTL_SECONDS);
 
     $pdo->prepare(
-        'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
-    )->execute([$userId, hashRefreshToken($rawToken), $expiresAt]);
+        'INSERT INTO refresh_tokens (user_id, token_hash, expires_at, remember_me) VALUES (?, ?, ?, ?)'
+    )->execute([$userId, hashRefreshToken($rawToken), $expiresAt, $rememberMe ? 1 : 0]);
 
     return $rawToken;
 }
@@ -534,10 +562,13 @@ function issueRefreshToken(PDO $pdo, int $userId): string
  *
  * ขั้นตอน:
  *   1. hash token ที่รับมา แล้วค้นแถวที่ตรง
- *   2. ถ้าไม่พบ / user ถูกปิดใช้งาน -> 401 (ข้อความ generic)
- *   3. ถ้าพบแต่ถูก revoke ไปแล้ว = reuse ต้องสงสัยถูกขโมย -> revoke ทุกใบของ user แล้ว 401
- *   4. ถ้าหมดอายุ -> revoke ใบนั้นแล้ว 401
- *   5. สำเร็จ: revoke ใบเดิม (rotation) + ออก JWT ใหม่ + refresh token ใหม่
+ *   2. ถ้าไม่พบ / user ถูกปิดใช้งาน -> 401 + clear cookies (terminal)
+ *   3. ถ้าถูก revoke ด้วย legacy_cutover -> 401 + clear เฉพาะใบนี้ ไม่ kill-all
+ *      ถ้า revoke แล้วถูกใช้ซ้ำ -> ใน grace 10 วิ: 401 ไม่ clear/ไม่ kill-all
+ *      เกิน grace: revoke ทุกใบของ user + clear แล้ว 401
+ *   4. ถ้าหมดอายุ (<= now) -> revoke ใบนั้น + clear แล้ว 401
+ *   5. สำเร็จ: revoke ใบเดิม (rotation) + ออก JWT ใหม่ผูก session deadline เดิม
+ *      + refresh token ใหม่ที่คง expires_at/remember_me เดิม (ไม่ขยายอายุ)
  *
  * @param array<string,mixed>|null $input ใช้ inject ใน integration tests
  */
@@ -550,6 +581,8 @@ function refreshSession(PDO $pdo, ?array $input = null): void
         : (string) ($_COOKIE[AUTH_REFRESH_COOKIE] ?? '');
 
     if ($rawToken === '') {
+        // D6 terminal: ไม่มี token ใน jar → clear คู่ cookies ก่อนตอบ (best-effort)
+        clearAuthCookies();
         http_response_code(400);
         echo json_encode(['error' => 'กรุณาระบุ refresh token']);
         return;
@@ -557,13 +590,15 @@ function refreshSession(PDO $pdo, ?array $input = null): void
 
     $tokenHash = hashRefreshToken($rawToken);
     $stmt = $pdo->prepare(
-        'SELECT token_id, user_id, expires_at, revoked_at
+        'SELECT token_id, user_id, expires_at, revoked_at, remember_me, revocation_reason
          FROM refresh_tokens WHERE token_hash = ?'
     );
     $stmt->execute([$tokenHash]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {
+        // D6 terminal: token ไม่มีจริง → clear cookies (ไม่แตะ session อื่น)
+        clearAuthCookies();
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
@@ -571,30 +606,44 @@ function refreshSession(PDO $pdo, ?array $input = null): void
 
     // Reuse detection: ใบที่ถูก revoke แล้วถูกนำมาใช้ซ้ำ
     if ($row['revoked_at'] !== null) {
+        // D6: legacy_cutover (คัดโดย migration 36) = cookie เก่าค้างหลัง cutover —
+        // ปฏิเสธ + clear เฉพาะใบนี้ ห้าม kill-all (cookie เก่าห้ามมายึด session ใหม่)
+        // ตรวจก่อน grace branch — age เท่าไหร่ก็ตาม
+        if ((string) $row['revocation_reason'] === 'legacy_cutover') {
+            clearAuthCookies();
+            http_response_code(401);
+            echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
+            return;
+        }
+
         $revokedTs = strtotime((string) $row['revoked_at']);
         $graceSeconds = 10;
         // F16 นาฬิกาเดียว: เขียน revoked_at ด้วย PHP clock (date()) และ grace เทียบกับ
         // time() ฝั่ง PHP เช่นกัน — ถ้าผสม NOW() ของ MySQL ที่ session tz ต่างจาก PHP
         // grace window จะเพี้ยนตามช่องว่างของสองนาฬิกา
         // เพิ่ง revoke ไม่กี่วินาที = race ระหว่าง tab (ไม่ใช่ขโมย) -> 401 เฉยๆ ไม่ kill-all
+        // และห้าม clear cookies — response ของผู้แพ้อาจมาหลัง winner ออก cookie ใหม่แล้ว
         if ($revokedTs !== false && (time() - $revokedTs) <= $graceSeconds) {
             http_response_code(401);
             echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
             return;
         }
-        // revoke มานานแล้วถูกใช้ซ้ำ = สงสัยถูกขโมย -> เพิกถอนทุกใบ
+        // revoke มานานแล้วถูกใช้ซ้ำ = สงสัยถูกขโมย -> เพิกถอนทุกใบ + clear cookies
         $pdo->prepare(
             'UPDATE refresh_tokens SET revoked_at = ?
              WHERE user_id = ? AND revoked_at IS NULL'
         )->execute([date('Y-m-d H:i:s'), (int) $row['user_id']]);
+        clearAuthCookies();
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
     }
 
-    if (strtotime((string) $row['expires_at']) < time()) {
+    // D6: absolute expiry แบบ strict — หมดอายุตรงวินาที = หมดอายุ
+    if (strtotime((string) $row['expires_at']) <= time()) {
         $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
             ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
+        clearAuthCookies();
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
@@ -610,20 +659,31 @@ function refreshSession(PDO $pdo, ?array $input = null): void
     if (!$user) {
         $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
             ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
+        clearAuthCookies();
         http_response_code(401);
         echo json_encode(['error' => 'refresh token ไม่ถูกต้องหรือหมดอายุ']);
         return;
     }
 
     // Rotation: เพิกถอนใบเดิม ออกใบใหม่ (เขียนด้วย PHP clock — เหตุผลเดียวกับ F16 ด้านบน)
+    // revocation_reason ไม่แตะ → คง NULL (ไม่ใช่ legacy_cutover) เพื่อ replay path เดิม
     $pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ?')
         ->execute([date('Y-m-d H:i:s'), (int) $row['token_id']]);
 
-    $jwtResult = generateJWT((int) $user['user_id'], $user['role']);
-    $newRefreshToken = issueRefreshToken($pdo, (int) $user['user_id']);
+    // D6: session deadline ต้นฉบับถูกส่งต่อ — rotation ไม่ขยายอายุทั้งสอง cap
+    $sessionExp = strtotime((string) $row['expires_at']);
+    $remember = (int) ($row['remember_me'] ?? 0) === 1;
+    $jwtResult = generateJWT((int) $user['user_id'], $user['role'], $sessionExp);
+    $newRefreshToken = issueRefreshToken($pdo, (int) $user['user_id'], $remember, (string) $row['expires_at']);
 
-    // D3: rotation ต้องออก cookies ชุดใหม่ด้วย (body คงเดิม — compat-keep)
-    setAuthCookies($jwtResult['token'], $newRefreshToken);
+    // D3/D6: rotation ออก cookies ชุดใหม่ด้วย (body คงเดิม — compat-keep)
+    $accessExpiresAt = $remember ? min(time() + AUTH_ACCESS_COOKIE_TTL_SECONDS, $sessionExp) : null;
+    setAuthCookies(
+        $jwtResult['token'],
+        $newRefreshToken,
+        $accessExpiresAt,
+        $remember ? $sessionExp : null
+    );
 
     echo json_encode(buildAuthResponse($jwtResult, $newRefreshToken, $user));
 }
