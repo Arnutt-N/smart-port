@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.js'
+import { useUiStore } from '@/stores/ui.js'
 
 const mockFetchList = vi.fn()
 const mockCreate = vi.fn()
@@ -108,13 +109,32 @@ describe('UserManagementPage', () => {
     expect(wrapper.vm.showFormModal).toBe(true)
   })
 
+  it('blocks create when password violates client policy (missing class)', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openCreate()
+    // ครบ length/case/special แต่ไม่มีตัวเลข → ตก missing_number ก่อนถึง API
+    wrapper.vm.formData = {
+      username: 'new.user',
+      password: 'Abcdefghijkl!',
+      passwordConfirm: 'Abcdefghijkl!',
+      fullName: 'ผู้ใช้ใหม่',
+      email: '',
+      role: 'operator',
+    }
+
+    await wrapper.vm.submitForm()
+
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(wrapper.vm.showFormModal).toBe(true)
+  })
+
   it('blocks create when password confirmation mismatches', async () => {
     const wrapper = await mountPage()
     wrapper.vm.openCreate()
     wrapper.vm.formData = {
       username: 'new.user',
-      password: 'password1',
-      passwordConfirm: 'password2',
+      password: 'Passw0rd!aaa',
+      passwordConfirm: 'Passw0rd!bbb',
       fullName: 'ผู้ใช้ใหม่',
       email: '',
       role: 'operator',
@@ -133,8 +153,8 @@ describe('UserManagementPage', () => {
     wrapper.vm.openCreate()
     wrapper.vm.formData = {
       username: 'new.user',
-      password: 'password1',
-      passwordConfirm: 'password1',
+      password: 'Passw0rd!2026',
+      passwordConfirm: 'Passw0rd!2026',
       fullName: 'ผู้ใช้ใหม่',
       email: 'new@example.go.th',
       role: 'operator',
@@ -143,13 +163,39 @@ describe('UserManagementPage', () => {
 
     expect(mockCreate).toHaveBeenCalledWith({
       username: 'new.user',
-      password: 'password1',
+      password: 'Passw0rd!2026',
       fullName: 'ผู้ใช้ใหม่',
       email: 'new@example.go.th',
       role: 'operator',
     })
     expect(wrapper.vm.showFormModal).toBe(false)
     expect(mockFetchList).toHaveBeenCalled()
+  })
+
+  it('keeps both entered values visible when backend rejects the password (history)', async () => {
+    const wrapper = await mountPage()
+    const ui = useUiStore()
+    const showToastSpy = vi.spyOn(ui, 'showToast')
+    mockCreate.mockRejectedValue(new Error('รหัสผ่านใหม่ต้องไม่ซ้ำกับ 5 รุ่นล่าสุด'))
+
+    wrapper.vm.openCreate()
+    wrapper.vm.formData = {
+      username: 'new.user',
+      password: 'Passw0rd!2026',
+      passwordConfirm: 'Passw0rd!2026',
+      fullName: 'ผู้ใช้ใหม่',
+      email: '',
+      role: 'operator',
+    }
+    await wrapper.vm.submitForm()
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    // modal เปิดค้าง + ค่าที่กรอกยังอยู่ครบ (ไม่ถูก clear)
+    expect(wrapper.vm.showFormModal).toBe(true)
+    expect(wrapper.vm.formData.password).toBe('Passw0rd!2026')
+    expect(wrapper.vm.formData.passwordConfirm).toBe('Passw0rd!2026')
+    expect(showToastSpy).toHaveBeenCalledWith('รหัสผ่านใหม่ต้องไม่ซ้ำกับ 5 รุ่นล่าสุด', 'error')
+    showToastSpy.mockRestore()
   })
 
   it('edits a user without touching username/password', async () => {
@@ -174,13 +220,19 @@ describe('UserManagementPage', () => {
     mockUpdate.mockResolvedValue({ success: true })
 
     wrapper.vm.openResetPassword(otherRow)
+    // policy-invalid: ไม่เรียก API
     wrapper.vm.resetForm = { password: 'newpass123', passwordConfirm: 'different' }
     await wrapper.vm.submitResetPassword()
     expect(mockUpdate).not.toHaveBeenCalled()
 
-    wrapper.vm.resetForm = { password: 'newpass123', passwordConfirm: 'newpass123' }
+    // mismatch กับรหัส policy-valid
+    wrapper.vm.resetForm = { password: 'Passw0rd!2026', passwordConfirm: 'Passw0rd!aaa' }
     await wrapper.vm.submitResetPassword()
-    expect(mockUpdate).toHaveBeenCalledWith(2, { password: 'newpass123' })
+    expect(mockUpdate).not.toHaveBeenCalled()
+
+    wrapper.vm.resetForm = { password: 'Passw0rd!2026', passwordConfirm: 'Passw0rd!2026' }
+    await wrapper.vm.submitResetPassword()
+    expect(mockUpdate).toHaveBeenCalledWith(2, { password: 'Passw0rd!2026' })
     expect(wrapper.vm.showResetModal).toBe(false)
   })
 
@@ -219,8 +271,8 @@ describe('UserManagementPage', () => {
 
     wrapper.vm.formData = {
       username: 'new.user',
-      password: 'password123',
-      passwordConfirm: 'password123',
+      password: 'Passw0rd!2026',
+      passwordConfirm: 'Passw0rd!2026',
       fullName: 'ผู้ใช้ใหม่',
       email: '',
       role: 'viewer',

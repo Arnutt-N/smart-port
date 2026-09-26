@@ -51,7 +51,6 @@
             v-model="newPassword"
             type="password"
             autocomplete="new-password"
-            minlength="8"
             required
             aria-describedby="password-help"
             class="input mt-1"
@@ -60,7 +59,7 @@
             id="password-help"
             class="mt-1 text-xs text-gray-500"
           >
-            อย่างน้อย 8 ตัวอักษร และต้องไม่ซ้ำกับรหัสผ่านเดิม
+            {{ PASSWORD_GUIDANCE }}
           </p>
         </div>
 
@@ -74,7 +73,6 @@
             v-model="confirmPassword"
             type="password"
             autocomplete="new-password"
-            minlength="8"
             required
             class="input mt-1"
           >
@@ -106,6 +104,10 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore } from '@/stores/ui.js'
 import { confirmLogout } from '@/composables/useConfirm.js'
+import {
+  PASSWORD_GUIDANCE,
+  passwordErrorMessage,
+} from '@/utils/passwordPolicy.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -121,6 +123,11 @@ async function submit() {
   errorMessage.value = ''
   if (newPassword.value !== confirmPassword.value) {
     errorMessage.value = 'รหัสผ่านใหม่และการยืนยันไม่ตรงกัน'
+    return
+  }
+  const policyError = passwordErrorMessage(newPassword.value)
+  if (policyError) {
+    errorMessage.value = policyError
     return
   }
 

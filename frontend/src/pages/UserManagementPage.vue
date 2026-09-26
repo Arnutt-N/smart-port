@@ -218,8 +218,15 @@
                 type="password"
                 autocomplete="new-password"
                 class="input"
-                placeholder="อย่างน้อย 8 ตัวอักษร"
+                placeholder="อย่างน้อย 12 ตัวอักษร"
+                aria-describedby="user-password-help"
               >
+              <p
+                id="user-password-help"
+                class="mt-1 text-xs text-gray-500"
+              >
+                {{ PASSWORD_GUIDANCE }}
+              </p>
             </div>
             <div>
               <label
@@ -232,6 +239,7 @@
                 type="password"
                 autocomplete="new-password"
                 class="input"
+                aria-describedby="user-password-help"
               >
             </div>
           </template>
@@ -349,8 +357,15 @@
               type="password"
               autocomplete="new-password"
               class="input"
-              placeholder="อย่างน้อย 8 ตัวอักษร"
+              placeholder="อย่างน้อย 12 ตัวอักษร"
+              aria-describedby="user-reset-password-help"
             >
+            <p
+              id="user-reset-password-help"
+              class="mt-1 text-xs text-gray-500"
+            >
+              {{ PASSWORD_GUIDANCE }}
+            </p>
           </div>
           <div>
             <label
@@ -363,6 +378,7 @@
               type="password"
               autocomplete="new-password"
               class="input"
+              aria-describedby="user-reset-password-help"
             >
           </div>
         </div>
@@ -440,8 +456,10 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import TableRowActions from '@/components/TableRowActions.vue'
 import { Plus, KeyRound, Ban, CheckCircle, Users } from 'lucide-vue-next'
-
-const PASSWORD_MIN_LENGTH = 8
+import {
+  PASSWORD_GUIDANCE,
+  passwordErrorMessage,
+} from '@/utils/passwordPolicy.js'
 
 const { fetchList, create, update } = useUsers()
 const auth = useAuthStore()
@@ -577,8 +595,9 @@ function validateForm() {
       ui.showToast('กรุณาระบุชื่อผู้ใช้', 'error')
       return false
     }
-    if (formData.value.password.length < PASSWORD_MIN_LENGTH) {
-      ui.showToast(`รหัสผ่านต้องมีความยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`, 'error')
+    const passwordError = passwordErrorMessage(formData.value.password)
+    if (passwordError) {
+      ui.showToast(passwordError, 'error')
       return false
     }
     if (formData.value.password !== formData.value.passwordConfirm) {
@@ -637,8 +656,9 @@ function closeResetModal() {
 }
 
 async function submitResetPassword() {
-  if (resetForm.value.password.length < PASSWORD_MIN_LENGTH) {
-    ui.showToast(`รหัสผ่านต้องมีความยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`, 'error')
+  const passwordError = passwordErrorMessage(resetForm.value.password)
+  if (passwordError) {
+    ui.showToast(passwordError, 'error')
     return
   }
   if (resetForm.value.password !== resetForm.value.passwordConfirm) {
