@@ -144,29 +144,46 @@ final class RefreshTokenTest extends TestCase
 
         self::assertSame(401, http_response_code());
         self::assertArrayHasKey('error', $response);
-        // D6 terminal: ไม่พบแถว → clear คู่ cookies
+        // D6 terminal: ไม่พบแถว → clear คู่ cookies (ครบชื่อและ path ตอนออก)
         self::assertCount(2, $GLOBALS['__capture_cookies']);
+        $byName = [];
         foreach ($GLOBALS['__capture_cookies'] as $cookie) {
+            $byName[$cookie['name']] = $cookie;
             self::assertSame('', $cookie['value']);
         }
+        self::assertSame('/', $byName[AUTH_ACCESS_COOKIE]['params']['path']);
+        self::assertSame(AUTH_REFRESH_COOKIE_PATH, $byName[AUTH_REFRESH_COOKIE]['params']['path']);
     }
 
     #[Test]
     public function refresh_exactly_at_expiry_is_rejected(): void
     {
         // strict `expires_at <= now` — ตรงวินาทีหมดอายุ = หมดอายุ (เคสคู่กับ JWT exp=now)
-        $raw = generateRefreshToken();
-        self::$pdo->prepare(
-            'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
-        )->execute([$this->userId, hashRefreshToken($raw), date('Y-m-d H:i:s', time())]);
+        // deterministic: insert กับ assert ต้องอยู่ในวินาทีเดียวกัน — ข้ามวินาที =
+        // ทั้ง `<=` และ `<` ปฏิเสธเหมือนกัน จึงไม่บอกอะไร ต้อง roll ใหม่ (สูงสุด 2 ครั้ง)
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $raw = generateRefreshToken();
+            $now = time();
+            self::$pdo->prepare(
+                'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
+            )->execute([$this->userId, hashRefreshToken($raw), date('Y-m-d H:i:s', $now)]);
 
-        $GLOBALS['__capture_cookies'] = [];
-        http_response_code(200);
-        $response = $this->callRefresh($raw);
+            $GLOBALS['__capture_cookies'] = [];
+            http_response_code(200);
+            $response = $this->callRefresh($raw);
+            $sameSecond = date('Y-m-d H:i:s', $now) === date('Y-m-d H:i:s', time());
+            if (!$sameSecond) {
+                continue; // ข้ามวินาทีระหว่าง insert กับ call → ทดสอบซ้ำ
+            }
 
-        self::assertSame(401, http_response_code());
-        self::assertArrayHasKey('error', $response);
-        self::assertCount(2, $GLOBALS['__capture_cookies'], 'expired terminal ต้อง clear คู่ cookies');
+            self::assertSame(401, http_response_code());
+            self::assertArrayHasKey('error', $response);
+            self::assertCount(2, $GLOBALS['__capture_cookies'], 'expired terminal ต้อง clear คู่ cookies');
+
+            return;
+        }
+
+        self::fail('รันเคส boundary ข้ามวินาที 2 ครั้งติด — รันเทสใหม่ (ไม่ใช่ regression)');
     }
 
     #[Test]
@@ -249,34 +266,32 @@ final class RefreshTokenTest extends TestCase
     }
 
     #[Test]
-    public function grace_boundary_10s_keeps_session_11s_kills_all(): void
+    public function grace_window_within_10s_keeps_session_beyond_kills_all(): void
     {
-        // ขอบ grace 10 วินาที: 10 = ยังเป็น race (ไม่ kill), 11 = reuse (kill-all + clear)
+        // ขอบ grace 10 วินาที: ยังอยู่ใน grace = ไม่ kill (race), พ้น grace = kill-all + clear
         $raw = $this->issueFixture($this->userId);
         $this->callRefresh($raw); // rotation → raw revoked, มี active ใหม่ 1 แถว
         self::assertSame(1, $this->countActiveTokens());
 
-        // อายุ 10 วินาที = ขอบในสุดของ grace (<= 10)
-        self::$pdo->prepare(
-            'UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 10 SECOND)
-             WHERE token_hash = ?'
-        )->execute([hashRefreshToken($raw)]);
+        // ใน grace (<= 10 วิ) — เขียนด้วย PHP clock ทั้งคู่ (F16: ห้ามผสม MySQL NOW()
+        // กับ time() ฝั่ง PHP) · ใช้ 9 วิ (ไม่ใช่ 10 เป๊ะ) กัน flake ข้ามวินาที:
+        // age จริง = 9-10 ยังอยู่ใน grace เสมอ
+        self::$pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?')
+            ->execute([date('Y-m-d H:i:s', time() - 9), hashRefreshToken($raw)]);
         http_response_code(200);
         $GLOBALS['__capture_cookies'] = [];
         $this->callRefresh($raw);
-        self::assertSame(401, http_response_code(), 'อายุ 10 วิ = ยังอยู่ใน grace');
+        self::assertSame(401, http_response_code(), 'อายุ ~9-10 วิ = ยังอยู่ใน grace');
         self::assertCount(0, $GLOBALS['__capture_cookies'], 'ใน grace ห้ามมี Set-Cookie');
         self::assertSame(1, $this->countActiveTokens(), 'ใน grace ห้าม kill-all');
 
-        // อายุ 11 วินาที = พ้น grace
-        self::$pdo->prepare(
-            'UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 11 SECOND)
-             WHERE token_hash = ?'
-        )->execute([hashRefreshToken($raw)]);
+        // พ้น grace (> 10 วิ) — ใช้ 12 วิ กัน flake ข้ามวินาที: age จริง = 12-13 เสมอ
+        self::$pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?')
+            ->execute([date('Y-m-d H:i:s', time() - 12), hashRefreshToken($raw)]);
         http_response_code(200);
         $GLOBALS['__capture_cookies'] = [];
         $this->callRefresh($raw);
-        self::assertSame(401, http_response_code(), 'อายุ 11 วิ = เกิน grace');
+        self::assertSame(401, http_response_code(), 'อายุ ~12 วิ = เกิน grace');
         self::assertSame(0, $this->countActiveTokens(), 'เกิน grace ต้อง kill-all');
         self::assertCount(2, $GLOBALS['__capture_cookies'], 'เกิน grace ต้อง clear คู่ cookies');
     }

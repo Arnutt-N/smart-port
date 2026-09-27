@@ -211,13 +211,25 @@ async function main() {
       Object.assign(create, created)
     }
 
-    // cleanup ทุกแถวที่ create สำเร็จ (201) — แม้ response shape เพี้ยน (ไม่มี computed)
-    // ปล่อย row ค้างใน live API = data pollution ที่ไม่มีสัญญาณเตือน
-    if (create.status === 201 && create.json?.multiplier_id) {
-      const cleanup = await api('DELETE', `/multiplier/${create.json.multiplier_id}`)
-      if (cleanup.status < 200 || cleanup.status >= 300) {
+    // cleanup ทุกแถวที่ create สำเร็จ (201) — แม้ response shape เพี้ยน (ไม่มี
+    // multiplier_id ก็ลบไม่ได้ → นับเป็น cleanup failure ห้ามปล่อยผ่านเงียบ)
+    if (create.status === 201) {
+      const mid = create.json?.multiplier_id
+      if (!mid) {
         cleanupFailed++
-        console.error(`CLEANUP FAIL status=${cleanup.status}`)
+        console.error('CLEANUP FAIL phase=missing_id')
+      } else {
+        try {
+          const cleanup = await api('DELETE', `/multiplier/${mid}`)
+          if (cleanup.status < 200 || cleanup.status >= 300) {
+            cleanupFailed++
+            console.error(`CLEANUP FAIL status=${cleanup.status}`)
+          }
+        } catch {
+          // network/timeout กลาง cleanup — นับเป็น failure ห้ามเดินหน้าเงียบ
+          cleanupFailed++
+          console.error('CLEANUP FAIL phase=exception')
+        }
       }
     }
 

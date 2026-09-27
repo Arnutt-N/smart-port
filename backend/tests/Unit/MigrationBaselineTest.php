@@ -96,20 +96,36 @@ final class MigrationBaselineTest extends TestCase
         $unusedPdo = self::createMock(\PDO::class);
         self::assertFalse(baselineRequiresRealApply($unusedPdo, '35-fk-retrofit.sql'));
 
-        // คอลัมน์หาย/เข้าถึงไม่ได้ = fail-closed (ห้าม baseline)
+        // คอลัมน์แรกหาย → fail-closed
         $missingPdo = self::createMock(\PDO::class);
         $missingPdo->method('query')->willReturn(false);
         self::assertTrue(baselineRequiresRealApply($missingPdo, '36-remember-me-session-ttl.sql'));
+
+        // paired-schema: คอลัมน์แรกครบ คอลัมน์ที่สองหาย → ต้อง fail-closed เหมือนกัน
+        $stmt = self::createMock(\PDOStatement::class);
+        $stmt->method('fetch')->willReturn(['Field' => 'remember_me']);
+        $partialPdo = self::createMock(\PDO::class);
+        $partialPdo->method('query')->willReturnOnConsecutiveCalls($stmt, false);
+        self::assertTrue(baselineRequiresRealApply($partialPdo, '36-remember-me-session-ttl.sql'));
 
         $throwPdo = self::createMock(\PDO::class);
         $throwPdo->method('query')->willThrowException(new \PDOException('no table'));
         self::assertTrue(baselineRequiresRealApply($throwPdo, 'database/36-remember-me-session-ttl.sql'));
 
-        // คอลัมน์มีแล้ว = baseline ได้
-        $stmt = self::createMock(\PDOStatement::class);
-        $stmt->method('fetch')->willReturn(['Field' => 'remember_me']);
+        // คอลัมน์ครบ = baseline ได้ (query ถูกเรียกสองครั้ง — remember_me, revocation_reason)
         $okPdo = self::createMock(\PDO::class);
         $okPdo->method('query')->willReturn($stmt);
+        $okPdo->expects(self::exactly(2))->method('query');
         self::assertFalse(baselineRequiresRealApply($okPdo, '36-remember-me-session-ttl.sql'));
+    }
+
+    #[Test]
+    public function seed_baseline_wires_the_migration_36_guard(): void
+    {
+        // wiring latch: ถ้าตัด if ที่เรียก guard ใน seedBaselineIfNeeded ทิ้ง
+        // เทส guard ข้างบนยังเขียว — ตัวนี้เป็นตัวผูก guard เข้ากับ runner
+        $src = file_get_contents(__DIR__ . '/../../scripts/run-migrations.php');
+        self::assertIsString($src);
+        self::assertStringContainsString('if (baselineRequiresRealApply($pdo, $name))', $src);
     }
 }

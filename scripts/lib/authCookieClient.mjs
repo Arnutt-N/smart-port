@@ -167,6 +167,7 @@ export function createAuthCookieClient(baseUrl = DEFAULT_BASE, tlsOptions = {}) 
           applySetCookieHeaders(res.headers, url.pathname)
           const chunks = []
           res.on('data', (chunk) => chunks.push(chunk))
+          res.on('error', reject) // stream error หลัง headers — กัน promise ค้าง
           res.on('end', () =>
             resolve({
               status: res.statusCode ?? 0,

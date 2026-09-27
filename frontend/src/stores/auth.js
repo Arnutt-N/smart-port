@@ -223,7 +223,10 @@ export const useAuthStore = defineStore('auth', () => {
             // (network/5xx/timeout) คง user ไว้ กัน bootstrap ตายทั้งที่
             // refresh cookie ยังใช้ได้
             const status = e?.status
-            if (status >= 400 && status < 500) {
+            // terminal เฉพาะที่ server บอกว่า credential ใช้ไม่ได้จริง —
+            // 429 (rate limit) / 408 / 425 ยังเป็น transient: cookie ยังใช้ได้
+            // ห้าม clear เดี๋ยวโดนเขี่ยออกทั้งที่ session ยังอยู่
+            if (status === 400 || status === 401 || status === 403) {
               // กัน TOCTOU ข้าม tab: อ่านซ้ำทันทีก่อนลบ — ถ้า tab อื่นเพิ่ง persist
               // session ใหม่ (csrf ใน storage ต่างจากของ tab นี้) ห้ามลบของ tab ที่ชนะ
               const readStoredCsrf = () =>

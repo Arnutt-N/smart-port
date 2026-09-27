@@ -231,9 +231,20 @@ function baselineRequiresRealApply(\PDO $pdo, string $name): bool
     if (basename($name) !== '36-remember-me-session-ttl.sql') {
         return false;
     }
+    // paired-schema (ตาม T6): คอลัมน์ทั้งคู่ต้องครบ — เหลือคอลัมน์เดียว =
+    // partial state (เช่น runner ตายหลัง ALTER) ห้ามมาร์ก
+    // หมายเหตุ: "ALTER สำเร็จแต่ cutover UPDATE ไม่รัน" แยกจาก "cutover แล้วมี
+    // session ใหม่ active" ด้วย signal อัตโนมัติไม่ได้ — กรณีนี้เป็นของ T6
+    // preflight (verify ผล revoke ระหว่าง marker ยังไม่มี) เท่านั้น
     try {
-        $stmt = $pdo->query("SHOW COLUMNS FROM refresh_tokens LIKE 'remember_me'");
-        return $stmt === false || $stmt->fetch() === false;
+        foreach (['remember_me', 'revocation_reason'] as $column) {
+            $stmt = $pdo->query("SHOW COLUMNS FROM refresh_tokens LIKE '{$column}'");
+            if ($stmt === false || $stmt->fetch() === false) {
+                return true;
+            }
+        }
+
+        return false;
     } catch (\PDOException) {
         return true; // เข้าถึงตารางไม่ได้ → fail-closed ห้ามมาร์ก
     }

@@ -730,6 +730,81 @@ describe('auth store', () => {
     }
   })
 
+  it('recheck-before-clear skips wiping when another tab writes between the two reads', async () => {
+    // latch ของ TOCTOU re-read: รายการแรกเห็นค่าตัวเอง (ไม่ใช่ foreign) แต่
+    // รายการสอง (ทันทีก่อน clear) เห็นค่าของ tab ที่ชนะ → ห้าม clear
+    // ลบ recheck ทิ้ง → เทสนี้ต้อง fail
+    const realFetch = globalThis.fetch
+    const realGetItem = Storage.prototype.getItem
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-our-tab')
+
+      const auth = useAuthStore()
+      expect(auth.csrfToken).toBe('csrf-our-tab')
+
+      let csrfReads = 0
+      const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (key) {
+        if (key === 'csrf_token') {
+          csrfReads += 1
+          // อ่านแรก = ค่าของ tab นี้ (ผ่านเงื่อนไข), อ่านสอง = tab อื่นเพิ่งเขียนทับ
+          return csrfReads === 1 ? 'csrf-our-tab' : 'csrf-winner'
+        }
+        return realGetItem.call(this, key)
+      })
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'gone' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 401 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      getItemSpy.mockRestore()
+      expect(csrfReads).toBeGreaterThanOrEqual(2)
+      // recheck เห็นค่าของ tab ชนะ (จาก mock) → ห้าม clear — storage จริงยังมีค่าเดิมครบ
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-our-tab')
+      expect(localStorage.getItem('user')).not.toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+      Storage.prototype.getItem = realGetItem
+    }
+  })
+
+  it('treats 429 rate-limit as transient and keeps stored state', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+
+      const auth = useAuthStore()
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'พยายามเข้าสู่ระบบผิดเกินกำหนด' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 429 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      // 429 = rate limit ชั่วคราว — cookie ยังใช้ได้ ห้าม clear storage
+      expect(auth.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('user')).not.toBeNull()
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-123')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
   it('bootstrap does not wipe storage when another tab persisted a fresh session', async () => {
     // foreign-tab guard: refresh 401 ของ tab นี้ แต่ storage ถูก tab อื่นเขียนทับแล้ว
     // → ห้าม clearStaleAuth() ลบของ tab ที่ชนะ (ลบ guard ทิ้งเทสนี้ต้อง fail)
