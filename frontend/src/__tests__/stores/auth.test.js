@@ -800,6 +800,9 @@ describe('auth store', () => {
       expect(auth.isAuthenticated).toBe(false)
       expect(localStorage.getItem('user')).not.toBeNull()
       expect(localStorage.getItem('csrf_token')).toBe('csrf-123')
+      // กัน vacuous: ต้องยิง /auth/refresh จริง (ไม่ใช่ hydration หลุดแล้วเขียวเอง)
+      const refreshCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/auth/refresh'))
+      expect(refreshCalls).toHaveLength(1)
     } finally {
       globalThis.fetch = realFetch
     }

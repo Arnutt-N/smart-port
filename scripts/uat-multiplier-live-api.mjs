@@ -172,43 +172,54 @@ async function main() {
 
     // rotate personnel to reduce overlap 409 risk across cases
     const personnelId = personnelIds[i % personnelIds.length]
-    const create = await api('POST', '/multiplier', {
-      body: {
-        personnel_id: personnelId,
-        area_multiplier_id: area.area_multiplier_id,
-        start_date: tc.service_start_date,
-        end_date: tc.service_end_date,
-        proof_reference: `UAT-${tc.case_id}`,
-        description: `Live API UAT ${tc.case_id}`,
-      },
-    })
+    // create/retry ทั้งก้อน: timeout/network หลัง server commit ได้ = row อาจค้าง
+    // โดยไม่มี id มาลบ → นับทั้ง fail และ cleanup_failed (fail-closed) แล้วไปเคสถัดไป
+    // ห้ามให้ exception กลางลูปฆ่ารอบทั้งหมด (เคสที่เหลือจะไม่ถูกรัน/นับ)
+    let create
+    try {
+      create = await api('POST', '/multiplier', {
+        body: {
+          personnel_id: personnelId,
+          area_multiplier_id: area.area_multiplier_id,
+          start_date: tc.service_start_date,
+          end_date: tc.service_end_date,
+          proof_reference: `UAT-${tc.case_id}`,
+          description: `Live API UAT ${tc.case_id}`,
+        },
+      })
 
-    if (create.status === 409) {
-      // retry with next personnel
-      let created = null
-      for (const pid of personnelIds) {
-        if (pid === personnelId) continue
-        const retry = await api('POST', '/multiplier', {
-          body: {
-            personnel_id: pid,
-            area_multiplier_id: area.area_multiplier_id,
-            start_date: tc.service_start_date,
-            end_date: tc.service_end_date,
-            proof_reference: `UAT-${tc.case_id}`,
-            description: `Live API UAT ${tc.case_id}`,
-          },
-        })
-        if (retry.status === 201) {
-          created = retry
-          break
+      if (create.status === 409) {
+        // retry with next personnel
+        let created = null
+        for (const pid of personnelIds) {
+          if (pid === personnelId) continue
+          const retry = await api('POST', '/multiplier', {
+            body: {
+              personnel_id: pid,
+              area_multiplier_id: area.area_multiplier_id,
+              start_date: tc.service_start_date,
+              end_date: tc.service_end_date,
+              proof_reference: `UAT-${tc.case_id}`,
+              description: `Live API UAT ${tc.case_id}`,
+            },
+          })
+          if (retry.status === 201) {
+            created = retry
+            break
+          }
         }
+        if (!created) {
+          fail++
+          console.log('FAIL phase=create status=409')
+          continue
+        }
+        Object.assign(create, created)
       }
-      if (!created) {
-        fail++
-        console.log('FAIL phase=create status=409')
-        continue
-      }
-      Object.assign(create, created)
+    } catch {
+      fail++
+      cleanupFailed++ // อาจ commit สำเร็จก่อน connection ขาด — ปล่อยรั่วเงียบไม่ได้
+      console.error('FAIL phase=create_exception')
+      continue
     }
 
     // cleanup ทุกแถวที่ create สำเร็จ (201) — แม้ response shape เพี้ยน (ไม่มี

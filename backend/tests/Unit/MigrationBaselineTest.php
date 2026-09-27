@@ -124,8 +124,10 @@ final class MigrationBaselineTest extends TestCase
     {
         // wiring latch: ถ้าตัด if ที่เรียก guard ใน seedBaselineIfNeeded ทิ้ง
         // เทส guard ข้างบนยังเขียว — ตัวนี้เป็นตัวผูก guard เข้ากับ runner
+        // จับที่ชื่อฟังก์ชัน (ไม่ใช่รูปแบบ if เต็ม) กันเปราะต่อ formatting refactor
         $src = file_get_contents(__DIR__ . '/../../scripts/run-migrations.php');
         self::assertIsString($src);
-        self::assertStringContainsString('if (baselineRequiresRealApply($pdo, $name))', $src);
+        self::assertStringContainsString('baselineRequiresRealApply($pdo', $src);
+        self::assertStringContainsString('continue;', substr($src, strpos($src, 'baselineRequiresRealApply($pdo')));
     }
 }

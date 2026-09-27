@@ -160,8 +160,8 @@ final class RefreshTokenTest extends TestCase
     {
         // strict `expires_at <= now` — ตรงวินาทีหมดอายุ = หมดอายุ (เคสคู่กับ JWT exp=now)
         // deterministic: insert กับ assert ต้องอยู่ในวินาทีเดียวกัน — ข้ามวินาที =
-        // ทั้ง `<=` และ `<` ปฏิเสธเหมือนกัน จึงไม่บอกอะไร ต้อง roll ใหม่ (สูงสุด 2 ครั้ง)
-        for ($attempt = 0; $attempt < 2; $attempt++) {
+        // ทั้ง `<=` และ `<` ปฏิเสธเหมือนกัน จึงไม่บอกอะไร ต้อง roll ใหม่ (สูงสุด 3 ครั้ง)
+        for ($attempt = 0; $attempt < 3; $attempt++) {
             $raw = generateRefreshToken();
             $now = time();
             self::$pdo->prepare(
@@ -183,7 +183,8 @@ final class RefreshTokenTest extends TestCase
             return;
         }
 
-        self::fail('รันเคส boundary ข้ามวินาที 2 ครั้งติด — รันเทสใหม่ (ไม่ใช่ regression)');
+        // ข้ามวินาที 3 ครั้งติด = เครื่องช้าผิดปกติ — ไม่ใช่ regression ของโค้ด
+        self::markTestSkipped('รันเคส boundary ข้ามวินาที 3 ครั้ง — รันเทสใหม่');
     }
 
     #[Test]
@@ -269,29 +270,47 @@ final class RefreshTokenTest extends TestCase
     public function grace_window_within_10s_keeps_session_beyond_kills_all(): void
     {
         // ขอบ grace 10 วินาที: ยังอยู่ใน grace = ไม่ kill (race), พ้น grace = kill-all + clear
-        $raw = $this->issueFixture($this->userId);
-        $this->callRefresh($raw); // rotation → raw revoked, มี active ใหม่ 1 แถว
-        self::assertSame(1, $this->countActiveTokens());
+        // ใน grace ทดสอบแบบ age = 10 เป๊ะ (พิสูจน์ `<= 10` จริง) — เขียน/อ่านด้วย
+        // PHP clock ทั้งคู่ (F16: ห้ามผสม MySQL NOW()) · ถ้าข้ามวินาทีระหว่างเขียนกับ
+        // เรียก age จะกลายเป็น 11 แล้ว state ถูก kill กลางทาง → ไม่ตัดสิน สร้าง state
+        // ใหม่แล้วลองใหม่ (สูงสุด 3 ครั้ง)
+        $ran = false;
+        for ($attempt = 0; $attempt < 3 && !$ran; $attempt++) {
+            // state สะอาดต่อความพยายาม (kill จาก attempt ก่อนหน้าที่ข้ามวินาที ต้องล้าง)
+            self::$pdo->prepare('DELETE FROM refresh_tokens WHERE user_id = ?')
+                ->execute([$this->userId]);
+            $raw = $this->issueFixture($this->userId);
+            $this->callRefresh($raw); // rotation → raw revoked, active ใหม่ 1 แถว
+            self::assertSame(1, $this->countActiveTokens());
 
-        // ใน grace (<= 10 วิ) — เขียนด้วย PHP clock ทั้งคู่ (F16: ห้ามผสม MySQL NOW()
-        // กับ time() ฝั่ง PHP) · ใช้ 9 วิ (ไม่ใช่ 10 เป๊ะ) กัน flake ข้ามวินาที:
-        // age จริง = 9-10 ยังอยู่ใน grace เสมอ
+            $revokedAt = time() - 10;
+            self::$pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?')
+                ->execute([date('Y-m-d H:i:s', $revokedAt), hashRefreshToken($raw)]);
+            http_response_code(200);
+            $GLOBALS['__capture_cookies'] = [];
+            $this->callRefresh($raw);
+
+            if (time() !== $revokedAt + 10) {
+                continue; // ข้ามวินาทีระหว่างเขียนกับจบ call — ไม่สรุป age 10
+            }
+            // หน้าต่างทั้งหมดอยู่ในวินาทีเดียว → age ตลอด call = 10 เป๊ะ
+            self::assertSame(401, http_response_code(), 'อายุ 10 วิ = ยังอยู่ใน grace');
+            self::assertCount(0, $GLOBALS['__capture_cookies'], 'ใน grace ห้ามมี Set-Cookie');
+            self::assertSame(1, $this->countActiveTokens(), 'ใน grace ห้าม kill-all');
+            $ran = true;
+        }
+        if (!$ran) {
+            self::markTestSkipped('รันขอบ grace ข้ามวินาที 3 ครั้ง — รันเทสใหม่');
+            return;
+        }
+
+        // พ้น grace (อายุ > 10 วิ) — age ได้แต่โตช้า เวลาข้ามวินาทีก็ยังเกินขอบเสมอ
         self::$pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?')
-            ->execute([date('Y-m-d H:i:s', time() - 9), hashRefreshToken($raw)]);
+            ->execute([date('Y-m-d H:i:s', time() - 11), hashRefreshToken($raw)]);
         http_response_code(200);
         $GLOBALS['__capture_cookies'] = [];
         $this->callRefresh($raw);
-        self::assertSame(401, http_response_code(), 'อายุ ~9-10 วิ = ยังอยู่ใน grace');
-        self::assertCount(0, $GLOBALS['__capture_cookies'], 'ใน grace ห้ามมี Set-Cookie');
-        self::assertSame(1, $this->countActiveTokens(), 'ใน grace ห้าม kill-all');
-
-        // พ้น grace (> 10 วิ) — ใช้ 12 วิ กัน flake ข้ามวินาที: age จริง = 12-13 เสมอ
-        self::$pdo->prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?')
-            ->execute([date('Y-m-d H:i:s', time() - 12), hashRefreshToken($raw)]);
-        http_response_code(200);
-        $GLOBALS['__capture_cookies'] = [];
-        $this->callRefresh($raw);
-        self::assertSame(401, http_response_code(), 'อายุ ~12 วิ = เกิน grace');
+        self::assertSame(401, http_response_code(), 'อายุ >= 11 วิ = เกิน grace');
         self::assertSame(0, $this->countActiveTokens(), 'เกิน grace ต้อง kill-all');
         self::assertCount(2, $GLOBALS['__capture_cookies'], 'เกิน grace ต้อง clear คู่ cookies');
     }
