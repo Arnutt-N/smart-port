@@ -1,27 +1,27 @@
 <template>
   <div
     class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-    style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%)"
+    style="background: linear-gradient(135deg, var(--color-government-900) 0%, var(--color-blue-900) 50%, var(--color-government-900) 100%)"
   >
     <!-- #3: Background floating orbs for depth -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
       <div class="absolute top-1/4 -left-20 w-72 h-72 bg-primary-500/8 rounded-full blur-3xl animate-pulse" />
       <div
         class="absolute bottom-1/4 -right-20 w-96 h-96 bg-primary-500/6 rounded-full blur-3xl animate-pulse"
-        style="animation-delay: 1s;"
+        style="animation-delay: 1s;" data-ds-allow-hardcode="stagger จงใจของ orb แต่ละใบ — ไม่ใช่ transition token"
       />
       <div
         class="absolute top-3/4 left-1/3 w-48 h-48 bg-primary-400/5 rounded-full blur-2xl animate-pulse"
-        style="animation-delay: 2s;"
+        style="animation-delay: 2s;" data-ds-allow-hardcode="stagger จงใจของ orb แต่ละใบ — ไม่ใช่ transition token"
       />
     </div>
 
     <!-- #4: Entrance animation wrapper -->
     <div class="w-full max-w-md relative z-10 login-card">
       <!-- White Glass Card -->
+      <!-- ds-allow-hardcode: blur 20px — tokens/blur.json มีแค่ 4/8/16/24 ไม่มี 20 -->
       <div
-        class="rounded-3xl p-6 w-full shadow-2xl"
-        style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2);"
+        class="rounded-3xl p-6 w-full shadow-2xl bg-white/95 backdrop-blur-[20px] border border-white/20" data-ds-allow-hardcode="blur 20px — tokens/blur.json มีแค่ 4/8/16/24 ไม่มี 20"
       >
         <!-- Header -->
         <div class="text-center mb-6">
@@ -152,7 +152,7 @@
             type="submit"
             :disabled="loading"
             class="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/30 active:translate-y-0 disabled:opacity-50"
-            style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);"
+            style="background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);"
           >
             <Loader2
               v-if="loading"
@@ -222,12 +222,12 @@ async function handleLogin() {
 <style scoped>
 /* #4: Entrance animation */
 .login-card {
-  animation: loginEnter 0.5s ease-out;
+  animation: loginEnter var(--duration-slow) var(--ease-out);
 }
 @keyframes loginEnter {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.98);
+    transform: translateY(calc(var(--spacing) * 5)) scale(0.98);
   }
   to {
     opacity: 1;

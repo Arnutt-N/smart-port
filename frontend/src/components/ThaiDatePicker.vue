@@ -321,7 +321,7 @@ onBeforeUnmount(() => {
           :class="isOpen ? 'bg-primary-500 text-white' : ''"
           @click="openCalendar"
         >
-          <Calendar class="w-[18px] h-[18px]" />
+          <Calendar class="w-[length:var(--icon-size-18px)] h-[length:var(--icon-size-18px)]" />
         </button>
       </div>
     </div>
@@ -345,7 +345,7 @@ onBeforeUnmount(() => {
         role="dialog"
         aria-modal="true"
         aria-label="ปฏิทิน พ.ศ."
-        class="absolute z-50 mt-2 right-0 w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg p-3"
+        class="absolute z-50 mt-2 right-0 w-[length:var(--popover-width)] max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-lg p-3"
       >
         <div class="flex items-center justify-between mb-3">
           <button
@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
             :aria-label="calendarView === 'date' ? 'เดือนก่อนหน้า' : 'ช่วงปีก่อนหน้า'"
             @click="calendarView === 'date' ? shiftMonth(-1) : shiftDecade(-12)"
           >
-            <ChevronLeft class="w-[18px] h-[18px] text-gray-600" />
+            <ChevronLeft class="w-[length:var(--icon-size-18px)] h-[length:var(--icon-size-18px)] text-gray-600" />
           </button>
           <button
             v-if="calendarView === 'date'"
@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
             :aria-label="calendarView === 'date' ? 'เดือนถัดไป' : 'ช่วงปีถัดไป'"
             @click="calendarView === 'date' ? shiftMonth(1) : shiftDecade(12)"
           >
-            <ChevronRight class="w-[18px] h-[18px] text-gray-600" />
+            <ChevronRight class="w-[length:var(--icon-size-18px)] h-[length:var(--icon-size-18px)] text-gray-600" />
           </button>
         </div>
 
@@ -457,11 +457,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .tdp-pop-enter-active,
 .tdp-pop-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); /* ds-allow-hardcode: 150ms ระหว่าง fast(100)/base(200) — pop เร็วกว่า dropdown */
 }
 .tdp-pop-enter-from,
 .tdp-pop-leave-to {
   opacity: 0;
-  transform: translateY(-4px) scale(0.98);
+  transform: translateY(calc(var(--spacing) * -1)) scale(0.98);
 }
 </style>
