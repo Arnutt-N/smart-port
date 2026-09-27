@@ -5,6 +5,7 @@ import http from 'node:http'
 import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { formatSanitizedUatSummary } from '../lib/sanitizedUatOutput.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const UAT_CLI = resolve(ROOT, 'scripts', 'uat-multiplier-live-api.mjs')
@@ -88,7 +89,7 @@ function buildAreas(cases) {
   return areas
 }
 
-function startMock(cases) {
+function startMock(cases, { deleteStatus = 200 } = {}) {
   const areas = buildAreas(cases)
   const server = http.createServer((req, res) => {
     const chunks = []
@@ -137,7 +138,7 @@ function startMock(cases) {
           })
         )
       } else if (req.method === 'DELETE' && url.startsWith('/api/multiplier/')) {
-        send(200, {}, JSON.stringify({ ok: true, note: 'SENTINEL_ERROR_BODY' }))
+        send(deleteStatus, {}, JSON.stringify({ ok: deleteStatus < 300, note: 'SENTINEL_ERROR_BODY' }))
       } else {
         send(404, {}, JSON.stringify({ error: 'SENTINEL_ERROR_BODY' }))
       }
@@ -203,4 +204,38 @@ test('UAT CLI login ล้มเหลว — output มีแค่ status ไ�
   } finally {
     await new Promise((r) => server.close(r))
   }
+})
+
+test('UAT CLI รายงาน cleanup_failed เมื่อลบ row ไม่สำเร็จ และ exit 1', async () => {
+  const cases = parseTemplateCases()
+  const { server, port } = await startMock(cases, { deleteStatus: 500 })
+  try {
+    const result = await runCli({ API_BASE: `http://127.0.0.1:${port}` })
+    const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+
+    assert.equal(result.status, 1)
+    // cleanup failure ต้องถูกนับและรายงาน — ห้ามปล่อยผ่านเป็น 0
+    assert.match(output, /cleanup_failed=([1-9]\d*)/)
+    // ยังคง privacy: ไม่มี sentinel ใด ๆ
+    for (const sentinel of SENTINELS) {
+      assert.ok(!output.includes(sentinel), `stdout/stderr ต้องไม่มี ${sentinel}`)
+    }
+    assert.ok(!/multiplier_id=/u.test(output))
+  } finally {
+    await new Promise((r) => server.close(r))
+  }
+})
+
+test('formatSanitizedUatSummary เก็บเฉพาะชื่อฟิลด์ใน allowlist', () => {
+  const summary = formatSanitizedUatSummary({
+    total: 3,
+    passed: 1,
+    failed: 2,
+    mismatchFields: ['personnel_id', 'eligible_days', 'province', 'eligible_days'],
+  })
+
+  assert.deepEqual(summary.mismatchFields, { eligible_days: 2 })
+  assert.equal(summary.total, 3)
+  assert.equal(summary.passed, 1)
+  assert.equal(summary.failed, 2)
 })

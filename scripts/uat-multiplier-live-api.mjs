@@ -158,6 +158,7 @@ async function main() {
 
   let pass = 0
   let fail = 0
+  let cleanupFailed = 0
   const mismatchFieldTally = [] // ชื่อฟิลด์เท่านั้น ไม่มีค่า
 
   for (let i = 0; i < cases.length; i++) {
@@ -210,6 +211,16 @@ async function main() {
       Object.assign(create, created)
     }
 
+    // cleanup ทุกแถวที่ create สำเร็จ (201) — แม้ response shape เพี้ยน (ไม่มี computed)
+    // ปล่อย row ค้างใน live API = data pollution ที่ไม่มีสัญญาณเตือน
+    if (create.status === 201 && create.json?.multiplier_id) {
+      const cleanup = await api('DELETE', `/multiplier/${create.json.multiplier_id}`)
+      if (cleanup.status < 200 || cleanup.status >= 300) {
+        cleanupFailed++
+        console.error(`CLEANUP FAIL status=${cleanup.status}`)
+      }
+    }
+
     if (create.status !== 201 || !create.json?.computed) {
       fail++
       console.log(`FAIL phase=create status=${create.status}`)
@@ -217,12 +228,6 @@ async function main() {
     }
 
     const mismatchFields = compare(tc, create.json.computed)
-    const mid = create.json.multiplier_id
-
-    // cleanup always
-    if (mid) {
-      await api('DELETE', `/multiplier/${mid}`)
-    }
 
     if (mismatchFields.length) {
       fail++
@@ -242,12 +247,14 @@ async function main() {
   console.log('---')
   console.log(
     `RESULT: passed=${summary.passed}/${summary.total} failed=${summary.failed} ` +
+      `cleanup_failed=${cleanupFailed} ` +
       `mismatch_fields=${JSON.stringify(summary.mismatchFields)}`
   )
-  process.exit(fail ? 1 : 0)
+  // row ที่ลบไม่สำเร็จ = ต้อง fail (ห้ามปล่อยผ่านเป็น 0)
+  process.exit(fail || cleanupFailed ? 1 : 0)
 }
 
-main().catch(() => {
-  console.error('UAT ERROR phase=unhandled')
+main().catch((err) => {
+  console.error(`UAT ERROR phase=unhandled type=${err?.name ?? 'unknown'}`)
   process.exit(2)
 })

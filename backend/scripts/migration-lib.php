@@ -213,3 +213,28 @@ function sqlStatementIsCommentOnly(string $sql): bool
     }
     return true;
 }
+
+/**
+ * D6: migration 36 (ALTER ADD COLUMN + UPDATE cutover) ห้ามถูกมาร์ก baseline
+ * แบบไม่รัน DDL — seedBaselineIfNeeded INSERT IGNORE ได้เสมอ ดังนั้น DB เก่าที่ยัง
+ * ไม่มี remember_me จะถูกมาร์ก applied ผิด ๆ แล้วโค้ดใหม่ยิง INSERT/SELECT คอลัมน์
+ * ที่ไม่มี = login/refresh 500 ทั้งระบบ · คอลัมน์ยังไม่มี → ข้ามการมาร์ก
+ * เพื่อให้ pending-selection ของ runner apply DDL จริงเอง
+ * (T6 preflight ยังบังคับ verify ด้วยมือก่อน deploy — ตัวนี้คือ fail-closed ของ path อัตโนมัติ)
+ *
+ * @param \PDO $pdo
+ * @param string $name ชื่อไฟล์ baseline
+ * @return bool true = ห้าม baseline ไฟล์นี้ตอนนี้
+ */
+function baselineRequiresRealApply(\PDO $pdo, string $name): bool
+{
+    if (basename($name) !== '36-remember-me-session-ttl.sql') {
+        return false;
+    }
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM refresh_tokens LIKE 'remember_me'");
+        return $stmt === false || $stmt->fetch() === false;
+    } catch (\PDOException) {
+        return true; // เข้าถึงตารางไม่ได้ → fail-closed ห้ามมาร์ก
+    }
+}

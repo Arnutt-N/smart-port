@@ -18,6 +18,7 @@ function base64url_decode($data)
  * @param string $role
  * @param int $sessionExp Unix timestamp ของ session absolute expiry (ตอน login)
  *                        — exp ถูก bound ด้วยค่านี้เสมอ (ไม่มีทางเกิน 12ชม./30วัน)
+ *                        · ไม่ส่งหรือไม่ใช่ int → throw InvalidArgumentException
  * @return array{token:string,csrf_token:string}
  */
 function generateJWT($user_id, $role = 'operator', $sessionExp = null)
@@ -128,6 +129,13 @@ function prunePasswordHistory(PDO $pdo, int $userId): void
         'DELETE FROM password_history WHERE history_id IN (' . implode(',', array_fill(0, count($drop), '?')) . ')'
     )->execute($drop);
 }
+/**
+ * D6: ตรวจ signature + ข้อความ exp/session_exp (strict `now < claim` ทั้งคู่)
+ *
+ * @param string|null $token access JWT จาก cookie
+ * @return array<string,mixed>|false payload `data` เมื่อผ่าน, false เมื่อปฏิเสธ
+ *                                    (ทุกเคสปฏิเสธแบบเงียบ ไม่มี warning)
+ */
 function validateJWT($token)
 {
     if (!$token) {
@@ -188,7 +196,7 @@ function validateJWT($token)
 // ชื่อสั้น + prefix sp_ กันชน cookie อื่น; frontend ตัวเดียวใน repo ใช้ผ่าน /api (same-origin)
 const AUTH_ACCESS_COOKIE = 'sp_access';
 const AUTH_REFRESH_COOKIE = 'sp_refresh';
-const AUTH_ACCESS_COOKIE_TTL_SECONDS = 3600; // = อายุ access JWT ใน generateJWT
+const AUTH_ACCESS_COOKIE_TTL_SECONDS = 3600; // อายุ access JWT สูงสุด — จริงคือ min(1 ชม., session deadline)
 const AUTH_REFRESH_COOKIE_PATH = '/api/auth'; // แคบสุด — ใช้ได้เฉพาะเส้น refresh/logout
 
 /**

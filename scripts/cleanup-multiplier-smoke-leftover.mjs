@@ -72,10 +72,11 @@ async function main() {
     `after total=${summary.total ?? '?'} bonus_sum=${summary.total_bonus_days ?? '?'}`
   )
   console.log(`RESULT deleted=${deleted} delete_failed=${deleteFailed}`)
-  process.exit(0)
+  // delete ล้ม = cleanup ไม่สะอาด — ห้าม exit 0 ให้ขั้นถัดไปเข้าใจผิด
+  process.exit(deleteFailed ? 1 : 0)
 }
 
-main().catch(() => {
-  console.error('CLEANUP ERROR phase=unhandled')
+main().catch((err) => {
+  console.error(`CLEANUP ERROR phase=unhandled type=${err?.name ?? 'unknown'}`)
   process.exit(2)
 })

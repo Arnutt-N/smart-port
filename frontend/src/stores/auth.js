@@ -218,14 +218,23 @@ export const useAuthStore = defineStore('auth', () => {
             await requestRefresh()
             response = await fetchMe()
           } catch (e) {
-            // เคลียร์เฉพาะ refresh ที่ server ปฏิเสธจริง (401) — error ชั่วคราว
-            // (network/5xx/timeout) คง user ไว้ กัน bootstrap ตายทั้งที่ refresh
-            // cookie ยังใช้ได้ · ถ้า tab อื่นเพิ่ง persist session ใหม่สำเร็จ
-            // (csrf ใน storage ต่างจากของ tab นี้) ห้ามลบของ tab ที่ชนะ
-            if (e?.status === 401) {
-              const storedCsrf = localStorage.getItem('csrf_token') ?? sessionStorage.getItem('csrf_token')
+            // เคลียร์เฉพาะ refresh ที่ server ปฏิเสธจริง (4xx = terminal:
+            // 401 token ตาย, 400 ไม่มี cookie ให้ใช้แล้ว) — error ชั่วคราว
+            // (network/5xx/timeout) คง user ไว้ กัน bootstrap ตายทั้งที่
+            // refresh cookie ยังใช้ได้
+            const status = e?.status
+            if (status >= 400 && status < 500) {
+              // กัน TOCTOU ข้าม tab: อ่านซ้ำทันทีก่อนลบ — ถ้า tab อื่นเพิ่ง persist
+              // session ใหม่ (csrf ใน storage ต่างจากของ tab นี้) ห้ามลบของ tab ที่ชนะ
+              const readStoredCsrf = () =>
+                localStorage.getItem('csrf_token') ?? sessionStorage.getItem('csrf_token')
+              const storedCsrf = readStoredCsrf()
               const foreignUpdate = storedCsrf !== null && storedCsrf !== '' && storedCsrf !== csrfToken.value
-              if (!foreignUpdate) clearStaleAuth()
+              if (!foreignUpdate) {
+                const recheck = readStoredCsrf()
+                const stillOurs = recheck === null || recheck === '' || recheck === csrfToken.value
+                if (stillOurs) clearStaleAuth()
+              }
             }
             return false
           }

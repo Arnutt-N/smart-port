@@ -84,7 +84,7 @@ function createMock({ tls = false, certs = null } = {}) {
         )
       } else if (req.method === 'GET') {
         send(200, {}, JSON.stringify({ ok: true }))
-      } else if (req.method === 'POST') {
+      } else if (req.method !== 'GET') {
         send(201, {}, JSON.stringify({ ok: true }))
       } else {
         send(404, {}, JSON.stringify({}))
@@ -174,6 +174,47 @@ test('X-CSRF-Token แนบเฉพาะคำขอเปลี่ยนข�
     assert.equal(post.csrf, 'CSRFVALUE1')
     assert.match(post.cookie, /sp_access=ACCESS1/)
     assert.equal(post.body, '{"personnel_id":1}')
+  } finally {
+    await stop(server)
+  }
+})
+
+test('PUT/DELETE ได้ X-CSRF-Token ด้วย และ csrf อัปเดตเมื่อ response มีค่าใหม่', async () => {
+  const { server, seen } = createMock()
+  const port = await listen(server)
+  try {
+    const api = createAuthCookieClient(`http://127.0.0.1:${port}`)
+    await api('POST', '/auth/login', { body: { username: 'a', password: 'b' } })
+
+    await api('PUT', '/multiplier/1', { body: { note: 'x' } })
+    await api('DELETE', '/multiplier/1')
+
+    const put = seen.find((s) => s.method === 'PUT')
+    const del = seen.find((s) => s.method === 'DELETE')
+    assert.equal(put.csrf, 'CSRFVALUE1', 'PUT ต้องแนบ X-CSRF-Token')
+    assert.equal(del.csrf, 'CSRFVALUE1', 'DELETE ต้องแนบ X-CSRF-Token')
+
+    // refresh (POST /auth/login-fresh) คืน csrf ใหม่ → คำขอถัดไปใช้ค่าใหม่
+    await api('POST', '/auth/login-fresh')
+    await api('POST', '/multiplier', { body: { personnel_id: 2 } })
+    const afterRefresh = seen.filter((s) => s.method === 'POST' && s.url === '/api/multiplier').at(-1)
+    assert.equal(afterRefresh.csrf, 'CSRFVALUE2', 'csrf ต้องอัปเดตจาก response ล่าสุด')
+  } finally {
+    await stop(server)
+  }
+})
+
+test('path boundary: sp_refresh ไม่หลุดออกไปนอก /api/auth (เช่น /api/authenticate)', async () => {
+  const { server, seen } = createMock()
+  const port = await listen(server)
+  try {
+    const api = createAuthCookieClient(`http://127.0.0.1:${port}`)
+    await api('POST', '/auth/login', { body: { username: 'a', password: 'b' } })
+
+    await api('GET', '/authenticate') // → /api/authenticate (ขึ้นต้นด้วย /api/auth แต่ไม่ใช่เส้นทางนั้น)
+    const req = seen.find((s) => s.url === '/api/authenticate')
+    const names = (req.cookie || '').split('; ').filter(Boolean).map((p) => p.split('=')[0])
+    assert.deepEqual(names, ['sp_access'], 'ขอบหน้าเส้นทางต้องไม่ส่ง sp_refresh')
   } finally {
     await stop(server)
   }

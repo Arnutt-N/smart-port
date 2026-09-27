@@ -730,6 +730,77 @@ describe('auth store', () => {
     }
   })
 
+  it('bootstrap does not wipe storage when another tab persisted a fresh session', async () => {
+    // foreign-tab guard: refresh 401 ของ tab นี้ แต่ storage ถูก tab อื่นเขียนทับแล้ว
+    // → ห้าม clearStaleAuth() ลบของ tab ที่ชนะ (ลบ guard ทิ้งเทสนี้ต้อง fail)
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-old-tab') // ค่าที่ tab นี้ hydrate มา
+
+      const auth = useAuthStore()
+      expect(auth.csrfToken).toBe('csrf-old-tab')
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        if (!isRefresh) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: 'Unauthorized' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        }
+        // ระหว่างที่ refresh ค้างอยู่ — tab อื่น persist session ใหม่สำเร็จ
+        localStorage.setItem('user', JSON.stringify({ ...authData().user, name: 'Winner' }))
+        localStorage.setItem('csrf_token', 'csrf-winner')
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: 'gone' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      // storage ของ tab ที่ชนะต้องยังอยู่ครบ
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-winner')
+      expect(localStorage.getItem('user')).toContain('Winner')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('bootstrap refresh 400 (no cookie) is terminal and clears stale state', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+
+      const auth = useAuthStore()
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'กรุณาระบุ refresh token' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 400 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.user).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
+      expect(localStorage.getItem('csrf_token')).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
   it('bootstrap refresh transient failure (502) keeps stored state for next attempt', async () => {
     const realFetch = globalThis.fetch
     try {

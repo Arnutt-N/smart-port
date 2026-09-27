@@ -8,8 +8,8 @@ const PASSWORD_MAX_BYTES = 72
 
 /** ข้อความ error ตรงตัวอักษรกับ backend/auth.php (ไม่แต่งคำเอง) */
 export const PASSWORD_MESSAGES = {
-  too_short: 'รหัสผ่านต้องมีความยาวอย่างน้อย 12 ตัวอักษร',
-  too_many_bytes: 'รหัสผ่านต้องยาวไม่เกิน 72 bytes',
+  too_short: `รหัสผ่านต้องมีความยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`,
+  too_many_bytes: `รหัสผ่านต้องยาวไม่เกิน ${PASSWORD_MAX_BYTES} bytes`,
   missing_uppercase: 'รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว',
   missing_lowercase: 'รหัสผ่านต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว',
   missing_number: 'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว',

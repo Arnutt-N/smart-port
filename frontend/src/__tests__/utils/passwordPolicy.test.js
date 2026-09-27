@@ -10,9 +10,11 @@ describe('passwordPolicy', () => {
     expect(validatePassword('Abcdefghij1!')).toEqual({ valid: true, code: null })
   })
 
-  it('counts Unicode code points, not UTF-16 units (emoji is 2 units)', () => {
-    // 12 code points — PHP mb_strlen นับแบบเดียวกัน
-    expect(validatePassword('Abcdefghi1!🙂')).toEqual({ valid: true, code: null })
+  it('counts Unicode code points, not UTF-16 units (surrogate pair is 2 units)', () => {
+    // 12 code points — surrogate pair (U+1F642) = 2 UTF-16 units
+    // PHP mb_strlen นับแบบเดียวกัน
+    expect('Abcdefghi1!\u{1F642}'.length).toBe(13)
+    expect(validatePassword('Abcdefghi1!\u{1F642}')).toEqual({ valid: true, code: null })
   })
 
   it('rejects passwords shorter than 12 code points', () => {
@@ -29,6 +31,15 @@ describe('passwordPolicy', () => {
   it('enforces the 72 UTF-8 byte boundary', () => {
     const atLimit = `Aa1!${'a'.repeat(68)}` // 72 ASCII bytes
     const overLimit = `Aa1!${'a'.repeat(69)}` // 73 ASCII bytes
+    expect(validatePassword(atLimit)).toEqual({ valid: true, code: null })
+    expect(validatePassword(overLimit)).toEqual({ valid: false, code: 'too_many_bytes' })
+  })
+
+  it('counts multibyte (Thai) characters toward the 72-byte cap', () => {
+    // 'ก' = 3 UTF-8 bytes: 4 + 3*22 + 2 = 72 bytes → ผ่าน
+    const atLimit = `Ab1!${'ก'.repeat(22)}ab`
+    // 4 + 3*23 = 73 bytes → เกิน
+    const overLimit = `Ab1!${'ก'.repeat(23)}`
     expect(validatePassword(atLimit)).toEqual({ valid: true, code: null })
     expect(validatePassword(overLimit)).toEqual({ valid: false, code: 'too_many_bytes' })
   })

@@ -111,6 +111,8 @@ describe('UserManagementPage', () => {
 
   it('blocks create when password violates client policy (missing class)', async () => {
     const wrapper = await mountPage()
+    const ui = useUiStore()
+    const showToastSpy = vi.spyOn(ui, 'showToast')
     wrapper.vm.openCreate()
     // ครบ length/case/special แต่ไม่มีตัวเลข → ตก missing_number ก่อนถึง API
     wrapper.vm.formData = {
@@ -126,6 +128,12 @@ describe('UserManagementPage', () => {
 
     expect(mockCreate).not.toHaveBeenCalled()
     expect(wrapper.vm.showFormModal).toBe(true)
+    // ต้องบล็อกด้วยสาเหตุนี้จริง — ไม่ใช่ validation ชุดอื่นบังเอิญผ่าน
+    expect(showToastSpy).toHaveBeenCalledWith(
+      'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว',
+      'error'
+    )
+    showToastSpy.mockRestore()
   })
 
   it('blocks create when password confirmation mismatches', async () => {
@@ -220,10 +228,17 @@ describe('UserManagementPage', () => {
     mockUpdate.mockResolvedValue({ success: true })
 
     wrapper.vm.openResetPassword(otherRow)
-    // policy-invalid: ไม่เรียก API
+    // policy-invalid: ไม่เรียก API + แจ้งสาเหตุถูก
+    const ui = useUiStore()
+    const showToastSpy = vi.spyOn(ui, 'showToast')
     wrapper.vm.resetForm = { password: 'newpass123', passwordConfirm: 'different' }
     await wrapper.vm.submitResetPassword()
     expect(mockUpdate).not.toHaveBeenCalled()
+    expect(showToastSpy).toHaveBeenCalledWith(
+      'รหัสผ่านต้องมีความยาวอย่างน้อย 12 ตัวอักษร',
+      'error'
+    )
+    showToastSpy.mockRestore()
 
     // mismatch กับรหัส policy-valid
     wrapper.vm.resetForm = { password: 'Passw0rd!2026', passwordConfirm: 'Passw0rd!aaa' }

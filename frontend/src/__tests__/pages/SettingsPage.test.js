@@ -85,4 +85,24 @@ describe('SettingsPage', () => {
     }))
   })
 
+  it('rejects policy-invalid new password with the backend message before the API', async () => {
+    const wrapper = mount(SettingsPage)
+    await flushPromises()
+
+    await wrapper.find('#settings-current-password').setValue('temporary-password')
+    // ครบ length/case/digit แต่ไม่มีอักขระพิเศษ → missing_special
+    await wrapper.find('#settings-new-password').setValue('Abcdefghij12')
+    await wrapper.find('#settings-confirm-password').setValue('Abcdefghij12')
+    await wrapper.findAll('form')[1].trigger('submit')
+    await flushPromises()
+
+    expect(changePassword).not.toHaveBeenCalled()
+    expect(confirmSave).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว'
+    )
+    // ค่าที่กรอกยังอยู่ครบ
+    expect(wrapper.find('#settings-new-password').element.value).toBe('Abcdefghij12')
+  })
+
 })

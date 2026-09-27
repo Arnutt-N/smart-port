@@ -95,4 +95,4 @@ canonical system/location **อยู่นอก repository นี้** แล�
 | refresh ได้ 401 ทั้งที่เพิ่ง login | เรียกเส้นทางไม่ใช่ `/api/auth/*` → `sp_refresh` ไม่ถูกส่ง | ตรวจ path เริ่มต้นด้วย `/api/auth` |
 | write ได้ 403 `CSRF token validation failed` | ไม่ได้แนบ `X-CSRF-Token` หรือค่าไม่ตรง csrf ของ JWT ตัวล่าสุด | ใช้ `csrf_token` จาก login/refresh ล่าสุด |
 | browser ข้าม origin ไม่ส่ง cookie | ไม่ได้ `credentials: 'include'` หรือ origin ไม่ได้อยู่ใน allowlist | ตรวจ `ALLOWED_ORIGINS` + credentials mode |
-| ได้ 401 ทั้งที่ cookie ครบ | access JWT หมดอายุ (1 ชม.) — ต้อง refresh ก่อน | `POST /api/auth/refresh` แล้ว retry |
+| ได้ 401 ทั้งที่ cookie ครบ | access JWT หมดอายุ (สูงสุด 1 ชม. และไม่เกิน session deadline) — ต้อง refresh ก่อน แต่ถ้า session deadline หมดแล้ว ต้อง login ใหม่ | `POST /api/auth/refresh` แล้ว retry |

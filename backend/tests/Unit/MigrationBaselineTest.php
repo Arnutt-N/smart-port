@@ -70,4 +70,46 @@ final class MigrationBaselineTest extends TestCase
     {
         self::assertStringContainsString('test-seed', '16-multiplier-test-seed-expand.sql');
     }
+
+    #[Test]
+    public function migration_36_uses_the_canonical_cutover_update(): void
+    {
+        // กุญแจกัน replay: legacy_cutover เป็น reason เดียวที่ refreshSession
+        // ปฏิเสธโดยไม่ kill-all — ถ้า migration เปลี่ยนเป็น revoke แบบไม่ใส่ reason
+        // cookie เก่าจะ kill session ใหม่ทุกใบตอน cutover จริง
+        $sql = file_get_contents(__DIR__ . '/../../../database/36-remember-me-session-ttl.sql');
+        self::assertIsString($sql);
+
+        self::assertStringContainsString("revocation_reason = 'legacy_cutover'", $sql);
+        self::assertStringContainsString('WHERE revoked_at IS NULL', $sql);
+        // canonical UPDATE ต้องมีรูปแบบเดียว — นี่คือคำ revoke เพียงคำเดียวในไฟล์
+        self::assertSame(1, substr_count($sql, 'SET revoked_at'));
+        // paired columns ครบ
+        self::assertStringContainsString('remember_me TINYINT(1) NOT NULL DEFAULT 0', $sql);
+        self::assertStringContainsString('revocation_reason VARCHAR(32) NULL DEFAULT NULL', $sql);
+    }
+
+    #[Test]
+    public function baseline_guard_skips_marker_when_column_missing(): void
+    {
+        // ไฟล์อื่นไม่แตะ PDO เลย
+        $unusedPdo = self::createMock(\PDO::class);
+        self::assertFalse(baselineRequiresRealApply($unusedPdo, '35-fk-retrofit.sql'));
+
+        // คอลัมน์หาย/เข้าถึงไม่ได้ = fail-closed (ห้าม baseline)
+        $missingPdo = self::createMock(\PDO::class);
+        $missingPdo->method('query')->willReturn(false);
+        self::assertTrue(baselineRequiresRealApply($missingPdo, '36-remember-me-session-ttl.sql'));
+
+        $throwPdo = self::createMock(\PDO::class);
+        $throwPdo->method('query')->willThrowException(new \PDOException('no table'));
+        self::assertTrue(baselineRequiresRealApply($throwPdo, 'database/36-remember-me-session-ttl.sql'));
+
+        // คอลัมน์มีแล้ว = baseline ได้
+        $stmt = self::createMock(\PDOStatement::class);
+        $stmt->method('fetch')->willReturn(['Field' => 'remember_me']);
+        $okPdo = self::createMock(\PDO::class);
+        $okPdo->method('query')->willReturn($stmt);
+        self::assertFalse(baselineRequiresRealApply($okPdo, '36-remember-me-session-ttl.sql'));
+    }
 }

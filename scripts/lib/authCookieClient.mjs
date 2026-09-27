@@ -176,6 +176,10 @@ export function createAuthCookieClient(baseUrl = DEFAULT_BASE, tlsOptions = {}) 
         }
       )
       req.on('error', reject)
+      // timeout กันค้างถาวรเมื่อ server รับ TCP แล้วไม่ตอบ (hung worker/LB)
+      req.setTimeout(15000, () => {
+        req.destroy(Object.assign(new Error('request timeout'), { name: 'TimeoutError' }))
+      })
       if (payload !== null) req.write(payload)
       req.end()
     })

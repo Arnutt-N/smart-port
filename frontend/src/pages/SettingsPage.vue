@@ -146,8 +146,8 @@
             v-model="passwordForm.next"
             type="password"
             autocomplete="new-password"
-            minlength="8"
             required
+            aria-describedby="settings-password-help"
             class="input"
           >
         </div>
@@ -161,11 +161,17 @@
             v-model="passwordForm.confirm"
             type="password"
             autocomplete="new-password"
-            minlength="8"
             required
+            aria-describedby="settings-password-help"
             class="input"
           >
         </div>
+        <p
+          id="settings-password-help"
+          class="text-xs text-gray-500"
+        >
+          {{ PASSWORD_GUIDANCE }}
+        </p>
         <p
           v-if="passwordError"
           role="alert"
@@ -302,6 +308,10 @@ import { useUiStore } from '@/stores/ui.js'
 import { useApi } from '@/composables/useApi.js'
 import { confirmSave } from '@/composables/useConfirm.js'
 import { buildPendingOverride } from '@/utils/permissionOverridePending.js'
+import {
+  PASSWORD_GUIDANCE,
+  passwordErrorMessage,
+} from '@/utils/passwordPolicy.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -420,6 +430,11 @@ async function savePassword() {
   passwordError.value = ''
   if (passwordForm.next !== passwordForm.confirm) {
     passwordError.value = 'รหัสผ่านใหม่และการยืนยันไม่ตรงกัน'
+    return
+  }
+  const policyError = passwordErrorMessage(passwordForm.next)
+  if (policyError) {
+    passwordError.value = policyError
     return
   }
   const ok = await confirmSave({ message: 'คุณต้องการเปลี่ยนรหัสผ่านหรือไม่?' })

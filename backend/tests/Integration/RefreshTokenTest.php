@@ -136,12 +136,60 @@ final class RefreshTokenTest extends TestCase
     }
 
     #[Test]
-    public function unknown_token_is_rejected(): void
+    public function unknown_token_is_rejected_and_clears_cookies(): void
     {
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
         $response = $this->callRefresh(generateRefreshToken());
 
         self::assertSame(401, http_response_code());
         self::assertArrayHasKey('error', $response);
+        // D6 terminal: ไม่พบแถว → clear คู่ cookies
+        self::assertCount(2, $GLOBALS['__capture_cookies']);
+        foreach ($GLOBALS['__capture_cookies'] as $cookie) {
+            self::assertSame('', $cookie['value']);
+        }
+    }
+
+    #[Test]
+    public function refresh_exactly_at_expiry_is_rejected(): void
+    {
+        // strict `expires_at <= now` — ตรงวินาทีหมดอายุ = หมดอายุ (เคสคู่กับ JWT exp=now)
+        $raw = generateRefreshToken();
+        self::$pdo->prepare(
+            'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)'
+        )->execute([$this->userId, hashRefreshToken($raw), date('Y-m-d H:i:s', time())]);
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $response = $this->callRefresh($raw);
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $response);
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'expired terminal ต้อง clear คู่ cookies');
+    }
+
+    #[Test]
+    public function inactive_user_refresh_is_rejected_and_clears_cookies(): void
+    {
+        $raw = $this->issueFixture($this->userId);
+        self::$pdo->prepare('UPDATE users SET is_active = 0 WHERE user_id = ?')
+            ->execute([$this->userId]);
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        $response = $this->callRefresh($raw);
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $response);
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'user ปิดใช้ → clear คู่ cookies');
+        // แถวของตัวเองถูก revoke แล้ว
+        $stmt = self::$pdo->prepare('SELECT revoked_at FROM refresh_tokens WHERE token_hash = ?');
+        $stmt->execute([hashRefreshToken($raw)]);
+        self::assertNotNull($stmt->fetchColumn());
+
+        self::$pdo->prepare('UPDATE users SET is_active = 1 WHERE user_id = ?')
+            ->execute([$this->userId]);
     }
 
     private function countActiveTokens(): int
@@ -189,21 +237,61 @@ final class RefreshTokenTest extends TestCase
 
         // นำ raw ที่ถูก revoke มานานแล้วมาใช้ซ้ำ = สงสัยถูกขโมย
         http_response_code(200);
+        $GLOBALS['__capture_cookies'] = [];
         $response = $this->callRefresh($raw);
         self::assertSame(401, http_response_code());
         self::assertArrayHasKey('error', $response);
 
         // token ทุกใบของ user ต้องถูกเพิกถอน (รวมใบใหม่ที่เพิ่งออก)
         self::assertSame(0, $this->countActiveTokens());
+        // reuse เกิน grace = terminal → clear คู่ cookies
+        self::assertCount(2, $GLOBALS['__capture_cookies']);
+    }
+
+    #[Test]
+    public function grace_boundary_10s_keeps_session_11s_kills_all(): void
+    {
+        // ขอบ grace 10 วินาที: 10 = ยังเป็น race (ไม่ kill), 11 = reuse (kill-all + clear)
+        $raw = $this->issueFixture($this->userId);
+        $this->callRefresh($raw); // rotation → raw revoked, มี active ใหม่ 1 แถว
+        self::assertSame(1, $this->countActiveTokens());
+
+        // อายุ 10 วินาที = ขอบในสุดของ grace (<= 10)
+        self::$pdo->prepare(
+            'UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 10 SECOND)
+             WHERE token_hash = ?'
+        )->execute([hashRefreshToken($raw)]);
+        http_response_code(200);
+        $GLOBALS['__capture_cookies'] = [];
+        $this->callRefresh($raw);
+        self::assertSame(401, http_response_code(), 'อายุ 10 วิ = ยังอยู่ใน grace');
+        self::assertCount(0, $GLOBALS['__capture_cookies'], 'ใน grace ห้ามมี Set-Cookie');
+        self::assertSame(1, $this->countActiveTokens(), 'ใน grace ห้าม kill-all');
+
+        // อายุ 11 วินาที = พ้น grace
+        self::$pdo->prepare(
+            'UPDATE refresh_tokens SET revoked_at = DATE_SUB(NOW(), INTERVAL 11 SECOND)
+             WHERE token_hash = ?'
+        )->execute([hashRefreshToken($raw)]);
+        http_response_code(200);
+        $GLOBALS['__capture_cookies'] = [];
+        $this->callRefresh($raw);
+        self::assertSame(401, http_response_code(), 'อายุ 11 วิ = เกิน grace');
+        self::assertSame(0, $this->countActiveTokens(), 'เกิน grace ต้อง kill-all');
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'เกิน grace ต้อง clear คู่ cookies');
     }
 
     #[Test]
     public function missing_token_returns_400(): void
     {
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
         $response = $this->callRefresh('');
 
         self::assertSame(400, http_response_code());
         self::assertArrayHasKey('error', $response);
+        // terminal missing → clear คู่ cookies
+        self::assertCount(2, $GLOBALS['__capture_cookies']);
     }
 
     #[Test]
