@@ -152,7 +152,7 @@ if (!$isPublicAuth && !$isPublicPhotoAsset && !$isPublicReadyz && !$isPublicCspR
 }
 
 // CSRF Protection for state-changing requests
-$statefulMethods = ['POST', 'PUT', 'DELETE'];
+$statefulMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 if (in_array($method, $statefulMethods, true) && !$isPublicAuth && !$isPublicCspReport) {
     requireCSRFToken();

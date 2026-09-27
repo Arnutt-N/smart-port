@@ -107,7 +107,71 @@ final class AuthCookieFlowTest extends TestCase
             self::assertTrue($cookie['params']['httponly']);
             self::assertSame('Lax', $cookie['params']['samesite']);
             self::assertFalse($cookie['params']['secure'], 'http ตรงต้องไม่มี Secure');
-            self::assertGreaterThan(time(), $cookie['params']['expires']);
+            // D6 session mode (remember ไม่ส่ง/=false) = session cookie — ห้ามมี expires
+            self::assertArrayNotHasKey('expires', $cookie['params'], 'session cookie ต้องไม่มี Expires');
+        }
+
+        // DB: remember_me=0, expires_at ≈ ตอนนี้ + 12 ชม.
+        $stmt = self::$pdo->prepare('SELECT remember_me, expires_at FROM refresh_tokens WHERE token_hash = ?');
+        $stmt->execute([hashRefreshToken($body['refresh_token'])]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        self::assertSame(0, (int) $row['remember_me']);
+        $expected = time() + SESSION_ABS_TTL_SECONDS;
+        self::assertEqualsWithDelta($expected, strtotime((string) $row['expires_at']), 5, 'session mode = 12 ชม.');
+    }
+
+    #[Test]
+    public function login_remember_true_issues_persistent_cookies_with_30d_session(): void
+    {
+        $username = $this->uniqueUsername();
+        $this->createUser($username, 'Login-Test-11');
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        ob_start();
+        loginUser(self::$pdo, ['username' => $username, 'password' => 'Login-Test-11', 'remember' => true]);
+        $body = json_decode((string) ob_get_clean(), true) ?? [];
+        $cookies = $GLOBALS['__capture_cookies'];
+
+        self::assertSame(200, http_response_code());
+        $access = $this->findCaptured($cookies, AUTH_ACCESS_COOKIE);
+        $refresh = $this->findCaptured($cookies, AUTH_REFRESH_COOKIE);
+        self::assertNotNull($access);
+        self::assertNotNull($refresh);
+
+        // access = min(now+1ชม., session) ≈ +1 ชม.; refresh = session deadline ≈ +30 วัน
+        self::assertGreaterThan(time(), $access['params']['expires']);
+        self::assertLessThanOrEqual(time() + AUTH_ACCESS_COOKIE_TTL_SECONDS, $access['params']['expires']);
+        $sessionExpected = time() + REFRESH_TOKEN_TTL_SECONDS;
+        self::assertEqualsWithDelta($sessionExpected, $refresh['params']['expires'], 5, 'remember=on → 30 วัน');
+        self::assertLessThanOrEqual($refresh['params']['expires'], $access['params']['expires'], 'access ต้องหมดก่อน session');
+
+        $stmt = self::$pdo->prepare('SELECT remember_me, expires_at FROM refresh_tokens WHERE token_hash = ?');
+        $stmt->execute([hashRefreshToken($body['refresh_token'])]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        self::assertSame(1, (int) $row['remember_me']);
+        self::assertEqualsWithDelta($sessionExpected, strtotime((string) $row['expires_at']), 5);
+    }
+
+    #[Test]
+    public function login_rejects_malformed_remember_without_issuing_cookies(): void
+    {
+        foreach (['true', 1, null] as $malformed) {
+            $username = $this->uniqueUsername();
+            $this->createUser($username, 'Login-Test-11');
+
+            $countBefore = (int) self::$pdo->query('SELECT COUNT(*) FROM refresh_tokens')->fetchColumn();
+            $GLOBALS['__capture_cookies'] = [];
+            http_response_code(200);
+            ob_start();
+            loginUser(self::$pdo, ['username' => $username, 'password' => 'Login-Test-11', 'remember' => $malformed]);
+            $body = json_decode((string) ob_get_clean(), true) ?? [];
+
+            self::assertSame(400, http_response_code(), 'remember ที่ไม่ใช่ bool ต้อง 400');
+            self::assertArrayHasKey('error', $body);
+            self::assertCount(0, $GLOBALS['__capture_cookies'], '400 ห้ามออก cookie');
+            $countAfter = (int) self::$pdo->query('SELECT COUNT(*) FROM refresh_tokens')->fetchColumn();
+            self::assertSame($countBefore, $countAfter, '400 ห้าม insert refresh row');
         }
     }
 
@@ -115,7 +179,7 @@ final class AuthCookieFlowTest extends TestCase
     public function refresh_reads_cookie_and_rotates_with_new_cookies(): void
     {
         $userId = $this->createUser($this->uniqueUsername(), 'Refresh-Test-11');
-        $raw = issueRefreshToken(self::$pdo, $userId);
+        $raw = $this->issueFixture($userId, false, date('Y-m-d H:i:s', time() + 5000));
         $_COOKIE[AUTH_REFRESH_COOKIE] = $raw;
 
         $GLOBALS['__capture_cookies'] = [];
@@ -133,6 +197,9 @@ final class AuthCookieFlowTest extends TestCase
         self::assertNotNull($access, 'rotation ต้องออก access cookie ใหม่');
         self::assertNotNull($refresh, 'rotation ต้องออก refresh cookie ใหม่');
         self::assertSame($body['refresh_token'], $refresh['value']);
+        // session mode → rotation ยังเป็น session cookie (ไม่มี expires)
+        self::assertArrayNotHasKey('expires', $access['params']);
+        self::assertArrayNotHasKey('expires', $refresh['params']);
 
         $stmt = self::$pdo->prepare('SELECT revoked_at FROM refresh_tokens WHERE token_hash = ?');
         $stmt->execute([hashRefreshToken($raw)]);
@@ -140,10 +207,37 @@ final class AuthCookieFlowTest extends TestCase
     }
 
     #[Test]
-    public function refresh_without_cookie_returns_400(): void
+    public function refresh_rotation_preserves_deadline_in_cookies_when_remembered(): void
+    {
+        $userId = $this->createUser($this->uniqueUsername(), 'Refresh-Test-11');
+        $originalExpires = date('Y-m-d H:i:s', time() + 5000);
+        $raw = $this->issueFixture($userId, true, $originalExpires);
+        $_COOKIE[AUTH_REFRESH_COOKIE] = $raw;
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        ob_start();
+        refreshSession(self::$pdo, null);
+        $body = json_decode((string) ob_get_clean(), true) ?? [];
+        $cookies = $GLOBALS['__capture_cookies'];
+
+        self::assertSame(200, http_response_code());
+        $refresh = $this->findCaptured($cookies, AUTH_REFRESH_COOKIE);
+        self::assertNotNull($refresh);
+        // persistent refresh cookie ต้องหมดอายุที่ session deadline เดิม (ไม่ใช่ now+30d ใหม่)
+        self::assertEqualsWithDelta(strtotime($originalExpires), $refresh['params']['expires'], 2);
+        $access = $this->findCaptured($cookies, AUTH_ACCESS_COOKIE);
+        self::assertNotNull($access);
+        self::assertLessThanOrEqual($refresh['params']['expires'], $access['params']['expires']);
+        self::assertArrayHasKey('token', $body);
+    }
+
+    #[Test]
+    public function refresh_without_cookie_returns_400_and_clears_cookies(): void
     {
         unset($_COOKIE[AUTH_REFRESH_COOKIE]);
 
+        $GLOBALS['__capture_cookies'] = [];
         http_response_code(200);
         ob_start();
         refreshSession(self::$pdo, null);
@@ -151,13 +245,38 @@ final class AuthCookieFlowTest extends TestCase
 
         self::assertSame(400, http_response_code());
         self::assertArrayHasKey('error', $body);
+        // terminal missing → clear คู่ cookies ก่อนตอบ
+        self::assertCount(2, $GLOBALS['__capture_cookies']);
+    }
+
+    #[Test]
+    public function expired_session_cookie_is_rejected_and_cleared(): void
+    {
+        $userId = $this->createUser($this->uniqueUsername(), 'Refresh-Test-11');
+        $raw = $this->issueFixture($userId, false, date('Y-m-d H:i:s', time() - 1));
+        $_COOKIE[AUTH_REFRESH_COOKIE] = $raw;
+
+        $GLOBALS['__capture_cookies'] = [];
+        http_response_code(200);
+        ob_start();
+        refreshSession(self::$pdo, null);
+        $body = json_decode((string) ob_get_clean(), true) ?? [];
+
+        self::assertSame(401, http_response_code());
+        self::assertArrayHasKey('error', $body);
+        self::assertCount(2, $GLOBALS['__capture_cookies'], 'expired terminal ต้อง clear คู่ cookies');
+        foreach ([AUTH_ACCESS_COOKIE, AUTH_REFRESH_COOKIE] as $name) {
+            $cleared = $this->findCaptured($GLOBALS['__capture_cookies'], $name);
+            self::assertNotNull($cleared);
+            self::assertSame('', $cleared['value']);
+        }
     }
 
     #[Test]
     public function logout_via_cookie_revokes_and_clears_cookies(): void
     {
         $userId = $this->createUser($this->uniqueUsername(), 'Logout-Test-11');
-        $raw = issueRefreshToken(self::$pdo, $userId);
+        $raw = $this->issueFixture($userId);
         $_COOKIE[AUTH_REFRESH_COOKIE] = $raw;
 
         $GLOBALS['__capture_cookies'] = [];
@@ -183,6 +302,19 @@ final class AuthCookieFlowTest extends TestCase
     private function uniqueUsername(): string
     {
         return 'd3login' . bin2hex(random_bytes(4));
+    }
+
+    /**
+     * แถว refresh fixture สำหรับทดสอบ — remember/expiry กำหนดเอง
+     */
+    private function issueFixture(int $userId, bool $remember = false, ?string $expiresAt = null): string
+    {
+        return issueRefreshToken(
+            self::$pdo,
+            $userId,
+            $remember,
+            $expiresAt ?? date('Y-m-d H:i:s', time() + ($remember ? REFRESH_TOKEN_TTL_SECONDS : SESSION_ABS_TTL_SECONDS))
+        );
     }
 
     private function createUser(string $username, string $password): int

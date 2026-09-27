@@ -33,7 +33,7 @@ final class AuthenticatedUserTest extends TestCase
         $userId = (int) $pdo->lastInsertId();
 
         try {
-            $jwt = generateJWT($userId, 'admin');
+            $jwt = generateJWT($userId, 'admin', time() + 3600);
             $_COOKIE[AUTH_ACCESS_COOKIE] = $jwt['token'];
 
             $user = getAuthenticatedUser();

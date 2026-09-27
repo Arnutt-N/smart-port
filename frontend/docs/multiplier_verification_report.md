@@ -58,18 +58,28 @@
 
 ## 📊 Test Results
 
-### Authentication
+> **pre-D3 historical evidence — ห้าม run ตามขั้นตอนนี้เพื่อทำซ้ำ:** ค่าผลลัพธ์ด้านล่าง
+> มาจากยุค `Authorization: Bearer` (บันทึกไว้อ้างอิงอดีตเท่านั้น ไม่ใช่คำสั่งปัจจุบัน) ·
+> คำสั่งที่แสดงถัดจากนี้เขียนในรูป post-D3 (cookie + CSRF) เพื่อใช้ re-run ใหม่ได้
+
+### Authentication (post-D3: cookie + CSRF)
+
+> ตั้งแต่ D3 เป็นต้นไป ห้ามใช้ `Authorization: Bearer` — protected call ยืนยันตัวตนด้วย
+> session cookie (`sp_access`) และ write ต้องแนบ `X-CSRF-Token` (contract ฉบับเต็ม:
+> `docs/auth-cookie-client-migration.md`) · ผลลัพธ์ค้างด้านล่างช่วง pre-D3 เป็น
+> historical evidence ห้าม run ตาม
+
 ```bash
-curl -X POST http://localhost:8000/auth/login \
+curl -c jar.txt -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"<test-account>","password":"<test-password>"}'
+# เก็บ csrf_token จาก response body ไว้ใช้แนบเขียนข้อมูล — ห้าม print/log ค่า
 ```
-**Result:** `token` + `user` object returned ✅
+**Result:** session cookies (`sp_access`/`sp_refresh`) ถูกเซ็ตใน jar + `csrf_token` ใน body (post-D3)
 
 ### GET /multiplier/areas
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/multiplier/areas
+curl -b jar.txt http://localhost:8000/api/multiplier/areas
 ```
 **Result:**
 ```json
@@ -85,9 +95,9 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### POST /multiplier (Create Record)
 ```bash
-curl -X POST http://localhost:8000/multiplier \
-  -H "Authorization: Bearer $TOKEN" \
+curl -b jar.txt -X POST http://localhost:8000/api/multiplier \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: <csrf-token-from-login-body>" \
   -d '{
     "personnel_id": 1,
     "area_multiplier_id": 1,
@@ -184,25 +194,27 @@ Areas loaded: **14** (รวมสตูล 4 อำเภอ + emergency 3 แ�
 
 ## 📸 Screenshot Commands (for Documentation)
 
+> post-D3: cookie jar + CSRF เท่านั้น — ห้ามใช้ Bearer และห้าม echo/print ค่า
+> `csrf_token` หรือค่า cookie ลง transcript
+
 ```bash
-# Login and get token
-TOKEN=$(curl -s -X POST http://localhost:8000/auth/login \
+# Login — เก็บ cookie ลง jar และ csrf_token ไว้ในตัวแปร (ห้าม print)
+curl -s -c jar.txt -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' \
-  | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d '{"username":"<test-account>","password":"<test-password>"}' \
+  | jq -r .csrf_token > .csrf
+CSRF=$(cat .csrf)
 
 # List all areas
-curl -s -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/multiplier/areas | jq
+curl -s -b jar.txt http://localhost:8000/api/multiplier/areas | jq
 
 # List records
-curl -s -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/multiplier | jq
+curl -s -b jar.txt http://localhost:8000/api/multiplier | jq
 
-# Create test record
-curl -s -X POST http://localhost:8000/multiplier \
-  -H "Authorization: Bearer $TOKEN" \
+# Create test record (write ต้องแนบ X-CSRF-Token)
+curl -s -b jar.txt -X POST http://localhost:8000/api/multiplier \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
   -d @- << 'EOF' | jq
 {
   "personnel_id": 1,
@@ -211,6 +223,9 @@ curl -s -X POST http://localhost:8000/multiplier \
   "end_date": "2004-08-31"
 }
 EOF
+
+# เสร็จแล้วลบ credential ออกจากเครื่อง (ห้าม commit jar/.csrf)
+rm -f jar.txt .csrf
 ```
 
 ---

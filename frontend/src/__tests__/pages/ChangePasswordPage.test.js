@@ -38,7 +38,7 @@ describe('ChangePasswordPage', () => {
   it('rejects mismatched confirmation before calling the API', async () => {
     const wrapper = mount(ChangePasswordPage)
     await wrapper.get('#current-password').setValue('temporary-password')
-    await wrapper.get('#new-password').setValue('new-secure-password')
+    await wrapper.get('#new-password').setValue('N3w!SecurePass1')
     await wrapper.get('#confirm-password').setValue('different-password')
 
     await wrapper.get('form').trigger('submit')
@@ -47,17 +47,51 @@ describe('ChangePasswordPage', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('ไม่ตรงกัน')
   })
 
-  it('changes the password, revokes the session, and returns to login', async () => {
-    changePassword.mockResolvedValue({ success: true })
+  it('rejects policy-invalid password with the backend message before calling the API', async () => {
+    const wrapper = mount(ChangePasswordPage)
+    // ครบ length/bytes/case/digit แต่ไม่มีอักขระพิเศษ → missing_special
+    await wrapper.get('#current-password').setValue('temporary-password')
+    await wrapper.get('#new-password').setValue('Abcdefghij12')
+    await wrapper.get('#confirm-password').setValue('Abcdefghij12')
+
+    await wrapper.get('form').trigger('submit')
+
+    expect(changePassword).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว'
+    )
+    // ค่าที่กรอกยังอยู่ครบ
+    expect(wrapper.get('#new-password').element.value).toBe('Abcdefghij12')
+  })
+
+  it('keeps entered values visible when the backend rejects the password', async () => {
+    changePassword.mockRejectedValue(new Error('รหัสผ่านใหม่ต้องไม่ซ้ำกับ 5 รุ่นล่าสุด'))
     const wrapper = mount(ChangePasswordPage)
     await wrapper.get('#current-password').setValue('temporary-password')
-    await wrapper.get('#new-password').setValue('new-secure-password')
-    await wrapper.get('#confirm-password').setValue('new-secure-password')
+    await wrapper.get('#new-password').setValue('N3w!SecurePass1')
+    await wrapper.get('#confirm-password').setValue('N3w!SecurePass1')
 
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(changePassword).toHaveBeenCalledWith('temporary-password', 'new-secure-password')
+    expect(changePassword).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[role="alert"]').text()).toContain('รหัสผ่านใหม่ต้องไม่ซ้ำกับ 5 รุ่นล่าสุด')
+    expect(wrapper.get('#new-password').element.value).toBe('N3w!SecurePass1')
+    expect(wrapper.get('#current-password').element.value).toBe('temporary-password')
+    expect(logout).not.toHaveBeenCalled()
+  })
+
+  it('changes the password, revokes the session, and returns to login', async () => {
+    changePassword.mockResolvedValue({ success: true })
+    const wrapper = mount(ChangePasswordPage)
+    await wrapper.get('#current-password').setValue('temporary-password')
+    await wrapper.get('#new-password').setValue('N3w!SecurePass1')
+    await wrapper.get('#confirm-password').setValue('N3w!SecurePass1')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(changePassword).toHaveBeenCalledWith('temporary-password', 'N3w!SecurePass1')
     // T4: เปลี่ยนรหัส = revoke ทุก session — บังคับ login ใหม่พร้อม toast แจ้ง
     expect(logout).toHaveBeenCalledTimes(1)
     expect(showToast).toHaveBeenCalledWith('เปลี่ยนรหัสผ่านแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'success')

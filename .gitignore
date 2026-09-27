@@ -92,6 +92,8 @@ smartport/
 backend/vendor/
 backend/.phpunit.cache/
 backend/.phpunit.result.cache
+backend/.php-cs-fixer.cache
+/.php-cs-fixer.cache
 
 /secrets/
 /.qwen/

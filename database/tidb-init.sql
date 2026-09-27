@@ -1266,6 +1266,8 @@ CREATE TABLE refresh_tokens (
     token_hash CHAR(64) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     revoked_at TIMESTAMP NULL DEFAULT NULL,
+    remember_me TINYINT(1) NOT NULL DEFAULT 0,
+    revocation_reason VARCHAR(32) NULL DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_refresh_token_hash (token_hash),
     KEY idx_refresh_user (user_id),

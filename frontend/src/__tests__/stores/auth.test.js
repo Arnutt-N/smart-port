@@ -362,7 +362,7 @@ describe('auth store', () => {
 
     await auth.login({ username: 'admin', password: 'x' })
 
-    expect(mockPost).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'x' })
+    expect(mockPost).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'x', remember: false })
     expect(auth.isAuthenticated).toBe(true)
   })
 
@@ -539,7 +539,7 @@ describe('auth store', () => {
 
     await auth.login({ username: 'admin', password: 'x' }, { remember: false })
 
-    expect(mockPost).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'x' })
+    expect(mockPost).toHaveBeenCalledWith('/auth/login', { username: 'admin', password: 'x', remember: false })
     expect(sessionStorage.getItem('csrf_token')).toBe('csrf-123')
     expect(localStorage.getItem('csrf_token')).toBeNull()
   })
@@ -570,6 +570,343 @@ describe('auth store', () => {
     for (const key of ['csrf_token', 'user']) {
       expect(sessionStorage.getItem(key)).toBeNull()
       expect(localStorage.getItem(key)).toBeNull()
+    }
+  })
+
+  // ===== D6: remember transport + bootstrap refresh =====
+
+  it('login sends remember in the JSON body (false) and keeps sessionStorage choice', async () => {
+    mockPost.mockResolvedValue(authData())
+    const auth = useAuthStore()
+    await auth.login({ username: 'a', password: 'b' }, { remember: false })
+
+    expect(mockPost).toHaveBeenCalledWith('/auth/login', {
+      username: 'a',
+      password: 'b',
+      remember: false,
+    })
+    expect(sessionStorage.getItem('user')).not.toBeNull()
+    expect(localStorage.getItem('user')).toBeNull()
+  })
+
+  it('login sends remember=true and keeps localStorage choice', async () => {
+    mockPost.mockResolvedValue(authData())
+    const auth = useAuthStore()
+    await auth.login({ username: 'a', password: 'b' }, { remember: true })
+
+    expect(mockPost).toHaveBeenCalledWith('/auth/login', {
+      username: 'a',
+      password: 'b',
+      remember: true,
+    })
+    expect(localStorage.getItem('user')).not.toBeNull()
+    expect(sessionStorage.getItem('user')).toBeNull()
+  })
+
+  it('checkSession bootstraps once: 401 → single refresh → retry /auth/me succeeds', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      const auth = useAuthStore()
+      // state ที่ hydrate จาก storage (ยังไม่ authenticated)
+      auth.user = authData().user
+      auth.csrfToken = 'csrf-123'
+
+      let meCalls = 0
+      globalThis.fetch = vi.fn((url) => {
+        const u = String(url)
+        if (u.includes('/auth/refresh')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ ...authData(), csrf_token: 'csrf-refreshed' }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        }
+        meCalls += 1
+        const status = meCalls === 1 ? 401 : 200
+        const body = meCalls === 1 ? { error: 'Unauthorized' } : meResponse()
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(true)
+
+      expect(auth.isAuthenticated).toBe(true)
+      expect(auth.csrfToken).toBe('csrf-refreshed')
+      expect(meCalls).toBe(2) // 401 ครั้งเดียว + retry ครั้งเดียว ไม่มี loop
+      const refreshCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/auth/refresh'))
+      expect(refreshCalls).toHaveLength(1)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('checkSession bootstrap refresh failure clears stale state and does not loop', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+      sessionStorage.setItem('user', JSON.stringify(authData().user))
+      sessionStorage.setItem('csrf_token', 'csrf-456')
+
+      const auth = useAuthStore()
+      // hydrate แล้ว (user จาก storage)
+      expect(auth.user).not.toBeNull()
+
+      globalThis.fetch = vi.fn((url) => {
+        const u = String(url)
+        const isRefresh = u.includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'gone' } : { error: 'Unauthorized' }),
+            { status: 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.user).toBeNull()
+      expect(auth.csrfToken).toBe('')
+      // stale state ถูกเคลียร์ทั้งสอง storage
+      for (const storage of [localStorage, sessionStorage]) {
+        expect(storage.getItem('user')).toBeNull()
+        expect(storage.getItem('csrf_token')).toBeNull()
+      }
+      // ไม่มี loop: /auth/me 1 ครั้ง + /auth/refresh 1 ครั้ง แล้วหยุด
+      const calls = globalThis.fetch.mock.calls.map((c) => String(c[0]))
+      expect(calls.filter((u) => u.includes('/auth/me'))).toHaveLength(1)
+      expect(calls.filter((u) => u.includes('/auth/refresh'))).toHaveLength(1)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('checkSession with no stored user does not trigger a refresh request', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      const auth = useAuthStore()
+      expect(auth.user).toBeNull()
+
+      globalThis.fetch = mockFetchJson({ error: 'Unauthorized' }, 401)
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      const calls = globalThis.fetch.mock.calls.map((c) => String(c[0]))
+      expect(calls.filter((u) => u.includes('/auth/refresh'))).toHaveLength(0)
+      expect(calls).toHaveLength(1) // ยิงแค่ /auth/me
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('expired session (me 401 + refresh 401) stays logged out', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      const auth = useAuthStore()
+      auth.user = authData().user
+
+      globalThis.fetch = vi.fn((url) => {
+        const status = String(url).includes('/auth/refresh') ? 401 : 401
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: 'expired' }), {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.user).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('recheck-before-clear skips wiping when another tab writes between the two reads', async () => {
+    // latch ของ TOCTOU re-read: รายการแรกเห็นค่าตัวเอง (ไม่ใช่ foreign) แต่
+    // รายการสอง (ทันทีก่อน clear) เห็นค่าของ tab ที่ชนะ → ห้าม clear
+    // ลบ recheck ทิ้ง → เทสนี้ต้อง fail
+    const realFetch = globalThis.fetch
+    const realGetItem = Storage.prototype.getItem
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-our-tab')
+
+      const auth = useAuthStore()
+      expect(auth.csrfToken).toBe('csrf-our-tab')
+
+      let csrfReads = 0
+      const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (key) {
+        if (key === 'csrf_token') {
+          csrfReads += 1
+          // อ่านแรก = ค่าของ tab นี้ (ผ่านเงื่อนไข), อ่านสอง = tab อื่นเพิ่งเขียนทับ
+          return csrfReads === 1 ? 'csrf-our-tab' : 'csrf-winner'
+        }
+        return realGetItem.call(this, key)
+      })
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'gone' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 401 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      getItemSpy.mockRestore()
+      expect(csrfReads).toBeGreaterThanOrEqual(2)
+      // recheck เห็นค่าของ tab ชนะ (จาก mock) → ห้าม clear — storage จริงยังมีค่าเดิมครบ
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-our-tab')
+      expect(localStorage.getItem('user')).not.toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+      Storage.prototype.getItem = realGetItem
+    }
+  })
+
+  it('treats 429 rate-limit as transient and keeps stored state', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+
+      const auth = useAuthStore()
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'พยายามเข้าสู่ระบบผิดเกินกำหนด' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 429 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      // 429 = rate limit ชั่วคราว — cookie ยังใช้ได้ ห้าม clear storage
+      expect(auth.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('user')).not.toBeNull()
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-123')
+      // กัน vacuous: ต้องยิง /auth/refresh จริง (ไม่ใช่ hydration หลุดแล้วเขียวเอง)
+      const refreshCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/auth/refresh'))
+      expect(refreshCalls).toHaveLength(1)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('bootstrap does not wipe storage when another tab persisted a fresh session', async () => {
+    // foreign-tab guard: refresh 401 ของ tab นี้ แต่ storage ถูก tab อื่นเขียนทับแล้ว
+    // → ห้าม clearStaleAuth() ลบของ tab ที่ชนะ (ลบ guard ทิ้งเทสนี้ต้อง fail)
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-old-tab') // ค่าที่ tab นี้ hydrate มา
+
+      const auth = useAuthStore()
+      expect(auth.csrfToken).toBe('csrf-old-tab')
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        if (!isRefresh) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: 'Unauthorized' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        }
+        // ระหว่างที่ refresh ค้างอยู่ — tab อื่น persist session ใหม่สำเร็จ
+        localStorage.setItem('user', JSON.stringify({ ...authData().user, name: 'Winner' }))
+        localStorage.setItem('csrf_token', 'csrf-winner')
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: 'gone' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      // storage ของ tab ที่ชนะต้องยังอยู่ครบ
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-winner')
+      expect(localStorage.getItem('user')).toContain('Winner')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('bootstrap refresh 400 (no cookie) is terminal and clears stale state', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+
+      const auth = useAuthStore()
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'กรุณาระบุ refresh token' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 400 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.user).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
+      expect(localStorage.getItem('csrf_token')).toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('bootstrap refresh transient failure (502) keeps stored state for next attempt', async () => {
+    const realFetch = globalThis.fetch
+    try {
+      localStorage.setItem('user', JSON.stringify(authData().user))
+      localStorage.setItem('csrf_token', 'csrf-123')
+
+      const auth = useAuthStore()
+      expect(auth.user).not.toBeNull()
+
+      globalThis.fetch = vi.fn((url) => {
+        const isRefresh = String(url).includes('/auth/refresh')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(isRefresh ? { error: 'bad gateway' } : { error: 'Unauthorized' }),
+            { status: isRefresh ? 502 : 401, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+
+      await expect(auth.checkSession()).resolves.toBe(false)
+
+      expect(auth.isAuthenticated).toBe(false)
+      // error ชั่วคราวห้ามลบ stale state — refresh cookie ยังใช้ได้รอบหน้า
+      expect(localStorage.getItem('user')).not.toBeNull()
+      expect(localStorage.getItem('csrf_token')).toBe('csrf-123')
+      expect(auth.user).not.toBeNull()
+    } finally {
+      globalThis.fetch = realFetch
     }
   })
 })

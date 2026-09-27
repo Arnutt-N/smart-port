@@ -106,6 +106,10 @@ function seedBaselineIfNeeded(PDO $pdo, array $files): array
         if (str_contains($name, 'test-seed')) {
             continue;
         }
+        // D6: คอลัมน์ยังไม่มีบน DB เก่า → ห้ามมาร์ก ให้ runner apply จริง (ดู baselineRequiresRealApply)
+        if (baselineRequiresRealApply($pdo, $name)) {
+            continue;
+        }
         if (strnatcasecmp($name, MIGRATION_BASELINE_THROUGH) > 0) {
             continue;
         }

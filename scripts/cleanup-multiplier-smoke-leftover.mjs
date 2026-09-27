@@ -6,30 +6,18 @@
  * Only deletes rows whose description/proof looks like prior smoke/UAT, OR
  * the single bonus=29 row on personnel 1 if --force-bonus29 is set.
  *
+ * D3: ใช้ cookie + CSRF ผ่าน scripts/lib/authCookieClient.mjs (ไม่มี Bearer)
+ * ห้าม print response body / auth material — ออกเฉพาะตัวเลข aggregate
+ *
  * Usage: node scripts/cleanup-multiplier-smoke-leftover.mjs
  */
+import { createAuthCookieClient } from './lib/authCookieClient.mjs'
+
 const API = (process.env.API_BASE || 'http://127.0.0.1:8000').replace(/\/$/, '')
 const USER = process.env.UAT_USER || 'admin'
 const PASS = process.env.UAT_PASS || 'admin123'
 
-async function api(method, path, { token, csrf, body } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) headers.Authorization = `Bearer ${token}`
-  if (csrf) headers['X-CSRF-Token'] = csrf
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const text = await res.text()
-  let json = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    json = { raw: text }
-  }
-  return { status: res.status, json }
-}
+const api = createAuthCookieClient(API)
 
 function isSmokeLike(row) {
   const proof = String(row.proof_reference || '')
@@ -52,16 +40,14 @@ async function main() {
   const login = await api('POST', '/auth/login', {
     body: { username: USER, password: PASS },
   })
-  if (login.status !== 200 || !login.json?.token) {
-    console.error('LOGIN FAIL', login.status, login.json?.error || 'unknown')
+  if (login.status !== 200 || !login.authenticated) {
+    console.error(`LOGIN FAIL status=${login.status}`)
     process.exit(2)
   }
-  const token = login.json.token
-  const csrf = login.json.csrf_token
 
-  const list = await api('GET', '/multiplier?limit=100', { token })
+  const list = await api('GET', '/multiplier?limit=100')
   if (list.status !== 200) {
-    console.error('LIST FAIL', list.status, list.json?.error || 'unknown')
+    console.error(`LIST FAIL status=${list.status}`)
     process.exit(2)
   }
   const rows = list.json.data || []
@@ -69,27 +55,28 @@ async function main() {
   console.log(`listed=${rows.length} smoke_like=${targets.length}`)
 
   let deleted = 0
+  let deleteFailed = 0
   for (const row of targets) {
-    const id = row.multiplier_id
-    const del = await api('DELETE', `/multiplier/${id}`, { token, csrf })
+    const del = await api('DELETE', `/multiplier/${row.multiplier_id}`)
     if (del.status >= 200 && del.status < 300) {
       deleted++
-      console.log(`deleted multiplier_id=${id} bonus=${row.bonus_days}`)
     } else {
-      console.error(`DELETE FAIL id=${id} status=${del.status}`)
+      deleteFailed++
+      console.error(`DELETE FAIL status=${del.status}`)
     }
   }
 
-  const after = await api('GET', '/multiplier?limit=100', { token })
+  const after = await api('GET', '/multiplier?limit=100')
   const summary = after.json?.summary || {}
   console.log(
     `after total=${summary.total ?? '?'} bonus_sum=${summary.total_bonus_days ?? '?'}`
   )
-  console.log(`RESULT deleted=${deleted}`)
-  process.exit(0)
+  console.log(`RESULT deleted=${deleted} delete_failed=${deleteFailed}`)
+  // delete ล้ม = cleanup ไม่สะอาด — ห้าม exit 0 ให้ขั้นถัดไปเข้าใจผิด
+  process.exit(deleteFailed ? 1 : 0)
 }
 
 main().catch((err) => {
-  console.error(err)
+  console.error(`CLEANUP ERROR phase=unhandled type=${err?.name ?? 'unknown'}`)
   process.exit(2)
 })

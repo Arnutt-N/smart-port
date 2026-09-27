@@ -11,15 +11,31 @@ function base64url_decode($data)
     return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
 }
 
-function generateJWT($user_id, $role = 'operator')
+/**
+ * D6: สร้าง access JWT ผูกกับ session deadline
+ *
+ * @param int $user_id
+ * @param string $role
+ * @param int $sessionExp Unix timestamp ของ session absolute expiry (ตอน login)
+ *                        — exp ถูก bound ด้วยค่านี้เสมอ (ไม่มีทางเกิน 12ชม./30วัน)
+ *                        · ไม่ส่งหรือไม่ใช่ int → throw InvalidArgumentException
+ * @return array{token:string,csrf_token:string}
+ */
+function generateJWT($user_id, $role = 'operator', $sessionExp = null)
 {
+    if (!is_int($sessionExp) || $sessionExp <= 0) {
+        // ป้องกันการเรียกเผลอโดยไม่ผ่าน login/refresh path — ไม่มี deadline = ไม่มีสิทธิ์ออก token
+        throw new InvalidArgumentException('generateJWT ต้องได้ sessionExp เป็น int');
+    }
     // Generate CSRF token for double-submit pattern
     $csrfToken = bin2hex(random_bytes(32));
 
     $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
     $payload = json_encode([
         'iat' => time(),
-        'exp' => time() + 3600, // หมดอายุ 1 ชม.
+        // D6: exp = min(1 ชม., session deadline) — strict: token ใช้ได้เมื่อ now < claim
+        'exp' => min(time() + AUTH_ACCESS_COOKIE_TTL_SECONDS, $sessionExp),
+        'session_exp' => $sessionExp, // D6: session absolute expiry ฝังใน token
         'csrf' => $csrfToken, // CSRF token embedded in JWT
         'data' => ['user_id' => $user_id, 'role' => $role]
     ]);
@@ -39,8 +55,10 @@ function generateJWT($user_id, $role = 'operator')
     ];
 }
 
-// อายุ refresh token = 30 วัน (access JWT อายุ 1 ชม. ใน generateJWT)
-const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+// D6: อายุ session สองโหมด (ลบ remember = session cookie + 12 ชม., จำ = 30 วัน)
+// ทั้งคู่เป็น absolute cap ที่ login — rotation ไม่ต่ออายุ (ดู routes/auth.php refreshSession)
+const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // remember=on → 30 วัน
+const SESSION_ABS_TTL_SECONDS = 60 * 60 * 12; // remember=off → 12 ชม.
 
 // สร้าง refresh token แบบ opaque (ไม่ใช่ JWT) 32 bytes -> 64 hex
 function generateRefreshToken(): string
@@ -111,6 +129,13 @@ function prunePasswordHistory(PDO $pdo, int $userId): void
         'DELETE FROM password_history WHERE history_id IN (' . implode(',', array_fill(0, count($drop), '?')) . ')'
     )->execute($drop);
 }
+/**
+ * D6: ตรวจ signature + ข้อความ exp/session_exp (strict `now < claim` ทั้งคู่)
+ *
+ * @param string|null $token access JWT จาก cookie
+ * @return array<string,mixed>|false payload `data` เมื่อผ่าน, false เมื่อปฏิเสธ
+ *                                    (ทุกเคสปฏิเสธแบบเงียบ ไม่มี warning)
+ */
 function validateJWT($token)
 {
     if (!$token) {
@@ -145,8 +170,18 @@ function validateJWT($token)
         return false;
     }
 
-    // Check expiration — exp ต้องเป็นตัวเลขและยังไม่หมดอายุ (ไม่มี/ผิดรูป = ปฏิเสธเงียบ ไม่ warning)
-    if (!isset($payload['exp']) || !is_numeric($payload['exp']) || (int) $payload['exp'] < time()) {
+    // D6: exp ต้อง valid แบบ strict `now < exp` — หมดอายุตรงวินาที = หมดอายุ
+    if (!isset($payload['exp']) || !is_int($payload['exp']) || $payload['exp'] <= time()) {
+        return false;
+    }
+
+    // D6: session_exp ต้องมี เป็น int และยังไม่หมดอายุ (token ที่ไม่มี claim = legacy ก่อน D6 → ใช้ไม่ได้)
+    if (!isset($payload['session_exp']) || !is_int($payload['session_exp']) || $payload['session_exp'] <= time()) {
+        return false;
+    }
+
+    // D6: exp ห้ามเกิน session deadline — ทั้งสอง claim ต้อง strict `now < claim`
+    if ($payload['exp'] > $payload['session_exp']) {
         return false;
     }
 
@@ -161,7 +196,7 @@ function validateJWT($token)
 // ชื่อสั้น + prefix sp_ กันชน cookie อื่น; frontend ตัวเดียวใน repo ใช้ผ่าน /api (same-origin)
 const AUTH_ACCESS_COOKIE = 'sp_access';
 const AUTH_REFRESH_COOKIE = 'sp_refresh';
-const AUTH_ACCESS_COOKIE_TTL_SECONDS = 3600; // = อายุ access JWT ใน generateJWT
+const AUTH_ACCESS_COOKIE_TTL_SECONDS = 3600; // อายุ access JWT สูงสุด — จริงคือ min(1 ชม., session deadline)
 const AUTH_REFRESH_COOKIE_PATH = '/api/auth'; // แคบสุด — ใช้ได้เฉพาะเส้น refresh/logout
 
 /**
@@ -179,19 +214,28 @@ function isHttpsRequest(): bool
 }
 
 /**
- * D3: พารามิเตอร์ setcookie มาตรฐาน (pure core — เทส flags ได้โดยไม่แตะ header จริง)
+ * D6: พารามิเตอร์ setcookie มาตรฐาน (pure core — เทส flags ได้โดยไม่แตะ header จริง)
  *
- * @return array{expires:int,path:string,secure:bool,httponly:bool,samesite:string}
+ * $expiresAt = null → ไม่ส่ง key `expires` เลย = PHP ออก session cookie (จำไม่ได้);
+ * $expiresAt = int  → persistent cookie หมดอายุที่ timestamp นั้น
+ *
+ * @param string $path
+ * @param int|null $expiresAt Unix timestamp หรือ null (session cookie)
+ * @return array{path:string,secure:bool,httponly:bool,samesite:string,expires?:int}
  */
-function authCookieParams(string $path, int $ttlSeconds): array
+function authCookieParams(string $path, ?int $expiresAt = null): array
 {
-    return [
-        'expires' => time() + $ttlSeconds,
+    $params = [
         'path' => $path,
         'secure' => isHttpsRequest(),
         'httponly' => true,
         'samesite' => 'Lax',
     ];
+    if ($expiresAt !== null) {
+        $params['expires'] = $expiresAt;
+    }
+
+    return $params;
 }
 
 /**
@@ -199,7 +243,7 @@ function authCookieParams(string $path, int $ttlSeconds): array
  * headers_list() ว่างเสมอ จึง capture ผ่าน $GLOBALS['__capture_cookies'] แทน
  * เมื่อ integration test ตั้ง hook นี้ไว้; production ไม่ตั้ง = setcookie จริง)
  *
- * @param array{expires:int,path:string,secure:bool,httponly:bool,samesite:string} $params
+ * @param array{path:string,secure:bool,httponly:bool,samesite:string,expires?:int} $params
  */
 function emitSessionCookie(string $name, string $value, array $params): void
 {
@@ -212,21 +256,32 @@ function emitSessionCookie(string $name, string $value, array $params): void
 }
 
 /**
- * D3: ออก session cookies คู่หลัง login/refresh สำเร็จ (body response คงเดิม — compat-keep)
+ * D6: ออก session cookies คู่หลัง login/refresh สำเร็จ (body response คงเดิม — compat-keep)
+ *
+ * remember=false (session mode): ทั้งคู่เป็น session cookie — ส่ง null/null
+ *   → ไม่มี Expires/Max-Age ฝั่ง browser (อายุจริงคุมที่ server ด้วย session_exp)
+ * remember=true (persistent): access = JWT exp, refresh = session deadline
+ *
+ * @param string $accessJwt
+ * @param string $refreshRawToken
+ * @param int|null $accessExpiresAt
+ * @param int|null $refreshExpiresAt
  */
-function setAuthCookies(string $accessJwt, string $refreshRawToken): void
+function setAuthCookies(string $accessJwt, string $refreshRawToken, ?int $accessExpiresAt, ?int $refreshExpiresAt): void
 {
-    emitSessionCookie(AUTH_ACCESS_COOKIE, $accessJwt, authCookieParams('/', AUTH_ACCESS_COOKIE_TTL_SECONDS));
-    emitSessionCookie(AUTH_REFRESH_COOKIE, $refreshRawToken, authCookieParams(AUTH_REFRESH_COOKIE_PATH, REFRESH_TOKEN_TTL_SECONDS));
+    emitSessionCookie(AUTH_ACCESS_COOKIE, $accessJwt, authCookieParams('/', $accessExpiresAt));
+    emitSessionCookie(AUTH_REFRESH_COOKIE, $refreshRawToken, authCookieParams(AUTH_REFRESH_COOKIE_PATH, $refreshExpiresAt));
 }
 
 /**
- * D3: ล้าง session cookies คู่ (logout — path/flags ต้องตรงตอนออก ไม่งั้น browser ไม่อัปเดต)
+ * D6: ล้าง session cookies คู่ (terminal rejection / logout — path/flags ต้องตรงตอนออก
+ * ไม่งั้น browser ไม่อัปเดต) — ใช้ absolute expiry ในอดีตเสมอ ไม่สน remember mode
  */
 function clearAuthCookies(): void
 {
-    emitSessionCookie(AUTH_ACCESS_COOKIE, '', authCookieParams('/', -3600));
-    emitSessionCookie(AUTH_REFRESH_COOKIE, '', authCookieParams(AUTH_REFRESH_COOKIE_PATH, -3600));
+    $past = time() - 3600;
+    emitSessionCookie(AUTH_ACCESS_COOKIE, '', authCookieParams('/', $past));
+    emitSessionCookie(AUTH_REFRESH_COOKIE, '', authCookieParams(AUTH_REFRESH_COOKIE_PATH, $past));
 }
 
 // D3 cut over: อ่าน access JWT จาก httpOnly cookie เท่านั้น (เลิกอ่าน Authorization header)

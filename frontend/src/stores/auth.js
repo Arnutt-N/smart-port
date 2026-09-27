@@ -185,7 +185,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(credentials, { remember = false } = {}) {
     const { useApi } = await import('@/composables/useApi.js')
     const api = useApi()
-    const data = await api.post('/auth/login', credentials)
+    // D6: remember ต้องส่งลง body ด้วย — server ใช้ตัดสิน TTL (12 ชม. vs 30 วัน)
+    const data = await api.post('/auth/login', { ...credentials, remember })
     setAuth(data, { remember })
     grantsPromise = null
     grantsGeneration++
@@ -202,10 +203,46 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         const API_BASE = import.meta.env.VITE_API_URL || '/api'
         // timeout กันตาย: backend ดับต้องได้หน้า login ใน 10 วิ ไม่ใช่ค้างขาว (mount ถูกบล็อกอยู่)
-        const response = await fetch(`${API_BASE}/auth/me`, {
-          credentials: 'include',
-          signal: AbortSignal.timeout(10000),
-        })
+        const fetchMe = () =>
+          fetch(`${API_BASE}/auth/me`, {
+            credentials: 'include',
+            signal: AbortSignal.timeout(10000),
+          })
+        let response = await fetchMe()
+
+        // D6 bootstrap: access JWT หมดอายุแต่ refresh cookie ยังอยู่ (เช่นเปิดแท็บใหม่
+        // หลัง 1 ชม.) — ต่ออายุครั้งเดียวแล้ว retry /auth/me ครั้งเดียว
+        // visitor ใหม่ที่ไม่มี user ใน storage ห้ามยิง refresh
+        if (response.status === 401 && user.value) {
+          try {
+            await requestRefresh()
+            response = await fetchMe()
+          } catch (e) {
+            // เคลียร์เฉพาะ refresh ที่ server ปฏิเสธจริง (4xx = terminal:
+            // 401 token ตาย, 400 ไม่มี cookie ให้ใช้แล้ว) — error ชั่วคราว
+            // (network/5xx/timeout) คง user ไว้ กัน bootstrap ตายทั้งที่
+            // refresh cookie ยังใช้ได้
+            const status = e?.status
+            // terminal เฉพาะที่ server บอกว่า credential ใช้ไม่ได้จริง —
+            // 429 (rate limit) / 408 / 425 ยังเป็น transient: cookie ยังใช้ได้
+            // ห้าม clear เดี๋ยวโดนเขี่ยออกทั้งที่ session ยังอยู่
+            if (status === 400 || status === 401 || status === 403) {
+              // กัน TOCTOU ข้าม tab: อ่านซ้ำทันทีก่อนลบ — ถ้า tab อื่นเพิ่ง persist
+              // session ใหม่ (csrf ใน storage ต่างจากของ tab นี้) ห้ามลบของ tab ที่ชนะ
+              const readStoredCsrf = () =>
+                localStorage.getItem('csrf_token') ?? sessionStorage.getItem('csrf_token')
+              const storedCsrf = readStoredCsrf()
+              const foreignUpdate = storedCsrf !== null && storedCsrf !== '' && storedCsrf !== csrfToken.value
+              if (!foreignUpdate) {
+                const recheck = readStoredCsrf()
+                const stillOurs = recheck === null || recheck === '' || recheck === csrfToken.value
+                if (stillOurs) clearStaleAuth()
+              }
+            }
+            return false
+          }
+        }
+
         if (!response.ok) {
           isAuthenticated.value = false
           return false
@@ -239,14 +276,24 @@ export const useAuthStore = defineStore('auth', () => {
     return sessionCheckPromise
   }
 
+  // เคลียร์ state ค้างใน storage ทั้งสองฝั่งเมื่อ bootstrap refresh ล้มเหลว
+  // (user/csrf ใน localStorage/sessionStorage ไม่ใช่หลักฐาน auth — เฉพาะ cookie เท่านั้น)
+  function clearStaleAuth() {
+    user.value = null
+    csrfToken.value = ''
+    for (const storage of authStorages()) {
+      for (const key of AUTH_STORAGE_KEYS) storage.removeItem(key)
+    }
+    isAuthenticated.value = false
+    permissionGrants.value = null
+    sessionGeneration++
+  }
+
   let refreshPromise = null
 
-  // ต่ออายุ session ด้วย refresh cookie — single-flight กัน 401 หลายตัวยิงพร้อมกัน
-  // ใช้ raw fetch (ไม่ผ่าน useApi) เพื่อเลี่ยง recursion กับ 401 interceptor
-  async function refresh() {
-    if (!isAuthenticated.value) {
-      throw new Error('No active session')
-    }
+  // raw refresh — ไม่เช็ค isAuthenticated (checkSession เรียกตอนยัง false ได้)
+  // single-flight + generation checks เหมือน refresh() เดิม
+  async function requestRefresh() {
     if (refreshPromise) {
       return refreshPromise
     }
@@ -256,13 +303,17 @@ export const useAuthStore = defineStore('auth', () => {
     const staleRefreshError = () => Object.assign(new Error('เซสชันเปลี่ยนระหว่างต่ออายุโทเค็น'), { code: 'SESSION_CHANGED' })
     const flight = (async () => {
       // D3: ไม่ส่ง body — backend อ่าน refresh จาก httpOnly cookie
+      // timeout เท่ากับ fetchMe — กัน bootstrap ค้าง White Screen ไม่จำกัด
       const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal: AbortSignal.timeout(10000),
       })
       if (!response.ok) {
-        throw new Error('Refresh failed')
+        const error = new Error('Refresh failed')
+        error.status = response.status
+        throw error
       }
       const data = await response.json()
       if (sessionGeneration !== startedGeneration) throw staleRefreshError()
@@ -279,6 +330,15 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       refreshPromise = null
     }
+  }
+
+  // ต่ออายุ session ด้วย refresh cookie — single-flight กัน 401 หลายตัวยิงพร้อมกัน
+  // ใช้ raw fetch (ไม่ผ่าน useApi) เพื่อเลี่ยง recursion กับ 401 interceptor
+  async function refresh() {
+    if (!isAuthenticated.value) {
+      throw new Error('No active session')
+    }
+    return requestRefresh()
   }
 
   function setMustChangePassword(required) {

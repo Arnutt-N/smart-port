@@ -15,9 +15,9 @@ async function authenticatedFetch(url, options = {}, retried = false) {
 
   // D3: session อยู่ใน httpOnly cookies — ไม่แนบ Authorization header อีก
 
-  // Add CSRF token for state-changing requests
+  // Add CSRF token for state-changing requests (ตรงกับ $statefulMethods ใน backend/api.php)
   const method = options.method || 'GET'
-  if (['POST', 'PUT', 'DELETE'].includes(method) && auth.csrfToken) {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && auth.csrfToken) {
     headers['X-CSRF-Token'] = auth.csrfToken
   }
 

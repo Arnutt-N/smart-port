@@ -3,18 +3,25 @@
  * Live API UAT — TC-001..TC-010 from docs/multiplier_phase0_uat_cases_template.csv
  * against POST /multiplier (local Docker backend). Creates then deletes each row.
  *
+ * D3: ใช้ cookie + CSRF ผ่าน scripts/lib/authCookieClient.mjs (ไม่มี Bearer)
+ * ผลลัพธ์ stdout/stderr เป็น aggregate เท่านั้น — ห้ามมี case ID/row value/path หลุด
+ *
  * Usage: node scripts/uat-multiplier-live-api.mjs
  * Env: API_BASE (default http://127.0.0.1:8000), UAT_USER, UAT_PASS
  */
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createAuthCookieClient } from './lib/authCookieClient.mjs'
+import { formatSanitizedUatSummary } from './lib/sanitizedUatOutput.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const API = (process.env.API_BASE || 'http://127.0.0.1:8000').replace(/\/$/, '')
 const USER = process.env.UAT_USER || 'admin'
 const PASS = process.env.UAT_PASS || 'admin123'
 const CSV = resolve(ROOT, 'docs/multiplier_phase0_uat_cases_template.csv')
+
+const api = createAuthCookieClient(API)
 
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/)
@@ -42,25 +49,6 @@ function parseCsv(text) {
     })
     return row
   })
-}
-
-async function api(method, path, { token, csrf, body } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) headers.Authorization = `Bearer ${token}`
-  if (csrf) headers['X-CSRF-Token'] = csrf
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const text = await res.text()
-  let json = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    json = { raw: text }
-  }
-  return { status: res.status, json }
 }
 
 function districtKey(d) {
@@ -104,6 +92,7 @@ function num(v) {
   return Number(v)
 }
 
+/** เทียบค่า — คืน "ชื่อฟิลด์" ที่ไม่ตรงเท่านั้น (ค่าจริงเก็บใน memory ห้าม log) */
 function compare(tc, computed) {
   const checks = [
     ['eligible_start_date', tc.expected_eligible_start_date, computed.eligible_start_date],
@@ -116,8 +105,7 @@ function compare(tc, computed) {
     ['net_months', num(tc.expected_net_months), num(computed.net_months)],
     ['net_day_remainder', num(tc.expected_net_days), num(computed.net_day_remainder)],
   ]
-  const fails = checks.filter(([, exp, got]) => String(exp) !== String(got))
-  return fails.map(([field, exp, got]) => `${field}: expected ${exp}, got ${got}`)
+  return checks.filter(([, exp, got]) => String(exp) !== String(got)).map(([field]) => field)
 }
 
 async function main() {
@@ -128,35 +116,31 @@ async function main() {
   const login = await api('POST', '/auth/login', {
     body: { username: USER, password: PASS },
   })
-  if (login.status !== 200 || !login.json?.token) {
-    console.error('LOGIN FAIL', login.status, login.json?.error || login.json)
+  if (login.status !== 200 || !login.authenticated) {
+    console.error(`LOGIN FAIL status=${login.status}`)
     process.exit(2)
   }
-  const token = login.json.token
-  const csrf = login.json.csrf_token
-  if (login.json.user?.must_change_password) {
+  if (login.json?.user?.must_change_password) {
     console.error('LOGIN OK but must_change_password=true — change password first')
     process.exit(2)
   }
 
-  const areasRes = await api('GET', '/multiplier/areas?limit=100', { token })
+  const areasRes = await api('GET', '/multiplier/areas?limit=100')
   if (areasRes.status !== 200) {
-    console.error('AREAS FAIL', areasRes.status, areasRes.json)
+    console.error(`AREAS FAIL status=${areasRes.status}`)
     process.exit(2)
   }
   const areas = areasRes.json.data || areasRes.json.areas || areasRes.json
   if (!Array.isArray(areas)) {
-    console.error('AREAS unexpected shape', Object.keys(areasRes.json || {}))
+    console.error('AREAS unexpected shape')
     process.exit(2)
   }
 
   // Use the paginated master list so the UAT works with both TEST_SEED and real HR data.
   // Supplying offset selects this mode without relying on fixture-specific search text.
-  const peopleRes = await api('GET', '/personnel?offset=0&limit=20', {
-    token,
-  })
+  const peopleRes = await api('GET', '/personnel?offset=0&limit=20')
   if (peopleRes.status !== 200) {
-    console.error('PERSONNEL FAIL', peopleRes.status, peopleRes.json?.error || 'unknown')
+    console.error(`PERSONNEL FAIL status=${peopleRes.status}`)
     process.exit(2)
   }
   const people = peopleRes.json.data || peopleRes.json
@@ -164,7 +148,7 @@ async function main() {
     .map((p) => p.personnel_id)
     .filter(Boolean)
   if (personnelIds.length < 1) {
-    console.error('No personnel_id available for UAT create (search pool empty)')
+    console.error('PERSONNEL EMPTY — no personnel_id available for UAT create')
     process.exit(2)
   }
 
@@ -174,114 +158,126 @@ async function main() {
 
   let pass = 0
   let fail = 0
-  const results = []
+  let cleanupFailed = 0
+  const mismatchFieldTally = [] // ชื่อฟิลด์เท่านั้น ไม่มีค่า
 
   for (let i = 0; i < cases.length; i++) {
     const tc = cases[i]
     const area = pickArea(areas, tc)
     if (!area) {
       fail++
-      results.push({
-        id: tc.case_id,
-        ok: false,
-        detail: `no matching area for ${tc.province}/${tc.district || '(whole)'} @ ${tc.service_start_date}..${tc.service_end_date}`,
-      })
-      console.log(`FAIL ${tc.case_id} — no matching area`)
+      console.log('FAIL phase=select_area')
       continue
     }
 
     // rotate personnel to reduce overlap 409 risk across cases
     const personnelId = personnelIds[i % personnelIds.length]
-    const create = await api('POST', '/multiplier', {
-      token,
-      csrf,
-      body: {
-        personnel_id: personnelId,
-        area_multiplier_id: area.area_multiplier_id,
-        start_date: tc.service_start_date,
-        end_date: tc.service_end_date,
-        proof_reference: `UAT-${tc.case_id}`,
-        description: `Live API UAT ${tc.case_id}`,
-      },
-    })
+    // create/retry ทั้งก้อน: timeout/network หลัง server commit ได้ = row อาจค้าง
+    // โดยไม่มี id มาลบ → นับทั้ง fail และ cleanup_failed (fail-closed) แล้วไปเคสถัดไป
+    // ห้ามให้ exception กลางลูปฆ่ารอบทั้งหมด (เคสที่เหลือจะไม่ถูกรัน/นับ)
+    let create
+    try {
+      create = await api('POST', '/multiplier', {
+        body: {
+          personnel_id: personnelId,
+          area_multiplier_id: area.area_multiplier_id,
+          start_date: tc.service_start_date,
+          end_date: tc.service_end_date,
+          proof_reference: `UAT-${tc.case_id}`,
+          description: `Live API UAT ${tc.case_id}`,
+        },
+      })
 
-    if (create.status === 409) {
-      // retry with next personnel
-      let created = null
-      for (const pid of personnelIds) {
-        if (pid === personnelId) continue
-        const retry = await api('POST', '/multiplier', {
-          token,
-          csrf,
-          body: {
-            personnel_id: pid,
-            area_multiplier_id: area.area_multiplier_id,
-            start_date: tc.service_start_date,
-            end_date: tc.service_end_date,
-            proof_reference: `UAT-${tc.case_id}`,
-            description: `Live API UAT ${tc.case_id}`,
-          },
-        })
-        if (retry.status === 201) {
-          created = retry
-          break
+      if (create.status === 409) {
+        // retry with next personnel
+        let created = null
+        for (const pid of personnelIds) {
+          if (pid === personnelId) continue
+          const retry = await api('POST', '/multiplier', {
+            body: {
+              personnel_id: pid,
+              area_multiplier_id: area.area_multiplier_id,
+              start_date: tc.service_start_date,
+              end_date: tc.service_end_date,
+              proof_reference: `UAT-${tc.case_id}`,
+              description: `Live API UAT ${tc.case_id}`,
+            },
+          })
+          if (retry.status === 201) {
+            created = retry
+            break
+          }
+        }
+        if (!created) {
+          fail++
+          console.log('FAIL phase=create status=409')
+          continue
+        }
+        Object.assign(create, created)
+      }
+    } catch {
+      fail++
+      cleanupFailed++ // อาจ commit สำเร็จก่อน connection ขาด — ปล่อยรั่วเงียบไม่ได้
+      console.error('FAIL phase=create_exception')
+      continue
+    }
+
+    // cleanup ทุกแถวที่ create สำเร็จ (201) — แม้ response shape เพี้ยน (ไม่มี
+    // multiplier_id ก็ลบไม่ได้ → นับเป็น cleanup failure ห้ามปล่อยผ่านเงียบ)
+    if (create.status === 201) {
+      const mid = create.json?.multiplier_id
+      if (!mid) {
+        cleanupFailed++
+        console.error('CLEANUP FAIL phase=missing_id')
+      } else {
+        try {
+          const cleanup = await api('DELETE', `/multiplier/${mid}`)
+          if (cleanup.status < 200 || cleanup.status >= 300) {
+            cleanupFailed++
+            console.error(`CLEANUP FAIL status=${cleanup.status}`)
+          }
+        } catch {
+          // network/timeout กลาง cleanup — นับเป็น failure ห้ามเดินหน้าเงียบ
+          cleanupFailed++
+          console.error('CLEANUP FAIL phase=exception')
         }
       }
-      if (!created) {
-        fail++
-        results.push({
-          id: tc.case_id,
-          ok: false,
-          detail: `409 overlap for all personnel (area ${area.area_multiplier_id})`,
-        })
-        console.log(`FAIL ${tc.case_id} — overlap 409`)
-        continue
-      }
-      Object.assign(create, created)
     }
 
     if (create.status !== 201 || !create.json?.computed) {
       fail++
-      results.push({
-        id: tc.case_id,
-        ok: false,
-        detail: `HTTP ${create.status}: ${create.json?.error || JSON.stringify(create.json)}`,
-      })
-      console.log(`FAIL ${tc.case_id} — HTTP ${create.status}`)
+      console.log(`FAIL phase=create status=${create.status}`)
       continue
     }
 
-    const mismatches = compare(tc, create.json.computed)
-    const mid = create.json.multiplier_id
+    const mismatchFields = compare(tc, create.json.computed)
 
-    // cleanup always
-    if (mid) {
-      await api('DELETE', `/multiplier/${mid}`, { token, csrf })
-    }
-
-    if (mismatches.length) {
+    if (mismatchFields.length) {
       fail++
-      results.push({ id: tc.case_id, ok: false, detail: mismatches.join('; ') })
-      console.log(`FAIL ${tc.case_id} — ${mismatches.join('; ')}`)
+      mismatchFieldTally.push(...mismatchFields)
+      console.log('FAIL phase=compare')
     } else {
       pass++
-      results.push({
-        id: tc.case_id,
-        ok: true,
-        detail: `area=${area.area_multiplier_id} ${area.basis_type} eligible=${create.json.computed.eligible_days} bonus=${create.json.computed.bonus_days}`,
-      })
-      console.log(
-        `PASS ${tc.case_id} — area ${area.area_multiplier_id} (${area.basis_type}) eligible=${create.json.computed.eligible_days} bonus=${create.json.computed.bonus_days}`
-      )
     }
   }
 
+  const summary = formatSanitizedUatSummary({
+    total: cases.length,
+    passed: pass,
+    failed: fail,
+    mismatchFields: mismatchFieldTally,
+  })
   console.log('---')
-  console.log(`RESULT: ${pass}/${cases.length} PASS, ${fail} FAIL`)
-  process.exit(fail ? 1 : 0)
+  console.log(
+    `RESULT: passed=${summary.passed}/${summary.total} failed=${summary.failed} ` +
+      `cleanup_failed=${cleanupFailed} ` +
+      `mismatch_fields=${JSON.stringify(summary.mismatchFields)}`
+  )
+  // row ที่ลบไม่สำเร็จ = ต้อง fail (ห้ามปล่อยผ่านเป็น 0)
+  process.exit(fail || cleanupFailed ? 1 : 0)
 }
 
 main().catch((err) => {
-  console.error(err)
+  console.error(`UAT ERROR phase=unhandled type=${err?.name ?? 'unknown'}`)
   process.exit(2)
 })
