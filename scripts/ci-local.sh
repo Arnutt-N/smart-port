@@ -106,7 +106,7 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
   docker rm -f tidb-init-smoke >/dev/null 2>&1 || true
   CONTAINER=$(docker run -d --name tidb-init-smoke \
     -e MYSQL_ROOT_PASSWORD=rootpassword \
-    -e MYSQL_DATABASE=civil_service_mgmt \
+    -e MYSQL_DATABASE=smartport \
     -v "${TIDB_SRC}:/docker-entrypoint-initdb.d/tidb-init.sql" \
     mysql:8.0)
   # assert SQL อยู่ไฟล์เดียวกับ ci.yml — ห้าม copy inline (สำเนาเพี้ยนกันเองได้)
@@ -116,7 +116,7 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
   # สอง mirror เหลื่อมกันโดยไม่จำเป็น)
   for _ in $(seq 1 60); do
     if docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword --silent \
-        -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt >/dev/null 2>&1; then
+        -e 'SELECT 1 FROM personnel LIMIT 1' smartport >/dev/null 2>&1; then
       BOOTSTRAP_OK=1
       break
     fi
@@ -129,7 +129,7 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
     # `|| ASSERT_OUT=''` — กัน `set -euo pipefail` (บรรทัด 24) abort ก่อนพิมพ์ breakdown/
     # docker logs เมื่อ exec ล้ม (เช่น ตารางหายตาม drift): ให้ไหลเข้าเส้นทาง stdout-ว่างด้านล่าง
     ASSERT_OUT=$(docker exec -i "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword \
-      --batch --skip-column-names civil_service_mgmt < "${ASSERT_SQL}") || ASSERT_OUT=''
+      --batch --skip-column-names smartport < "${ASSERT_SQL}") || ASSERT_OUT=''
     echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
     echo "${ASSERT_OUT:-<empty — assert exec failed>}"
     EMPTY_TABLES=$(printf '%s\n' "${ASSERT_OUT}" | tail -n 1)
@@ -138,7 +138,7 @@ if [[ "${SKIP_TIDB_BOOTSTRAP}" -eq 0 ]]; then
   fi
   # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
   if [[ "${BOOTSTRAP_OK}" -eq 1 ]] && \
-      docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+      docker exec "${CONTAINER}" mysql -h 127.0.0.1 -uroot -prootpassword smartport \
       -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' >/dev/null 2>&1; then
     ok 'tidb-init.sql bootstrap'
   else

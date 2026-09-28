@@ -36,7 +36,7 @@
         :key="section.id"
       >
         <div
-          class="text-[11px] font-semibold uppercase text-gray-500 mb-2"
+          class="text-[11px] font-semibold uppercase text-gray-500 mb-2" data-ds-allow-hardcode="11px section label — typography.json เริ่มที่ xs=12"
           :class="sIdx === 0 ? 'mt-2' : 'mt-6'"
         >
           {{ section.label }}
@@ -54,7 +54,7 @@
                 :aria-expanded="openSubmenus.has(item.id)"
                 :aria-controls="'sidebar-submenu-' + item.id"
                 :class="isParentActive(item)
-                  ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
+                  ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400' /* ds-allow-hardcode: 3px active indicator — Tailwind border scale ไม่มี 3 */
                   : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
                 @click="toggleSubmenu(item.id)"
               >
@@ -98,7 +98,7 @@
               :aria-current="route.path === item.to ? 'page' : undefined"
               class="flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               :class="route.path === item.to
-                ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400'
+                ? 'bg-primary-600/10 text-primary-400 border-l-[3px] border-primary-400' /* ds-allow-hardcode: 3px active indicator — Tailwind border scale ไม่มี 3 */
                 : 'text-gray-300 hover:bg-white/5 hover:text-white hover:translate-x-0.5 transition-all duration-150'"
             >
               <component
@@ -131,7 +131,7 @@
               <p class="text-white text-sm font-medium truncate">
                 {{ auth.user?.name || 'ผู้ใช้' }}
               </p>
-              <span class="text-[10px] px-1.5 py-0.5 bg-primary-500/20 text-primary-300 rounded font-medium shrink-0">
+              <span class="text-[10px] px-1.5 py-0.5 bg-primary-500/20 text-primary-300 rounded font-medium shrink-0" data-ds-allow-hardcode="10px role badge — typography.json เริ่มที่ xs=12">
                 {{ roleLabel(auth.user?.role) }}
               </span>
             </div>

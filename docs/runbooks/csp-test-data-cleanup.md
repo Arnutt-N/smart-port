@@ -23,13 +23,13 @@
 # แทนที่ <HOST> <PORT> <USER> ด้วยค่าจาก Render env ของ service smartport-backend
 mysqldump --default-character-set=utf8mb4 --set-charset \
   -h <HOST> -P <PORT> -u <USER> -p --ssl-mode=REQUIRED \
-  civil_service_mgmt personnel \
+  smartport personnel \
   --where="first_name LIKE 'ทดสอบCSP%' OR last_name LIKE 'ทดสอบCSP%'" \
   > backup-csp-personnel-$(date +%Y%m%d).sql
 
 mysqldump --default-character-set=utf8mb4 --set-charset \
   -h <HOST> -P <PORT> -u <USER> -p --ssl-mode=REQUIRED \
-  civil_service_mgmt special_area_multiplier \
+  smartport special_area_multiplier \
   --where="province LIKE 'ทดสอบCSP-%'" \
   > backup-csp-areas-$(date +%Y%m%d).sql
 ```

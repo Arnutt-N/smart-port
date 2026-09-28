@@ -151,7 +151,7 @@ if (-not $SkipTidbBootstrap) {
     docker rm -f tidb-init-smoke 2>&1 | Out-Null
     $mysql = docker run -d --name tidb-init-smoke `
       -e MYSQL_ROOT_PASSWORD=rootpassword `
-      -e MYSQL_DATABASE=civil_service_mgmt `
+      -e MYSQL_DATABASE=smartport `
       -v "$(Join-Path $Root 'database/tidb-init.sql'):/docker-entrypoint-initdb.d/tidb-init.sql" `
       mysql:8.0 2>&1
     $container = ($mysql -join "`n") -replace '^([0-9a-f]{12}).*', '$1'
@@ -159,7 +159,7 @@ if (-not $SkipTidbBootstrap) {
     # probe ก่อนแล้วค่อย sleep — ตรงกับ ci.yml และ ci-local.sh
     for ($i = 0; $i -lt 60; $i++) {
       docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword --silent `
-        -e 'SELECT 1 FROM personnel LIMIT 1' civil_service_mgmt *> $null
+        -e 'SELECT 1 FROM personnel LIMIT 1' smartport *> $null
       if ($LASTEXITCODE -eq 0) { $bootstrapOk = $true; break }
       Start-Sleep -Seconds 5
     }
@@ -169,7 +169,7 @@ if (-not $SkipTidbBootstrap) {
       # ไม่ merge stderr — mysql เตือนเรื่อง -p ทุกครั้ง จะทำให้แถวสุดท้ายเพี้ยน
       # -Encoding UTF8 — Windows PowerShell 5.1 อ่านไฟล์ UTF-8 ไร้ BOM เป็น ANSI เป็นค่าเริ่มต้น
       $assertOut = Get-Content (Join-Path $Root 'scripts/sql/tidb-init-smoke-assert.sql') -Raw -Encoding UTF8 |
-        docker exec -i $container mysql -h 127.0.0.1 -uroot -prootpassword --batch --skip-column-names civil_service_mgmt
+        docker exec -i $container mysql -h 127.0.0.1 -uroot -prootpassword --batch --skip-column-names smartport
       # print ตารางทั้งหมดก่อน — ตอน fail ต้องรู้ว่าตารางไหนว่าง ไม่ใช่แค่กี่ตาราง
       Write-Host 'seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):'
       if ($assertOut) { Write-Host (@($assertOut) -join "`n") } else { Write-Host '<empty — assert exec failed>' }
@@ -183,7 +183,7 @@ if (-not $SkipTidbBootstrap) {
       if ($LASTEXITCODE -ne 0 -or "$emptyTables" -ne '0') { $bootstrapOk = $false }
     }
     if ($bootstrapOk) {
-      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt `
+      docker exec $container mysql -h 127.0.0.1 -uroot -prootpassword smartport `
         -e 'SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;' *> $null
       if ($LASTEXITCODE -ne 0) { $bootstrapOk = $false }
     }

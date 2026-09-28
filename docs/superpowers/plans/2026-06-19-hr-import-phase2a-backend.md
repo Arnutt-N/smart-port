@@ -628,7 +628,7 @@ CREATE TABLE import_log (
 
 - [ ] **Step 2: apply ใน Docker DB เพื่อ test ถัดไป**
 
-Run: `docker compose exec -T db mysql -uroot -prootpassword civil_service_mgmt < database/10-import-log.sql`
+Run: `docker compose exec -T db mysql -uroot -prootpassword smartport < database/10-import-log.sql`
 Expected: ไม่มี error (table created)
 
 - [ ] **Step 3: Commit**
@@ -756,7 +756,7 @@ Expected: ครั้งแรก `{"success":true,...}`; fake.xlsx → `415`
 
 - [ ] **Step 4: ยืนยัน audit log บันทึก**
 
-Run: `docker compose exec -T db mysql -uroot -prootpassword civil_service_mgmt -e "SELECT user_id, filename, personnel_count, is_success FROM import_log ORDER BY log_id DESC LIMIT 3;"`
+Run: `docker compose exec -T db mysql -uroot -prootpassword smartport -e "SELECT user_id, filename, personnel_count, is_success FROM import_log ORDER BY log_id DESC LIMIT 3;"`
 Expected: เห็นแถว import ที่เพิ่งทำ (ไม่มี citizen_id)
 
 - [ ] **Step 5: Commit**

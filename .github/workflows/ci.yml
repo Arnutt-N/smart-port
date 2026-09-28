@@ -87,7 +87,7 @@ jobs:
         run: |
           cat > .env <<'EOF'
           MYSQL_ROOT_PASSWORD=rootpassword
-          MYSQL_DATABASE=civil_service_mgmt
+          MYSQL_DATABASE=smartport
           MYSQL_USER=root
           MYSQL_PASSWORD=rootpassword
           JWT_SECRET=ci-only-not-for-production-jwt-32chars-min-000000
@@ -169,6 +169,7 @@ jobs:
           python scripts/validate_template.py
           python scripts/validate_instruction_surface.py
           python scripts/check_no_emoji.py
+          python scripts/lint_hardcodes.py --no-tw frontend/src
       - name: Token build smoke (full var set, not colours-only)
         run: |
           node scripts/build_tokens.mjs --out /tmp/theme.css
@@ -198,7 +199,7 @@ jobs:
           docker rm -f tidb-init-smoke >/dev/null 2>&1 || true
           docker run -d --name tidb-init-smoke \
             -e MYSQL_ROOT_PASSWORD=rootpassword \
-            -e MYSQL_DATABASE=civil_service_mgmt \
+            -e MYSQL_DATABASE=smartport \
             -v "$PWD/database/tidb-init.sql:/docker-entrypoint-initdb.d/tidb-init.sql" \
             mysql:8.0
 
@@ -208,14 +209,14 @@ jobs:
           # socket-only (--skip-networking) — probe ผ่าน socket จะผ่านก่อน init จบ (Issue #129)
           for i in $(seq 1 60); do
             if docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword --silent \
-              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+              -e "SELECT 1 FROM personnel LIMIT 1" smartport >/dev/null 2>&1; then
               echo "bootstrap ready"; break
             fi
             sleep 5
           done
           # init SQL ล้ม = entrypoint abort -> container ไม่ถึง ready จน timeout
           if ! docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword --silent \
-              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+              -e "SELECT 1 FROM personnel LIMIT 1" smartport >/dev/null 2>&1; then
             echo "tidb-init.sql bootstrap timed out"; docker logs tidb-init-smoke 2>&1 | tail -n 50; exit 1
           fi
           # ตาราง seed ต้องมีแถวจริง — assert fail-closed จากไฟล์เดียวกับ ci-local
@@ -224,7 +225,7 @@ jobs:
           # `|| ASSERT_OUT=''` — กัน `bash -e` ของ run block abort ก่อนพิมพ์ breakdown/docker
           # logs เมื่อ exec ล้ม (เช่น ตารางหายตาม drift): ให้ไหลเข้าเส้นทาง stdout-ว่างด้านล่าง
           ASSERT_OUT=$(docker exec -i tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword \
-            --batch --skip-column-names civil_service_mgmt \
+            --batch --skip-column-names smartport \
             < scripts/sql/tidb-init-smoke-assert.sql) || ASSERT_OUT=''
           echo "seed row counts (แถวสุดท้าย = จำนวนตารางที่ว่าง):"
           echo "${ASSERT_OUT:-<empty — assert exec failed>}"
@@ -234,7 +235,7 @@ jobs:
             docker logs tidb-init-smoke 2>&1 | tail -n 50; exit 1
           fi
           # view ต้อง compile ได้จริง — text-parity ตรวจไม่ได้
-          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword civil_service_mgmt \
+          docker exec tidb-init-smoke mysql -h 127.0.0.1 -uroot -prootpassword smartport \
             -e "SELECT COUNT(*) FROM vw_probation_dashboard; SELECT COUNT(*) FROM vw_audit_log;" >/dev/null
           echo "tidb-init.sql bootstrap OK"
 
@@ -250,7 +251,7 @@ jobs:
         run: |
           docker run -d --name ci-mysql -p 3306:3306 \
             -e MYSQL_ROOT_PASSWORD=rootpassword \
-            -e MYSQL_DATABASE=civil_service_mgmt \
+            -e MYSQL_DATABASE=smartport \
             -v "$PWD/mysql_database_design.sql:/docker-entrypoint-initdb.d/01-schema.sql" \
             -v "$PWD/photo_management_system.sql:/docker-entrypoint-initdb.d/02-data.sql" \
             -v "$PWD/database/03-personnel-stubs.sql:/docker-entrypoint-initdb.d/03-personnel-stubs.sql" \
@@ -294,7 +295,7 @@ jobs:
           # แล้ว step migrations จะชน TCP refused (Issue #129)
           for i in $(seq 1 60); do
             if docker exec ci-mysql mysql -h 127.0.0.1 -uroot -prootpassword --silent \
-              -e "SELECT 1 FROM personnel LIMIT 1" civil_service_mgmt >/dev/null 2>&1; then
+              -e "SELECT 1 FROM personnel LIMIT 1" smartport >/dev/null 2>&1; then
               echo "schema ready"; exit 0
             fi
             sleep 5
@@ -312,7 +313,7 @@ jobs:
           for i in 1 2 3; do
             docker run --rm --network host \
               -e MYSQL_HOST=127.0.0.1 \
-              -e MYSQL_DATABASE=civil_service_mgmt \
+              -e MYSQL_DATABASE=smartport \
               -e MYSQL_USER=root \
               -e MYSQL_PASSWORD=rootpassword \
               -v "$PWD/backend:/app" -v "$PWD/database:/database" -w /app smartport-phpunit:ci \
@@ -328,7 +329,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -e MYSQL_HOST=127.0.0.1 \
-            -e MYSQL_DATABASE=civil_service_mgmt \
+            -e MYSQL_DATABASE=smartport \
             -e MYSQL_USER=root \
             -e MYSQL_PASSWORD=rootpassword \
             -v "$PWD/backend:/app" -v "$PWD/database:/database" -w /app smartport-phpunit:ci \

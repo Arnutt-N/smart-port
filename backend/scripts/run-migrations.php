@@ -26,7 +26,7 @@ function migrationPdo(): PDO
 {
     $host = migrationEnv('MYSQL_HOST', 'db');
     $port = migrationEnv('MYSQL_PORT', '3306');
-    $dbname = migrationEnv('MYSQL_DATABASE', 'civil_service_mgmt');
+    $dbname = migrationEnv('MYSQL_DATABASE', 'smartport');
     // N41: ไม่มี default credentials — เดิม fallback root/rootpassword ต่างจาก config.php
     // ที่ fail-closed ทำให้รันตก DB อื่นที่มี root สามารถ "สำเร็จ" ผิดเจตนาปมได้
     $username = migrationEnv('MYSQL_USER');

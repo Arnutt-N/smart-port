@@ -66,6 +66,10 @@ if [[ -n "${PY}" ]]; then
   "${PY}" "${ROOT}/scripts/validate_template.py"
   "${PY}" "${ROOT}/scripts/validate_instruction_surface.py"
   "${PY}" "${ROOT}/scripts/check_no_emoji.py"
+  # lint_hardcodes (deferred item PR #209) — hex/px/ms ใน component code ต้องมาจาก token
+  # --no-tw: โปรเจกต์นี้ใช้ Tailwind palette utility เป็นวิธีหลัก (1311 จุด) — ไม่ใช่ drift
+  # __tests__ ถูก exclude โดย default ใน script (ชื่อเทสมี issue id/#147, a11y ขนาดเป็น prose)
+  "${PY}" "${ROOT}/scripts/lint_hardcodes.py" --no-tw "${FRONTEND}/src"
 fi
 
 # CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ

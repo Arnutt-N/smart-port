@@ -43,11 +43,11 @@ const { isNavigating } = useNavProgress()
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 3px; /* ds-allow-hardcode: ความหนาเฉพาะของแถบ progress — tokens/borders.json มีแค่ none/thin(1)/medium(2)/thick(4) */
   z-index: 9999;
-  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-indigo-500));
   transform-origin: left;
-  animation: nav-progress-slide 1.2s ease-in-out infinite;
+  animation: nav-progress-slide 1.2s ease-in-out infinite; /* ds-allow-hardcode: indeterminate loop — motion.json ไม่มี token สำหรับ loop ที่ไม่ใช่ feedback */
 }
 
 @keyframes nav-progress-slide {
@@ -57,8 +57,8 @@ const { isNavigating } = useNavProgress()
 }
 
 /* หน่วงการโผล่ 150ms — navigation เร็วๆ จะไม่เห็นแถบกระพริบ */
-.nav-progress-enter-active { transition: opacity 100ms ease 150ms; }
+.nav-progress-enter-active { transition: opacity var(--duration-fast) ease var(--duration-moderate); }
 .nav-progress-enter-from { opacity: 0; }
-.nav-progress-leave-active { transition: opacity 120ms ease; }
+.nav-progress-leave-active { transition: opacity 120ms ease; /* ds-allow-hardcode: 120ms อยู่ระหว่าง fast(100)/base(200) — จุดสมดุลที่ปรับจริงสำหรับแถบบางเฉียบ */ }
 .nav-progress-leave-to { opacity: 0; }
 </style>

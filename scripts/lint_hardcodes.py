@@ -39,15 +39,17 @@ ALLOW = "ds-allow-hardcode"
 PX_OK = {"0px", "1px"}
 
 
-def iter_files(paths, exts):
+def iter_files(paths, exts, excludes=()):
     for p in paths:
         pp = Path(p)
         if pp.is_dir():
             for f in pp.rglob("*"):
                 if f.suffix in exts and "node_modules" not in f.parts:
-                    yield f
+                    if not any(part in excludes for part in f.parts):
+                        yield f
         elif pp.is_file() and pp.suffix in exts:
-            yield pp
+            if not any(part in excludes for part in pp.parts):
+                yield pp
 
 
 def lint_line(line, tailwind=True):
@@ -79,6 +81,7 @@ def lint_line(line, tailwind=True):
 def main(argv):
     exts = CODE_EXT
     tailwind = True
+    excludes = {"__tests__", "node_modules"}  # test titles carry issue ids (#147) and a11y sizes as prose
     args = []
     i = 0
     while i < len(argv):
@@ -88,6 +91,9 @@ def main(argv):
         elif argv[i] in ("--no-tw", "--no-tailwind"):
             tailwind = False
             i += 1
+        elif argv[i] == "--exclude" and i + 1 < len(argv):
+            excludes.update(argv[i + 1].split(","))
+            i += 2
         else:
             args.append(argv[i])
             i += 1
@@ -101,7 +107,7 @@ def main(argv):
         print("ERROR: path(s) not found: " + ", ".join(missing))
         return 1
 
-    files = list(iter_files(args, exts))
+    files = list(iter_files(args, exts, excludes))
     if not files:
         print(f"ERROR: no lintable file(s) under {', '.join(args)}")
         return 1

@@ -8,7 +8,7 @@
       <div
         v-for="toast in ui.toasts"
         :key="toast.id"
-        class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm min-w-[300px]"
+        class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm min-w-[var(--toast-min-width)]"
         :class="toastClasses[toast.type]"
         :role="toast.type === 'error' ? 'alert' : 'status'"
       >
@@ -56,10 +56,10 @@ const toastIcons = {
 
 <style scoped>
 .toast-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all var(--duration-moderate) var(--ease-out);
 }
 .toast-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all var(--duration-base) var(--ease-in);
 }
 .toast-enter-from {
   opacity: 0;

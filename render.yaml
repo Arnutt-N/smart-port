@@ -83,7 +83,7 @@ services:
     # sync: false ทุกตัวเพื่อ adoption แบบไม่ขยับค่าเดิม (รวม JWT_SECRET ไม่โดน regenerate)
     # ค่าที่ไม่ใช่ความลับที่ควรมีบน service (จดกันหาย): MYSQL_SSL=true,
     # MYSQL_SSL_CA=/etc/ssl/certs/ca-certificates.crt (CA สาธารณะใน image ใช้ยืนยัน TiDB),
-    # MYSQL_PORT=4000, MYSQL_DATABASE=civil_service_mgmt — เหตุผลเต็ม docs/render-tidb-production.md
+    # MYSQL_PORT=4000, MYSQL_DATABASE=smartport — เหตุผลเต็ม docs/render-tidb-production.md
     envVars:
       - key: MYSQL_HOST
         sync: false

@@ -47,7 +47,7 @@ ENV_ARGS=()
 if [ -n "${NET}" ] || [ -n "${DB_CID}" ]; then
   # ดึงค่า DB จาก .env (root + root password = ต่อได้ทุก schema แน่นอน)
   get_env() { grep -E "^$1=" "${ROOT_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r"' ; }
-  DB_NAME="$(get_env MYSQL_DATABASE)"; DB_NAME="${DB_NAME:-civil_service_mgmt}"
+  DB_NAME="$(get_env MYSQL_DATABASE)"; DB_NAME="${DB_NAME:-smartport}"
   DB_PASS="$(get_env MYSQL_ROOT_PASSWORD)"; DB_PASS="${DB_PASS:-rootpassword}"
 
   if [ -n "${DB_CID}" ] && [ -n "${NET}" ]; then

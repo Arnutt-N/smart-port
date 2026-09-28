@@ -1513,7 +1513,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8000/multiplier
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"is_active":1}'
 
 # cleanup แถว smoke
-docker compose exec -T db mysql -uroot -prootpassword civil_service_mgmt \
+docker compose exec -T db mysql -uroot -prootpassword smartport \
   -e "DELETE FROM special_area_multiplier WHERE province LIKE 'ทดสอบ-%';"
 ```
 

@@ -51,7 +51,7 @@ Set these on the `smartport-backend` Render service:
 | --- | --- |
 | `MYSQL_HOST` | TiDB host from the TiDB Cloud connection dialog |
 | `MYSQL_PORT` | `4000` |
-| `MYSQL_DATABASE` | `civil_service_mgmt` |
+| `MYSQL_DATABASE` | `smartport` |
 | `MYSQL_USER` | TiDB username |
 | `MYSQL_PASSWORD` | TiDB password |
 | `MYSQL_SSL` | `true` |
@@ -83,7 +83,7 @@ This works together with the rewrite rules in [render.yaml](../render.yaml), so 
 
 Before testing production data pages, import the schema into TiDB Cloud:
 
-1. Create the `civil_service_mgmt` database in TiDB Cloud if it does not exist yet.
+1. Create the `smartport` database in TiDB Cloud if it does not exist yet.
 2. Run [database/tidb-init.sql](../database/tidb-init.sql) against that database.
 3. If you have production seed data, import it after the schema load.
 

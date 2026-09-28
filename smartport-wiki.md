@@ -184,7 +184,7 @@ Vue 3 SPA (Vite)  --HTTPS-->  PHP API (api.php)  --PDO-->  MySQL / TiDB
 
 ### ฐานข้อมูล
 
-- ชื่อฐานข้อมูล: `civil_service_mgmt`
+- ชื่อฐานข้อมูล: `smartport`
 - charset: `utf8mb4`
 - local: MySQL 8.0 ใน Docker พอร์ต 3306
 - production: TiDB ผ่าน `database/tidb-init.sql` (bootstrap จริง เพราะ production ตั้ง `RUN_MIGRATIONS=0`)

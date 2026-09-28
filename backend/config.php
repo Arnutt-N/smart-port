@@ -64,7 +64,7 @@ function attemptDbConnection(): ?PDO
 {
     $host     = env('MYSQL_HOST', 'db');
     $port     = env('MYSQL_PORT', '3306');
-    $dbname   = env('MYSQL_DATABASE', 'civil_service_mgmt');
+    $dbname   = env('MYSQL_DATABASE', 'smartport');
     $username = env('MYSQL_USER', '');
     $password = env('MYSQL_PASSWORD', '');
     // F31: ไม่มี default credential — เคย fallback root/rootpassword ซึ่งเดาได้จาก repo
