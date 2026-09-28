@@ -1,6 +1,6 @@
 # Runbook: Rollback & Restore (Smart Port production บน Render + TiDB Cloud)
 
-**Scope:** `smart-port` (frontend static site) · `smartport-backend` (Docker) · TiDB Cloud (`civil_service_mgmt`)
+**Scope:** `smart-port` (frontend static site) · `smartport-backend` (Docker) · TiDB Cloud (`smartport`)
 **Issue:** #114 · อัปเดตล่าสุด: 2026-08-15
 
 ## บทบาท (owners) และ decision points

@@ -1,7 +1,7 @@
 -- Create the base Smart Port schema used by local MySQL.
 SET NAMES utf8mb4;
-CREATE DATABASE IF NOT EXISTS civil_service_mgmt CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE civil_service_mgmt;
+CREATE DATABASE IF NOT EXISTS smartport CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE smartport;
 
 -- Core lookup table for name prefixes.
 CREATE TABLE prefixes (

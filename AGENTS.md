@@ -108,7 +108,7 @@ MySQL 8.0 runs in Docker on port 3306. Schema is initialized from:
 - `photo_management_system.sql` → mounted as `02-data.sql`
 - `database/NN-*.sql` → mounted in order as further init scripts
 
-Database name: `civil_service_mgmt`. Connection config is in `backend/config.php` (reads from env vars).
+Database name: `smartport`. Connection config is in `backend/config.php` (reads from env vars).
 
 **เพิ่ม migration ใหม่ต้องแตะ 3 ที่:** ไฟล์ `database/NN-*.sql` · เติม DDL เดียวกันลง `database/tidb-init.sql`
 (bootstrap ตัวจริงของ production — prod ตั้ง `RUN_MIGRATIONS=0` จึงไม่มีอะไรมาเติมให้ทีหลัง) · เพิ่ม mount
@@ -235,7 +235,7 @@ Pure PHP REST API with no framework.
 ## Database
 - Port: 3306 (exposed in Docker)
 - Charset: utf8mb4
-- Database: `civil_service_mgmt` (via env var `MYSQL_DATABASE`)
+- Database: `smartport` (via env var `MYSQL_DATABASE`)
 - Connection method: PDO with prepared statements
 - Error mode: Exception throwing
 - Init scripts:

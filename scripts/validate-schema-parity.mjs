@@ -38,8 +38,8 @@ export const TEST_SEED_MARKER = 'test-seed';
 // INV-6 pins — sha256 ของเนื้อหาที่ normalize line-ending (CRLF→LF) แล้ว
 // คำนวณด้วย: node -e "const{readFileSync}=require('fs'),{createHash}=require('crypto');for(const f of['mysql_database_design.sql','photo_management_system.sql'])console.log(f,createHash('sha256').update(readFileSync(f,'utf8').replace(/\r\n/g,'\n')).digest('hex'))"
 const BASE_FILE_PINS = {
-  'mysql_database_design.sql': '7c7a1f970f57f0e0ebc942013f7f0b66ce02a76b2643e24137f17adf74263bdc',
-  'photo_management_system.sql': 'd52d7978855de0e08ff861bb395174fb854d0ebb2a2eaf4cfa28e4ec3101c20f',
+  'mysql_database_design.sql': 'e6ea5b5f11913d5c8471f1254a18ecaa5554794b502a526bc3ded1ae345d7644',
+  'photo_management_system.sql': '673b32a7cd74d713e0be14b7f9d108c2bf92c2dcf82f7f035d52b80fc14519fd',
 };
 
 const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');

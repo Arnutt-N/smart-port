@@ -73,7 +73,7 @@ function testPdo(): ?PDO
     $host   = getenv('MYSQL_HOST') ?: 'db';
     assertLocalTestDbHost($host);
     $port   = getenv('MYSQL_PORT') ?: '3306';
-    $dbname = getenv('MYSQL_DATABASE') ?: 'civil_service_mgmt';
+    $dbname = getenv('MYSQL_DATABASE') ?: 'smartport';
     $user   = getenv('MYSQL_USER') ?: 'root';
     $pass   = getenv('MYSQL_PASSWORD');
     if ($pass === false) {

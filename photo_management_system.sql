@@ -1,6 +1,6 @@
 -- เพิ่มตารางที่ขาดหายไปตาม Smart Port Wiki
 SET NAMES utf8mb4;
-USE civil_service_mgmt;
+USE smartport;
 
 -- ตาราง advance_notifications (การแจ้งเตือนล่วงหน้า)
 CREATE TABLE IF NOT EXISTS advance_notifications (

@@ -37,7 +37,7 @@ function targetPdo(): PDO
 {
     $host = syncEnv('MYSQL_HOST', 'db');
     $port = syncEnv('MYSQL_PORT', '3306');
-    $dbname = syncEnv('MYSQL_DATABASE', 'civil_service_mgmt');
+    $dbname = syncEnv('MYSQL_DATABASE', 'smartport');
     $user = syncEnv('MYSQL_USER', 'root');
     $pass = syncEnv('MYSQL_PASSWORD', 'rootpassword');
 
