@@ -457,7 +457,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .tdp-pop-enter-active,
 .tdp-pop-leave-active {
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); /* ds-allow-hardcode: 150ms ระหว่าง fast(100)/base(200) — pop เร็วกว่า dropdown */
+  transition: opacity 150ms ease, transform 150ms ease; /* ds-allow-hardcode: 150ms ease — keyword เดิมถูกต้อง; ไม่ใช้ cubic-bezier ที่รู้สึกต่าง */
 }
 .tdp-pop-enter-from,
 .tdp-pop-leave-to {

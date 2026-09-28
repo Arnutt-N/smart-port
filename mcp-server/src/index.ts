@@ -33,6 +33,7 @@ if (process.argv.includes('--self-test')) {
   )
 } else {
   // stdout สงวนให้ protocol — banner ลง stderr เท่านั้น
-  void serveStdio(createServer)
+  // serveStdio คืน handle (ไม่ใช่ Promise) — ไม่ม .catch; ถ้ามัน throw ตอนเรียก = unhandled ที่ process จับ
+  serveStdio(createServer)
   console.error('smartport MCP server running on stdio')
 }

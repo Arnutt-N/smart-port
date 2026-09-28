@@ -39,6 +39,9 @@ export function registerCandidateTool(server: McpServer, api: SmartPortClient): 
           params.set('limit', String(args.limit))
           params.set('offset', String(args.offset))
           path = `/candidates/${args.target_level}?${params.toString()}`
+        } else if (args.search !== undefined && args.search !== '') {
+          // อย่า drop เงียบ — model จะได้ผลไม่ตรงคำถามโดยไม่รู้สาเหตุ
+          throw new Error('search ใช้ได้เฉพาะเมื่อระบุ target_level (รายระดับ) — ภาพรวมไม่รองรับ search')
         }
         const { status, json } = await api.get(path)
         logToolCall('candidate_search', args, status, Date.now() - started)

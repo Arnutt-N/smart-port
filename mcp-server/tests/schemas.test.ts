@@ -23,4 +23,14 @@ describe('tool input schemas', () => {
   it('dashboard_summary: ไม่รับพารามิเตอร์', () => {
     expect(dashboardInput.parse({})).toEqual({})
   })
+
+  it('ขอบ search/limit/offset: search 200 ผ่าน 201 ไม่ผ่าน; limit 1..200; offset ติดลบไม่ผ่าน', () => {
+    expect(candidateInput.parse({ search: 'a'.repeat(200) }).search).toHaveLength(200)
+    expect(() => candidateInput.parse({ search: 'a'.repeat(201) })).toThrow()
+    expect(candidateInput.parse({ limit: 1 }).limit).toBe(1)
+    expect(candidateInput.parse({ limit: 200 }).limit).toBe(200)
+    expect(() => candidateInput.parse({ limit: 0 })).toThrow()
+    expect(() => candidateInput.parse({ offset: -1 })).toThrow()
+    expect(candidateInput.parse({ offset: 0 }).offset).toBe(0)
+  })
 })

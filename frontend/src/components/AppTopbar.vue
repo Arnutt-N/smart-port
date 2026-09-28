@@ -167,10 +167,10 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 <style scoped>
 .dropdown-enter-active {
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); /* ds-allow-hardcode: 150ms อยู่ระหว่าง fast(100)/base(200) */
+  transition: opacity 150ms ease-out, transform 150ms ease-out; /* ds-allow-hardcode: 150ms ease-out — keyword เดิมถูกต้อง */
 }
 .dropdown-leave-active {
-  transition: opacity var(--duration-fast) var(--ease-in), transform var(--duration-fast) var(--ease-in);
+  transition: opacity var(--duration-fast) ease-in, transform var(--duration-fast) ease-in;
 }
 .dropdown-enter-from {
   opacity: 0;

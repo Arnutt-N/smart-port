@@ -170,6 +170,11 @@ jobs:
           python scripts/validate_instruction_surface.py
           python scripts/check_no_emoji.py
           python scripts/lint_hardcodes.py --no-tw frontend/src
+      - name: MCP server tests (prototype read-only tools)
+        run: |
+          cd mcp-server
+          npm ci
+          npm test
       - name: Token build smoke (full var set, not colours-only)
         run: |
           node scripts/build_tokens.mjs --out /tmp/theme.css

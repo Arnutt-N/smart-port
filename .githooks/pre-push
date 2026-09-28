@@ -49,7 +49,7 @@ node "${ROOT}/scripts/validate-schema-parity.mjs"
 # Design-system gates (PR #195 follow-up) — python-only ไม่ต้อง Docker → fail-closed เมื่อมี python
 # (อ้างอิงโดย .claude/rules/tokens-and-color.md §4 — Actions ปิด auto-trigger อยู่ hook นี้
 # คือที่เดียวที่บังคับ gate พวกนี้ได้จริงทุก push; ci.yml มี design-gates job ชุดเดียวกัน)
-echo "[pre-push] design gates (tokens/contrast/spec/theme-refs/template/surface/emoji) ..."
+echo "[pre-push] design gates (tokens/contrast/spec/theme-refs/template/surface/emoji/lint_hardcodes) ..."
 if command -v python >/dev/null 2>&1; then
   PY="python"
 elif command -v python3 >/dev/null 2>&1; then
@@ -125,6 +125,11 @@ fi
 
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
 cd "${FRONTEND}"
+npx vitest run --reporter=dot
+
+# mcp-server tests (ใหม่ PR #210) — เทสเขียนแล้วแต่ไม่มี gate รัน = เขียนเฉย ๆ
+echo "[pre-push] mcp-server tests (vitest) ..."
+cd "${ROOT}/mcp-server"
 npx vitest run --reporter=dot
 
 # Backend PHPUnit Unit suite (T18/F2) — guarded step: run.sh docker-build + docker-run เสมอ

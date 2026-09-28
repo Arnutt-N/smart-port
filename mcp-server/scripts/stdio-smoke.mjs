@@ -80,11 +80,12 @@ process.on('uncaughtException', (error) => {
 })
 
 const init = await request('initialize', {
-  protocolVersion: '2026-07-28',
+  protocolVersion: '2025-06-18',
   capabilities: {},
   clientInfo: { name: 'stdio-smoke', version: '0.1.0' },
 })
 check('initialize', init.result?.serverInfo?.name === 'smartport')
+check('protocol negotiated', typeof init.result?.protocolVersion === 'string')
 notify('notifications/initialized', {})
 
 const listed = await request('tools/list', {})
