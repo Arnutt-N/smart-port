@@ -49,7 +49,7 @@ node "${ROOT}/scripts/validate-schema-parity.mjs"
 # Design-system gates (PR #195 follow-up) — python-only ไม่ต้อง Docker → fail-closed เมื่อมี python
 # (อ้างอิงโดย .claude/rules/tokens-and-color.md §4 — Actions ปิด auto-trigger อยู่ hook นี้
 # คือที่เดียวที่บังคับ gate พวกนี้ได้จริงทุก push; ci.yml มี design-gates job ชุดเดียวกัน)
-echo "[pre-push] design gates (tokens/contrast/spec/theme-refs/template/surface/emoji) ..."
+echo "[pre-push] design gates (tokens/contrast/spec/theme-refs/template/surface/emoji/lint_hardcodes) ..."
 if command -v python >/dev/null 2>&1; then
   PY="python"
 elif command -v python3 >/dev/null 2>&1; then
@@ -66,6 +66,10 @@ if [[ -n "${PY}" ]]; then
   "${PY}" "${ROOT}/scripts/validate_template.py"
   "${PY}" "${ROOT}/scripts/validate_instruction_surface.py"
   "${PY}" "${ROOT}/scripts/check_no_emoji.py"
+  # lint_hardcodes (deferred item PR #209) — hex/px/ms ใน component code ต้องมาจาก token
+  # --no-tw: โปรเจกต์นี้ใช้ Tailwind palette utility เป็นวิธีหลัก (1311 จุด) — ไม่ใช่ drift
+  # __tests__ ถูก exclude โดย default ใน script (ชื่อเทสมี issue id/#147, a11y ขนาดเป็น prose)
+  "${PY}" "${ROOT}/scripts/lint_hardcodes.py" --no-tw "${FRONTEND}/src"
 fi
 
 # CSP bundle audit (issue #113 R2) — เดิม gate นี้อยู่ใน ci-local เท่านั้น ซึ่งไม่มีอะไรบังคับ
@@ -121,6 +125,11 @@ fi
 
 echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
 cd "${FRONTEND}"
+npx vitest run --reporter=dot
+
+# mcp-server tests (ใหม่ PR #210) — เทสเขียนแล้วแต่ไม่มี gate รัน = เขียนเฉย ๆ
+echo "[pre-push] mcp-server tests (vitest) ..."
+cd "${ROOT}/mcp-server"
 npx vitest run --reporter=dot
 
 # Backend PHPUnit Unit suite (T18/F2) — guarded step: run.sh docker-build + docker-run เสมอ

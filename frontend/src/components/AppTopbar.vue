@@ -167,17 +167,17 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 <style scoped>
 .dropdown-enter-active {
-  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+  transition: opacity 150ms ease-out, transform 150ms ease-out; /* ds-allow-hardcode: 150ms ease-out — keyword เดิมถูกต้อง */
 }
 .dropdown-leave-active {
-  transition: opacity 0.1s ease-in, transform 0.1s ease-in;
+  transition: opacity var(--duration-fast) ease-in, transform var(--duration-fast) ease-in;
 }
 .dropdown-enter-from {
   opacity: 0;
-  transform: translateY(-4px) scale(0.97);
+  transform: translateY(calc(var(--spacing) * -1)) scale(0.97);
 }
 .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-4px) scale(0.97);
+  transform: translateY(calc(var(--spacing) * -1)) scale(0.97);
 }
 </style>

@@ -39,15 +39,17 @@ ALLOW = "ds-allow-hardcode"
 PX_OK = {"0px", "1px"}
 
 
-def iter_files(paths, exts):
+def iter_files(paths, exts, excludes=()):
     for p in paths:
         pp = Path(p)
         if pp.is_dir():
             for f in pp.rglob("*"):
                 if f.suffix in exts and "node_modules" not in f.parts:
-                    yield f
+                    if not any(part in excludes for part in f.parts):
+                        yield f
         elif pp.is_file() and pp.suffix in exts:
-            yield pp
+            if not any(part in excludes for part in pp.parts):
+                yield pp
 
 
 def lint_line(line, tailwind=True):
@@ -79,6 +81,7 @@ def lint_line(line, tailwind=True):
 def main(argv):
     exts = CODE_EXT
     tailwind = True
+    excludes = {"__tests__", "node_modules"}  # test titles carry issue ids (#147) and a11y sizes as prose
     args = []
     i = 0
     while i < len(argv):
@@ -88,6 +91,10 @@ def main(argv):
         elif argv[i] in ("--no-tw", "--no-tailwind"):
             tailwind = False
             i += 1
+        elif argv[i] == "--exclude" and i + 1 < len(argv):
+            # strip + ทิ้ง token ว่าง — "a, b" มี space นำหน้าจะ match เงียบ ๆ ไม่ตรงตั้งใจ
+            excludes.update(t.strip() for t in argv[i + 1].split(",") if t.strip())
+            i += 2
         else:
             args.append(argv[i])
             i += 1
@@ -101,15 +108,27 @@ def main(argv):
         print("ERROR: path(s) not found: " + ", ".join(missing))
         return 1
 
-    files = list(iter_files(args, exts))
+    files = list(iter_files(args, exts, excludes))
     if not files:
         print(f"ERROR: no lintable file(s) under {', '.join(args)}")
         return 1
+    # นับไฟล์ที่ถูก exclude/อ่านไม่ได้ — "Scanned N" ต้องไม่แกล้งเป็น "ตรวจครบ" ทั้งที่ข้าม
+    total_candidates = 0
+    for a in args:
+        ap = Path(a)
+        if ap.is_dir():
+            total_candidates += sum(1 for f in ap.rglob("*") if f.suffix in exts and "node_modules" not in f.parts)
+        elif ap.suffix in exts:
+            total_candidates += 1
+    excluded_count = total_candidates - len(files)
     violations = 0
+    unreadable = 0
     for f in files:
         try:
             text = f.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
+            print(f"WARN: cannot read {f} — not scanned (encode ผิดรูป/ไฟล์ถูก lock)")
+            unreadable += 1
             continue
         in_allow = False
         for n, line in enumerate(text.splitlines(), 1):
@@ -125,7 +144,12 @@ def main(argv):
                 print(f"{f}:{n}: hardcoded {kind} '{val}' — use a token")
                 violations += 1
 
-    print(f"\nScanned {len(files)} file(s).")
+    summary = f"Scanned {len(files)} file(s)"
+    if excluded_count:
+        summary += f", excluded {excluded_count} (patterns: {', '.join(sorted(excludes))})"
+    if unreadable:
+        summary += f", unreadable {unreadable}"
+    print(f"\n{summary}.")
     if violations:
         print(f"FAIL: {violations} hardcoded value(s). Map each to a token, "
               f"or add a '{ALLOW}' comment for a justified exception.")

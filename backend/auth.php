@@ -252,7 +252,11 @@ function emitSessionCookie(string $name, string $value, array $params): void
 
         return;
     }
-    setcookie($name, $value, $params);
+    // setcookie() คืน false เมื่อ headers ส่งไปแล้ว — session จะไม่ตั้งโดย user ไม่รู้
+    // (login 200 แต่ request ถัดไป 401) log ไว้ให้ trace ได้ ไม่ใช่พังเงียบ
+    if (!setcookie($name, $value, $params)) {
+        error_log('[auth] setcookie failed (headers already sent): ' . $name);
+    }
 }
 
 /**

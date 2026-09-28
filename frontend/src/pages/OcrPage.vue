@@ -183,11 +183,11 @@
         <!-- Preview เป็น plain text (ไม่ใช้ v-html) — กัน XSS จากเนื้อหา OCR -->
         <pre
           v-if="tab === 'preview'"
-          class="prose prose-sm max-w-none max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap break-words"
+          class="prose prose-sm max-w-none max-h-150 overflow-y-auto p-4 bg-gray-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap break-words"
         >{{ previewText }}</pre>
         <pre
           v-if="tab === 'raw'"
-          class="max-h-[600px] overflow-y-auto p-4 bg-gray-50 rounded-lg text-xs text-gray-800 whitespace-pre-wrap break-words"
+          class="max-h-150 overflow-y-auto p-4 bg-gray-50 rounded-lg text-xs text-gray-800 whitespace-pre-wrap break-words"
         >{{ result.markdown }}</pre>
       </div>
 

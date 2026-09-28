@@ -287,7 +287,7 @@
                   >
                   <span
                     v-if="cellHasOverride(selectedRole, action, resource)"
-                    class="ml-1 text-[10px] text-amber-600"
+                    class="ml-1 text-[10px] text-amber-600" data-ds-allow-hardcode="footnote marker ต่ำกว่า xs ต่ำสุดของ typography.json"
                     title="มี override"
                   >*</span>
                 </td>
