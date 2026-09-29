@@ -215,6 +215,68 @@ function sqlStatementIsCommentOnly(string $sql): bool
 }
 
 /**
+ * ตรวจว่า statement ขึ้นต้นด้วยคำสั่ง SELECT หรือไม่ (case-insensitive)
+ * โดย strip leading line comments (-- และ #) และ block comment ก่อน
+ */
+function sqlStatementSelects(string $sql): bool
+{
+    $s = ltrim($sql);
+    // strip leading line comments (-- และ #) ทีละบรรทัด
+    while (true) {
+        $s = ltrim($s);
+        if (str_starts_with($s, '--') || str_starts_with($s, '#')) {
+            $nl = strpos($s, "\n");
+            $s = $nl === false ? '' : substr($s, $nl + 1);
+            continue;
+        }
+        // strip leading block comment /* ... */
+        if (str_starts_with($s, '/*')) {
+            $end = strpos($s, '*/');
+            $s = $end === false ? '' : ltrim(substr($s, $end + 2));
+            continue;
+        }
+        break;
+    }
+    return strncasecmp($s, 'select', 6) === 0;
+}
+
+/**
+ * รันคำสั่ง migration: ถ้าเป็น SELECT ให้ query และ drain result set เพื่อป้องกัน
+ * PDO 2014 Cannot execute queries while other unbuffered queries are active
+ * พร้อม log ผล pre-check (soft_link + orphans)
+ */
+function executeMigrationStatement(\PDO $pdo, string $sql): void
+{
+    if (sqlStatementSelects($sql)) {
+        // SELECT คืน result set — ต้อง drain มิฉะนั้น statement ถัดไปล้ม PDO 2014
+        $stmt = $pdo->query($sql);
+        if ($stmt === false) {
+            // fail-visible: ห้ามเงียบ — ถึง DDL จะ fail ทีหลังด้วย 1452 แต่เสีย count ของ log
+            // (ภายใต้ ERRMODE_EXCEPTION query() จะ throw เสมอ แต่เก็บกิ่งนี้ไว้สำหรับกรณี mock / non-throwing driver)
+            fwrite(STDERR, '  pre-check: query failed (no result) — ' . substr($sql, 0, 60) . PHP_EOL);
+        }
+        if ($stmt !== false) {
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC); // explicit — ไม่พึ่ง ATTR_DEFAULT_FETCH_MODE
+            $stmt->closeCursor();
+            // log ผล pre-check (soft_link + orphans) ตามเจตนาใน 35-fk-retrofit.sql:26-27
+            // ใช้ key ชัดเจน ไม่ใช่ implode/reset/end (FETCH_ASSOC ลำดับ value ขึ้นกับ column order)
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $link = $row['soft_link'] ?? '(unknown)';
+                $orphans = $row['orphans'] ?? '?';
+                // echo (ไม่ใช่ fwrite(STDOUT)) — PHPUnit จับได้ด้วย expectOutputString; fwrite(STDOUT) bypass output buffering
+                // (ตั้งใจ: runner รอบข้างใช้ fwrite แต่จุดนี้ต้องเป็น echo เท่านั้น — ห้ามเปลี่ยนกลับ)
+                echo "  pre-check: {$link} orphans={$orphans}" . PHP_EOL;
+            }
+        }
+        return;
+    }
+    $pdo->exec($sql);
+}
+
+/**
  * D6: migration 36 (ALTER ADD COLUMN + UPDATE cutover) ห้ามถูกมาร์ก baseline
  * แบบไม่รัน DDL — seedBaselineIfNeeded INSERT IGNORE ได้เสมอ ดังนั้น DB เก่าที่ยัง
  * ไม่มี remember_me จะถูกมาร์ก applied ผิด ๆ แล้วโค้ดใหม่ยิง INSERT/SELECT คอลัมน์
@@ -228,6 +290,30 @@ function sqlStatementIsCommentOnly(string $sql): bool
  */
 function baselineRequiresRealApply(\PDO $pdo, string $name): bool
 {
+    // 35: 8 FK pairs ต้องครบ — ขาดเดียว = ห้าม baseline (mirror D6 guard ของ 36)
+    if (basename($name) === '35-fk-retrofit.sql') {
+        try {
+            $required = [
+                'fk_awards_personnel', 'fk_decorations_personnel', 'fk_photos_personnel',
+                'fk_proposals_personnel', 'fk_proposals_evaluator', 'fk_qualcalc_personnel',
+                'fk_refresh_tokens_user', 'fk_personnel_prefix',
+            ];
+            $stmt = $pdo->query(
+                'SELECT CONSTRAINT_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS
+                 WHERE constraint_schema = DATABASE()'
+            );
+            $existing = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_COLUMN) : [];
+            foreach ($required as $fk) {
+                if (!in_array($fk, $existing, true)) {
+                    return true; // ขาด → ห้าม baseline ให้ runner apply จริง
+                }
+            }
+            return false;
+        } catch (\PDOException) {
+            return true; // fail-closed
+        }
+    }
+
     if (basename($name) !== '36-remember-me-session-ttl.sql') {
         return false;
     }
