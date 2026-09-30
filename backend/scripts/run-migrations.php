@@ -153,10 +153,12 @@ function acquireMigrationLock(PDO $pdo): bool
 
 function releaseMigrationLock(PDO $pdo): void
 {
-    // TODO: releaseMigrationLock() calls $pdo->query(RELEASE_LOCK) without draining result set;
-    // if MYSQL_ATTR_USE_BUFFERED_QUERY is ever disabled, drain this query to avoid PDO 2014.
     try {
-        $pdo->query("SELECT RELEASE_LOCK('smartport_migrate')");
+        $stmt = $pdo->query("SELECT RELEASE_LOCK('smartport_migrate')");
+        if ($stmt !== false) {
+            $stmt->fetchColumn();
+            $stmt->closeCursor();
+        }
     } catch (Throwable $e) {
         // ignore
     }

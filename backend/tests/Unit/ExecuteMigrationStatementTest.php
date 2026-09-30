@@ -81,4 +81,36 @@ final class ExecuteMigrationStatementTest extends TestCase
 
         executeMigrationStatement($pdo, 'SELECT 1');
     }
+
+    #[Test]
+    public function apply_migration_routes_statements_through_drain_helper(): void
+    {
+        // Latch กัน revert applyMigration() กลับไป $pdo->exec (ซึ่งจะปลุก PDO 2014):
+        // อ่าน runner เป็น text เพราะ require จะต่อ DB จริง (mirror existing latch)
+        $src = file_get_contents(__DIR__ . '/../../scripts/run-migrations.php');
+        self::assertIsString($src);
+        $start = strpos($src, 'function applyMigration');
+        self::assertNotFalse($start);
+        $next = strpos($src, "\nfunction ", $start + 1);
+        $body = $next === false ? substr($src, $start) : substr($src, $start, $next - $start);
+        self::assertStringContainsString('executeMigrationStatement($pdo', $body);
+        self::assertStringNotContainsString('$pdo->exec($statement)', $body);
+    }
+
+    #[Test]
+    public function release_migration_lock_drains_its_query(): void
+    {
+        // Latch กัน revert การ drain ใน releaseMigrationLock() (F4):
+        // อ่าน runner เป็น text เพราะ require จะต่อ DB จริง (mirror T1 latch)
+        $src = file_get_contents(__DIR__ . '/../../scripts/run-migrations.php');
+        self::assertIsString($src);
+        $start = strpos($src, 'function releaseMigrationLock');
+        self::assertNotFalse($start);
+        $end = strpos($src, "\ntry {", $start + 1);
+        self::assertNotFalse($end);
+        $body = substr($src, $start, $end - $start);
+        self::assertStringContainsString('fetchColumn()', $body);
+        self::assertStringContainsString('closeCursor()', $body);
+        self::assertStringNotContainsString('TODO', $body);
+    }
 }

@@ -103,7 +103,7 @@ final class MigrationBaselineTest extends TestCase
             'fk_refresh_tokens_user', 'fk_personnel_prefix',
         ];
         $stmtMissingFk = self::createMock(\PDOStatement::class);
-        $stmtMissingFk->method('fetchAll')->willReturn($allFksExceptOne);
+        $stmtMissingFk->method('fetchAll')->with(\PDO::FETCH_COLUMN)->willReturn($allFksExceptOne);
         $missingFkPdo = self::createMock(\PDO::class);
         $missingFkPdo->method('query')->willReturn($stmtMissingFk);
         self::assertTrue(baselineRequiresRealApply($missingFkPdo, '35-fk-retrofit.sql'));
@@ -111,7 +111,7 @@ final class MigrationBaselineTest extends TestCase
         // 35: ครบทั้ง 8 FK → baseline ได้
         $allFks = array_merge(['fk_awards_personnel'], $allFksExceptOne);
         $stmtAllFks = self::createMock(\PDOStatement::class);
-        $stmtAllFks->method('fetchAll')->willReturn($allFks);
+        $stmtAllFks->method('fetchAll')->with(\PDO::FETCH_COLUMN)->willReturn($allFks);
         $okFkPdo = self::createMock(\PDO::class);
         $okFkPdo->method('query')->willReturn($stmtAllFks);
         self::assertFalse(baselineRequiresRealApply($okFkPdo, '35-fk-retrofit.sql'));

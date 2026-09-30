@@ -215,7 +215,8 @@ function sqlStatementIsCommentOnly(string $sql): bool
 }
 
 /**
- * ตรวจว่า statement ขึ้นต้นด้วยคำสั่ง SELECT หรือไม่ (case-insensitive)
+ * ตรวจว่า statement ขึ้นต้นด้วยคำสั่งที่คืน result set หรือไม่ (case-insensitive)
+ * (SELECT/SHOW/DESCRIBE/EXPLAIN/WITH/VALUES — คงชื่อฟังก์ชันเดิมเพื่อ minimal diff)
  * โดย strip leading line comments (-- และ #) และ block comment ก่อน
  */
 function sqlStatementSelects(string $sql): bool
@@ -237,11 +238,20 @@ function sqlStatementSelects(string $sql): bool
         }
         break;
     }
-    return strncasecmp($s, 'select', 6) === 0;
+    // Statement คืน result set ต้องผ่าน query()+drain ทั้งหมด — ไม่ใช่แค่ SELECT:
+    // SHOW / DESCRIBE / EXPLAIN / WITH..SELECT / VALUES ROW() (MySQL ไม่มี DDL
+    // ขึ้นต้นด้วยคำเหล่านี้ และ WITH ของ MySQL จบด้วย SELECT เสมอ)
+    foreach (['select', 'show', 'describe', 'desc', 'explain', 'with', 'values'] as $keyword) {
+        if (strncasecmp($s, $keyword, strlen($keyword)) === 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
- * รันคำสั่ง migration: ถ้าเป็น SELECT ให้ query และ drain result set เพื่อป้องกัน
+ * รันคำสั่ง migration: ถ้าเป็น statement คืน result set ให้ query และ drain เพื่อป้องกัน
  * PDO 2014 Cannot execute queries while other unbuffered queries are active
  * พร้อม log ผล pre-check (soft_link + orphans)
  */
