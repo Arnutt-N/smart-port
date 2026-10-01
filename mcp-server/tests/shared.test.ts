@@ -42,6 +42,9 @@ describe('toolJsonText — M3 13-digit guard', () => {
     ['มีขีดคั่น 1-4-5-2-1', '1-2345-67890-12-3'],
     ['คั่นด้วยช่องว่าง', '1 2345 67890 12 3'],
     ['ตัวคั่นผสมขีด+ช่องว่าง', '1-2345 67890-12 3'],
+    ['ขีดกลาง en-dash (U+2013)', ['1', '2345', '67890', '12', '3'].join(String.fromCharCode(0x2013))],
+    ['non-breaking hyphen (U+2011)', ['1', '2345', '67890', '12', '3'].join(String.fromCharCode(0x2011))],
+    ['เครื่องหมายลบ (U+2212)', ['1', '2345', '67890', '12', '3'].join(String.fromCharCode(0x2212))],
     ['เลขไทย', '๑๒๓๔๕๖๗๘๙๐๑๒๓'],
     ['fullwidth', '１２３４５６７８９０１２３'],
     ['มี prefix จุดที่ไม่ใช่ทศนิยม', 'ID.1234567890123'],
@@ -112,6 +115,12 @@ describe('toolJsonText — M3 13-digit guard', () => {
     const rows: unknown[] = new Array(200_000).fill('x')
     rows.push('1234567890123')
     expect(() => toolJsonText({ rows })).toThrow('13 หลัก')
+  })
+
+  it('object ที่อ้างวนกลับตัวเอง (cycle) → จบและโยนข้อความที่ส่งต่อไม่ได้ ไม่วนไม่รู้จบ', () => {
+    const node: Record<string, unknown> = { name: 'x' }
+    node.self = node
+    expect(() => toolJsonText(node)).toThrow('ส่งต่อได้')
   })
 
   it('ปฏิเสธตัวเลข 13 หลักจำนวนเต็ม (รวมติดลบ และมีทศนิยมตามหลัง)', () => {

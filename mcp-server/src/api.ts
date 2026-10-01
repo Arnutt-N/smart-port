@@ -6,8 +6,17 @@ import { logSession } from './logger.js'
 
 const ACCESS_COOKIE = 'sp_access'
 const REFRESH_EARLY_SECONDS = 300 // refresh ก่อนหมดอายุ 5 นาที
-const REQUEST_TIMEOUT_MS = 30_000 // Render cold start ช้าได้ แต่ต้องมีเพดาน
+// Render free plan ตื่นจาก spin-down ~1 นาที (readyz แรกวัดได้ ~23s ยังไม่รวม login/ต่อ DB) — ต้องมีเพดานแต่ห้ามสั้นกว่านี้
+const REQUEST_TIMEOUT_MS = 90_000
 const LOGOUT_TIMEOUT_MS = 5_000 // shutdown ต้องไม่ค้างเพราะ server เงียบ
+const TIMEOUT_MESSAGE = 'Smart Port API ไม่ตอบกลับภายในเวลาที่กำหนด — ลองใหม่ภายหลัง'
+// undici ใส่ cause 'unexpected redirect' เมื่อเจอ 3xx ภายใต้ redirect:'error' — แยกจาก network error ทั่วไปให้ผู้ดูแลเห็นสาเหตุ (ไม่ echo Location)
+const REDIRECT_MESSAGE =
+  'Smart Port API ตอบกลับแบบ redirect — ระบบไม่ตามเพื่อกันรหัสผ่านรั่ว ตรวจ SMARTPORT_API_URL / การตั้งค่า hosting'
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
 
 export class AuthError extends Error {}
 
@@ -52,8 +61,9 @@ export class SmartPortClient {
     try {
       return await fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(timeoutMs) })
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'TimeoutError') {
-        throw new Error('Smart Port API ไม่ตอบกลับภายในเวลาที่กำหนด — ลองใหม่ภายหลัง')
+      if (isTimeout(error)) throw new Error(TIMEOUT_MESSAGE)
+      if (error instanceof TypeError && (error.cause as Error | undefined)?.message === 'unexpected redirect') {
+        throw new Error(REDIRECT_MESSAGE)
       }
       throw error
     }
@@ -166,7 +176,9 @@ export class SmartPortClient {
     }
     try {
       return { status: res.status, json: (await res.json()) as T }
-    } catch {
+    } catch (error) {
+      // signal เดียวกันคุมถึงตอนอ่าน body — timeout ตรงนี้ต้องไม่ถูกรายงานว่า 'ไม่ใช่ JSON'
+      if (isTimeout(error)) throw new Error(TIMEOUT_MESSAGE)
       throw new Error('Smart Port API ตอบกลับไม่ใช่ JSON ที่อ่านได้') // ไม่ส่งต่อ SyntaxError เพราะ message อาจมีเศษ body
     }
   }

@@ -30,7 +30,7 @@ function routeFetch(routes: Record<string, Route>): void {
 }
 const callsTo = (suffix: string): number =>
   fetchMock.mock.calls.filter(([url]) => String(url).endsWith(suffix)).length
-// Cookie header ของ call ที่ index i (api.ts ส่ง headers เป็น plain object — cast จำเป็นภายใต้ strict tsc ของ test)
+// Cookie header ของ call ที่ index i (api.ts ส่ง headers เป็น plain object — cast จำเป็นเมื่อตรวจชนิดของ test ด้วย tsc แบบ strict แยก — tsconfig.json ครอบแค่ src/**)
 const cookieOfCall = (index: number): string =>
   ((fetchMock.mock.calls[index][1] as RequestInit).headers as Record<string, string>).Cookie
 const indexesOf = (suffix: string): number[] =>
@@ -100,7 +100,7 @@ describe('request policy (MS-02 redirect / MS-06 timeout)', () => {
     expect((error as Error).message).toContain('ไม่ตอบกลับ')
   })
 
-  it('timeout 30s สำหรับ login+GET และ 5s สำหรับ logout (ตรวจลำดับ เพื่อให้แต่ละ request ถูกตรึงค่าเอง)', async () => {
+  it('timeout 90s สำหรับ login+GET และ 5s สำหรับ logout (ตรวจลำดับ เพื่อให้แต่ละ request ถูกตรึงค่าเอง)', async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
     routeFetch({
       '/auth/login': () => loginResponse(),
@@ -111,7 +111,7 @@ describe('request policy (MS-02 redirect / MS-06 timeout)', () => {
     await client.get('/dashboard')
     await client.logout()
     // ลำดับคำขอ: login, GET, logout (logout ล็อกอินจริงก่อน เพราะ logout ตอนไม่ได้ login เป็น no-op)
-    expect(timeoutSpy.mock.calls.map(([ms]) => ms)).toEqual([30_000, 30_000, 5_000])
+    expect(timeoutSpy.mock.calls.map(([ms]) => ms)).toEqual([90_000, 90_000, 5_000])
   })
 
   it('refresh fetch ก็ผ่านจุดเดียวกัน: redirect:"error" + AbortSignal (เส้นทางที่ Set-Cookie เข้า jar ทันที)', async () => {
@@ -129,6 +129,14 @@ describe('request policy (MS-02 redirect / MS-06 timeout)', () => {
     const init = fetchMock.mock.calls[refreshCalls[0]][1] as RequestInit
     expect(init.redirect).toBe('error')
     expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('redirect ที่ถูกปฏิเสธ (undici: fetch failed + cause unexpected redirect) → ข้อความไทยบอกสาเหตุ ไม่ปนกับ network error', async () => {
+    fetchMock.mockRejectedValue(new TypeError('fetch failed', { cause: new Error('unexpected redirect') }))
+    const error = (await newClient().get('/x').catch((e: unknown) => e)) as Error
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain('redirect')
+    expect(error.message).not.toContain('fetch failed')
   })
 
   it('error อื่นที่ไม่ใช่ timeout ถูกโยนต่อโดยไม่ถูกแปลง', async () => {
@@ -245,6 +253,25 @@ describe('response handling (MS-08)', () => {
     expect(error.message).toContain('ไม่ใช่ JSON')
     expect(error.message).not.toContain('1234567890123')
     expect(error.message).not.toContain('<html>')
+  })
+
+  it('timeout ระหว่างอ่าน body → ข้อความ timeout ไม่ใช่ "ไม่ใช่ JSON" (ชี้สาเหตุผิด)', async () => {
+    routeFetch({
+      '/auth/login': () => loginResponse(),
+      '/dashboard': () =>
+        new Response(
+          new ReadableStream({
+            pull() {
+              throw new DOMException('timed out', 'TimeoutError')
+            },
+          }),
+          { status: 200 },
+        ),
+    })
+    const error = (await newClient().get('/dashboard').catch((e: unknown) => e)) as Error
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain('ไม่ตอบกลับ')
+    expect(error.message).not.toContain('ไม่ใช่ JSON')
   })
 
   it('response ที่ล้ม (HTTP 500) ถูกระบาย/cancel body ไม่ปล่อยค้าง', async () => {

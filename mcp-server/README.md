@@ -37,7 +37,8 @@ SP_SERVICE_PASSWORD=<รหัสบัญชี local จาก session service
   `SMARTPORT_API_ALLOWED_HOSTS=host1.example.go.th,host2.example.go.th` — แต่ละ entry ต้องเป็นชื่อ host ล้วน
   (ไม่มี scheme/พอร์ต/path/@) ไม่เช่นนั้น server ปฏิเสธตั้งแต่เริ่ม
 - ห้ามฝัง `user:pass@` ใน URL
-- ทุก request ไม่ตาม redirect (ถ้าเจอ 3xx = error) และมี timeout 30 วินาที (logout 5 วินาที)
+- ทุก request ไม่ตาม redirect (ถ้าเจอ 3xx = error พร้อมข้อความบอกว่าเป็น redirect) และมี timeout 90 วินาที (logout 5 วินาที) —
+  ตั้งไว้ให้พอรอ backend บน Render free plan ที่ตื่นจาก spin-down (~1 นาที)
 
 ทุก tool response ผ่านด่านตรวจเลขบัตรประชาชน (13 หลักติดกัน หรือแบบมีตัวคั่น `-` / ช่องว่าง รวมเลขไทย/fullwidth) —
 เจอ = ส่ง error แทนข้อมูลทั้งก้อน (fail-closed); ไม่ครอบเลขที่คั่นด้วย zero-width character
@@ -85,14 +86,14 @@ qwen, kimi, muse, mimo, qoder, antigravity, zcode, hermes, openclaw, grok) —
 ## เกทคุณภาพ
 
 ```powershell
-npm test   # vitest — cookie jar, log sanitizer, config, zod schemas
+npm test   # vitest — API client (session/redirect/timeout), PII guard, config, runtime, tool handlers, cookie jar, log sanitizer, schemas
 npm run lint  # eslint (exit 0 required)
 ```
 
 ## หมายเหตุ prototype
 
 - session: login แบบ lazy, refresh ก่อนหมดอายุ 5 นาที, 401 → refresh+retry
-  ครั้งเดียว, single-flight กัน reuse kill-all; ปิด process = logout ให้
+  ครั้งเดียว, single-flight กัน reuse kill-all; ปิด process (SIGINT/SIGTERM หรือ client ปิด stdin) = logout ให้แบบ best-effort (รอไม่เกิน 5 วินาที)
 - log เก็บแค่ metadata + internal ID ตามมติ pii-policy (มีเทสกัน PII หลุด)
 - ยังไม่ทำ: retry/backoff ขั้นสูง, metrics, auto-update, บัญชี production
   (ดู checklist ใน asset `service-account.md`)
