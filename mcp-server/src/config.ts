@@ -11,11 +11,17 @@ export interface McpConfig {
 const DEFAULT_ALLOWED_HOSTS: readonly string[] = ['smart-port.onrender.com']
 const LOOPBACK_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '[::1]']
 
+// DNS label ปกติ คั่นด้วย '.' เดี่ยว — ปฏิเสธ 'a..b', จุดนำ/ท้าย; รับ punycode 'xn--…' ได้
+const HOST_ENTRY = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
+
 function parseAllowedHosts(raw: string | undefined): string[] {
   const extra = (raw ?? '')
     .split(',')
     .map((host) => host.trim().toLowerCase())
     .filter((host) => host !== '')
+  if (extra.some((host) => !HOST_ENTRY.test(host))) {
+    throw new Error('SMARTPORT_API_ALLOWED_HOSTS รับเฉพาะชื่อ host (เช่น hr.example.go.th) คั่นด้วย , — ห้ามมี scheme/พอร์ต/path')
+  }
   return [...DEFAULT_ALLOWED_HOSTS, ...extra]
 }
 

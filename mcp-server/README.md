@@ -34,11 +34,13 @@ SP_SERVICE_PASSWORD=<รหัสบัญชี local จาก session service
 
 - ต้องเป็น `https` — `http` อนุญาตเฉพาะ `localhost` / `127.0.0.1` / `[::1]`
 - host ต้องอยู่ใน allowlist: ค่าเริ่มต้นคือ `smart-port.onrender.com` (เทียบตรงตัว ไม่ใช่ suffix) เพิ่ม host อื่นได้ด้วย
-  `SMARTPORT_API_ALLOWED_HOSTS=host1.example.go.th,host2.example.go.th`
+  `SMARTPORT_API_ALLOWED_HOSTS=host1.example.go.th,host2.example.go.th` — แต่ละ entry ต้องเป็นชื่อ host ล้วน
+  (ไม่มี scheme/พอร์ต/path/@) ไม่เช่นนั้น server ปฏิเสธตั้งแต่เริ่ม
 - ห้ามฝัง `user:pass@` ใน URL
+- ทุก request ไม่ตาม redirect (ถ้าเจอ 3xx = error) และมี timeout 30 วินาที (logout 5 วินาที)
 
-ทุก tool response ผ่านด่านตรวจเลข 13 หลักติดกัน (กันเลขบัตรประชาชนหลุดเข้า context ของ model) — เจอ = ส่ง error แทน
-ข้อมูลทั้งก้อน (fail-closed)
+ทุก tool response ผ่านด่านตรวจเลขบัตรประชาชน (13 หลักติดกัน หรือแบบมีตัวคั่น `-` / ช่องว่าง รวมเลขไทย/fullwidth) —
+เจอ = ส่ง error แทนข้อมูลทั้งก้อน (fail-closed); ไม่ครอบเลขที่คั่นด้วย zero-width character
 
 ตรวจสายอ่าน + refresh + logout จริง:
 
