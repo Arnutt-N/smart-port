@@ -30,6 +30,16 @@ SP_SERVICE_USERNAME=sp_mcp_service
 SP_SERVICE_PASSWORD=<รหัสบัญชี local จาก session service-account>
 ```
 
+กฎของ `SMARTPORT_API_URL` (server ปฏิเสธตั้งแต่เริ่มถ้าผิด — กัน credential ไปผิดที่):
+
+- ต้องเป็น `https` — `http` อนุญาตเฉพาะ `localhost` / `127.0.0.1` / `[::1]`
+- host ต้องอยู่ใน allowlist: ค่าเริ่มต้นคือ `smart-port.onrender.com` (เทียบตรงตัว ไม่ใช่ suffix) เพิ่ม host อื่นได้ด้วย
+  `SMARTPORT_API_ALLOWED_HOSTS=host1.example.go.th,host2.example.go.th`
+- ห้ามฝัง `user:pass@` ใน URL
+
+ทุก tool response ผ่านด่านตรวจเลข 13 หลักติดกัน (กันเลขบัตรประชาชนหลุดเข้า context ของ model) — เจอ = ส่ง error แทน
+ข้อมูลทั้งก้อน (fail-closed)
+
 ตรวจสายอ่าน + refresh + logout จริง:
 
 ```powershell

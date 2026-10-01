@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import * as z from 'zod/v4'
 import type { SmartPortClient } from '../api.js'
 import { logToolCall } from '../logger.js'
-import { toolErrorText } from './shared.js'
+import { toolErrorText, toolJsonText } from './shared.js'
 
 // ระดับเป้าหมายตาม routes/candidates.php:78 (+ O1 ไม่มีใน valid targets — อย่าเพิ่มเอง)
 const TARGET_LEVELS = ['K2', 'K3', 'K4', 'O2', 'O3', 'M1', 'M2', 'S1', 'S2'] as const
@@ -41,8 +41,9 @@ export function registerCandidateTool(server: McpServer, api: SmartPortClient): 
           path = `/candidates/${args.target_level}?${params.toString()}`
         }
         const { status, json } = await api.get(path)
+        const text = toolJsonText(json)
         logToolCall('candidate_search', args, status, Date.now() - started)
-        return { content: [{ type: 'text', text: JSON.stringify(json) }] }
+        return { content: [{ type: 'text', text }] }
       } catch (error) {
         logToolCall('candidate_search', args, 0, Date.now() - started)
         return { content: [{ type: 'text', text: toolErrorText(error) }], isError: true }
