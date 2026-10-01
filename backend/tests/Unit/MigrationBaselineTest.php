@@ -92,9 +92,34 @@ final class MigrationBaselineTest extends TestCase
     #[Test]
     public function baseline_guard_skips_marker_when_column_missing(): void
     {
-        // ไฟล์อื่นไม่แตะ PDO เลย
+        // ไฟล์อื่นที่ไม่ใช่ 35 หรือ 36 ไม่แตะ PDO เลย
         $unusedPdo = self::createMock(\PDO::class);
-        self::assertFalse(baselineRequiresRealApply($unusedPdo, '35-fk-retrofit.sql'));
+        self::assertFalse(baselineRequiresRealApply($unusedPdo, '34-password-history.sql'));
+
+        // 35: ขาด FK แม้แต่ตัวเดียว → fail-closed (ห้าม baseline ให้ runner apply จริง)
+        $allFksExceptOne = [
+            'fk_decorations_personnel', 'fk_photos_personnel',
+            'fk_proposals_personnel', 'fk_proposals_evaluator', 'fk_qualcalc_personnel',
+            'fk_refresh_tokens_user', 'fk_personnel_prefix',
+        ];
+        $stmtMissingFk = self::createMock(\PDOStatement::class);
+        $stmtMissingFk->method('fetchAll')->with(\PDO::FETCH_COLUMN)->willReturn($allFksExceptOne);
+        $missingFkPdo = self::createMock(\PDO::class);
+        $missingFkPdo->method('query')->willReturn($stmtMissingFk);
+        self::assertTrue(baselineRequiresRealApply($missingFkPdo, '35-fk-retrofit.sql'));
+
+        // 35: ครบทั้ง 8 FK → baseline ได้
+        $allFks = array_merge(['fk_awards_personnel'], $allFksExceptOne);
+        $stmtAllFks = self::createMock(\PDOStatement::class);
+        $stmtAllFks->method('fetchAll')->with(\PDO::FETCH_COLUMN)->willReturn($allFks);
+        $okFkPdo = self::createMock(\PDO::class);
+        $okFkPdo->method('query')->willReturn($stmtAllFks);
+        self::assertFalse(baselineRequiresRealApply($okFkPdo, '35-fk-retrofit.sql'));
+
+        // 35: query throw PDOException → fail-closed
+        $throwFkPdo = self::createMock(\PDO::class);
+        $throwFkPdo->method('query')->willThrowException(new \PDOException('I_S inaccessible'));
+        self::assertTrue(baselineRequiresRealApply($throwFkPdo, '35-fk-retrofit.sql'));
 
         // คอลัมน์แรกหาย → fail-closed
         $missingPdo = self::createMock(\PDO::class);

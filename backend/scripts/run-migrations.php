@@ -6,7 +6,7 @@
  *
  * Safety for existing TiDB/prod / fresh docker-compose volumes:
  * - If schema_migrations is empty but core tables already exist, seed a baseline
- *   for migrations through 33-* (already applied via init mounts / tidb-init;
+ *   for migrations through 36-* (already applied via init mounts / tidb-init;
  *   cut-off constant lives in migration-lib.php), and only execute newer files.
  *   test-seed files are never baselined.
  * - DDL is not wrapped in a multi-statement transaction (TiDB/MySQL auto-commit DDL).
@@ -132,7 +132,7 @@ function applyMigration(PDO $pdo, string $file): void
 
     // TiDB/MySQL auto-commit DDL — do not wrap the whole file in a transaction
     foreach (splitSqlStatements($sql) as $statement) {
-        $pdo->exec($statement);
+        executeMigrationStatement($pdo, $statement);
     }
 
     $insert = $pdo->prepare('INSERT INTO schema_migrations (migration_name) VALUES (?)');
@@ -154,7 +154,11 @@ function acquireMigrationLock(PDO $pdo): bool
 function releaseMigrationLock(PDO $pdo): void
 {
     try {
-        $pdo->query("SELECT RELEASE_LOCK('smartport_migrate')");
+        $stmt = $pdo->query("SELECT RELEASE_LOCK('smartport_migrate')");
+        if ($stmt !== false) {
+            $stmt->fetchColumn();
+            $stmt->closeCursor();
+        }
     } catch (Throwable $e) {
         // ignore
     }
