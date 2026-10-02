@@ -6,6 +6,17 @@ import { logSession } from './logger.js'
 
 const ACCESS_COOKIE = 'sp_access'
 const REFRESH_EARLY_SECONDS = 300 // refresh ก่อนหมดอายุ 5 นาที
+// Render free plan ตื่นจาก spin-down ~1 นาที (readyz แรกวัดได้ ~23s ยังไม่รวม login/ต่อ DB) — ต้องมีเพดานแต่ห้ามสั้นกว่านี้
+const REQUEST_TIMEOUT_MS = 90_000
+const LOGOUT_TIMEOUT_MS = 5_000 // shutdown ต้องไม่ค้างเพราะ server เงียบ
+const TIMEOUT_MESSAGE = 'Smart Port API ไม่ตอบกลับภายในเวลาที่กำหนด — ลองใหม่ภายหลัง'
+// undici ใส่ cause 'unexpected redirect' เมื่อเจอ 3xx ภายใต้ redirect:'error' — แยกจาก network error ทั่วไปให้ผู้ดูแลเห็นสาเหตุ (ไม่ echo Location)
+const REDIRECT_MESSAGE =
+  'Smart Port API ตอบกลับแบบ redirect — ระบบไม่ตามเพื่อกันรหัสผ่านรั่ว ตรวจ SMARTPORT_API_URL / การตั้งค่า hosting'
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
 
 export class AuthError extends Error {}
 
@@ -25,10 +36,19 @@ function getSetCookies(res: Response): string[] {
   return typeof headers.getSetCookie === 'function' ? headers.getSetCookie() : []
 }
 
+// ข้อความคงที่ตามสถานะ — ไม่มี body/URL (ถึง model ผ่าน toolErrorText)
+function statusError(status: number): Error {
+  if (status === 401) return new AuthError('เซสชันหมดอายุ — กรุณาลองใหม่อีกครั้ง')
+  if (status === 403) return new AuthError('บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลนี้ (403)')
+  if (status === 429) return new AuthError('ถูกจำกัดอัตราการเรียก (429) — ลองใหม่ภายหลัง')
+  return new Error(`Smart Port API ผิดพลาด: HTTP ${status}`)
+}
+
 export class SmartPortClient {
   private jar = new CookieJar()
   private loggedIn = false
   private refreshFlight: Promise<void> | null = null
+  private loginFlight: Promise<void> | null = null
 
   constructor(
     private readonly apiUrl: string,
@@ -36,13 +56,32 @@ export class SmartPortClient {
     private readonly password: string,
   ) {}
 
+  /** จุดเดียวที่ยิง HTTP: ห้าม redirect (guard M1/M2 ตรวจแค่ URL ที่ตั้งค่า) + มี timeout เสมอ */
+  private async request(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+    try {
+      return await fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(timeoutMs) })
+    } catch (error) {
+      if (isTimeout(error)) throw new Error(TIMEOUT_MESSAGE)
+      if (error instanceof TypeError && (error.cause as Error | undefined)?.message === 'unexpected redirect') {
+        throw new Error(REDIRECT_MESSAGE)
+      }
+      throw error
+    }
+  }
+
+  /** ระบาย body ที่ไม่ใช้ — ไม่ปล่อยให้ connection ค้างรอ body ที่ไม่มีใครอ่าน */
+  private discard(res: Response): void {
+    void res.body?.cancel().catch(() => undefined)
+  }
+
   private async login(): Promise<void> {
-    const res = await fetch(`${this.apiUrl}/auth/login`, {
+    const res = await this.request(`${this.apiUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: this.username, password: this.password }),
     })
     this.jar.storeFromSetCookies(getSetCookies(res))
+    this.discard(res) // login ไม่อ่าน body ทุกกิ่ง
     if (res.status === 429) {
       logSession('login', false, 'http=429')
       throw new AuthError('ล็อกอินถูกจำกัดอัตรา (429) — รอ 15 นาทีแล้วลองใหม่')
@@ -57,11 +96,12 @@ export class SmartPortClient {
 
   private async refreshNow(): Promise<void> {
     const cookie = this.jar.headerFor(`${this.apiUrl}/auth/refresh`)
-    const res = await fetch(`${this.apiUrl}/auth/refresh`, {
+    const res = await this.request(`${this.apiUrl}/auth/refresh`, {
       method: 'POST',
       headers: cookie === null ? {} : { Cookie: cookie },
     })
     this.jar.storeFromSetCookies(getSetCookies(res))
+    this.discard(res) // refresh ไม่อ่าน body ทุกกิ่ง
     if (!res.ok) {
       logSession('refresh', false, `http=${res.status}`)
       throw new AuthError('ต่ออายุ session ไม่สำเร็จ — ต้องล็อกอินใหม่')
@@ -79,6 +119,16 @@ export class SmartPortClient {
     return this.refreshFlight
   }
 
+  /** single-flight: กัน login ซ้อน (ซ้อน = cookie ทับกัน + เสี่ยง 429 lockout) */
+  private loginSingleFlight(): Promise<void> {
+    if (this.loginFlight === null) {
+      this.loginFlight = this.login().finally(() => {
+        this.loginFlight = null
+      })
+    }
+    return this.loginFlight
+  }
+
   private accessExpiringSoon(): boolean {
     const token = this.jar.get(ACCESS_COOKIE)
     if (token === null) return true
@@ -89,14 +139,14 @@ export class SmartPortClient {
 
   private async ensureSession(): Promise<void> {
     if (!this.loggedIn) {
-      await this.login()
+      await this.loginSingleFlight()
       return
     }
     if (this.accessExpiringSoon()) {
       try {
         await this.refreshSingleFlight()
       } catch {
-        await this.login() // refresh ใช้ไม่ได้แล้ว → login ใหม่ทั้งชุด
+        await this.loginSingleFlight() // refresh ใช้ไม่ได้แล้ว → login ใหม่ทั้งชุด
       }
     }
   }
@@ -106,36 +156,51 @@ export class SmartPortClient {
     const url = `${this.apiUrl}${path}`
     const send = async (): Promise<Response> => {
       const cookie = this.jar.headerFor(url)
-      return fetch(url, { headers: cookie === null ? {} : { Cookie: cookie } })
+      return this.request(url, { headers: cookie === null ? {} : { Cookie: cookie } })
     }
     let res = await send()
     if (res.status === 401) {
       // reactive: refresh ครั้งเดียวแล้ว retry ครั้งเดียว
+      this.discard(res)
       try {
         await this.refreshSingleFlight()
       } catch {
-        await this.login()
+        await this.loginSingleFlight()
       }
       res = await send()
     }
     this.jar.storeFromSetCookies(getSetCookies(res))
-    if (res.status === 401) throw new AuthError('เซสชันหมดอายุ — กรุณาลองใหม่อีกครั้ง')
-    if (res.status === 403) throw new AuthError('บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลนี้ (403)')
-    if (res.status === 429) throw new AuthError('ถูกจำกัดอัตราการเรียก (429) — ลองใหม่ภายหลัง')
-    if (!res.ok) throw new Error(`Smart Port API ผิดพลาด: HTTP ${res.status}`)
-    return { status: res.status, json: (await res.json()) as T }
+    if (!res.ok) {
+      this.discard(res)
+      throw statusError(res.status)
+    }
+    try {
+      return { status: res.status, json: (await res.json()) as T }
+    } catch (error) {
+      // signal เดียวกันคุมถึงตอนอ่าน body — timeout ตรงนี้ต้องไม่ถูกรายงานว่า 'ไม่ใช่ JSON'
+      if (isTimeout(error)) throw new Error(TIMEOUT_MESSAGE)
+      throw new Error('Smart Port API ตอบกลับไม่ใช่ JSON ที่อ่านได้') // ไม่ส่งต่อ SyntaxError เพราะ message อาจมีเศษ body
+    }
   }
 
   async logout(): Promise<void> {
+    // ไม่เคย login = ไม่มี session ให้ revoke (login ที่ยังวิ่งอยู่ก็ยังไม่มี cookie — ดู R7 ใน PRP)
+    if (!this.loggedIn) return
     try {
       const cookie = this.jar.headerFor(`${this.apiUrl}/auth/logout`)
-      await fetch(`${this.apiUrl}/auth/logout`, {
-        method: 'POST',
-        headers: cookie === null ? {} : { Cookie: cookie },
-      })
+      const res = await this.request(
+        `${this.apiUrl}/auth/logout`,
+        { method: 'POST', headers: cookie === null ? {} : { Cookie: cookie } },
+        LOGOUT_TIMEOUT_MS,
+      )
+      this.discard(res)
       logSession('logout', true)
     } catch {
       logSession('logout', false, 'network-error')
+    } finally {
+      // ล้างฝั่ง client เสมอ แม้ server ไม่ตอบ — ใช้ cookie ที่ถูก revoke (หรือกำลังถูก revoke) ต่อไม่ได้
+      this.jar = new CookieJar()
+      this.loggedIn = false
     }
   }
 }

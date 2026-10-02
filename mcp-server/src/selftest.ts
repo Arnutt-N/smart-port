@@ -64,11 +64,11 @@ export async function selfTest(): Promise<number> {
         `near=${list.json.summary.near_deadline ?? 0} http=${list.status}`,
     )
     const firstId = list.json.data[0]?.enrollment_id
-    if (firstId !== undefined) {
+    if (typeof firstId === 'number' && Number.isSafeInteger(firstId)) {
       const detail = await api.get<ProbationDetailBody>(`/probation/${firstId}`)
       console.log(`probation/${firstId}: ok=${detail.json.success} http=${detail.status}`)
     } else {
-      console.log('probation/detail: skipped (no rows)')
+      console.log('probation/detail: skipped (no usable rows)')
     }
 
     console.log('self-test: PASS')

@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import * as z from 'zod/v4'
 import type { SmartPortClient } from '../api.js'
 import { logToolCall } from '../logger.js'
-import { toolErrorText } from './shared.js'
+import { toolErrorText, toolJsonText } from './shared.js'
 
 export const probationInput = z.object({
   enrollment_id: z
@@ -42,8 +42,9 @@ export function registerProbationTool(server: McpServer, api: SmartPortClient): 
           path = `/probation?${params.toString()}`
         }
         const { status, json } = await api.get(path)
+        const text = toolJsonText(json)
         logToolCall('probation_watch', args, status, Date.now() - started)
-        return { content: [{ type: 'text', text: JSON.stringify(json) }] }
+        return { content: [{ type: 'text', text }] }
       } catch (error) {
         logToolCall('probation_watch', args, 0, Date.now() - started)
         return { content: [{ type: 'text', text: toolErrorText(error) }], isError: true }
