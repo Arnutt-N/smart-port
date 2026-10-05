@@ -127,6 +127,14 @@ echo "[pre-push] frontend vitest (forks pool from vitest.config.js) ..."
 cd "${FRONTEND}"
 npx vitest run --reporter=dot
 
+# mcp-server tests (gate จาก PR #210 — เดิมเขียนไว้แต่ไม่มี gate = เทสที่ไม่ถูกบังคับ)
+if [[ -d "${ROOT}/mcp-server/node_modules" ]]; then
+  echo "[pre-push] mcp-server vitest ..."
+  (cd "${ROOT}/mcp-server" && npx vitest run --reporter=dot)
+else
+  echo "[pre-push] SKIP  mcp-server vitest: ไม่มี mcp-server/node_modules — cd mcp-server && npm ci"
+fi
+
 # Backend PHPUnit Unit suite (T18/F2) — guarded step: run.sh docker-build + docker-run เสมอ
 # จึงต้องมี Docker จริง · ถ้า Docker ไม่พร้อม → SKIP อย่างมีเสียง ไม่ fail push
 # (set -euo pipefail ทำให้ run.sh ล้มเหลว = push ล้มเหลว เมื่อ Docker available — fail-closed)

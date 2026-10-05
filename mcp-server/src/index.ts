@@ -3,11 +3,17 @@ import { createRuntime, type Runtime } from './runtime.js'
 import { selfTest } from './selftest.js'
 
 if (process.argv.includes('--self-test')) {
+  // MS-12: process.exit() ตรงนี้ทำให้ libuv crash บน Windows เมื่อยังมี handle ค้าง
+  // (undici keep-alive) — ตั้ง exitCode แล้วปล่อยให้ event loop ว่างก่อนจบเอง
+  // ถ้ามี handle ค้างจน event loop ไม่ยอมจบ — fallback บังคับ exit หลัง 5 วิ
+  setTimeout(() => process.exit(process.exitCode ?? 0), 5000).unref()
   void selfTest().then(
-    (code) => process.exit(code),
+    (code) => {
+      process.exitCode = code
+    },
     (error: unknown) => {
       console.error(error instanceof Error ? error.message : 'self-test ล้มเหลว')
-      process.exit(1)
+      process.exitCode = 1
     },
   )
 } else {

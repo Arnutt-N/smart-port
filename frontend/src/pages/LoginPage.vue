@@ -222,7 +222,7 @@ async function handleLogin() {
 <style scoped>
 /* #4: Entrance animation */
 .login-card {
-  animation: loginEnter var(--duration-slow) var(--ease-out);
+  animation: loginEnter var(--duration-slow) ease-out;
 }
 @keyframes loginEnter {
   from {
