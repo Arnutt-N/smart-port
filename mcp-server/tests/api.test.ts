@@ -309,6 +309,34 @@ describe('response handling (MS-08)', () => {
   })
 })
 
+describe('closed state (MS-14)', () => {
+  it('login flight ที่ settle หลัง logout ไม่เติม jar/loggedIn — jar ต้องว่าง', async () => {
+    let releaseLogin: ((r: Response) => void) | null = null
+    routeFetch({
+      '/auth/login': () => new Promise<Response>((resolve) => { releaseLogin = resolve }),
+      '/auth/logout': () => jsonResponse({}),
+      '/dashboard': () => jsonResponse({ ok: 1 }),
+    })
+    const client = newClient()
+    const pending = client.get('/dashboard').catch((e: unknown) => e)
+    await client.logout() // closed=true ระหว่าง login flight ยังค้าง
+    releaseLogin!(loginResponse())
+    const result = await pending
+    expect(result).toBeInstanceOf(Error)
+    expect((result as Error).message).toContain('client ปิดแล้ว')
+    // flight ที่ settle ทีหลังห้ามเติม jar — get ครั้งถัดไปยังถูกปิด (ไม่ silent re-login)
+    await expect(client.get('/dashboard')).rejects.toThrow('client ปิดแล้ว')
+    expect(callsTo('/auth/login')).toBe(1)
+  })
+
+  it('logout โดยไม่เคย login → closed ด้วย — ensureSession/get ปฏิเสธ', async () => {
+    routeFetch({ '/dashboard': () => jsonResponse({ ok: 1 }) })
+    const client = newClient()
+    await client.logout()
+    await expect(client.get('/dashboard')).rejects.toThrow('client ปิดแล้ว')
+  })
+})
+
 describe('logout (MS-05)', () => {
   const logoutRoutes = (): Record<string, Route> => ({
     '/auth/login': () => loginResponse(),
@@ -331,8 +359,9 @@ describe('logout (MS-05)', () => {
     const logoutCall = fetchMock.mock.calls[indexesOf('/auth/logout')[0]][1] as RequestInit
     expect(logoutCall.method).toBe('POST')
 
-    await client.get('/dashboard')
-    expect(callsTo('/auth/login')).toBe(2)
+    // MS-14: client ปิดแล้วหลัง logout — get ต้องถูกปฏิเสธ ไม่ login ใหม่ (ของเดิม reuse ได้)
+    await expect(client.get('/dashboard')).rejects.toThrow('client ปิดแล้ว')
+    expect(callsTo('/auth/login')).toBe(1)
   })
 
   it('logout ล้มด้วย network error → ไม่ throw แต่ state ถูกล้างเหมือนกัน', async () => {
@@ -345,8 +374,9 @@ describe('logout (MS-05)', () => {
     const client = newClient()
     await client.get('/dashboard')
     await expect(client.logout()).resolves.toBeUndefined()
-    await client.get('/dashboard')
-    expect(callsTo('/auth/login')).toBe(2)
+    // MS-14: ปิดแล้ว — get หลัง logout (แม้ logout ล้ม) ต้องถูกปฏิเสธ ไม่ login ใหม่
+    await expect(client.get('/dashboard')).rejects.toThrow('client ปิดแล้ว')
+    expect(callsTo('/auth/login')).toBe(1)
   })
 })
 

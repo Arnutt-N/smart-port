@@ -150,6 +150,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # wiring test (MS-15) spawn dist/index.js — ไม่มี dist = skip เงียบ ๆ ใน CI = false green
+      - name: Build
+        run: npm run build
+
       - name: Run tests
         run: npm test
 

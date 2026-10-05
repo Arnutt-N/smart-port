@@ -49,6 +49,8 @@ export class SmartPortClient {
   private loggedIn = false
   private refreshFlight: Promise<void> | null = null
   private loginFlight: Promise<void> | null = null
+  // MS-14: หลัง logout() ห้าม login/refresh flight ที่ค้างอยู่เติม cookie กลับเข้า jar
+  private closed = false
 
   constructor(
     private readonly apiUrl: string,
@@ -80,7 +82,6 @@ export class SmartPortClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: this.username, password: this.password }),
     })
-    this.jar.storeFromSetCookies(getSetCookies(res))
     this.discard(res) // login ไม่อ่าน body ทุกกิ่ง
     if (res.status === 429) {
       logSession('login', false, 'http=429')
@@ -90,6 +91,8 @@ export class SmartPortClient {
       logSession('login', false, `http=${res.status}`)
       throw new AuthError('ล็อกอินไม่สำเร็จ — ตรวจ SP_SERVICE_USERNAME/SP_SERVICE_PASSWORD')
     }
+    if (this.closed) return // logout() เริ่มไปแล้วระหว่างรอ — อย่าเติม jar กลับ
+    this.jar.storeFromSetCookies(getSetCookies(res))
     this.loggedIn = true
     logSession('login', true)
   }
@@ -100,12 +103,13 @@ export class SmartPortClient {
       method: 'POST',
       headers: cookie === null ? {} : { Cookie: cookie },
     })
-    this.jar.storeFromSetCookies(getSetCookies(res))
     this.discard(res) // refresh ไม่อ่าน body ทุกกิ่ง
     if (!res.ok) {
       logSession('refresh', false, `http=${res.status}`)
       throw new AuthError('ต่ออายุ session ไม่สำเร็จ — ต้องล็อกอินใหม่')
     }
+    if (this.closed) return // logout() เริ่มไปแล้วระหว่างรอ — อย่าเติม jar กลับ
+    this.jar.storeFromSetCookies(getSetCookies(res))
     logSession('refresh', true)
   }
 
@@ -138,6 +142,7 @@ export class SmartPortClient {
   }
 
   private async ensureSession(): Promise<void> {
+    if (this.closed) throw new Error('client ปิดแล้ว (logout) — ไม่รับคำขอใหม่')
     if (!this.loggedIn) {
       await this.loginSingleFlight()
       return
@@ -153,6 +158,7 @@ export class SmartPortClient {
 
   async get<T = unknown>(path: string): Promise<{ status: number, json: T }> {
     await this.ensureSession()
+    if (this.closed) throw new Error('client ปิดแล้ว (logout) — ไม่รับคำขอใหม่') // logout ระหว่างรอ flight
     const url = `${this.apiUrl}${path}`
     const send = async (): Promise<Response> => {
       const cookie = this.jar.headerFor(url)
@@ -167,6 +173,7 @@ export class SmartPortClient {
       } catch {
         await this.loginSingleFlight()
       }
+      if (this.closed) throw new Error('client ปิดแล้ว (logout) — ไม่รับคำขอใหม่')
       res = await send()
     }
     this.jar.storeFromSetCookies(getSetCookies(res))
@@ -184,8 +191,13 @@ export class SmartPortClient {
   }
 
   async logout(): Promise<void> {
+    // MS-14: ปิดรับทุก flight ใหม่/ค้างอยู่ก่อน — login/refresh ที่ settle ทีหลังจะไม่เติม jar
+    this.closed = true
     // ไม่เคย login = ไม่มี session ให้ revoke (login ที่ยังวิ่งอยู่ก็ยังไม่มี cookie — ดู R7 ใน PRP)
-    if (!this.loggedIn) return
+    if (!this.loggedIn) {
+      this.jar = new CookieJar()
+      return
+    }
     try {
       const cookie = this.jar.headerFor(`${this.apiUrl}/auth/logout`)
       const res = await this.request(
