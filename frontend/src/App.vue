@@ -57,7 +57,7 @@ const { isNavigating } = useNavProgress()
 }
 
 /* หน่วงการโผล่ 150ms — navigation เร็วๆ จะไม่เห็นแถบกระพริบ */
-.nav-progress-enter-active { transition: opacity var(--duration-fast) ease var(--duration-moderate); }
+.nav-progress-enter-active { transition: opacity var(--duration-fast) ease 150ms; /* ds-allow-hardcode: 150ms delay — tokens/motion.json ไม่มี delay scale แยก */ }
 .nav-progress-enter-from { opacity: 0; }
 .nav-progress-leave-active { transition: opacity 120ms ease; /* ds-allow-hardcode: 120ms อยู่ระหว่าง fast(100)/base(200) — จุดสมดุลที่ปรับจริงสำหรับแถบบางเฉียบ */ }
 .nav-progress-leave-to { opacity: 0; }

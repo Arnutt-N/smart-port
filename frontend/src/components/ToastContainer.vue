@@ -56,10 +56,10 @@ const toastIcons = {
 
 <style scoped>
 .toast-enter-active {
-  transition: all var(--duration-moderate) var(--ease-out);
+  transition: all var(--duration-moderate) ease-out;
 }
 .toast-leave-active {
-  transition: all var(--duration-base) var(--ease-in);
+  transition: all var(--duration-base) ease-in;
 }
 .toast-enter-from {
   opacity: 0;

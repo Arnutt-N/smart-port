@@ -78,6 +78,7 @@
   --icon-size-18px: 18px; /* ds-allow-hardcode: จุดนิยาม var — component อ้าง var() ทั้งหมด */
   --popover-width: 320px;
   --toast-min-width: 300px;
+  --radius-full: 9999px;
 }
 
 .semi-dark {
